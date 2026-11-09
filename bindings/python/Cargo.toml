@@ -4,12 +4,17 @@
 
 [package]
 name = "nazuchem-python"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 publish = false
+# Private crates.io binding; the owner's distribution and provenance decisions gate release.
 license = "(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND (Apache-2.0 WITH LLVM-exception) AND Python-2.0"
 description = "Python bindings for Nazuchem chemical naming and structure IR"
 readme = "README.md"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [lib]
 name = "_native"
@@ -17,6 +22,6 @@ crate-type = ["cdylib"]
 doctest = false
 
 [dependencies]
-nazuchem = { path = "../../crates/nazuchem" }
+nazuchem = { path = "../../crates/nazuchem", version = "0.1.0" }
 pyo3 = { version = "0.27.2", features = ["abi3-py310"] }
 serde_json = "1"

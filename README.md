@@ -166,6 +166,9 @@ requiring hard limits must supervise requests externally.
 
 ## Development
 
+For registry setup, owner gates and the release workflow, see
+[Releasing nazuchem](docs/releasing.md).
+
 Use the pinned Rust toolchain and checked lockfile:
 
 ```sh

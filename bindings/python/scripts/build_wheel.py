@@ -55,6 +55,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", help="Rust target triple (defaults to rustc host)")
     parser.add_argument("--release", action="store_true", help="enable Rust release optimization")
+    parser.add_argument("--zig", action="store_true", help="use the pinned Zig linker via maturin")
+    parser.add_argument("--compatibility", help="maturin platform compatibility policy")
     parser.add_argument("--out", type=Path, default=PACKAGE_DIR / "dist")
     args = parser.parse_args()
     environment = os.environ.copy()
@@ -83,20 +85,30 @@ def main() -> None:
             "--no-project",
             "--with",
             "maturin>=1.8,<2",
-            "maturin",
-            "build",
-            "--locked",
-            "--manifest-path",
-            str(PACKAGE_DIR / "Cargo.toml"),
-            "--interpreter",
-            sys.executable,
-            "--out",
-            temporary,
         ]
+        if args.zig:
+            build.extend(["--with", "ziglang==0.17.1"])
+        build.extend(
+            [
+                "maturin",
+                "build",
+                "--locked",
+                "--manifest-path",
+                str(PACKAGE_DIR / "Cargo.toml"),
+                "--interpreter",
+                sys.executable,
+                "--out",
+                temporary,
+            ]
+        )
         if args.target:
             build.extend(["--target", args.target])
         if args.release:
             build.append("--release")
+        if args.zig:
+            build.append("--zig")
+        if args.compatibility:
+            build.extend(["--compatibility", args.compatibility])
         subprocess.run(build, cwd=PACKAGE_DIR, env=environment, check=True)
         wheels = sorted(Path(temporary).glob("*.whl"))
         if not wheels:

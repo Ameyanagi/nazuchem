@@ -10,6 +10,14 @@ members = [
 ]
 resolver = "2"
 
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+repository = "https://github.com/Ameyanagi/nazuchem"
+homepage = "https://github.com/Ameyanagi/nazuchem"
+keywords = ["chemistry", "cheminformatics", "nomenclature", "iupac", "smiles"]
+categories = ["science"]
+
 # Explicitly selected by the Wasm package builder; native/Python release is unchanged.
 [profile.wasm-release]
 inherits = "release"
