@@ -4,7 +4,7 @@
 // Source: RDKit | Code/GraphMol/SmilesParse/SmilesWrite.cpp | 0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985
 // Source: ReShiki | crates/chemistry/src/smiles/traversal.rs | be63a799aa03a83dc6ec74bb294f4d42b89298d3
 // Copyright (C) 2001-2025 Greg Landrum and other RDKit contributors.
-// Changes: Rust adaptation; the internal chemistry-to-kernel copy and any extraction changes remain recorded below.
+// Changes: Rust adaptation; Rust stable sort for all graph sizes (2026-11-10 owner decision); retain traversal limits.
 
 //! Ranked depth-first traversal from RDKit Canon.cpp and SmilesWrite.cpp.
 //! Copyright (C) 2001-2025 Greg Landrum and other RDKit contributors.
@@ -12,7 +12,7 @@
 //!
 //! This stage orders one connected component. Chemical preparation, ranking,
 //! and traversal-dependent stereochemistry are separate writer stages.
-// Copied unchanged from crates/chemistry/src/smiles/traversal.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3
+// Copied from crates/chemistry/src/smiles/traversal.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: use Rust stable sort on every platform.
 use super::symbols::{self, AtomProperties, Options, Writer};
 use crate::{graph::Graph, kekulize::Direction};
 use serde::Serialize;
@@ -209,14 +209,7 @@ impl<'a> Topology<'a> {
             }
             choices.push((key, edge));
         }
-        if self.ranks.len() > 5000 {
-            let keys = choices.iter().map(|(key, _)| *key).collect::<Vec<_>>();
-            return crate::native_order::indices(&keys)
-                .map_err(|e| Error::Invalid(e.to_string()))?
-                .into_iter()
-                .map(|i| at(&choices, i).map(|(_, edge)| *edge))
-                .collect();
-        }
+        // Equal-priority edges retain their input order on every platform.
         choices.sort_by_key(|(rank, _)| *rank);
         Ok(choices.into_iter().map(|(_, edge)| edge).collect())
     }

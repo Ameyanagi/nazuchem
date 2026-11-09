@@ -109,13 +109,18 @@ requests externally.
 
 Original facade code is MIT OR Apache-2.0. The package expression also ANDs
 the engines' and kernel's established terms: MIT (OPSIN and openclatura),
-BSD-3-Clause (RDKit), BSD-2-Clause (centres), Apache-2.0 WITH LLVM-exception
-(LLVM libc++ and Microsoft STL), and Python-2.0 (a CPython adaptation).
+BSD-3-Clause (RDKit), BSD-2-Clause (centres), and Python-2.0 (a CPython adaptation).
 Complete license texts, copyright notices and dependency scope notices are
 included in `licenses/`; `LICENSE-MIT` and `LICENSE-APACHE` cover local code.
 
-The dependencies' unresolved native sort-policy and IUPAC Blue Book table
-provenance remains unresolved. Those files retain `NOASSERTION` in the
-repository-root `PROVENANCE-nazuchem.toml`; the established package expression
-does not grant rights for that material. `publish = false` remains in force.
+The owner's 2026-11-10 **Rust stable sort** decision removed the kernel's
+per-OS C++ sorting reproductions, shared helpers and sort fingerprints. The
+kernel uses Rust standard library stable sort calls; no implementation was
+copied from Rust. The old code was the only incorporated LLVM libc++/Microsoft
+STL use, so its licence texts, notices and LLVM-exception term were removed.
+
+The dependencies' IUPAC Blue Book table reuse permission remains unresolved.
+That table retains `NOASSERTION` in the repository-root `PROVENANCE-nazuchem.toml`;
+the established package expression does not grant rights for that material.
+`publish = false` remains in force.
 The crate's `NOTICE` and copied dependency notices describe the exact scope.

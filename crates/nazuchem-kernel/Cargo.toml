@@ -3,9 +3,9 @@ name = "nazuchem-kernel"
 version = "0.1.0"
 edition = "2024"
 publish = false
-# Established terms; native_order/{linux_sort,sort_common}.rs remain NOASSERTION
-# pending the owner's sort-policy decision. This crate is not publishable yet.
-license = "(MIT OR Apache-2.0) AND BSD-3-Clause AND BSD-2-Clause AND (Apache-2.0 WITH LLVM-exception)"
+# Incorporated terms after the 2026-11-10 owner decision to use Rust stable sort.
+# Publication remains disabled while repository provenance work is incomplete.
+license = "(MIT OR Apache-2.0) AND BSD-3-Clause AND BSD-2-Clause"
 description = "Internal molecular perception kernel for nazuchem, adapted from RDKit and centres"
 
 [dependencies]

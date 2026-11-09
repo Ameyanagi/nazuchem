@@ -9,12 +9,10 @@ import tempfile
 import tomllib
 import unittest
 from copy import deepcopy
-from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
 from scripts.check_provenance import (
-    FROZEN_PENDING,
     LEDGER_NAME,
     REQUIRED_FIXTURES,
     REQUIRED_ROOTS,
@@ -257,26 +255,14 @@ class ProvenanceTests(unittest.TestCase):
         )
         self.assertTrue(check_rust("another_pending.rs", text, entry))
 
-    def test_only_the_two_exact_pending_source_and_ledger_snapshots_are_exempt(self):
-        repository = Path(__file__).resolve().parents[1]
-        ledger = tomllib.loads((repository / LEDGER_NAME).read_text(encoding="utf-8"))
-        entries = {entry["path"]: entry for entry in ledger["file"]}
-        self.assertEqual(len(FROZEN_PENDING), 2)
-        for path in FROZEN_PENDING:
+    def test_removed_sort_paths_have_no_legacy_header_exemption(self):
+        entry = {"origin": "original", "license": "MIT", "sources": [SOURCE]}
+        valid = header() + "fn x() {}"
+        for name in ("linux_sort.rs", "sort_common.rs"):
+            path = f"crates/nazuchem-kernel/src/native_order/{name}"
             with self.subTest(path=path):
-                text = (repository / path).read_bytes().decode("utf-8")
-                entry = entries[path]
-                self.assertEqual(check_rust(path, text, entry), [])
-                self.assertIn("source snapshot changed", check_rust(path, text + "\n", entry)[0])
-                changed = deepcopy(entry)
-                changed["notes"] += " altered"
-                self.assertIn("ledger entry changed", check_rust(path, text, changed)[0])
-                changed = deepcopy(entry)
-                changed["sources"][0]["ref"] = "new reference"
-                self.assertIn("ledger entry changed", check_rust(path, text, changed)[0])
-                changed["sources"][0]["ref"] = date(2026, 11, 9)
-                self.assertIn("ledger entry changed", check_rust(path, text, changed)[0])
-                self.assertTrue(check_rust("elsewhere/" + Path(path).name, text, entry))
+                self.assertEqual(check_rust(path, valid, entry), [])
+                self.assertTrue(check_rust(path, "fn x() {}", entry))
 
     def test_cli_exit_codes_and_diagnostics(self):
         self.write_ledger()

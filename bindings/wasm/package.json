@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "npm/WebAssembly bindings for nazuchem chemical naming",
-  "license": "(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND (Apache-2.0 WITH LLVM-exception) AND Python-2.0",
+  "license": "(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND Python-2.0",
   "type": "module",
   "main": "./dist/node/index.cjs",
   "module": "./dist/bundler/index.js",

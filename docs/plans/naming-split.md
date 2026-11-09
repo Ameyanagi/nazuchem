@@ -1,6 +1,7 @@
 # Plan: move structure↔name out of ReShiki into an open-source library
 
 Status: accepted 2026-11-09 (decisions D1–D6 made). Name: **nazuchem** (名付け + chem).
+Updated 2026-11-10 with owner decision D7, **Rust stable sort**, after extraction.
 
 ## 1. Where things stand (main @ e73e0fdd)
 
@@ -10,6 +11,9 @@ Status: accepted 2026-11-09 (decisions D1–D6 made). Name: **nazuchem** (名付
 | structure→name (s2n)            | `src/naming/openclatura`                                                                                                                                                                                                                                      | 103 Rust files / 54k lines (nested `fusion/`, `phane/`, `rules/`), 960 KB data | Began as a port of openclatura 0.4.3 (MIT, lamalab-org), heavily extended in ReShiki. **Also contains OPSIN-derived data** (`data/fusion_entry_geometry.json`, `retained_macrocycle_templates.json`). Many files have no per-file origin marker |
 | App glue                        | `src/naming.rs`, `src/naming/*.rs`                                                                                                                                                                                                                            | ~3.8k lines                                                                    | ReShiki original; `catalog` data is OPSIN MIT + ChEBI CC BY 4.0                                                                                                                                                                                 |
 | Chemistry the naming code needs | `crates/chemistry`: `smiles`, `kekulize`, `aromaticity`, `rings`, `ranking`, `stereo` (perception, CIP, and the spatial/drawing types they use), `sanitize`, `electronic`, `normalize`, `cx`, `graph`, `hydrogens`, `atomic_data`, `isotopes`, `native_order` | ~27.5k lines (exact transitive closure to be inventoried in step 1)            | RDKit-derived (BSD-3); extended-tetrahedral CIP from SiMolecule **centres (BSD-2)**                                                                                                                                                             |
+
+This is the pre-extraction inventory. D7 below subsequently removes the
+`native_order` modules and their C++ sort fingerprint fixtures from nazuchem.
 
 Couplings that matter:
 
@@ -288,10 +292,10 @@ Result types must keep today's semantics:
    or `// SPDX-License-Identifier: MIT OR Apache-2.0` + `// Origin: original Nazuchem code`. Mixed files mark function-level boundaries: `// Ported from openclatura chains.py::_longest_chain` vs `// Nazuchem extension (not in openclatura 0.4.3): …`.
 2. **Data, byte-preserved upstream XML and binary DFA tables** get no inline header (that would break byte equality); they are listed in `PROVENANCE-nazuchem.toml` with origin, upstream path, commit, licence and SHA-256.
 3. `PROVENANCE-nazuchem.toml` covers every file recursively (source, data, fixtures, scripts). `uv run --locked python scripts/check_provenance.py` fails CI on a missing entry, a header/ledger mismatch, a missing mixed-function marker or a non-Rust hash change. The release notice collector gathers the crate-local terms.
-4. **Notices travel inside each publishable crate**: every crate directory contains its own `LICENSE*`, `NOTICE` and a `licenses/` folder with the complete upstream texts that apply to it (n2s: OPSIN; s2n: openclatura + OPSIN + CPython; kernel: RDKit + centres + LLVM/MSVC; facade: all). Wheels and npm packages include the same. Release CI asserts the **contents**, not just filenames, of the `.crate`, wheel and npm tarball, and ReShiki's CI asserts its aggregated `THIRD-PARTY-NOTICES.txt` still contains OPSIN, openclatura, RDKit and centres after the switch. During Phase A (while the new crates still live in the ReShiki workspace), those crates are not `MIT OR Apache-2.0` as a whole: declare their real licence expressions, copy the matching root `licenses/` entries (rdkit, centres, stdlib, openclatura, cpython) into each crate's own `licenses/` folder, retain the root copies while ReShiki contains those implementations, and make sure the collector's "original workspace crate" shortcut does not skip them.
+4. **Notices travel inside each publishable crate**: every crate directory contains its own `LICENSE*`, `NOTICE` and a `licenses/` folder with the complete upstream texts that apply to it (n2s: OPSIN; s2n: openclatura + OPSIN + CPython; kernel after D7: RDKit + centres; facade: all). Wheels and npm packages include the same. Release CI asserts the **contents**, not just filenames, of the `.crate`, wheel and npm tarball, and ReShiki's CI asserts its aggregated `THIRD-PARTY-NOTICES.txt` still contains OPSIN, openclatura, RDKit and centres after the switch. During Phase A (while the new crates still live in the ReShiki workspace), those crates are not `MIT OR Apache-2.0` as a whole: declare their real licence expressions, copy the matching root `licenses/` entries into each crate's own `licenses/` folder, retain the root copies while ReShiki contains those implementations, and make sure the collector's "original workspace crate" shortcut does not skip them. D7 removes only nazuchem's stdlib notice/text copies after their sole incorporated uses are deleted; it does not change ReShiki's own licence inventory.
 5. **Wording**: README, crate docs and package metadata say "port of OPSIN" / "began as a port of openclatura 0.4.3, extended" — never "original" for those parts.
 6. **IUPAC references**: rule functions carry a doc tag such as `/// IUPAC 2013: P-44.1.2.2`; fused `FR-`, spiro `SP-`, von Baeyer `VB-`, ring assemblies `RB-`. Rule numbers and short quotes only (Blue Book text is IUPAC/RSC copyright). A script turns the tags into a rule-coverage page. Note that OPSIN-compatibility data (e.g. `fusion_entry_geometry.json`) already says it is "parser compatibility, not IUPAC PIN certification"; keep that distinction.
-7. **Licences**: original code MIT OR Apache-2.0; OPSIN and openclatura MIT; RDKit BSD-3; centres BSD-2; CPython Python-2.0 (complete licence/history); LLVM libc++ and Microsoft STL Apache-2.0 WITH LLVM-exception; ChEBI CC BY 4.0 (only if the catalog moves).
+7. **Licences after D7**: original code MIT OR Apache-2.0 (n2s original additions remain MIT); OPSIN and openclatura MIT; RDKit BSD-3; centres BSD-2; CPython Python-2.0 (complete licence/history); ChEBI CC BY 4.0 (only if the catalog moves).
 
 **Provenance audit** (step 2): all 103 openclatura Rust files and their data against openclatura 0.4.3 (`90dc5bcb`) plus ReShiki git history, separating openclatura-ported, OPSIN-derived and original code, function by function; the chemistry subset against RDKit/centres. The output _is_ the first `PROVENANCE-nazuchem.toml`.
 
@@ -445,3 +449,26 @@ Risks: step 4 is the hardest (openclatura uses `crate::naming` in 112 places plu
 - D5 Naming work during Phase A: freeze naming features and non-urgent fixes until step 6.
 - D6 IR: nazuchem's own typed graph with versioned JSON (§5).
 - Optional courtesy: tell OPSIN's author and lamalab-org before the first public release.
+
+**D7 — Rust stable sort (owner decision, 2026-11-10).** Following extraction,
+the kernel stops reproducing each C++ standard library's per-OS sort and heap
+policies. It uses Rust standard library stable sort calls; equal keys preserve
+their input order. Legacy C++ tie permutations and their fingerprint fixtures
+are no longer compatibility targets. No Rust standard library implementation
+is copied into this repository.
+
+The six `native_order` module files and three sort fingerprint fixtures are
+removed, together with their active provenance entries. A source and ledger
+audit found no retained LLVM libc++/Microsoft STL adaptations: the only
+`Apache-2.0 WITH LLVM-exception` implementation files were the deleted Apple
+and Windows sort policies, and the only other attributed code was the deleted
+shared sort helper. Their six kernel/facade notice and licence-text copies and
+the corresponding package-expression term are therefore removed. Historical
+source pins for retained files remain unchanged; local edits are recorded in
+the ledger notes.
+
+This closes the sort-policy provenance blocker by removing the affected code.
+The IUPAC Blue Book table reuse-permission decision and the test-only
+PubChem-derived corpus terms remain unresolved, as do the recorded source-pin
+and generation-method gaps. All crates retain `publish = false`, and the npm
+package remains private.

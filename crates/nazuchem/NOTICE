@@ -21,23 +21,28 @@ are in licenses/openclatura/ and licenses/cpython/. The engine scope notice
 in licenses/nazuchem-s2n/NOTICE qualifies inherited OPSIN generation pins,
 the unresolved CPython patch revision, and historical ReShiki source paths.
 
-Molecular perception: nazuchem-kernel adapts RDKit under BSD-3-Clause,
-SiMolecule centres under BSD-2-Clause, and LLVM libc++/Microsoft STL under
-Apache-2.0 WITH LLVM-exception. Complete terms and upstream copyright
-notices are in licenses/rdkit/, licenses/centres/ and licenses/stdlib/.
+Molecular perception: nazuchem-kernel adapts RDKit under BSD-3-Clause and
+SiMolecule centres under BSD-2-Clause. Complete terms and upstream copyright
+notices are in licenses/rdkit/ and licenses/centres/.
 licenses/nazuchem-kernel/NOTICE records exact revisions and incorporated
 scope. Shared naming vocabulary is original ReShiki code under MIT OR
 Apache-2.0; its history is in licenses/nazuchem-ir/NOTICE.
 
 The package expression ANDs the facade's original-code choice with the
 established expressions of its engines and kernel:
-(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND
-(Apache-2.0 WITH LLVM-exception) AND Python-2.0.
+(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND Python-2.0.
 This applies the dependency terms even when one optional engine is disabled.
-It is not a grant for unresolved material: kernel native_order/linux_sort.rs
-and sort_common.rs and s2n data/bluebook/p25_retained.tsv remain NOASSERTION,
-pending their owner's source/licensing decisions. publish = false remains
-in force. The repository-root PROVENANCE-nazuchem.toml retains those facts.
+It is not a grant for unresolved material: s2n data/bluebook/p25_retained.tsv
+remains NOASSERTION pending the owner's reuse-permission decision.
+publish = false remains in force. The repository-root PROVENANCE-nazuchem.toml
+retains those facts.
+
+Owner decision 2026-11-10, "Rust stable sort": the kernel's per-OS C++ sorting
+adaptations, shared sort helpers and reference fingerprints were removed in
+favor of Rust standard library stable sort calls. No Rust standard library
+implementation was copied. The removed code was the only incorporated use of
+LLVM libc++/Microsoft STL; its notices, license texts and LLVM-exception term
+are no longer part of this package's incorporated terms.
 
 Copied notices retain historical paths and broader ReShiki inventories.
 The per-file ledger and dependency scope notices identify the incorporated

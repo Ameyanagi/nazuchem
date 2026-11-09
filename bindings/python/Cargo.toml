@@ -7,7 +7,7 @@ name = "nazuchem-python"
 version = "0.1.0"
 edition = "2024"
 publish = false
-license = "(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND (Apache-2.0 WITH LLVM-exception) AND Python-2.0"
+license = "(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND Python-2.0"
 description = "Python bindings for Nazuchem chemical naming and structure IR"
 readme = "README.md"
 

@@ -34,7 +34,6 @@ pub mod graph;
 pub mod hydrogens;
 pub mod identity;
 pub mod kekulize;
-mod native_order;
 pub mod normalize;
 pub mod ranking;
 pub mod rings;

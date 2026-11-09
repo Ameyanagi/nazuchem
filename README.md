@@ -8,8 +8,8 @@ Extracted from [ReShiki](https://github.com/Ameyanagi/ReShiki), a molecular
 drawing app. The name-to-structure engine is a Rust port of OPSIN by Daniel Lowe
 (MIT). The structure-to-name engine began as a port of openclatura 0.4.3 by
 lamalab-org (MIT), extended in ReShiki. The chemistry kernel adapts RDKit and
-SiMolecule centres, with LLVM libc++ and Microsoft STL sorting adaptations;
-the naming engine also includes a CPython integer-set adaptation.
+SiMolecule centres and uses Rust standard library stable sorting; the naming
+engine also includes a CPython integer-set adaptation.
 
 The 0.x API is not yet stable.
 
@@ -202,12 +202,20 @@ Original code uses [MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE), except
 original additions inside `nazuchem-n2s`, which are MIT only like the OPSIN
 port they extend.
 Incorporated material keeps its own terms: OPSIN/openclatura MIT, RDKit
-BSD-3-Clause, centres BSD-2-Clause, LLVM libc++/Microsoft STL
-Apache-2.0 WITH LLVM-exception, and CPython Python-2.0. See [NOTICE](NOTICE),
+BSD-3-Clause, centres BSD-2-Clause, and CPython Python-2.0. See [NOTICE](NOTICE),
 the per-file [`PROVENANCE-nazuchem.toml`](PROVENANCE-nazuchem.toml) ledger and
 each crate's `NOTICE` and `licenses/` texts for the applicable scope and pins.
 
-Owner decisions remain pending for native sort-policy provenance, IUPAC Blue
-Book table reuse permission and the test-only PubChem-derived corpus's source
-terms. These entries retain `NOASSERTION`; the established license expressions
-do not grant rights for that material.
+The owner's 2026-11-10 **Rust stable sort** decision replaces the kernel's
+per-OS C++ sorting reproductions with Rust standard library stable sort calls.
+Equal keys retain input order; reproducing each C++ library's tie ordering is
+no longer a compatibility target. The old sort code and fingerprints were
+removed, and no Rust standard library implementation was copied. No remaining
+incorporated material requires the former LLVM libc++/Microsoft STL licence
+texts or LLVM-exception term.
+
+Owner decisions remain pending for IUPAC Blue Book table reuse permission
+and the test-only PubChem-derived corpus's source terms. These entries retain
+`NOASSERTION`; the established license expressions
+do not grant rights for that material. All Rust crates retain `publish = false`,
+and the npm package remains private.
