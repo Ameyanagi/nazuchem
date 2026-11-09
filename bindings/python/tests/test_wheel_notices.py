@@ -9,30 +9,27 @@ from zipfile import ZipFile
 import pytest
 
 _SPEC = importlib.util.spec_from_file_location(
-    "check_wheel_notices",
-    Path(__file__).resolve().parents[1] / "scripts/check_wheel_notices.py",
+    "build_wheel",
+    Path(__file__).resolve().parents[1] / "scripts/build_wheel.py",
 )
 assert _SPEC is not None and _SPEC.loader is not None
 _CHECKER = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_CHECKER)
 
 
-def _fixture(tmp_path: Path, *, omit: str = "", corrupt: str = "") -> tuple[Path, Path, Path]:
-    generated, fresh = tmp_path / "generated", tmp_path / "fresh"
-    generated.mkdir()
-    fresh.mkdir()
+def _fixture(tmp_path: Path, *, omit: str = "", corrupt: str = "") -> tuple[Path, dict[str, bytes]]:
+    notices = {}
     wheel = tmp_path / "nazuchem-0.1.0-cp310-abi3-any.whl"
     with ZipFile(wheel, "w") as archive:
         for name in _CHECKER.NOTICE_FILES:
             contents = f"generated full notice for {name}\n".encode()
-            (generated / name).write_bytes(contents)
-            (fresh / name).write_bytes(contents)
+            notices[name] = contents
             if name != omit:
                 archive.writestr(
                     f"nazuchem-0.1.0.dist-info/licenses/{name}",
                     b"truncated" if name == corrupt else contents,
                 )
-    return wheel, generated, fresh
+    return wheel, notices
 
 
 def test_checker_accepts_all_four_exact_notice_bytes(tmp_path: Path) -> None:
@@ -51,15 +48,27 @@ def test_checker_rejects_changed_wheel_notice(tmp_path: Path, name: str) -> None
         _CHECKER.check_wheel(*_fixture(tmp_path, corrupt=name))
 
 
-def test_checker_requires_generated_files(tmp_path: Path) -> None:
-    wheel, generated, fresh = _fixture(tmp_path)
-    (generated / "NOTICE").unlink()
-    with pytest.raises(ValueError, match="missing generated notice"):
-        _CHECKER.check_wheel(wheel, generated, fresh)
+@pytest.mark.parametrize("contents", [None, b""])
+def test_build_requires_fresh_nonempty_notices(tmp_path: Path, contents: bytes | None) -> None:
+    for name in _CHECKER.NOTICE_FILES:
+        (tmp_path / name).write_bytes(b"fresh notice")
+    notice = tmp_path / "NOTICE"
+    if contents is None:
+        notice.unlink()
+    else:
+        notice.write_bytes(contents)
+    with pytest.raises(ValueError, match="missing or empty generated notice"):
+        _CHECKER.generated_notices(tmp_path)
 
 
-def test_checker_rejects_stale_generated_files(tmp_path: Path) -> None:
-    wheel, generated, fresh = _fixture(tmp_path)
-    (generated / "THIRD-PARTY-NOTICES.txt").write_text("stale")
-    with pytest.raises(ValueError, match="stale or ungenerated"):
-        _CHECKER.check_wheel(wheel, generated, fresh)
+@pytest.mark.parametrize("contents", [None, b""])
+def test_checker_rejects_missing_or_empty_generated_notices(
+    tmp_path: Path, contents: bytes | None
+) -> None:
+    wheel, notices = _fixture(tmp_path)
+    if contents is None:
+        notices.pop("NOTICE")
+    else:
+        notices["NOTICE"] = contents
+    with pytest.raises(ValueError, match="missing or empty generated notice"):
+        _CHECKER.check_wheel(wheel, notices)

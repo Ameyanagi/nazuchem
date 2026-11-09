@@ -23,6 +23,9 @@ function call(operation, value) {
     if (source instanceof Error && source.name === "NazuchemError") {
       throw new NazuchemError(source.message, source.kind);
     }
+    if (source instanceof WebAssembly.RuntimeError) {
+      throw new NazuchemError(source.message, "internal");
+    }
     throw source;
   }
 }
@@ -30,7 +33,10 @@ function call(operation, value) {
 export function nameToSmiles(name) { return call(raw.nameToSmiles, name); }
 function flattenName(result) {
   return {
-    ...result,
+    text: result.text,
+    omittedStereo: result.omitted_stereo,
+    omittedUnits: result.omitted_units,
+    verification: result.verification,
     status: result.status.status,
     reason: result.status.reason ?? null,
     alternatives: result.alternatives.map((alternative) => ({
@@ -42,4 +48,17 @@ function flattenName(result) {
 }
 export function smilesToName(smiles) { return flattenName(call(raw.smilesToName, smiles)); }
 export function nameToMolecule(name) { return call(raw.nameToMolecule, name); }
-export function moleculeToName(molecule) { return flattenName(call(raw.moleculeToName, molecule)); }
+// JSON.stringify would silently turn nonfinite numbers into null. Validate the
+// supplied object first so nullable IR fields cannot discard invalid input.
+function assertFiniteNumbers(value, seen = new WeakSet()) {
+  if (typeof value === "number" && !Number.isFinite(value)) {
+    throw new NazuchemError("molecule numbers must be finite", "serialize");
+  }
+  if (value === null || typeof value !== "object" || seen.has(value)) return;
+  seen.add(value);
+  for (const child of Object.values(value)) assertFiniteNumbers(child, seen);
+}
+export function moleculeToName(molecule) {
+  assertFiniteNumbers(molecule);
+  return flattenName(call(raw.moleculeToName, molecule));
+}

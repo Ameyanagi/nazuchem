@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Origin: port
+// Origin: adapted
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/StructureBuildingMethods.java | 42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/StructureBuildingMethods.java | b91b610af5ab07560fedb20730d7aef46bb2bca0
 // Copyright Daniel Lowe and OPSIN contributors; MIT (see LICENSE).
 // Copyright 2017 Daniel Lowe
+// Changes: Preserve upstream integer ranges and validate generated prime suffix lengths.
 
 //! OPSIN's ordered fragment assembly operations.
 //! Port of `StructureBuildingMethods.java`, OPSIN 2.9.0, b91b610af5ab07560fedb20730d7aef46bb2bca0.
@@ -43,10 +44,13 @@ impl Assembly<'_> {
         self.arena[node].attribute(key).map(str::to_owned)
     }
     pub fn number(&self, node: NodeId, key: &str) -> Result<usize> {
+        // Changes: Parse upstream int-valued attributes without usize widening.
         self.attr(node, key)
             .ok_or_else(|| error(format!("Missing {key} on {}", self.arena[node].name)))?
-            .parse()
-            .map_err(|_| error(format!("Invalid {key} on {}", self.arena[node].name)))
+            .parse::<i32>()
+            .ok()
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or_else(|| error(format!("Invalid {key} on {}", self.arena[node].name)))
     }
     pub fn fragment(&self, group: NodeId) -> Result<FragmentId> {
         self.arena[group]
@@ -155,6 +159,9 @@ impl Assembly<'_> {
             .any(|&child| self.arena[child].name != "hyphen")
     }
     pub fn clone_element(&mut self, node: NodeId, primes: usize) -> Result<NodeId> {
+        // Changes: Reject oversized prime suffixes before copying the element.
+        let prime_suffix = crate::component_generator::checked_repeat("'", primes)
+            .map_err(|e| error(e.to_string()))?;
         let state = &mut self.state;
         let copy = state.fragment_manager.clone_element(
             self.arena,
@@ -167,7 +174,7 @@ impl Assembly<'_> {
             .descendants_named(copy, crate::xml_declarations::STEREOCHEMISTRY_EL)
         {
             if let Some(locant) = self.attr(stereo, "locant") {
-                self.arena[stereo].set_attribute("locant", locant + &"'".repeat(primes));
+                self.arena[stereo].set_attribute("locant", locant + &prime_suffix);
             }
         }
         Ok(copy)
@@ -1892,6 +1899,7 @@ impl Assembly<'_> {
         order: i32,
         primes: usize,
     ) -> Result<Vec<AtomId>> {
+        // Changes: Validate prime expansion before constructing generated locants.
         let fragment = self.fragment(group)?;
         let f = self.graph().fragment(fragment);
         if self.attr(group, "usableAsAJoiner").as_deref() == Some("yes")
@@ -1901,7 +1909,8 @@ impl Assembly<'_> {
                 .previous_element(group, false)
                 .is_some_and(|p| self.arena[p].name == "multiplier")
         {
-            let primes = "'".repeat(primes);
+            let primes = crate::component_generator::checked_repeat("'", primes)
+                .map_err(|e| error(e.to_string()))?;
             let mut length = 0;
             let mut previous = None;
             while let Some(next) = self

@@ -6,6 +6,7 @@
 // Copyright Daniel Lowe and OPSIN contributors; MIT (see LICENSE).
 // Copyright 2017 Daniel Lowe
 // Changes: Rust ownership, arena/container and error-handling adaptation; integrated native changes are documented in PORTING.md.
+// Changes: Validate ul suffix counts and carbohydrate ring locants before expansion/arithmetic.
 
 //! Carbohydrate construction from OPSIN `ComponentProcessor.java`, lines 1446–1950.
 //!
@@ -322,6 +323,8 @@ pub fn process_ulose_suffix(
     suffix: NodeId,
     mut potential_carbonyl: AtomId,
 ) -> Result<AtomId> {
+    // Changes: Validate an unlocanted multiplier against the existing carbon
+    // chain before generating locants; no ul suffix can address beyond it.
     let mut locants_to_convert = Vec::new();
     let potential_locant_or_multiplier = arena
         .previous_sibling(suffix)
@@ -347,6 +350,16 @@ pub fn process_ulose_suffix(
             locants_to_convert.extend(values.into_iter().map(str::to_owned));
             arena.detach(locant);
         } else {
+            let available = chain_length(state.graph(), fragment(arena, group)?).saturating_sub(1);
+            if multiplier < 1
+                || usize::try_from(multiplier)
+                    .ok()
+                    .is_none_or(|n| n > available)
+            {
+                return Err(error(
+                    "Ul suffix multiplier exceeds carbohydrate chain length",
+                ));
+            }
             for i in 0..multiplier {
                 locants_to_convert.push((i + 2).to_string());
             }
@@ -429,9 +442,14 @@ pub fn cyclise_carbohydrate_and_apply_alpha_beta_stereo(
     ring_size: NodeId,
     potential_carbonyl: AtomId,
 ) -> Result<()> {
+    // Changes: Use validated positive locants and widened/checked arithmetic
+    // so extreme numeric locants cannot wrap into a different ring size.
     let frag = fragment(arena, carbohydrate_group)?;
     let ring_size_value = attribute(arena, ring_size, VALUE_ATR)?;
     let size = integer(&ring_size_value)?;
+    if size < 3 {
+        return Err(error("Carbohydrate ring size must be at least three"));
+    }
     let mut carbonyl_carbon = potential_carbonyl;
     let mut atom_to_join_with = None;
     let potential_locant = arena
@@ -454,11 +472,14 @@ pub fn cyclise_carbohydrate_and_apply_alpha_beta_stereo(
                     "Locants for ring should be numeric but were: {value}"
                 ))
             })?;
-        let difference = numeric.1.wrapping_sub(numeric.0).wrapping_abs();
-        if difference != size.wrapping_sub(2) {
+        if numeric.0 < 1 || numeric.1 < 1 {
+            return Err(error("Carbohydrate ring locants must be positive"));
+        }
+        let difference = (i64::from(numeric.1) - i64::from(numeric.0)).abs();
+        if difference != i64::from(size) - 2 {
             return Err(error(format!(
                 "Mismatch between ring size: {ring_size_value} and ring size specified by locants: {}",
-                difference.wrapping_add(2)
+                difference + 2
             )));
         }
         carbonyl_carbon = atom_by_locant(state.graph(), frag, locants[0])?;
@@ -487,7 +508,9 @@ pub fn cyclise_carbohydrate_and_apply_alpha_beta_stereo(
     let atom_to_join_with = match atom_to_join_with {
         Some(atom) => atom,
         None => {
-            let locant = carbonyl_locant.wrapping_add(size).wrapping_sub(2);
+            let locant = carbonyl_locant
+                .checked_add(size - 2)
+                .ok_or_else(|| error("Carbohydrate ring locant overflow"))?;
             state.graph().atom_by_locant(frag, &format!("O{locant}"))
                 .ok_or_else(|| error(format!("Carbohydrate was not an inappropriate length to form a ring of size: {ring_size_value}")))?
         }

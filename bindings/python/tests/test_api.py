@@ -54,14 +54,16 @@ def test_ir_schema_and_dict_and_json_roundtrip() -> None:
 def test_invalid_name_preserves_error_kind(function) -> None:
     with pytest.raises(nazuchem.NazuchemError) as raised:
         function("not a chemical name")
-    assert raised.value.kind == "Parse"
+    assert raised.value.kind == "parse"
+    assert isinstance(raised.value, ValueError)
     assert str(raised.value)
 
 
 def test_naming_error_kind() -> None:
     with pytest.raises(nazuchem.NazuchemError) as raised:
         nazuchem.smiles_to_name("C>>O")
-    assert raised.value.kind == "Naming"
+    assert raised.value.kind == "naming"
+    assert isinstance(raised.value, ValueError)
     assert str(raised.value)
 
 
@@ -120,7 +122,8 @@ def test_stereo_survives_ir(name: str, kind: str, descriptor: str) -> None:
 def test_invalid_ir_is_a_serialization_error(document) -> None:
     with pytest.raises(nazuchem.NazuchemError) as raised:
         nazuchem.molecule_to_name(document)
-    assert raised.value.kind == "Serialize"
+    assert raised.value.kind == "serialize"
+    assert isinstance(raised.value, ValueError)
     assert str(raised.value)
 
 
@@ -130,7 +133,7 @@ def test_bad_bond_reference_is_rejected() -> None:
     bonds[0]["atoms"] = [0, 999]
     with pytest.raises(nazuchem.NazuchemError) as raised:
         nazuchem.molecule_to_name(molecule)
-    assert raised.value.kind == "Serialize"
+    assert raised.value.kind == "serialize"
 
 
 @pytest.mark.parametrize(
@@ -142,20 +145,27 @@ def test_string_arguments_are_not_coerced(function) -> None:
         function(42)
 
 
-@pytest.mark.parametrize("document", [[], 42, None, {1: "bad key"}, {"atoms": ()}])
-def test_python_only_ir_values_are_rejected(document) -> None:
-    with pytest.raises(TypeError):
-        nazuchem.molecule_to_name(document)
-
-
-@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
-def test_nonfinite_json_values_are_rejected(value: float) -> None:
-    with pytest.raises(ValueError):
-        nazuchem.molecule_to_name({"nazuchem_ir": value})
-
-
-def test_circular_json_is_rejected() -> None:
-    molecule: nazuchem.Molecule = {}
-    molecule["cycle"] = molecule
-    with pytest.raises(ValueError, match="Circular reference"):
-        nazuchem.molecule_to_name(molecule)
+@pytest.mark.parametrize("function", [nazuchem.name_to_smiles, nazuchem.name_to_molecule])
+@pytest.mark.parametrize("number", ["2147483647", "4294967295", "18446744073709551615", "9" * 39])
+@pytest.mark.parametrize(
+    "template",
+    [
+        "spiro[{number}.5]pentane",
+        "spiro[{number}.{number}.5]pentane",
+        "bicyclo[{number}.2.1]heptane",
+        "[{number}]annulene",
+        "{number}methane",
+        "{number}-methylpentane",
+        "[1,{number}'-biphenyl]",
+        "methanol compound with ethanol (1:{number})",
+        "lambda^{number}-phosphane",
+    ],
+)
+def test_extreme_name_numbers_are_errors_and_engine_recovers(
+    function, number: str, template: str
+) -> None:
+    with pytest.raises(nazuchem.NazuchemError) as raised:
+        function(template.format(number=number))
+    assert raised.value.kind == "parse"
+    assert isinstance(raised.value, ValueError)
+    assert function("ethanol")

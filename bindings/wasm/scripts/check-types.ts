@@ -80,11 +80,15 @@ ${checks}
 
 // Naming reasons are not in the Molecule schema. Check their exact serde names
 // against Rust so new engine reasons cannot silently disappear from declarations.
-const rustVocabulary = await readFile(resolve(root, "crates/nazuchem-ir/src/lib.rs"), "utf8");
-const reasons = rustVocabulary.match(/pub enum NameReason \{([^}]+)\}/)?.[1];
-if (!reasons) throw new Error("Cannot locate Rust NameReason");
-const reasonTypes = reasons.split(",").map((name) => name.trim()).filter(Boolean)
-  .map((name) => JSON.stringify(name.replace(/[A-Z]/g, (letter, index) => `${index ? "_" : ""}${letter.toLowerCase()}`))).join(" | ");
+const vocabulary = Bun.spawnSync(["cargo", "run", "--quiet", "--locked", "-p", "nazuchem-ir", "--example", "name_reasons"], {
+  cwd: root, stdout: "pipe", stderr: "pipe",
+});
+if (vocabulary.exitCode !== 0) throw new Error(vocabulary.stderr.toString());
+const reasons: unknown = JSON.parse(vocabulary.stdout.toString());
+if (!Array.isArray(reasons) || reasons.length === 0 || reasons.some((reason) => typeof reason !== "string")) {
+  throw new Error("Rust exported an invalid NameReason vocabulary");
+}
+const reasonTypes = reasons.map((reason) => JSON.stringify(reason)).join(" | ");
 await writeFile(resolve(packageRoot, ".generated/name-reasons.ts"), header + `
 import type { NameReason } from "../src/index.d.ts";
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
@@ -95,3 +99,31 @@ type CheckNameReason = Assert<Equal<NameReason, ${reasonTypes}>>;
 const checked = Bun.spawnSync(["bun", "x", "--no-install", "tsc", "--project", "tsconfig.json"], { cwd: packageRoot, stdout: "inherit", stderr: "inherit" });
 if (checked.exitCode !== 0) process.exit(checked.exitCode);
 console.log(`TypeScript checked; all ${names.length} IR types exactly match schema-derived types; NameReason matches Rust.`);
+
+// Bare-package consumers must select declarations with the same module kind as
+// the JavaScript entry. Cover CommonJS and ESM on Node as well as bundlers.
+await mkdir(resolve(packageRoot, ".generated/consumers"), { recursive: true });
+const consumer = `import { nameToSmiles, smilesToName, type Name, type ErrorKind } from "nazuchem";
+import { nameToMolecule } from "nazuchem/node";
+import init, { initSync } from "nazuchem/web";
+const name: Name = smilesToName("CCO");
+const omitted: string[] = name.omittedStereo;
+const count: number = name.omittedUnits;
+const kind: ErrorKind = "internal";
+nameToSmiles(name.text);
+nameToMolecule("ethanol");
+void [omitted, count, kind, init, initSync];
+`;
+for (const extension of ["cts", "mts", "ts"]) {
+  await writeFile(resolve(packageRoot, `.generated/consumers/import.${extension}`), header + consumer);
+}
+for (const [module, resolution, files] of [
+  ["Node16", "Node16", [".generated/consumers/import.cts", ".generated/consumers/import.mts"]],
+  ["Preserve", "Bundler", [".generated/consumers/import.ts"]],
+] as const) {
+  const result = Bun.spawnSync(["bun", "x", "--no-install", "tsc", "--noEmit", "--strict", "--target", "ES2022", "--module", module, "--moduleResolution", resolution, ...files], {
+    cwd: packageRoot, stdout: "inherit", stderr: "inherit",
+  });
+  if (result.exitCode !== 0) process.exit(result.exitCode);
+}
+console.log("Strict bare-package TypeScript consumers passed for CommonJS, Node ESM, and bundlers.");

@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # Origin: original
-# Source: Nazuchem | .github/workflows/bindings.yml | Phase B step 9
+# Source: Nazuchem | .github/workflows/bindings.yml
 name: Bindings
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -31,6 +32,8 @@ jobs:
           python-version: '3.12'
       - name: Install locked Python development tools
         run: uv sync --project bindings/python --locked --no-install-project
+      - name: Test native Python error handling
+        run: uv run --project bindings/python --no-sync cargo test -p nazuchem-python --lib --locked
       - name: Build wheel and compare packaged licence bytes
         run: uv run --project bindings/python --no-sync python bindings/python/scripts/build_wheel.py --release
       - name: Test the built wheel
@@ -65,10 +68,15 @@ jobs:
         with:
           bun-version: '1.4.4'
       - name: Install exact wasm-bindgen CLI
-        run: cargo install wasm-bindgen-cli --version 0.2.128 --locked
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/wasm-bindgen.tar.gz" https://github.com/wasm-bindgen/wasm-bindgen/releases/download/0.2.128/wasm-bindgen-0.2.128-x86_64-unknown-linux-musl.tar.gz
+          printf '%s  %s\n' b51f0208fdff83515a787bd8ab9ac5865ed84dabb66d0c709957bb59793c645f "$RUNNER_TEMP/wasm-bindgen.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/wasm-bindgen.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/wasm-bindgen-0.2.128-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
       - name: Install pinned Binaryen (wasm-opt)
         run: |
           curl -fsSL -o "$RUNNER_TEMP/binaryen.tar.gz" https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-linux.tar.gz
+          printf '%s  %s\n' 2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489 "$RUNNER_TEMP/binaryen.tar.gz" | sha256sum --check --strict
           tar -xzf "$RUNNER_TEMP/binaryen.tar.gz" -C "$RUNNER_TEMP"
           echo "WASM_OPT=$RUNNER_TEMP/binaryen-version_133/bin/wasm-opt" >> "$GITHUB_ENV"
       - name: Install locked JavaScript development tools
@@ -80,7 +88,7 @@ jobs:
       - name: Check declarations against the schema and test node build
         working-directory: bindings/wasm
         run: bun run test
-      - name: Verify packaged licence and notice files
+      - name: Test the packed tarball and verify licence and notice bytes
         working-directory: bindings/wasm
         run: bun run check:package
 

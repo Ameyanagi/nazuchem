@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import TypeAlias, TypedDict, cast
+from typing import Literal, TypeAlias, TypedDict, cast
 
 from . import _native
 from ._native import IR_VERSION, JSON_SCHEMA, NazuchemError
@@ -17,9 +17,11 @@ __all__ = [
     "IR_VERSION",
     "JSON_SCHEMA",
     "AlternativeName",
+    "ErrorKind",
     "JsonValue",
     "Molecule",
     "Name",
+    "NameStatus",
     "NazuchemError",
     "Verification",
     "molecule_to_name",
@@ -28,6 +30,8 @@ __all__ = [
     "smiles_to_name",
 ]
 
+ErrorKind: TypeAlias = Literal["init", "parse", "warning", "serialize", "naming", "internal"]
+NameStatus: TypeAlias = Literal["preferred", "not_preferred", "unverified"]
 JsonValue: TypeAlias = bool | int | float | str | None | list["JsonValue"] | dict[str, "JsonValue"]
 Molecule: TypeAlias = dict[str, JsonValue]
 
@@ -37,7 +41,7 @@ class AlternativeName:
     """An alternative name and its independent preference assessment."""
 
     name: str
-    status: str
+    status: NameStatus
     reason: str | None
 
 
@@ -58,7 +62,7 @@ class Name:
     """
 
     text: str
-    status: str
+    status: NameStatus
     reason: str | None
     alternatives: tuple[AlternativeName, ...]
     omitted_stereo: tuple[str, ...]
@@ -67,7 +71,7 @@ class Name:
 
 
 class _Status(TypedDict, total=False):
-    status: str
+    status: NameStatus
     reason: str
 
 
@@ -112,28 +116,6 @@ def _name_from_json(document: str) -> Name:
     )
 
 
-def _validate_json(value: object) -> None:
-    """Reject Python-only values that json.dumps would silently coerce."""
-    pending: list[object] = [value]
-    visited: set[int] = set()
-    while pending:
-        item = pending.pop()
-        if isinstance(item, (str, bool, int, float)) or item is None:
-            continue
-        if isinstance(item, (dict, list)):
-            if id(item) in visited:
-                continue  # json.dumps reports circular references explicitly.
-            visited.add(id(item))
-            if isinstance(item, dict):
-                if any(not isinstance(key, str) for key in item):
-                    raise TypeError("IR object keys must be strings")
-                pending.extend(item.values())
-            else:
-                pending.extend(item)
-        else:
-            raise TypeError(f"IR contains a non-JSON value: {type(item).__name__}")
-
-
 def name_to_smiles(name: str) -> str:
     """Parse a name strictly and return semantic CXSMILES."""
     return _native.name_to_smiles(name)
@@ -153,12 +135,11 @@ def molecule_to_name(molecule: Molecule | str) -> Name:
     """Name an IR dict or JSON string without modifying the caller's object.
 
     Python values outside JSON raise TypeError or ValueError. Invalid IR raises
-    NazuchemError with kind ``Serialize``; naming failures have kind ``Naming``.
+    NazuchemError with kind ``serialize``; naming failures have kind ``naming``.
     """
     if isinstance(molecule, str):
         return _name_from_json(_native.molecule_to_name(molecule))
     if not isinstance(molecule, dict):
         raise TypeError("molecule must be an IR JSON object (dict) or JSON string")
-    _validate_json(molecule)
     document = json.dumps(molecule, allow_nan=False, separators=(",", ":"))
     return _name_from_json(_native.molecule_to_name(document))

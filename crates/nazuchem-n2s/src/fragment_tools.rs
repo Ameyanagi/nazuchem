@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Origin: port
+// Origin: adapted
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/FragmentTools.java | 42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/OpsinTools.java | 42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/FragmentTools.java | b91b610af5ab07560fedb20730d7aef46bb2bca0
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/OpsinTools.java | b91b610af5ab07560fedb20730d7aef46bb2bca0
 // Copyright 2017 Daniel Lowe
+// Changes: Validate numeric substitution candidate expansions before allocation.
 
 //! FragmentTools from OPSIN 2.9.0, b91b610af5ab07560fedb20730d7aef46bb2bca0.
 //! MIT, Daniel Lowe and contributors. Insertion order, progressive substitution
@@ -900,6 +901,10 @@ pub fn find_n_atoms_for_substitution(
     take_out: bool,
     preserve_valency: bool,
 ) -> Result<Option<Vec<AtomId>>, GraphError> {
+    // Changes: An unknown valency can make `required` determine an allocation;
+    // validate its expansion before entering candidate-generation loops.
+    crate::component_generator::checked_expansion_len(32, required)
+        .map_err(|e| GraphError(e.to_string()))?;
     if bond_order <= 0 {
         return Err(GraphError(
             "Substitution bond order must be positive".into(),
@@ -947,7 +952,10 @@ pub fn find_n_atoms_for_substitution(
                         })
                 })
                 .unwrap_or(0);
-            for _ in 0..(oxidation - graph.incoming_valency(atom)).max(0) {
+            let count = (oxidation - graph.incoming_valency(atom)).max(0) as usize;
+            crate::component_generator::checked_expansion_len(std::mem::size_of::<AtomId>(), count)
+                .map_err(|e| GraphError(e.to_string()))?;
+            for _ in 0..count {
                 result.push(atom);
             }
         } else {
@@ -969,10 +977,27 @@ pub fn find_n_atoms_for_substitution(
                     let used = graph.incoming_valency(atom)
                         + if stage < 3 && a.spare_valency { 1 } else { 0 }
                         + if take_out { a.out_valency } else { 0 };
-                    for _ in 0..((maximum - used) / bond_order).max(0) {
+                    let count = ((maximum - used) / bond_order).max(0) as usize;
+                    let total = result.len().checked_add(count).ok_or_else(|| {
+                        GraphError("Substitution candidate count overflow".into())
+                    })?;
+                    crate::component_generator::checked_expansion_len(
+                        std::mem::size_of::<AtomId>(),
+                        total,
+                    )
+                    .map_err(|e| GraphError(e.to_string()))?;
+                    for _ in 0..count {
                         result.push(atom);
                     }
                 } else {
+                    let total = result.len().checked_add(required).ok_or_else(|| {
+                        GraphError("Substitution candidate count overflow".into())
+                    })?;
+                    crate::component_generator::checked_expansion_len(
+                        std::mem::size_of::<AtomId>(),
+                        total,
+                    )
+                    .map_err(|e| GraphError(e.to_string()))?;
                     for _ in 0..required {
                         result.push(atom);
                     }

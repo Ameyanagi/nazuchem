@@ -2,7 +2,7 @@
 // Origin: original
 // Source: Nazuchem | bindings/wasm/src/lib.rs | Phase B step 9
 
-//! Private WebAssembly bridge. Public JavaScript declarations and errors live in
+//! WebAssembly bridge. Public JavaScript declarations and errors live in
 //! the package wrapper; all chemical data retains the facade's JSON shape.
 #![forbid(unsafe_code)]
 
@@ -20,13 +20,21 @@ mod bindings {
     }
 
     fn facade_error(source: nazuchem::Error) -> JsValue {
-        error(&format!("{:?}", source.kind()), &source.to_string())
+        let kind = match source.kind() {
+            nazuchem::ErrorKind::Init => "init",
+            nazuchem::ErrorKind::Parse => "parse",
+            nazuchem::ErrorKind::Warning => "warning",
+            nazuchem::ErrorKind::Serialize => "serialize",
+            nazuchem::ErrorKind::Naming => "naming",
+            _ => "internal",
+        };
+        error(kind, &source.to_string())
     }
 
     fn to_object(value: &impl Serialize) -> Result<JsValue, JsValue> {
         let json = serde_json::to_string(value)
-            .map_err(|source| error("Serialize", &source.to_string()))?;
-        js_sys::JSON::parse(&json).map_err(|_| error("Serialize", "invalid serialized JSON"))
+            .map_err(|source| error("serialize", &source.to_string()))?;
+        js_sys::JSON::parse(&json).map_err(|_| error("serialize", "invalid serialized JSON"))
     }
 
     /// Interpret a name using the facade's strict name-to-structure policy.
@@ -57,24 +65,11 @@ mod bindings {
                 .ok()
                 .and_then(|value| value.as_string())
                 .ok_or_else(|| {
-                    error("Serialize", "molecule must be a JSON object or JSON string")
+                    error("serialize", "molecule must be a JSON object or JSON string")
                 })?
         };
         let molecule = nazuchem::Molecule::from_json(&json)
-            .map_err(|source| error("Serialize", &source.to_string()))?;
+            .map_err(|source| error("serialize", &source.to_string()))?;
         to_object(&nazuchem::molecule_to_name(&molecule).map_err(facade_error)?)
-    }
-
-    /// The wrapper exposes this Rust constant as the JavaScript JSON_SCHEMA.
-    #[wasm_bindgen(js_name = jsonSchema)]
-    pub fn json_schema() -> String {
-        nazuchem::JSON_SCHEMA.to_owned()
-    }
-
-    /// The wrapper exposes this Rust constant as the JavaScript IR_VERSION.
-    #[wasm_bindgen(js_name = irVersion)]
-    pub fn ir_version() -> u32 {
-        // IR v1 uses a small integer; avoid a JavaScript BigInt for this constant.
-        u32::try_from(nazuchem::IR_VERSION).expect("supported IR version fits a JavaScript number")
     }
 }

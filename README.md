@@ -11,8 +11,7 @@ lamalab-org (MIT), extended in ReShiki. The chemistry kernel adapts RDKit and
 SiMolecule centres, with LLVM libc++ and Microsoft STL sorting adaptations;
 the naming engine also includes a CPython integer-set adaptation.
 
-This is a pre-release extraction: every crate has `publish = false`, and the
-0.x API is not yet stable.
+The 0.x API is not yet stable.
 
 ```rust
 fn main() -> Result<(), nazuchem::Error> {
@@ -42,8 +41,14 @@ assessment, alternatives and omitted stereochemistry.
 
 ## Python
 
-The `nazuchem` distribution is pre-release and unpublished. Build and test it
-locally with uv and maturin; see [the binding instructions](bindings/python/README.md).
+Install the `nazuchem` distribution with uv:
+
+```sh
+uv add nazuchem
+```
+
+For source builds and local tests with uv and maturin, see
+[the binding instructions](bindings/python/README.md).
 
 ```python
 import nazuchem
@@ -61,15 +66,25 @@ assert nazuchem.molecule_to_name(molecule).text == "(2R)-butan-2-ol"
 alternatives and verification are frozen dataclasses too. `name_to_molecule`
 returns a plain IR dictionary, and `molecule_to_name` accepts that dictionary or
 its JSON string. `IR_VERSION` is an integer, `JSON_SCHEMA` is a JSON string, and
-`NazuchemError.kind` identifies the Rust error stage (`Init`, `Parse`, `Warning`,
-`Serialize`, or `Naming`). The package carries stubs and `py.typed`.
+`NazuchemError` subclasses `ValueError`; its `kind` identifies the error stage
+(`init`, `parse`, `warning`, `serialize`, `naming`, or `internal`). The package
+carries stubs and `py.typed`.
 
 ## JavaScript
 
-The `nazuchem` npm package is pre-release, private and unpublished. Build it with
-bun; see [the package instructions](bindings/wasm/README.md). The default export
-path selects node in Node.js and the bundler build otherwise; `nazuchem/node`
-and `nazuchem/web` select a target explicitly.
+Install the `nazuchem` npm package with bun:
+
+```sh
+bun add nazuchem
+```
+
+For source builds, see [the package instructions](bindings/wasm/README.md).
+The root entry selects node in Node.js and the bundler build otherwise;
+`nazuchem/node` and `nazuchem/web` select a target explicitly. The bundler build
+requires WebAssembly module support, such as
+[`vite-plugin-wasm`](https://github.com/Menci/vite-plugin-wasm) for Vite or
+[`experiments.asyncWebAssembly`](https://webpack.js.org/configuration/experiments/#experiments)
+for webpack.
 
 ```typescript
 import { nameToSmiles, smilesToName, nameToMolecule, moleculeToName } from "nazuchem";
@@ -88,18 +103,26 @@ await init();
 const molecule = nameToMolecule("ethanol");
 ```
 
+The web entry loads the shared `dist/nazuchem_bg.wasm` asset, currently about
+18.6 MB uncompressed. See the [Wasm size measurements](docs/wasm-size.md) for
+build comparisons.
+
 JavaScript returns plain `Name` and IR objects, accepts an IR object or JSON
 string in `moleculeToName`, and throws `NazuchemError` with the same `kind` values
-as Python. Naming results use the same field names and status/reason vocabulary
-as Python. Both constants and hand-written TypeScript declarations are included;
-CI checks the IR declarations against the Rust JSON schema.
+as Python. `Name` fields use camelCase (`omittedStereo` and `omittedUnits`);
+IR objects preserve the schema's snake_case field names. Naming results share
+Python's status and reason vocabulary. The package includes `IR_VERSION`,
+`JSON_SCHEMA`, hand-written TypeScript declarations, and the schema asset at
+`nazuchem/schema.json`. CI checks the IR declarations against the Rust JSON
+schema.
 
 Both packages include `LICENSE-MIT`, `LICENSE-APACHE`, `NOTICE`, and generated
 `THIRD-PARTY-NOTICES.txt`. The shared collector follows normal and build Cargo
 dependencies for the selected Rust target and includes complete crate-local
 licences and notices, including embedded engine/kernel terms. Wheel checks
 compare the packaged bytes with freshly generated files; the npm package check
-inspects a real bun-produced archive. Publishing remains disabled until step 11.
+tests a real bun-produced archive and compares its notice bytes with freshly
+generated files.
 
 ## Scope and limits
 
@@ -187,4 +210,4 @@ each crate's `NOTICE` and `licenses/` texts for the applicable scope and pins.
 Owner decisions remain pending for native sort-policy provenance, IUPAC Blue
 Book table reuse permission and the test-only PubChem-derived corpus's source
 terms. These entries retain `NOASSERTION`; the established license expressions
-do not grant rights for that material. Publishing remains disabled.
+do not grant rights for that material.

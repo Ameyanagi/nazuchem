@@ -363,3 +363,53 @@ fn name_ir_name_facade_composes_for_localized_aromatic_and_chiral_inputs() {
         );
     }
 }
+
+#[cfg(feature = "n2s")]
+#[test]
+fn extreme_name_numbers_return_parse_errors_on_every_pointer_width() {
+    // Native tests exercise 64-bit arithmetic; the Wasm binding suite runs the
+    // same boundaries on wasm32. Every call must return, without unwinding.
+    for number in [
+        "2147483647",
+        "4294967295",
+        "18446744073709551615",
+        "999999999999999999999999999999999999999",
+    ] {
+        for name in [
+            format!("spiro[{number}.5]pentane"),
+            format!("spiro[{number}.{number}.5]pentane"),
+            format!("bicyclo[{number}.2.1]heptane"),
+            format!("[{number}]annulene"),
+            format!("{number}methane"),
+            format!("{number}-methylpentane"),
+            format!("[1,{number}'-biphenyl]"),
+            format!("methanol compound with ethanol (1:{number})"),
+            format!("lambda^{number}-phosphane"),
+        ] {
+            let smiles = name_to_smiles(&name).unwrap_err();
+            let molecule = name_to_molecule(&name).unwrap_err();
+            assert_eq!(smiles.kind(), ErrorKind::Parse, "{name}: {smiles}");
+            assert_eq!(molecule.kind(), ErrorKind::Parse, "{name}: {molecule}");
+        }
+    }
+    assert_eq!(name_to_smiles("ethanol").unwrap(), "C(C)O");
+    assert_eq!(name_to_molecule("ethanol").unwrap().atoms.len(), 3);
+    assert_eq!(name_to_smiles("lambda^5-phosphane").unwrap(), "[PH5]");
+    for name in [
+        "lambda^2147483647-phosphane",
+        "methanol compound with ethanol (1:2147483647)",
+    ] {
+        assert!(
+            name_to_smiles(name)
+                .unwrap_err()
+                .to_string()
+                .contains("expansion limit")
+        );
+        assert!(
+            name_to_molecule(name)
+                .unwrap_err()
+                .to_string()
+                .contains("expansion limit")
+        );
+    }
+}

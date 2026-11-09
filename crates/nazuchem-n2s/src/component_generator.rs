@@ -10,6 +10,8 @@
 // Copyright Daniel Lowe and OPSIN contributors; MIT (see LICENSE).
 // Copyright 2017 Daniel Lowe
 // Changes: Rust ownership, arena/container and error-handling adaptation; integrated native changes are documented in PORTING.md.
+// Changes: Check name-derived arithmetic and parent-chain bounds before expansion;
+// bound name-driven expansions to 1 MiB and report fallible allocation errors.
 
 //! Ordered destructive semantic parsing, ported from OPSIN `ComponentGenerator`.
 //! Source: OPSIN 2.9.0, b91b610af5ab07560fedb20730d7aef46bb2bca0.
@@ -39,6 +41,32 @@ impl fmt::Display for ComponentGenerationError {
 }
 impl std::error::Error for ComponentGenerationError {}
 type Result<T = ()> = std::result::Result<T, ComponentGenerationError>;
+
+// A numeric descriptor can encode gigabytes in a few input bytes. Bound each
+// generated text string before allocation, independently of pointer width.
+const MAX_NAME_EXPANSION_BYTES: usize = 1024 * 1024;
+
+pub(crate) fn checked_expansion_len(unit: usize, count: usize) -> Result<usize> {
+    unit.checked_mul(count)
+        .filter(|&len| len <= MAX_NAME_EXPANSION_BYTES)
+        .ok_or_else(|| {
+            ComponentGenerationError("Name expansion exceeds the 1 MiB expansion limit".into())
+        })
+}
+
+pub(crate) fn checked_repeat(value: &str, count: usize) -> Result<String> {
+    let len = checked_expansion_len(value.len(), count)?;
+    let mut output = String::new();
+    output
+        .try_reserve_exact(len)
+        .map_err(|_| ComponentGenerationError("Unable to allocate name expansion".into()))?;
+    if !value.is_empty() {
+        for _ in 0..count {
+            output.push_str(value);
+        }
+    }
+    Ok(output)
+}
 fn err<T>(s: impl Into<String>) -> Result<T> {
     Err(ComponentGenerationError(s.into()))
 }
@@ -93,9 +121,13 @@ impl<'a> ComponentGenerator<'a> {
         self.arena[id].attribute(key) == Some(val)
     }
     fn num(&self, id: NodeId, key: &str) -> Result<usize> {
-        self.attr(id, key).parse().map_err(|_| {
-            ComponentGenerationError(format!("Malformed numerical {key} on {}", self.val(id)))
-        })
+        self.attr(id, key)
+            .parse::<i32>()
+            .ok()
+            .and_then(|n| usize::try_from(n).ok())
+            .ok_or_else(|| {
+                ComponentGenerationError(format!("Malformed numerical {key} on {}", self.val(id)))
+            })
     }
     fn set(&mut self, id: NodeId, key: &str, value: impl Into<String>) {
         self.arena[id].set_attribute(key, value);
@@ -215,7 +247,7 @@ impl<'a> ComponentGenerator<'a> {
                     .next_sibling_ignoring(fusion, &[MULTIPLIER_EL, HETEROATOM_EL])
                 && self.attr_is(hw, SUBTYPE_ATR, HANTZSCHWIDMAN_SUBTYPE_VAL)
             {
-                let mut count = 0;
+                let mut count = 0usize;
                 let mut factor = 1;
                 let mut current = self.arena.next_sibling(fusion);
                 while let Some(id) = current {
@@ -223,7 +255,9 @@ impl<'a> ComponentGenerator<'a> {
                         break;
                     }
                     if self.arena[id].name == HETEROATOM_EL {
-                        count += factor;
+                        count = count.checked_add(factor).ok_or_else(|| {
+                            ComponentGenerationError("Multiplier sum overflow".into())
+                        })?;
                         factor = 1
                     } else if self.arena[id].name == MULTIPLIER_EL {
                         factor = self.num(id, VALUE_ATR)?
@@ -345,6 +379,8 @@ impl<'a> ComponentGenerator<'a> {
                 self.arena.detach(id)
             }
         } else {
+            // The sum of all prime suffixes grows quadratically in the count.
+            checked_expansion_len(count, count)?;
             let value = (0..count)
                 .map(|n| format!("{value}{}", "'".repeat(n)))
                 .collect::<Vec<_>>()
@@ -410,10 +446,12 @@ impl<'a> ComponentGenerator<'a> {
             {
                 self.arena.detach(id);
                 id = components.pop_front().unwrap();
-                count += self.num(id, VALUE_ATR)?;
+                count = count
+                    .checked_add(self.num(id, VALUE_ATR)?)
+                    .ok_or_else(|| ComponentGenerationError("Alkane length overflow".into()))?;
                 name.push_str(&self.val(id));
             }
-            let smiles = "C".repeat(count);
+            let smiles = checked_repeat("C", count)?;
             let g = self.token(
                 GROUP_EL,
                 name,
@@ -486,7 +524,7 @@ impl<'a> ComponentGenerator<'a> {
                     if len == 8 {
                         "C(C)(C)CC(C)(C)C".into()
                     } else {
-                        format!("C(C)(C)C{}", "C".repeat(len - 4))
+                        format!("C(C)(C)C{}", checked_repeat("C", len - 4)?)
                     }
                 }
                 "iso" => {
@@ -504,7 +542,7 @@ impl<'a> ComponentGenerator<'a> {
                         "C(C)(C)CC(C)(C)C".into()
                     } else {
                         labels = (1..=len - 2).map(|n| format!("{n}/")).collect::<String>() + "/";
-                        format!("{}C(C)C", "C".repeat(len - 3))
+                        format!("{}C(C)C", checked_repeat("C", len - 3)?)
                     }
                 }
                 "sec" => {
@@ -516,7 +554,7 @@ impl<'a> ComponentGenerator<'a> {
                     if !suffix {
                         return err("sec has no meaning without a suffix on an alkane chain");
                     }
-                    format!("C(C)C{}", "C".repeat(len - 3))
+                    format!("C(C)C{}", checked_repeat("C", len - 3)?)
                 }
                 "neo" => {
                     if len < 5 {
@@ -524,7 +562,7 @@ impl<'a> ComponentGenerator<'a> {
                             "ChainLength to small for neo modifier, required minLength 5. Found: {len}"
                         ));
                     }
-                    format!("{}CC(C)(C)C", "C".repeat(len - 5))
+                    format!("{}CC(C)(C)C", checked_repeat("C", len - 5)?)
                 }
                 _ => return err("Unrecognised alkaneStem modifier"),
             };
@@ -573,7 +611,7 @@ impl<'a> ComponentGenerator<'a> {
             {
                 return err("Polyboranes are not currently supported");
             }
-            self.set(g, VALUE_ATR, smiles.repeat(count));
+            self.set(g, VALUE_ATR, checked_repeat(&smiles, count)?);
             self.arena.detach(m);
         }
         for m in remaining {
@@ -608,9 +646,9 @@ impl<'a> ComponentGenerator<'a> {
                     [CYCLO_EL, VONBAEYER_EL, SPIRO_EL].contains(&self.arena[p].name.as_str())
                 });
                 let smiles = if cyclic {
-                    format!("{b}{a}").repeat(count)
+                    checked_repeat(&format!("{b}{a}"), count)?
                 } else {
-                    format!("{a}{b}").repeat(count.saturating_sub(1)) + &a
+                    checked_repeat(&format!("{a}{b}"), count.saturating_sub(1))? + &a
                 };
                 let smiles = rx("H[0-9]").replace_all(&smiles, "H?").to_string();
                 let name = format!("{}{}{}", self.val(m), self.val(first), self.val(second));
@@ -634,7 +672,8 @@ impl<'a> ComponentGenerator<'a> {
             } else if self.val(end) == "an"
                 && self.attr_is(end, SUBTYPE_ATR, HANTZSCHWIDMAN_SUBTYPE_VAL)
                 && !self.arena.previous_sibling(m).is_some_and(|p| {
-                    self.arena[p].name == LOCANT_EL && self.val(p).split(',').count() == count + 1
+                    self.arena[p].name == LOCANT_EL
+                        && count.checked_add(1) == Some(self.val(p).split(',').count())
                 })
             {
                 check_hw_ambiguity(&a, &b, true)?;
@@ -1073,11 +1112,13 @@ impl<'a> ComponentGenerator<'a> {
                 .map(str::to_string)
                 .collect::<Vec<_>>();
             let mut current = self.arena.next_sibling(id);
-            let mut count = 0;
+            let mut count = 0usize;
             let mut factor = 1;
             while let Some(c) = current {
                 if self.arena[c].name == HETEROATOM_EL {
-                    count += factor;
+                    count = count.checked_add(factor).ok_or_else(|| {
+                        ComponentGenerationError("Multiplier sum overflow".into())
+                    })?;
                     factor = 1
                 } else if self.arena[c].name == MULTIPLIER_EL {
                     factor = self.num(c, VALUE_ATR)?
@@ -1136,6 +1177,9 @@ impl<'a> ComponentGenerator<'a> {
                 if let Some(c) = pattern.captures(value) {
                     let loc = c.get(1).map(|m| fix_locant_capitalisation(m.as_str()));
                     let lambda = c[2].to_string();
+                    // Changes: Reject oversized name-derived valencies before
+                    // assignment or later hydrogen/proton arithmetic.
+                    checked_expansion_len(32, parse_number(&lambda)?)?;
                     if front {
                         let Some(loc) = &loc else {
                             return err(
@@ -1260,8 +1304,10 @@ impl<'a> ComponentGenerator<'a> {
                 return err("Invalid annulen tag");
             };
             let size = c[1]
-                .parse::<usize>()
-                .map_err(|_| ComponentGenerationError("Invalid annulene size".into()))?;
+                .parse::<i32>()
+                .ok()
+                .and_then(|size| usize::try_from(size).ok())
+                .ok_or_else(|| ComponentGenerationError("Invalid annulene size".into()))?;
             if size < 3 {
                 return err("Invalid annulene size");
             }
@@ -1272,7 +1318,7 @@ impl<'a> ComponentGenerator<'a> {
                 } else {
                     "c1c"
                 },
-                "c".repeat(size - 2)
+                checked_repeat("c", size - 2)?
             );
             let g = self.token(
                 GROUP_EL,
@@ -1300,6 +1346,8 @@ impl<'a> ComponentGenerator<'a> {
             };
             let count = self.num(m, VALUE_ATR)?;
             let kind = self.attr(id, VALUE_ATR);
+            // Includes the decimal ring labels and all fixed per-ring syntax.
+            checked_expansion_len(32, count)?;
             let mut smiles = String::new();
             match kind.as_str() {
                 "polyacene" => {
@@ -1348,19 +1396,26 @@ impl<'a> ComponentGenerator<'a> {
                     if count < 5 {
                         return err("Invalid polyalene");
                     }
-                    smiles = format!("c1{}c2{}c12", "c".repeat(count - 3), "c".repeat(count - 2))
+                    smiles = format!(
+                        "c1{}c2{}c12",
+                        checked_repeat("c", count - 3)?,
+                        checked_repeat("c", count - 2)?
+                    )
                 }
                 "polyphenylene" => {
                     if count < 2 {
                         return err("Invalid polyphenylene");
                     }
-                    smiles = format!("c1cccc2{}c12", "c3ccccc3".repeat(count - 1))
+                    smiles = format!("c1cccc2{}c12", checked_repeat("c3ccccc3", count - 1)?)
                 }
                 "polynaphthylene" => {
                     if count < 3 {
                         return err("Invalid polynaphthylene");
                     }
-                    smiles = format!("c1cccc2cc3{}c3cc12", "c4cc5ccccc5cc4".repeat(count - 1))
+                    smiles = format!(
+                        "c1cccc2cc3{}c3cc12",
+                        checked_repeat("c4cc5ccccc5cc4", count - 1)?
+                    )
                 }
                 "polyhelicene" => {
                     if count < 4 {
@@ -1418,7 +1473,9 @@ impl<'a> ComponentGenerator<'a> {
                         .previous_sibling(s)
                         .filter(|&x| self.arena[x].name == MULTIPLIER_EL)
                     {
-                        let count = self.num(m, VALUE_ATR)? * 2;
+                        let count = self.num(m, VALUE_ATR)?.checked_mul(2).ok_or_else(|| {
+                            ComponentGenerationError("Suffix multiplier overflow".into())
+                        })?;
                         self.set(m, VALUE_ATR, count.to_string())
                     } else {
                         let m = self.token(MULTIPLIER_EL, "di", &[(VALUE_ATR, "2")]);
@@ -1540,7 +1597,7 @@ impl<'a> ComponentGenerator<'a> {
         if nodes < 2 || (nodes < 3 && self.is(skeleton, CYCLO_EL)) {
             return err(format!("Phane skeleton has too few nodes: {nodes}"));
         }
-        self.set(group, VALUE_ATR, "C".repeat(nodes as usize));
+        self.set(group, VALUE_ATR, checked_repeat("C", nodes as usize)?);
         self.arena.detach(node_count);
         Ok(())
     }
@@ -1567,41 +1624,55 @@ impl<'a> ComponentGenerator<'a> {
             count = self.num(m, VALUE_ATR)?;
             self.arena.detach(m)
         }
-        let mut atoms = bridges.iter().map(|b| b.len).sum::<usize>() + count;
         let expected = self.attr(g, VALUE_ATR).len();
-        if atoms != expected {
-            if atoms > expected && bridges.len() > 2 && !bridges.iter().any(|b| b.explicit) {
-                let mut inferred = 0;
+        let mut atoms = bridges
+            .iter()
+            .try_fold(count, |total, bridge| total.checked_add(bridge.len));
+        if atoms != Some(expected) {
+            if atoms.is_none_or(|total| total > expected)
+                && bridges.len() > 2
+                && !bridges.iter().any(|b| b.explicit)
+            {
                 for (i, b) in bridges.iter_mut().enumerate() {
-                    let mut n = b.len;
-                    if i > 1 && n >= 11 {
-                        let text = n.to_string();
-                        n = text[..1].parse().unwrap();
-                        let loc = text[1..].parse::<usize>().unwrap();
-                        if loc > 0 {
+                    if i > 1 && b.len >= 11 {
+                        let text = b.len.to_string();
+                        let len = parse_number(&text[..1])?;
+                        let locant = parse_number(&text[1..])?;
+                        if locant > 0 {
                             *b = SpiroBridge {
-                                len: n,
-                                locant: Some(loc),
+                                len,
+                                locant: Some(locant),
                                 explicit: false,
-                            }
+                            };
                         }
                     }
-                    inferred += n
                 }
-                inferred += count;
-                if inferred == expected {
-                    atoms = inferred
-                }
+                atoms = bridges
+                    .iter()
+                    .try_fold(count, |total, bridge| total.checked_add(bridge.len));
             }
-            if atoms != expected {
+            if atoms != Some(expected) {
                 return err(format!(
-                    "Disagreement between number of atoms in spiro descriptor: {atoms} and number of atoms in chain: {expected}"
+                    "Disagreement between number of atoms in spiro descriptor: {} and number of atoms in chain: {expected}",
+                    atoms.map_or_else(|| "overflow".into(), |total| total.to_string())
                 ));
             }
         }
+        // Validate every bridge and superscript against the actual parent before
+        // allocating any bridge text. A wrapped sum must never authorize repeat.
+        if count > expected
+            || bridges.iter().any(|bridge| {
+                bridge.len > expected
+                    || bridge
+                        .locant
+                        .is_some_and(|locant| locant == 0 || locant > expected)
+            })
+        {
+            return err("Invalid spiro bridge length or locant for parent chain");
+        }
         let mut opened = 1;
         let mut index = 2usize;
-        let mut smiles = format!("C0{}10(", "C".repeat(bridges[0].len));
+        let mut smiles = format!("C0{}10(", checked_repeat("C", bridges[0].len)?);
         for b in &bridges[1..] {
             if let Some(loc) = b.locant {
                 let mut pos = find_index_of_ring_openings(&smiles, loc)?;
@@ -1618,19 +1689,27 @@ impl<'a> ComponentGenerator<'a> {
                 }
                 if smiles[pos..].contains(&format!("C{label}")) {
                     smiles.insert_str(pos, &ring_closure(index));
-                    smiles.push_str(&format!("({}{})", "C".repeat(b.len), ring_closure(index)));
+                    smiles.push_str(&format!(
+                        "({}{})",
+                        checked_repeat("C", b.len)?,
+                        ring_closure(index)
+                    ));
                     index += 1
                 } else {
-                    smiles.push_str(&format!("{}{label})", "C".repeat(b.len)))
+                    smiles.push_str(&format!("{}{label})", checked_repeat("C", b.len)?))
                 }
             } else if opened >= count {
-                smiles.push_str(&"C".repeat(b.len));
+                smiles.push_str(&checked_repeat("C", b.len)?);
                 index = index
                     .checked_sub(1)
                     .ok_or_else(|| ComponentGenerationError("Invalid spiro descriptor".into()))?;
                 smiles.push_str(&format!("{})", ring_closure(index)))
             } else {
-                smiles.push_str(&format!("{}C{}(", "C".repeat(b.len), ring_closure(index)));
+                smiles.push_str(&format!(
+                    "{}C{}(",
+                    checked_repeat("C", b.len)?,
+                    ring_closure(index)
+                ));
                 index += 1;
                 opened += 1
             }
@@ -1661,7 +1740,7 @@ impl<'a> ComponentGenerator<'a> {
         let mut bridges = Vec::new();
         let mut locations: HashMap<usize, Vec<usize>> = HashMap::new();
         let mut labels = 3;
-        let mut total = 0;
+        let mut total = 0usize;
         let mut i = 0;
         while i < descriptors.len() {
             let desc = &descriptors[i];
@@ -1694,7 +1773,7 @@ impl<'a> ComponentGenerator<'a> {
                 };
                 let mut a = parse_number(&first)?;
                 let mut c = parse_number(&second)?;
-                if a > chain_len || c > chain_len {
+                if a == 0 || c == 0 || a > chain_len || c > chain_len {
                     return err(format!(
                         "Indicated bridge position is not on chain: {a},{c}"
                     ));
@@ -1714,14 +1793,21 @@ impl<'a> ComponentGenerator<'a> {
             } else {
                 b.len = parse_number(desc)?
             }
-            total += b.len;
+            total = total
+                .checked_add(b.len)
+                .filter(|&total| total <= chain_len)
+                .ok_or_else(|| {
+                    ComponentGenerationError(
+                        "Disagreement between lengths of bridges and alkyl chain length".into(),
+                    )
+                })?;
             bridges.push(b);
             i += 1;
         }
-        if total + 2 != chain_len {
+        if total.checked_add(2) != Some(chain_len) {
             return err("Disagreement between lengths of bridges and alkyl chain length");
         }
-        if rings + 1 != bridges.len() {
+        if rings.checked_add(1) != Some(bridges.len()) {
             return err("Disagreement between number of rings and number of bridges");
         }
         let mut smiles = String::new();
@@ -1884,12 +1970,21 @@ impl<'a> ComponentGenerator<'a> {
                     self.set(
                         g,
                         VALUE_ATR,
-                        format!("CC{}", "OCC".repeat(count.saturating_sub(1))),
+                        format!("CC{}", checked_repeat("OCC", count.saturating_sub(1))?),
                     );
                     self.set(
                         g,
                         OUTIDS_ATR,
-                        format!("1,{}", 3 * count.saturating_sub(1) + 2),
+                        format!(
+                            "1,{}",
+                            count
+                                .saturating_sub(1)
+                                .checked_mul(3)
+                                .and_then(|n| n.checked_add(2))
+                                .ok_or_else(|| ComponentGenerationError(
+                                    "Glycol length overflow".into()
+                                ))?
+                        ),
                     );
                     self.arena.detach(m);
                     self.set(g, LABELS_ATR, NUMERIC_LABELS_VAL);
@@ -1902,11 +1997,11 @@ impl<'a> ComponentGenerator<'a> {
                     if self.arena[mult].name == MULTIPLIER_EL
                         && ["amine", "amin"].contains(&self.val(amine).as_str())
                     {
-                        if self.num(mult, VALUE_ATR)? != count + 1 {
+                        if count.checked_add(1) != Some(self.num(mult, VALUE_ATR)?) {
                             return err("Invalid polyethylene amine!");
                         }
                         self.arena[g].remove_attribute(OUTIDS_ATR);
-                        self.set(g, VALUE_ATR, format!("{}N", "NCC".repeat(count)));
+                        self.set(g, VALUE_ATR, format!("{}N", checked_repeat("NCC", count)?));
                         self.arena.detach(m);
                         self.arena.detach(root);
                         self.arena[parent].name = ROOT_EL.into();
@@ -1933,12 +2028,21 @@ impl<'a> ComponentGenerator<'a> {
                     self.set(
                         g,
                         VALUE_ATR,
-                        format!("CCC{}", "OC(C)C".repeat(count.saturating_sub(1))),
+                        format!("CCC{}", checked_repeat("OC(C)C", count.saturating_sub(1))?),
                     );
                     self.set(
                         g,
                         OUTIDS_ATR,
-                        format!("2,{}", 4 * count.saturating_sub(1) + 3),
+                        format!(
+                            "2,{}",
+                            count
+                                .saturating_sub(1)
+                                .checked_mul(4)
+                                .and_then(|n| n.checked_add(3))
+                                .ok_or_else(|| ComponentGenerationError(
+                                    "Glycol length overflow".into()
+                                ))?
+                        ),
                     );
                     self.set(g, LABELS_ATR, NONE_LABELS_VAL);
                     self.arena.detach(m);
@@ -2765,8 +2869,10 @@ struct VonBaeyerBridge {
 }
 fn parse_number(value: &str) -> Result<usize> {
     value
-        .parse()
-        .map_err(|_| ComponentGenerationError(format!("Malformed number in descriptor: {value}")))
+        .parse::<i32>()
+        .ok()
+        .and_then(|number| usize::try_from(number).ok())
+        .ok_or_else(|| ComponentGenerationError(format!("Malformed number in descriptor: {value}")))
 }
 fn unbranched_elements(smiles: &str) -> Result<VecDeque<String>> {
     let mut result = VecDeque::new();
@@ -2801,6 +2907,16 @@ fn append_ring_locations(smiles: &mut String, locations: &HashMap<usize, Vec<usi
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn name_expansions_reject_extreme_counts_before_allocating() {
+        for count in [u32::MAX as usize, usize::MAX, MAX_NAME_EXPANSION_BYTES + 1] {
+            assert!(checked_repeat("C", count).is_err());
+            assert!(checked_repeat("CC", count).is_err());
+        }
+        assert_eq!(checked_repeat("CC", 3).unwrap(), "CCCCCC");
+        assert_eq!(checked_repeat("", usize::MAX).unwrap(), "");
+    }
 
     #[test]
     fn phane_skeleton_rejects_a_signed_negative_count_before_mutation() {

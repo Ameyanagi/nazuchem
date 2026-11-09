@@ -36,8 +36,8 @@ export interface Name {
   status: NameStatus;
   reason: NameReason | null;
   alternatives: AlternativeName[];
-  omitted_stereo: string[];
-  omitted_units: number;
+  omittedStereo: string[];
+  omittedUnits: number;
   verification: Verification | null;
 }
 
@@ -94,7 +94,7 @@ export interface Molecule {
   parent?: number[];
 }
 
-export type ErrorKind = "Init" | "Parse" | "Warning" | "Serialize" | "Naming";
+export type ErrorKind = "init" | "parse" | "warning" | "serialize" | "naming" | "internal";
 export class NazuchemError extends Error {
   readonly kind: ErrorKind;
   constructor(message: string, kind: ErrorKind);

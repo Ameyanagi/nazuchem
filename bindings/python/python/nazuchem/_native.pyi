@@ -2,11 +2,13 @@
 # Origin: original
 # Source: Nazuchem | bindings/python/python/nazuchem/_native.pyi | Phase B step 9
 
+from . import ErrorKind
+
 IR_VERSION: int
 JSON_SCHEMA: str
 
-class NazuchemError(Exception):
-    kind: str
+class NazuchemError(ValueError):
+    kind: ErrorKind
 
 def name_to_smiles(name: str) -> str: ...
 def smiles_to_name(smiles: str) -> str: ...

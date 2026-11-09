@@ -6,6 +6,7 @@
 // Copyright Daniel Lowe and OPSIN contributors; MIT (see LICENSE).
 // Copyright 2017 Daniel Lowe
 // Changes: Rust ownership, arena/container and error-handling adaptation; integrated native changes are documented in PORTING.md.
+// Changes: Validate stoichiometric graph expansion before cloning components.
 
 //! OPSIN word-rule assembly and finalization.
 //! Port of `StructureBuilder.java`, OPSIN 2.9.0, b91b610af5ab07560fedb20730d7aef46bb2bca0.
@@ -2154,10 +2155,12 @@ impl Builder<'_> {
         Ok(copy)
     }
     fn manipulate_stoichiometry(&mut self, molecule: NodeId, rules: &[NodeId]) -> Result<()> {
+        // Changes: Check descriptor-driven component counts before clone loops.
         let mut explicit = false;
         for &rule in rules {
             if self.assembly.attr(rule, "stoichiometry").is_some() {
                 let count = self.assembly.number(rule, "stoichiometry")?;
+                self.validate_component_copies(rule, count)?;
                 self.assembly.arena[rule].remove_attribute("stoichiometry");
                 for _ in 1..count {
                     self.clone_after(rule)?;
@@ -2190,6 +2193,7 @@ impl Builder<'_> {
                 if denominator != 2 {
                     return Err(error("Only fractions of a 1/2 currently supported"));
                 }
+                self.validate_component_copies(rule, numerator)?;
                 for _ in 1..numerator {
                     fractional.push(self.clone_after(rule)?);
                 }
@@ -2225,6 +2229,26 @@ impl Builder<'_> {
                 }
             }
         }
+        Ok(())
+    }
+    // Changes: Bound encoded graph expansion by a conservative 32 bytes per
+    // copied atom without allocating the requested copies or imposing an input cap.
+    fn validate_component_copies(&self, rule: NodeId, count: usize) -> Result<()> {
+        let atoms = self
+            .results(rule)?
+            .fragments
+            .iter()
+            .try_fold(0usize, |total, &fragment| {
+                total
+                    .checked_add(self.assembly.graph().fragment(fragment).atoms.len())
+                    .ok_or_else(|| error("Component atom count overflow"))
+            })?;
+        let bytes = atoms
+            .max(1)
+            .checked_mul(32)
+            .ok_or_else(|| error("Component size overflow"))?;
+        crate::component_generator::checked_expansion_len(bytes, count)
+            .map_err(|e| error(e.to_string()))?;
         Ok(())
     }
     fn deprotonate_acid_if_salt_with_metal(&mut self, molecule: NodeId) -> Result<()> {
@@ -2808,5 +2832,27 @@ impl Builder<'_> {
             .map_err(|e| error(e.to_string()))?;
         handler.remove_redundant_stereo_centres(&atoms, &bonds);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod numeric_expansion_tests {
+    #[test]
+    fn numeric_expansion_rejects_stoichiometry_and_isotope_counts() {
+        let parser = crate::Parser::new().unwrap();
+        for name in [
+            "methanol compound with ethanol (1:2147483647)",
+            "methane(2H2147483647)",
+            "uranium(2H2147483647)",
+        ] {
+            let result = parser.parse(name, &crate::ParseOptions::default());
+            assert_eq!(result.status, crate::Status::Failure, "{name}: {result:?}");
+            if name.starts_with("methanol") {
+                assert!(
+                    result.message.contains("expansion limit"),
+                    "{name}: {result:?}"
+                );
+            }
+        }
     }
 }

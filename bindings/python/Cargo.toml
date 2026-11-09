@@ -14,7 +14,6 @@ readme = "README.md"
 [lib]
 name = "_native"
 crate-type = ["cdylib"]
-test = false
 doctest = false
 
 [dependencies]

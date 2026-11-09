@@ -77,3 +77,10 @@ semantic methods return an error when the structure has an axis, because SMILES
 cannot retain that configuration.
 Unlocanted helicity, planar Rp/Sp and unresolved ligand priorities remain
 uninterpretable. See the native resource extension in [provenance](provenance/README.md).
+
+Numeric descriptors use OPSIN's signed 32-bit integer range. Name-derived
+expansions (including SMILES, generated locant suffixes, and numeric graph
+replication) are limited to 1 MiB of generated text or estimated graph storage
+per expansion and use checked lengths and fallible text allocation.
+Oversized descriptors return ordinary parsing errors before allocation.
+Spiro and bridged-ring lengths and locants must also fit the parent chain.

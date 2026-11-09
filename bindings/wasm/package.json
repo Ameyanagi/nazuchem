@@ -2,31 +2,44 @@
   "name": "nazuchem",
   "version": "0.1.0",
   "private": true,
-  "description": "Private npm/WebAssembly bindings for nazuchem chemical naming",
+  "description": "npm/WebAssembly bindings for nazuchem chemical naming",
   "license": "(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND (Apache-2.0 WITH LLVM-exception) AND Python-2.0",
   "type": "module",
   "main": "./dist/node/index.cjs",
   "module": "./dist/bundler/index.js",
-  "types": "./dist/bundler/index.d.ts",
+  "types": "./dist/node/index.d.cts",
   "exports": {
     ".": {
+      "node": {
+        "types": "./dist/node/index.d.cts",
+        "default": "./dist/node/index.cjs"
+      },
       "types": "./dist/bundler/index.d.ts",
-      "node": "./dist/node/index.cjs",
       "default": "./dist/bundler/index.js"
     },
     "./web": {
+      "node": {
+        "import": {
+          "types": "./dist/web/index.d.ts",
+          "default": "./dist/web/index.js"
+        },
+        "require": {
+          "types": "./dist/web/index.d.cts",
+          "default": "./dist/web/index.cjs"
+        }
+      },
       "types": "./dist/web/index.d.ts",
       "default": "./dist/web/index.js"
     },
     "./node": {
       "types": "./dist/node/index.d.cts",
       "default": "./dist/node/index.cjs"
-    }
+    },
+    "./schema.json": "./dist/nazuchem-ir-1.schema.json"
   },
   "files": ["dist/", "README.md", "LICENSE-MIT", "LICENSE-APACHE", "NOTICE", "THIRD-PARTY-NOTICES.txt"],
   "scripts": {
     "build": "bun scripts/build.ts",
-    "bench": "bun bench/run.ts",
     "test": "bun scripts/check-types.ts && bun test tests",
     "test:types": "bun scripts/check-types.ts",
     "check:package": "bun scripts/check-package.ts"
@@ -40,5 +53,18 @@
     "SPDX-License-Identifier": "MIT OR Apache-2.0",
     "Origin": "original",
     "Source": "Nazuchem | bindings/wasm/package.json | Phase B step 9"
+  },
+  "typesVersions": {
+    "*": {
+      "node": [
+        "dist/node/index.d.cts"
+      ],
+      "web": [
+        "dist/web/index.d.ts"
+      ],
+      "schema.json": [
+        "dist/nazuchem-ir-1.schema.json"
+      ]
+    }
   }
 }

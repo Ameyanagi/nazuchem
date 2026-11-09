@@ -112,6 +112,52 @@ pub enum NameReason {
     UnknownConfiguration,
     AxialAlternative,
 }
+
+/// All naming reason values, serialized by binding declaration checks.
+pub const NAME_REASONS: &[NameReason] = &[
+    NameReason::SulfonylPrefix,
+    NameReason::AminoPrefix,
+    NameReason::CationPrefix,
+    NameReason::FunctionalClass,
+    NameReason::HydrideParent,
+    NameReason::UnretainedParent,
+    NameReason::DiamideLocants,
+    NameReason::FusionComponent,
+    NameReason::UnregisteredRetainedComponent,
+    NameReason::HigherOrderFusion,
+    NameReason::BenzoFusion,
+    NameReason::Multiplicative,
+    NameReason::AcylPrefix,
+    NameReason::RingAssembly,
+    NameReason::VonBaeyerFusionFallback,
+    NameReason::LinearPhane,
+    NameReason::OpsinFusionLayout,
+    NameReason::FusionMultiparent,
+    NameReason::HydroPrefixLocants,
+    NameReason::BridgedFusedParent,
+    NameReason::UnauditedParent,
+    NameReason::UnauditedPath,
+    NameReason::SubstitutedRetainedParent,
+    NameReason::AtomOrder,
+    NameReason::AmineChalcogenide,
+    NameReason::AmineOxideZwitterion,
+    NameReason::PrincipalGroupTie,
+    NameReason::LambdaParentHydrogen,
+    NameReason::SpiroHydrogen,
+    NameReason::IsotopePlacement,
+    NameReason::BoughtonIsotope,
+    NameReason::RadicalIon,
+    NameReason::AnionParent,
+    NameReason::CationParent,
+    NameReason::IonicSuffixOrder,
+    NameReason::SaltIonOrder,
+    NameReason::Phane,
+    NameReason::RelativeRingStereo,
+    NameReason::EndoExoStereo,
+    NameReason::UnknownConfiguration,
+    NameReason::AxialAlternative,
+];
+
 impl NameReason {
     pub fn detail(self) -> &'static str {
         match self {
