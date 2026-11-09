@@ -4,18 +4,23 @@
 
 [package]
 name = "nazuchem-wasm"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 publish = false
+# Private crates.io binding; the owner's distribution and provenance decisions gate release.
 license = "(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND (Apache-2.0 WITH LLVM-exception) AND Python-2.0"
 description = "Private WebAssembly bindings for nazuchem"
 readme = "README.md"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-nazuchem = { path = "../../crates/nazuchem" }
+nazuchem = { workspace = true }
 serde = "1"
 serde_json = "1"
 wasm-bindgen = "=0.2.128"

@@ -12,7 +12,7 @@ sources = [
   { project = "Nazuchem/ReShiki", ref = "777cdd3f98dfb955e165b17e352d3ce6da768b0c", path = "crates/nazuchem-kernel/Cargo.toml", license = "MIT OR Apache-2.0" },
 ]
 notes = "Kernel metadata declares all established incorporated licences; two sort-policy files remain pending owner decisions and publish = false remains in force."
-sha256 = "452359ac572dd8bc5cc6a40f5b038aaff10635282f51b4df1b4f2f62780a8227"
+sha256 = "ff1b7595ee92aacf6cb6d8479082fd22e9b570bed6144013433440740640c279"
 
 [[file]]
 path = "crates/nazuchem-kernel/LICENSE"
@@ -1198,7 +1198,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/Cargo.toml", license = "MIT" },
 ]
 notes = "Original Rust crate package/dependency metadata. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "cb875de78e90febc1e25a96756acca82469b9fd3b3b032b06f9d16d863e28def"
+sha256 = "70024e1f17e398326e96dff42e5b22d615411d19d1b83de9ea354217142db401"
 
 [[file]]
 path = "crates/nazuchem-n2s/LICENSE"
@@ -7153,7 +7153,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem-ir/Cargo.toml", ref = "098298a396d6d2b51edeebd62dd66cd9c5871b48", license = "MIT OR Apache-2.0" },
 ]
 notes = "New Phase A step 3 shared-vocabulary crate metadata and source-history attribution; no structure IR or engine implementation."
-sha256 = "f4a148c9f29ab96078431ba7066f8aea9087b8d113e32f5c72caac7a93e8eeff"
+sha256 = "b49950bef9a7f9f4f5505656539c80b4d75af6ddd90a4dfa0adb409410a5177e"
 
 [[file]]
 path = "crates/nazuchem-ir/NOTICE"
@@ -7220,7 +7220,7 @@ sources = [
   { "project" = "Nazuchem/ReShiki", "path" = "crates/nazuchem-s2n/Cargo.toml", "ref" = "Phase A step 4 (local extraction)", "license" = "MIT OR Apache-2.0" },
 ]
 notes = "Phase A step 4 local extraction documentation and package metadata. Established terms do not resolve the retained Blue Book table; publish = false remains in force."
-sha256 = "a7b8fd61e3ff55bae25067c7e11ce26ca37705c5ed83fa39baf550052a8f4763"
+sha256 = "7d4d0326857936bf9ce9b8d560daa7c1a93259fc96b0426569224fbc38567be4"
 
 [[file]]
 path = "crates/nazuchem-s2n/LICENSE"
@@ -7363,7 +7363,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/Cargo.toml", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Standalone facade tests add serde_json as a development dependency."
-sha256 = "195de835115fce32586ab5a96bf2381cda33c28ff023c57bd4834bbcd0e6ecd7"
+sha256 = "79577769c2a53ad846c1fe12f6e96619bd54a80575c7ea50c231af492e5b5c1d"
 
 [[file]]
 path = "crates/nazuchem/LICENSE"
@@ -7746,7 +7746,7 @@ sources = [
   { project = "Nazuchem", path = ".github/workflows/bindings.yml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Pins the Node runtime used by the real bundler smoke test and benchmark."
-sha256 = "cbeb4b0e9f587b4db377722b3a2a1ae1c04726ffde99e060263c7e2212caf3e7"
+sha256 = "7c82221f4ae332fc7d142cf7e418ad66a86b6aa858f297a5fcf35278ebfc5529"
 
 [[file]]
 path = "bindings/python/.gitignore"
@@ -7766,7 +7766,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/python/Cargo.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "c921d649f220a4de03ff7aeb1113c5c4366bee1ed762dae5fa776a8ab34b48fe"
+sha256 = "5ba42f487b29bacee045e8bbce71efedc4d843403005adcd2071304fba3608aa"
 
 [[file]]
 path = "bindings/python/README.md"
@@ -7826,7 +7826,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/python/scripts/build_wheel.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "7419e48bf33a65cadd2e310b2130364050d62e17627d36cb2a3fb52c787d3f30"
+sha256 = "6e455da50d2dde955c41eae149877f80df7d12b9d2500f3147b996753fd65814"
 
 [[file]]
 path = "bindings/python/src/lib.rs"
@@ -7885,7 +7885,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/wasm/Cargo.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "9115989cccfd4dcfee8d9f13cb1b9fc37a9ba98923d56ce203727e4ae27fe154"
+sha256 = "da758294ec6d916f6fb681b84b64e6ebedfe5399a8e05e7c65932e6707a0d635"
 
 [[file]]
 path = "bindings/wasm/README.md"
@@ -7915,7 +7915,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/wasm/package.json", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Adds the local Bun benchmark command; npm remains private and benchmark files remain outside the package whitelist."
-sha256 = "98144546ebfe6bd16edcd99c0e984d91b32d3ad93cdeff4535040626ba6ccfd4"
+sha256 = "eb0bac23ebec8b73e548ea3f28bd0132cafbe28bb251021858ec2844302ff5a0"
 
 [[file]]
 path = "bindings/wasm/scripts/build.ts"

@@ -1,14 +1,22 @@
 [package]
 name = "nazuchem-n2s"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 license = "MIT"
 description = "A native Rust port of OPSIN chemical name interpretation"
 publish = false
+exclude = ["tests/"]
+# Release gate: publication awaits the owner's release and provenance decisions.
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/nazuchem-n2s"
+readme = "README.md"
 
 [dependencies]
-nazuchem-ir = { path = "../nazuchem-ir" }
-nazuchem-kernel = { path = "../nazuchem-kernel" }
+nazuchem-ir = { workspace = true }
+nazuchem-kernel = { workspace = true }
 roxmltree = "0.20"
 regex = "1"
 
