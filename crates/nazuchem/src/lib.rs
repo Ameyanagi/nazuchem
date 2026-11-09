@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem/src/lib.rs | Phase B step 8a
 // Source: Nazuchem/ReShiki | crates/nazuchem/src/lib.rs | Phase A step 5 (local extraction)
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 
-pub use nazuchem_ir::{AlternativeName, IsotopeStyle, NameReason, NameStatus};
+pub use nazuchem_ir::{
+    AlternativeName, Atom, Bond, BondOrder, Connectivity, CxSmilesError, IsotopeStyle, JsonError,
+    Molecule, NameReason, NameStatus, PositionVariation, Ref, Relation, RepeatUnit, Stereo,
+    StereoGroup, StereoGroupKind, ValidationError, Winding,
+};
 pub use nazuchem_kernel::budget::Budget;
 
 /// Name-to-structure engine: a Rust port of OPSIN by Daniel Lowe (MIT).
@@ -14,9 +19,9 @@ pub use nazuchem_kernel::budget::Budget;
 pub mod n2s {
     pub use nazuchem_n2s::preprocess::preprocess;
     pub use nazuchem_n2s::{
-        Axis, InitializationError, PORT_VERSION, ParseOptions, ParseResult, ParseWarning, Parser,
-        ParsingError, RESOURCE_FINGERPRINT, SerializationError, SerializedStructure, Status,
-        Structure, UPSTREAM_COMMIT, UPSTREAM_VERSION, WarningKind,
+        Axis, InitializationError, IrError, PORT_VERSION, ParseOptions, ParseResult, ParseWarning,
+        Parser, ParsingError, RESOURCE_FINGERPRINT, SerializationError, SerializedStructure,
+        Status, Structure, UPSTREAM_COMMIT, UPSTREAM_VERSION, WarningKind,
     };
 }
 
@@ -137,6 +142,41 @@ pub fn name_to_smiles(name: &str) -> Result<String, Error> {
         })?
         .semantic_cxsmiles()
         .map_err(Error::from)
+}
+
+/// Interpret a name with strict OPSIN options and return the validated IR v1 graph.
+///
+/// Uses the default unbounded budget and rejects parser warnings. Configurations
+/// outside IR v1, including axial stereo, return a serialization error.
+// Provenance: fn name_to_molecule | original
+// Source: Nazuchem | crates/nazuchem/src/lib.rs::name_to_molecule
+#[cfg(feature = "n2s")]
+pub fn name_to_molecule(name: &str) -> Result<Molecule, Error> {
+    let parser = n2s::Parser::with_budget(Budget::default())?;
+    let result = parser.parse(name, &n2s::ParseOptions::strict());
+    let kind = match result.status {
+        n2s::Status::Failure => Some(ErrorKind::Parse),
+        n2s::Status::Warning => Some(ErrorKind::Warning),
+        n2s::Status::Success if !result.warnings.is_empty() => Some(ErrorKind::Warning),
+        n2s::Status::Success => None,
+    };
+    if let Some(kind) = kind {
+        return Err(Error {
+            kind,
+            message: result.message,
+        });
+    }
+    result
+        .structure
+        .ok_or(Error {
+            kind: ErrorKind::Parse,
+            message: result.message,
+        })?
+        .to_ir()
+        .map_err(|error| Error {
+            kind: ErrorKind::Serialize,
+            message: error.to_string(),
+        })
 }
 
 /// Generate a name using IUPAC isotope notation and an unbounded default budget.

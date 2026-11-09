@@ -161,12 +161,37 @@ Baseline first: freeze the outputs of the OPSIN gates (8,100 lexical, 2,624 stru
 
 | Step | Work                                                                                                              |
 | ---- | ----------------------------------------------------------------------------------------------------------------- |
-| 8    | IR v1 to §5's requirements; adapters both ways next to the string API; round-trip and corpus gates through the IR |
+| 8a   | IR v1 to §5's requirements; n2s → IR adapter, lossless CXSMILES export, JSON/schema and corpus gates next to the string API |
+| 8b   | IR → structure-to-name adapter and the §5 aromaticity/localized-pi proof on the full corpora (separate work) |
 | 9    | Python and npm bindings on the IR API                                                                             |
 | 10   | ReShiki: `IR → chemistry State` converter, worker protocol v5 after the size measurement                          |
 | 11   | 0.1.0 via tag-triggered trusted publishing (crates.io, PyPI, npm); ReShiki moves from git rev to version          |
 
 Before 0.1.0, decide whether to add `#[non_exhaustive]` to `NameStatus` and `NameReason` so the shared vocabulary's public API evolution policy is explicit.
+
+Phase B step 8a decision: both `NameStatus` and `NameReason` are
+`#[non_exhaustive]`, as are the IR's public enums. New naming reasons and stereo
+variants may be added without requiring exhaustive downstream matches; unknown
+JSON fields and variants still fail explicitly. The schema is generated with
+the dev-only schemars dependency and checked against the published file. Corpus
+tests validate each emitted document against that file with a strict test-only
+validator (unknown schema keywords fail), avoiding a runtime schema dependency.
+Step 8a adds the n2s adapter and CXSMILES exporter only; the IR → s2n adapter and
+the aromaticity proof remain step 8b.
+
+Step 8a comparison policy: exact semantic CXSMILES is checked first. OPSIN's
+per-atom bond insertion order can differ from its fragment bond-vector order
+after assembly; D6 stores only the latter. The original IR exporter therefore
+can choose different traversals, ring numbers, or equivalent slash signs.
+Nonexact outputs must agree under the kernel's canonical isomeric identity,
+with labels, enhanced stereo groups, position variation, and SRU layers checked
+separately after mapping output atom indices to IR identities. Tests also check
+the raw emitted atom/bond graph and the locant identity map. Inputs rejected by
+canonical identity (such as wildcards) require exact molecular SMILES. The old
+golden gate and fixtures remain unchanged. No oracle structure uses axial
+stereo; outside those corpora the adapter rejects it explicitly because v1 has
+no axial variant. CXSMILES extension details and the metadata needed to retain
+ordered identities are documented in `crates/nazuchem-ir/docs/cxsmiles.md`.
 
 Risks: step 4 is the hardest (openclatura uses `crate::naming` in 112 places plus `super::super` paths; only about 32 are the status/reason enums, the rest are `canonical_smiles`, `IsotopeStyle` and test calls into the worker). The two chemistry copies can drift; mirror fixes deliberately. The npm package carries ~5.7 MB of OPSIN resources; features allow n2s-only or s2n-only builds.
 

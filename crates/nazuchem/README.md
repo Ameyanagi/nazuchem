@@ -1,7 +1,7 @@
 # nazuchem
 
-Chemical naming through the existing string APIs: chemical names to semantic
-CXSMILES and molecular SMILES to names with preference assessments.
+Chemical names to a typed structure IR or semantic CXSMILES, and molecular
+SMILES to names with preference assessments.
 
 The name-to-structure engine is a Rust port of OPSIN by Daniel Lowe (MIT).
 The structure-to-name engine began as a port of openclatura 0.4.3, extended
@@ -16,6 +16,9 @@ fn main() -> Result<(), nazuchem::Error> {
     {
         // Equivalent to CCO; atom order follows the parser.
         assert_eq!(nazuchem::name_to_smiles("ethanol")?, "C(C)O");
+        let molecule = nazuchem::name_to_molecule("ethanol")?;
+        let json = molecule.to_json().expect("validated IR JSON");
+        assert_eq!(nazuchem::Molecule::from_json(&json).unwrap(), molecule);
     }
     #[cfg(feature = "s2n")]
     {
@@ -28,11 +31,18 @@ fn main() -> Result<(), nazuchem::Error> {
 
 The default features are `n2s` and `s2n`. Disable default features and select
 either independently. `nazuchem::n2s` and `nazuchem::s2n` expose the engine
-APIs; shared vocabulary and `Budget` are re-exported at the facade root.
+APIs; IR types, shared vocabulary and `Budget` are re-exported at the facade root.
 `name_to_smiles` uses strict OPSIN options, rejects parser warnings and returns
 semantic CXSMILES. Axial configurations require the engine API that returns
 axes separately. `smiles_to_name` uses IUPAC isotope notation and returns the
 engine's complete `Name` result.
+
+`name_to_molecule` applies the same strict parsing policy and returns validated
+IR v1, with stable atom identities, all locants and the principal-parent set.
+`Molecule::to_json`/`from_json` use a strict versioned envelope;
+`Molecule::to_cxsmiles` exports the complete IR using the
+[documented CX extensions](../nazuchem-ir/docs/cxsmiles.md). IR v1 rejects axial
+stereo with an error. This step provides no CXSMILES reader or IR-to-name API.
 
 ## Scope and limits
 
@@ -53,7 +63,7 @@ return `Err`; comprehensive IUPAC coverage is not claimed. A successful name
 includes a preference assessment and is not necessarily the preferred IUPAC
 name. This is a pre-release 0.x API; compatibility is not yet guaranteed.
 
-Both convenience functions use `Budget::default()`, which is unbounded.
+The convenience functions use `Budget::default()`, which is unbounded.
 Hosts can pass explicit budgets to `n2s::Parser::with_budget` and the s2n
 entry points. A budget's optional analysis timeout covers kernel molecular
 perception only; it is not a deadline for the complete naming operation.

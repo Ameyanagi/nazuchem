@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-n2s/src/smiles.rs | Phase B step 8a
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESFragmentBuilder.java | 42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESWriter.java | 42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESFragmentBuilder.java | b91b610af5ab07560fedb20730d7aef46bb2bca0
@@ -770,6 +771,18 @@ pub fn write_semantic_cxsmiles_with_locants_and_axes(
         })
         .collect();
     Ok((smiles, locants, axes))
+}
+
+/// Share the semantic writer's hydrogen folding and atom identity projection.
+// Provenance: fn semantic_atom_order | original
+// Source: Nazuchem | crates/nazuchem-n2s/src/smiles.rs::semantic_atom_order
+pub(crate) fn semantic_atom_order(
+    graph: &Graph,
+    fragment: FragmentId,
+) -> Result<Vec<AtomId>, SerializationError> {
+    Writer::new(graph, fragment)?
+        .write()
+        .map(|(_, order)| order)
 }
 
 struct Writer<'a> {

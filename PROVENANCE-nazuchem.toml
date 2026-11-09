@@ -1195,7 +1195,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/Cargo.toml", license = "MIT" },
 ]
 notes = "Original Rust crate package/dependency metadata. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "ac515ca1def71633dbfee8a56202089041a6eb12e96ead7dda121a818bfbcc4c"
+sha256 = "68a35278bd7f2c7c3027465bb709b713653a0808d839a32705931bb4dfc441ea"
 
 [[file]]
 path = "crates/nazuchem-n2s/LICENSE"
@@ -2351,6 +2351,7 @@ path = "crates/nazuchem-n2s/src/smiles.rs"
 origin = "mixed"
 license = "MIT"
 sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-n2s/src/smiles.rs", ref = "Phase B step 8a", license = "MIT" },
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESFragmentBuilder.java", license = "MIT" },
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESWriter.java", license = "MIT" },
   { project = "OPSIN", ref = "b91b610af5ab07560fedb20730d7aef46bb2bca0", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESFragmentBuilder.java", license = "MIT" },
@@ -2363,6 +2364,7 @@ sources = [
 ]
 notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Complete original function exceptions, where present, are identified in parts; integrated native branch/field changes are documented in evidence. Current opening comments do not fully mark the distinction."
 parts = [
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-n2s/src/smiles.rs", ref = "Phase B step 8a", license = "MIT", symbol = "semantic_atom_order" }], items = ["fn semantic_atom_order"] },
   { origin = "adapted", sources = [{ project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESFragmentBuilder.java", license = "MIT", symbol = "StackFrame.StackFrame(Atom,int)" }, { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESFragmentBuilder.java", license = "MIT", symbol = "inline in ParserInstance.parseSmiles (new StackFrame(null, 1))" }, { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESWriter.java", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "OPSIN", ref = "b91b610af5ab07560fedb20730d7aef46bb2bca0", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESWriter.java", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn <Frame as Default>::default"], notes = "Previously unlisted helper in the upstream adaptation; conservatively attributed at module scope where no individual upstream boundary is established." },
   { origin = "adapted", sources = [{ project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESFragmentBuilder.java", license = "MIT", symbol = "StackFrame.StackFrame(StackFrame)" }, { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESWriter.java", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "OPSIN", ref = "b91b610af5ab07560fedb20730d7aef46bb2bca0", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESWriter.java", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn Frame::branch"], notes = "Previously unlisted helper in the upstream adaptation; conservatively attributed at module scope where no individual upstream boundary is established." },
   { origin = "adapted", sources = [{ project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESFragmentBuilder.java", license = "MIT", symbol = "organicAtoms" }, { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESWriter.java", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "OPSIN", ref = "b91b610af5ab07560fedb20730d7aef46bb2bca0", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESWriter.java", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn organic"], notes = "Previously unlisted helper in the upstream adaptation; conservatively attributed at module scope where no individual upstream boundary is established." },
@@ -7117,6 +7119,7 @@ path = "crates/nazuchem-ir/src/lib.rs"
 origin = "original"
 license = "MIT OR Apache-2.0"
 sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-ir/src/lib.rs", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
   { project = "ReShiki", path = "src/naming.rs", ref = "8e09fa7f89e47d8465772eabf2ef7f2ea491af3a", license = "MIT OR Apache-2.0" },
 ]
 notes = "Exact shared vocabulary extraction, except public severity visibility. git log --follow and introduction diffs establish local NameStatus/NameReason in 001003b2444f8cec530b7f2b06f193d7b9c9b92c, AlternativeName in 0d10886c93f6f7aa673f4179739143986d392a01, IsotopeStyle in 381ac4164154afecf04bb4a89d8eef32eeb52190, and severity in 4cb6255557d7a904ec64cbf77377e3559fe6e0f5. Serde attributes, variant/field order and wire text are preserved."
@@ -7129,7 +7132,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem-ir/Cargo.toml", ref = "098298a396d6d2b51edeebd62dd66cd9c5871b48", license = "MIT OR Apache-2.0" },
 ]
 notes = "New Phase A step 3 shared-vocabulary crate metadata and source-history attribution; no structure IR or engine implementation."
-sha256 = "fcc93011598f889a30f62043c1218a9fb5242d5a8167559d1014ab7e68af6ac6"
+sha256 = "2c4861895f5af643aed8f51d01c25cfc1689e6429babe6b4ddaa4c04da567f83"
 
 [[file]]
 path = "crates/nazuchem-ir/NOTICE"
@@ -7139,7 +7142,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem-ir/NOTICE", ref = "098298a396d6d2b51edeebd62dd66cd9c5871b48", license = "MIT OR Apache-2.0" },
 ]
 notes = "New Phase A step 3 shared-vocabulary crate metadata and source-history attribution; no structure IR or engine implementation."
-sha256 = "a227c8e269721fb9c010d4ec287bddab4769c8251885b0e4b8baf5533e49e270"
+sha256 = "7216a2eec4691e4af5aa28f294c56b8318b114b89d77f9c5c57870664146a624"
 
 [[file]]
 path = "crates/nazuchem-ir/LICENSE-MIT"
@@ -7389,7 +7392,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/README.md", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained."
-sha256 = "d5ef823afe43547d33405e32b69d05165cd45c53f7d06fbbaaf41889bd4b9fd7"
+sha256 = "684c68c69c7986dcbd9a4a6ea76f7d00738a46184412215ab1816883d8d220c9"
 
 [[file]]
 path = "crates/nazuchem/licenses/centres/LICENSE"
@@ -7556,10 +7559,12 @@ path = "crates/nazuchem/src/lib.rs"
 origin = "mixed"
 license = "MIT OR Apache-2.0"
 sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/src/lib.rs", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/src/lib.rs", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained."
 parts = [
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem/src/lib.rs", ref = "Phase B step 8a", license = "MIT OR Apache-2.0", symbol = "name_to_molecule" }], items = ["fn name_to_molecule"] },
   { origin = "original", sources = [{ project = "Nazuchem/ReShiki", path = "crates/nazuchem/src/lib.rs", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0", symbol = "Error" }], items = ["impl Error"], members = { "impl Error" = ["fn Error::kind"] } },
   { origin = "original", sources = [{ project = "Nazuchem/ReShiki", path = "crates/nazuchem/src/lib.rs", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0", symbol = "<Error as std::fmt::Display>" }], items = ["impl <Error as std::fmt::Display>"], members = { "impl <Error as std::fmt::Display>" = ["fn <Error as std::fmt::Display>::fmt"] } },
   { origin = "original", sources = [{ project = "Nazuchem/ReShiki", path = "crates/nazuchem/src/lib.rs", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0", symbol = "n2s_errors" }], items = ["mod n2s_errors"], members = { "mod n2s_errors" = ["fn n2s_errors::<Error as From<n2s::InitializationError>>::from", "fn n2s_errors::<Error as From<n2s::ParsingError>>::from", "fn n2s_errors::<Error as From<n2s::SerializationError>>::from"] } },
@@ -7589,3 +7594,95 @@ sources = [
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including unresolved PubChem source terms for bakeoff_corpus.tsv. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
 sha256 = "8731317af36837df5ef47ed7a6455fcef53eb8a291f5bdc14cdde38400b2a540"
+
+[[file]]
+path = "crates/nazuchem-ir/docs/cxsmiles.md"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-ir/docs/cxsmiles.md", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Phase B step 8a implementation, documentation, schema or regression gate."
+sha256 = "89c02dd3dc256a629ffbe9c36354c3484a9727d25bf6cc893fd07d13612dae85"
+
+[[file]]
+path = "crates/nazuchem-ir/schema/nazuchem-ir-1.schema.json"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-ir/schema/nazuchem-ir-1.schema.json", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Phase B step 8a implementation, documentation, schema or regression gate."
+sha256 = "6f119385c1b91bce65d8dacc28c607086382df24ada1e9d6e8273a2c4c3e811e"
+
+[[file]]
+path = "crates/nazuchem-ir/src/cxsmiles.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-ir/src/cxsmiles.rs", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Phase B step 8a implementation, documentation, schema or regression gate."
+
+[[file]]
+path = "crates/nazuchem-ir/src/molecule.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-ir/src/molecule.rs", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Phase B step 8a implementation, documentation, schema or regression gate."
+
+[[file]]
+path = "crates/nazuchem-ir/tests/molecule.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-ir/tests/molecule.rs", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Phase B step 8a implementation, documentation, schema or regression gate."
+
+[[file]]
+path = "crates/nazuchem-n2s/src/ir.rs"
+origin = "original"
+license = "MIT"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-n2s/src/ir.rs", ref = "Phase B step 8a", license = "MIT" },
+]
+notes = "Original Phase B step 8a implementation, documentation, schema or regression gate."
+
+[[file]]
+path = "crates/nazuchem-n2s/tests/ir_oracle.rs"
+origin = "original"
+license = "MIT"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-n2s/tests/ir_oracle.rs", ref = "Phase B step 8a", license = "MIT" },
+]
+notes = "Original Phase B step 8a implementation, documentation, schema or regression gate."
+
+[[file]]
+path = "crates/nazuchem-n2s/tests/support/ir_cxsmiles.rs"
+origin = "original"
+license = "MIT"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-n2s/tests/support/ir_cxsmiles.rs", ref = "Phase B step 8a", license = "MIT" },
+]
+notes = "Original Phase B step 8a implementation, documentation, schema or regression gate."
+
+[[file]]
+path = "crates/nazuchem-n2s/tests/support/ir_schema.rs"
+origin = "original"
+license = "MIT"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-n2s/tests/support/ir_schema.rs", ref = "Phase B step 8a", license = "MIT" },
+]
+notes = "Original Phase B step 8a implementation, documentation, schema or regression gate."
+
+[[file]]
+path = "crates/nazuchem/tests/ir.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/tests/ir.rs", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Phase B step 8a implementation, documentation, schema or regression gate."
