@@ -2247,7 +2247,8 @@ impl Builder<'_> {
             .max(1)
             .checked_mul(32)
             .ok_or_else(|| error("Component size overflow"))?;
-        crate::component_generator::checked_expansion_len(bytes, count)
+        // Only the extra copies are allocated; a count of one copies nothing.
+        crate::component_generator::checked_expansion_len(bytes, count.saturating_sub(1))
             .map_err(|e| error(e.to_string()))?;
         Ok(())
     }

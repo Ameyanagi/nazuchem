@@ -366,6 +366,19 @@ fn name_ir_name_facade_composes_for_localized_aromatic_and_chiral_inputs() {
 
 #[cfg(feature = "n2s")]
 #[test]
+fn large_fusion_letters_and_single_large_components_do_not_panic_or_overrun_the_limit() {
+    // An implicit fusion edge beyond 'z' used to unwrap an invalid char.
+    assert!(name_to_smiles("benzo[55202]annulene").is_err());
+    // A count of one copies nothing, so a large component must not hit the
+    // copy-expansion limit (36,001 atoms alone are accepted).
+    let alone = name_to_molecule("tetrakis(nonalian-1-yl)methane").unwrap();
+    let paired =
+        name_to_molecule("tetrakis(nonalian-1-yl)methane compound with methane (1:1)").unwrap();
+    assert_eq!(paired.atoms.len(), alone.atoms.len() + 1); // methane: one C, hydrogens folded
+}
+
+#[cfg(feature = "n2s")]
+#[test]
 fn extreme_name_numbers_return_parse_errors_on_every_pointer_width() {
     // Native tests exercise 64-bit arithmetic; the Wasm binding suite runs the
     // same boundaries on wasm32. Every call must return, without unwinding.

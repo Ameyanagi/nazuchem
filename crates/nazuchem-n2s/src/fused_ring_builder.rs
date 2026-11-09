@@ -671,7 +671,12 @@ impl<'a> Builder<'a> {
                     return Some(
                         indices[..edge_length]
                             .iter()
-                            .map(|&i| char::from_u32('a' as u32 + i as u32).unwrap())
+                            // Changes: Java casts any index to a char; out-of-range indices yield a
+                            // non-letter that later fails to match, without panicking.
+                            .map(|&i| {
+                                char::from_u32('a' as u32 + i as u32)
+                                    .unwrap_or(char::REPLACEMENT_CHARACTER)
+                            })
                             .collect(),
                     );
                 }
