@@ -32,6 +32,8 @@ fn main() -> Result<(), nazuchem::Error> {
 The default features are `n2s` and `s2n`. Disable default features and select
 either independently. `nazuchem::n2s` and `nazuchem::s2n` expose the engine
 APIs; IR types, shared vocabulary and `Budget` are re-exported at the facade root.
+The IR exports include `AxialWinding`, `CxsmilesError`, `IR_VERSION`, and
+`JSON_SCHEMA`, and are available even with both engine features disabled.
 `name_to_smiles` uses strict OPSIN options, rejects parser warnings and returns
 semantic CXSMILES. Axial configurations require the engine API that returns
 axes separately. `smiles_to_name` uses IUPAC isotope notation and returns the
@@ -43,9 +45,27 @@ IR v1, with stable atom identities, all locants and the principal-parent set.
 `Molecule::to_cxsmiles` provides a convenience export using the
 [documented CX extensions](../nazuchem-ir/docs/cxsmiles.md). JSON is lossless;
 unrepresentable CX stereo returns `CxsmilesError::StereoNotExpressible`. IR v1
-includes atropisomer axes. The pinned OPSIN parser erases explicit ξ/unknown
+includes atropisomer axes; allene axial chirality is not representable in v1.
+The pinned OPSIN parser erases explicit ξ/unknown
 name descriptors before conversion, a separately tracked parser limitation.
 This step provides no CXSMILES reader or IR-to-name API.
+
+IR v1 freezes at the first published release. Until that release, its fields and
+variants may change without a version bump; after freezing, new fields or
+variants require a new IR version. `Eq` compares the complete ordered structure
+and annotations, not stereochemical equivalence under atom or reference
+reordering.
+
+Atom JSON omits `charge: 0`, `radical_electrons: 0`, and
+`hydrogens_stated: false`; readers restore those defaults. Existing optional
+fields also default on input and omit empty or `None` annotations on output.
+For example, an otherwise unannotated methane atom is
+`{"element":6,"hydrogens":4}`. `AxialWinding` uses `"clockwise"`,
+`"anticlockwise"`, or `"unknown"`, relative to its ordered references rather
+than CIP priorities: looking from `bond.atoms[0]` toward `bond.atoms[1]`, the
+shortest turn from `refs[0]` to `refs[2]` has the stated winding. Swapping one
+reference pair reverses it; reversing the axis and exchanging both pairs
+preserves it. Stereo groups may contain only known configurations.
 
 ## Scope and limits
 

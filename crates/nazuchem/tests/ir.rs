@@ -2,10 +2,24 @@
 // Origin: original
 // Source: Nazuchem | crates/nazuchem/tests/ir.rs | Phase B step 8a
 
-#![cfg(feature = "n2s")]
+use nazuchem::{AxialWinding, CxsmilesError, IR_VERSION, JSON_SCHEMA, Molecule};
 
-use nazuchem::{ErrorKind, Molecule, n2s, name_to_molecule, name_to_smiles};
+#[cfg(feature = "n2s")]
+use nazuchem::{ErrorKind, n2s, name_to_molecule, name_to_smiles};
 
+#[test]
+fn ir_contract_is_available_without_engine_features() {
+    let schema: serde_json::Value = serde_json::from_str(JSON_SCHEMA).unwrap();
+    assert_eq!(schema["properties"]["nazuchem_ir"]["const"], IR_VERSION);
+    assert_eq!(
+        serde_json::to_value(AxialWinding::Clockwise).unwrap(),
+        "clockwise"
+    );
+    let output: Result<String, CxsmilesError> = Molecule::default().to_cxsmiles();
+    assert_eq!(output.unwrap(), "");
+}
+
+#[cfg(feature = "n2s")]
 #[test]
 fn facade_returns_ethanol_ir_with_parent_locants_and_json_roundtrip() {
     let molecule = name_to_molecule("ethanol").unwrap();
@@ -28,6 +42,7 @@ fn facade_returns_ethanol_ir_with_parent_locants_and_json_roundtrip() {
     );
 }
 
+#[cfg(feature = "n2s")]
 #[test]
 fn strict_ir_facade_preserves_warning_and_parse_error_classification() {
     let parser = n2s::Parser::new().unwrap();
@@ -47,6 +62,7 @@ fn strict_ir_facade_preserves_warning_and_parse_error_classification() {
     }
 }
 
+#[cfg(feature = "n2s")]
 #[test]
 fn axial_ir_is_available_through_the_facade() {
     let name = "(1M)-[1,1'-binaphthalene]-2,2'-diol";

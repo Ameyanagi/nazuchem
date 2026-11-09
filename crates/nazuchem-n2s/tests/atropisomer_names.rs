@@ -109,9 +109,9 @@ fn written_axis(name: &str, expected: &str, locant: &str) -> (String, Vec<Option
     assert_eq!(
         ir_winding,
         if stereo.clockwise {
-            nazuchem_ir::AxialWinding::P
+            nazuchem_ir::AxialWinding::Clockwise
         } else {
-            nazuchem_ir::AxialWinding::M
+            nazuchem_ir::AxialWinding::Anticlockwise
         },
         "{name}"
     );

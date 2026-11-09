@@ -30,9 +30,6 @@ pub enum CxsmilesError {
     StereoNotExpressible,
 }
 
-/// Compatibility spelling; new code should use [`CxsmilesError`].
-pub type CxSmilesError = CxsmilesError;
-
 impl fmt::Display for CxsmilesError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -270,57 +267,30 @@ impl<'a> Writer<'a> {
 
     fn assign_unknown_tetra_bonds(&mut self) -> Result<(), CxsmilesError> {
         // A CX wavy bond can identify only one unknown tetrahedral centre.
-        // Find an injective centre-to-bond matching instead of choosing each
-        // centre's first bond independently. Alternating paths can move a
-        // previously assigned centre to another carrier when needed.
+        // Deterministically take the first unused eligible carrier. If this
+        // conservative assignment fails, JSON still retains every IR record.
         self.unknown_tetra_bonds.fill(None);
-        let mut owner: Vec<Option<usize>> = vec![None; self.molecule.bonds.len()];
+        let mut used = vec![false; self.molecule.bonds.len()];
         for stereo in &self.molecule.stereo {
             let Stereo::Tetrahedral {
-                center: root,
+                center,
                 winding: Winding::Unknown,
                 ..
             } = stereo
             else {
                 continue;
             };
-            let root = *root as usize;
-            let mut seen = vec![false; self.molecule.atoms.len()];
-            let mut previous = vec![None; self.molecule.atoms.len()];
-            let mut queue = VecDeque::from([root]);
-            seen[root] = true;
-            let mut free = None;
-            'search: while let Some(center) = queue.pop_front() {
-                for &bond in &self.adjacent[center] {
-                    if self.molecule.bonds[bond].order != BondOrder::Single
-                        || self.directions[bond].is_some()
-                    {
-                        continue;
-                    }
-                    if let Some(other) = owner[bond] {
-                        if !seen[other] {
-                            seen[other] = true;
-                            previous[other] = Some((center, bond));
-                            queue.push_back(other);
-                        }
-                    } else {
-                        free = Some((center, bond));
-                        break 'search;
-                    }
-                }
-            }
-            let (mut center, mut bond) = free.ok_or(CxsmilesError::StereoNotExpressible)?;
-            loop {
-                owner[bond] = Some(center);
-                self.unknown_tetra_bonds[center] = Some(bond);
-                match previous[center] {
-                    Some((prior, contested)) => {
-                        center = prior;
-                        bond = contested;
-                    }
-                    None => break,
-                }
-            }
+            let bond = self.adjacent[*center as usize]
+                .iter()
+                .copied()
+                .find(|&bond| {
+                    self.molecule.bonds[bond].order == BondOrder::Single
+                        && self.directions[bond].is_none()
+                        && !used[bond]
+                })
+                .ok_or(CxsmilesError::StereoNotExpressible)?;
+            used[bond] = true;
+            self.unknown_tetra_bonds[*center as usize] = Some(bond);
         }
         Ok(())
     }
@@ -405,31 +375,29 @@ impl<'a> Writer<'a> {
                 }
             }
         }
-        let original = self.directions.clone();
+        let units = self.slash_units(&specified);
         // Avoid accidentally specifying an otherwise unspecified double bond
         // using redundant marks introduced by neighbouring stereocentres.
-        let mut bonds = (0..self.molecule.bonds.len()).collect::<Vec<_>>();
-        bonds.sort_by_key(|&bond| self.bond_index[bond]);
-        for central in bonds {
-            if self.molecule.bonds[central].order != BondOrder::Double || specified[central] {
+        let mut known_ends = vec![false; self.molecule.atoms.len()];
+        for &(ends, known) in &units {
+            if known {
+                for atom in ends {
+                    known_ends[atom as usize] = true;
+                }
+            }
+        }
+        for &(ends, known) in &units {
+            if known {
                 continue;
             }
-            let marked = self.molecule.bonds[central].atoms.map(|atom| {
-                self.adjacent[atom as usize]
-                    .iter()
-                    .copied()
-                    .filter(|&bond| self.directions[bond].is_some())
-                    .collect::<Vec<_>>()
-            });
+            let marked = ends.map(|atom| self.marked_at(atom));
             if marked.iter().any(Vec::is_empty) {
                 continue;
             }
             for side in &marked {
                 let removable = side.iter().all(|&bond| {
                     self.molecule.bonds[bond].atoms.iter().all(|&atom| {
-                        !self.adjacent[atom as usize]
-                            .iter()
-                            .any(|&edge| specified[edge])
+                        !known_ends[atom as usize]
                             || self.adjacent[atom as usize].iter().any(|&edge| {
                                 !side.contains(&edge) && self.directions[edge].is_some()
                             })
@@ -443,48 +411,14 @@ impl<'a> Writer<'a> {
                 }
             }
         }
-        if self.slashes_match(&specified) {
-            return Ok(());
+        // Audit the complete assertion set after pruning, including extended
+        // cis/trans across odd cumulenes. A conservative refusal is preferable
+        // to emitting any configuration that the IR did not assert.
+        if self.slashes_match(&units) {
+            Ok(())
+        } else {
+            Err(CxsmilesError::StereoNotExpressible)
         }
-        // Greedy pruning keeps the established spelling when it works. When
-        // its local choices fail, solve the complete mark-presence problem:
-        // every known double bond needs a mark at each end, and every absent
-        // or unknown double bond must have an unmarked end. Each known end
-        // has at most two single bonds, so these are exactly 2-SAT clauses.
-        self.directions = original;
-        let mut clauses = Vec::new();
-        for (central, bond) in self.molecule.bonds.iter().enumerate() {
-            if bond.order != BondOrder::Double {
-                continue;
-            }
-            let marked = bond.atoms.map(|atom| self.marked_at(atom));
-            if specified[central] {
-                for side in marked {
-                    match side.as_slice() {
-                        [first] => clauses.push(((*first, true), (*first, true))),
-                        [first, second] => clauses.push(((*first, true), (*second, true))),
-                        _ => return Err(CxsmilesError::StereoNotExpressible),
-                    }
-                }
-            } else {
-                for &first in &marked[0] {
-                    for &second in &marked[1] {
-                        clauses.push(((first, false), (second, false)));
-                    }
-                }
-            }
-        }
-        let chosen = solve_marks(self.directions.len(), &clauses)
-            .ok_or(CxsmilesError::StereoNotExpressible)?;
-        for (direction, selected) in self.directions.iter_mut().zip(chosen) {
-            if !selected {
-                *direction = None;
-            }
-        }
-        if !self.slashes_match(&specified) {
-            return Err(CxsmilesError::StereoNotExpressible);
-        }
-        Ok(())
     }
 
     fn marked_at(&self, atom: u32) -> Vec<usize> {
@@ -495,14 +429,52 @@ impl<'a> Writer<'a> {
             .collect()
     }
 
-    fn slashes_match(&self, specified: &[bool]) -> bool {
-        self.molecule.bonds.iter().enumerate().all(|(id, bond)| {
-            bond.order != BondOrder::Double
-                || bond
-                    .atoms
-                    .iter()
-                    .all(|&atom| !self.marked_at(atom).is_empty())
-                    == specified[id]
+    fn slash_units(&self, specified: &[bool]) -> Vec<([u32; 2], bool)> {
+        let mut doubles = vec![Vec::new(); self.molecule.atoms.len()];
+        let mut bonds = (0..self.molecule.bonds.len())
+            .filter(|&bond| self.molecule.bonds[bond].order == BondOrder::Double)
+            .collect::<Vec<_>>();
+        bonds.sort_by_key(|&bond| self.bond_index[bond]);
+        let mut units = Vec::new();
+        for bond in bonds {
+            let ends = self.molecule.bonds[bond].atoms;
+            units.push((ends, specified[bond]));
+            for atom in ends {
+                doubles[atom as usize].push(bond);
+            }
+        }
+        // A maximal odd cumulene also acquires extended cis/trans stereo from
+        // marks at its two terminal atoms (OpenSMILES 3.8.3). IR v1 has no
+        // extended cis/trans record, so those terminal marks must not coexist.
+        // Even chains describe axial stereo instead; slash marks do not assign
+        // their configuration. Only terminal-to-terminal double-bond paths are
+        // cumulenes; branched components and cycles are not such chains.
+        for (start, adjacent) in doubles.iter().enumerate() {
+            let &[first] = adjacent.as_slice() else {
+                continue;
+            };
+            let mut edge = first;
+            let mut end = self.other(edge, start as u32);
+            let mut length = 1;
+            while let &[a, b] = doubles[end as usize].as_slice() {
+                edge = if edge == a { b } else { a };
+                end = self.other(edge, end);
+                length += 1;
+            }
+            if start < end as usize
+                && doubles[end as usize].len() == 1
+                && length >= 3
+                && length % 2 == 1
+            {
+                units.push(([start as u32, end], false));
+            }
+        }
+        units
+    }
+
+    fn slashes_match(&self, units: &[([u32; 2], bool)]) -> bool {
+        units.iter().all(|&(ends, specified)| {
+            ends.iter().all(|&atom| !self.marked_at(atom).is_empty()) == specified
         })
     }
 
@@ -1208,71 +1180,6 @@ fn compatibility_projection(molecule: &Molecule) -> Result<(Molecule, Vec<u32>),
     ))
 }
 
-type MarkLiteral = (usize, bool);
-
-/// Solve mark-presence clauses without recursion, including very large graphs.
-fn solve_marks(count: usize, clauses: &[(MarkLiteral, MarkLiteral)]) -> Option<Vec<bool>> {
-    let mut graph = vec![Vec::new(); 2 * count];
-    let mut reverse = vec![Vec::new(); 2 * count];
-    for &((first, first_value), (second, second_value)) in clauses {
-        let first = 2 * first + usize::from(first_value);
-        let second = 2 * second + usize::from(second_value);
-        for (from, to) in [(first ^ 1, second), (second ^ 1, first)] {
-            graph[from].push(to);
-            reverse[to].push(from);
-        }
-    }
-    let mut seen = vec![false; graph.len()];
-    let mut order = Vec::with_capacity(graph.len());
-    for root in 0..graph.len() {
-        if seen[root] {
-            continue;
-        }
-        seen[root] = true;
-        let mut stack = vec![(root, 0)];
-        while let Some((node, cursor)) = stack.last_mut() {
-            if *cursor == graph[*node].len() {
-                order.push(*node);
-                stack.pop();
-            } else {
-                let next = graph[*node][*cursor];
-                *cursor += 1;
-                if !seen[next] {
-                    seen[next] = true;
-                    stack.push((next, 0));
-                }
-            }
-        }
-    }
-    let mut component = vec![usize::MAX; graph.len()];
-    let mut next_component = 0;
-    for &root in order.iter().rev() {
-        if component[root] != usize::MAX {
-            continue;
-        }
-        component[root] = next_component;
-        let mut stack = vec![root];
-        while let Some(node) = stack.pop() {
-            for &next in &reverse[node] {
-                if component[next] == usize::MAX {
-                    component[next] = next_component;
-                    stack.push(next);
-                }
-            }
-        }
-        next_component += 1;
-    }
-    let mut selected = Vec::with_capacity(count);
-    for bond in 0..count {
-        let (no, yes) = (component[2 * bond], component[2 * bond + 1]);
-        if no == yes {
-            return None;
-        }
-        selected.push(yes > no);
-    }
-    Some(selected)
-}
-
 fn order_value(order: BondOrder) -> u32 {
     match order {
         BondOrder::Single => 1,
@@ -1529,7 +1436,7 @@ mod tests {
         *winding = Winding::Unknown;
         assert!(matches!(
             molecule.to_cxsmiles(),
-            Err(CxsmilesError::StereoNotExpressible)
+            Err(CxsmilesError::InvalidStructure(_))
         ));
         molecule.stereo_groups.clear();
         assert_eq!(molecule.to_cxsmiles().unwrap(), "C(F)(Cl)Br |w:0.0|");
@@ -1693,22 +1600,21 @@ mod tests {
     }
 
     #[test]
-    fn unknown_carrier_matching_can_reassign_an_earlier_center() {
+    fn unknown_carrier_conflicts_return_a_typed_error() {
         let mut molecule = adjacent_unknown_centers();
-        // Centre 1 can use only the shared bond. Centre 0 initially chooses
-        // it too, but can move to its unshared single bond instead.
+        // Centre 1 can use only the shared bond. Centre 0 takes it first;
+        // the conservative assignment refuses instead of reassigning carriers.
         molecule.bonds[3].order = BondOrder::Double;
         molecule.bonds[4].order = BondOrder::Double;
-        let mut writer = Writer::new(&molecule).unwrap();
-        writer.assign_directions().unwrap();
-        writer.assign_unknown_tetra_bonds().unwrap();
-        assert_eq!(writer.unknown_tetra_bonds[0], Some(1));
-        assert_eq!(writer.unknown_tetra_bonds[1], Some(0));
-        molecule.to_cxsmiles().unwrap();
+        molecule.validate().unwrap();
+        assert!(matches!(
+            molecule.to_cxsmiles(),
+            Err(CxsmilesError::StereoNotExpressible)
+        ));
     }
 
     #[test]
-    fn hall_deficient_unknown_carriers_return_a_typed_error() {
+    fn unknown_centers_without_distinct_carriers_return_a_typed_error() {
         let mut molecule = adjacent_unknown_centers();
         for bond in &mut molecule.bonds[1..] {
             bond.order = BondOrder::Double;
@@ -1721,7 +1627,7 @@ mod tests {
     }
 
     #[test]
-    fn groups_never_drop_unknown_members_from_the_standard_projection() {
+    fn groups_with_unknown_members_are_invalid() {
         let mut molecule = adjacent_unknown_centers();
         molecule.stereo_groups.push(StereoGroup {
             kind: StereoGroupKind::And(1),
@@ -1729,7 +1635,7 @@ mod tests {
         });
         assert!(matches!(
             molecule.to_cxsmiles(),
-            Err(CxsmilesError::StereoNotExpressible)
+            Err(CxsmilesError::InvalidStructure(_))
         ));
         let Stereo::Tetrahedral { winding, .. } = &mut molecule.stereo[0] else {
             unreachable!()
@@ -1738,7 +1644,7 @@ mod tests {
         molecule.stereo_groups[0].stereo = vec![0, 1];
         assert!(matches!(
             molecule.to_cxsmiles(),
-            Err(CxsmilesError::StereoNotExpressible)
+            Err(CxsmilesError::InvalidStructure(_))
         ));
         molecule.stereo_groups[0].stereo = vec![0];
         molecule.to_cxsmiles().unwrap();
@@ -1748,6 +1654,14 @@ mod tests {
             kind: StereoGroupKind::Or(2),
             stereo: vec![0],
         });
+        assert!(matches!(
+            double.to_cxsmiles(),
+            Err(CxsmilesError::InvalidStructure(_))
+        ));
+        let Stereo::DoubleBond { relation, .. } = &mut double.stereo[0] else {
+            unreachable!()
+        };
+        *relation = Relation::Trans;
         assert!(matches!(
             double.to_cxsmiles(),
             Err(CxsmilesError::StereoNotExpressible)
@@ -1775,11 +1689,15 @@ mod tests {
             stereo: vec![Stereo::Atropisomer {
                 bond: 0,
                 refs: [Ref::Atom(2), Ref::Atom(3), Ref::Atom(4), Ref::Atom(5)],
-                winding: AxialWinding::M,
+                winding: AxialWinding::Anticlockwise,
             }],
             ..Molecule::default()
         };
-        for state in [AxialWinding::M, AxialWinding::P, AxialWinding::Unknown] {
+        for state in [
+            AxialWinding::Anticlockwise,
+            AxialWinding::Clockwise,
+            AxialWinding::Unknown,
+        ] {
             let Stereo::Atropisomer { winding, .. } = &mut molecule.stereo[0] else {
                 unreachable!()
             };
@@ -1864,33 +1782,6 @@ mod tests {
                         }
                     }
                 }
-            }
-        }
-    }
-
-    #[test]
-    fn mark_solver_agrees_with_exhaustive_boolean_assignments() {
-        let literals = [(0, false), (0, true), (1, false), (1, true)];
-        let possibilities = (0..literals.len())
-            .flat_map(|i| (i..literals.len()).map(move |j| (literals[i], literals[j])))
-            .collect::<Vec<_>>();
-        for mask in 0..1 << possibilities.len() {
-            let clauses = possibilities
-                .iter()
-                .enumerate()
-                .filter_map(|(i, &clause)| (mask & (1 << i) != 0).then_some(clause))
-                .collect::<Vec<_>>();
-            let satisfies = |assignment: &[bool]| {
-                clauses
-                    .iter()
-                    .all(|&((a, av), (b, bv))| assignment[a] == av || assignment[b] == bv)
-            };
-            let expected =
-                (0..4).any(|assignment| satisfies(&[assignment & 1 != 0, assignment & 2 != 0]));
-            let actual = solve_marks(2, &clauses);
-            assert_eq!(actual.is_some(), expected, "{clauses:?}");
-            if let Some(assignment) = actual {
-                assert!(satisfies(&assignment), "{clauses:?}: {assignment:?}");
             }
         }
     }

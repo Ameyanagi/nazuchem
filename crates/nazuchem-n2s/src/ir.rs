@@ -336,10 +336,13 @@ impl Structure {
                     .get(&id)
                     .ok_or_else(|| invalid("Folded axial bond"))?,
                 refs,
+                // Source refs[0] and refs[1] become IR refs[0] and refs[2],
+                // with the same bond direction. Preserve their relative turn;
+                // the requested CIP descriptor does not label this winding.
                 winding: if configuration.clockwise {
-                    AxialWinding::P
+                    AxialWinding::Clockwise
                 } else {
-                    AxialWinding::M
+                    AxialWinding::Anticlockwise
                 },
             });
         }
@@ -882,8 +885,8 @@ mod tests {
                     let bond_index = *bond as usize;
                     let bond = &graph.bonds[bond_index];
                     let mut clockwise = match winding {
-                        AxialWinding::P => true,
-                        AxialWinding::M => false,
+                        AxialWinding::Clockwise => true,
+                        AxialWinding::Anticlockwise => false,
                         _ => panic!("test axial winding"),
                     };
                     let mut references = Vec::new();

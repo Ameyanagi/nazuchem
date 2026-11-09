@@ -82,7 +82,7 @@ export; Molfile V3000 may follow later. Standard formats were rejected as the
 contract because they depend on external interpretation, reorder atom identities,
 or cannot carry every name annotation.
 
-Designer decisions for v1 (A–G, accepted before first merge):
+Designer decisions for v1 (A–H, including final PR #35 revisions):
 
 - **A — Stereo unknowns and convention.** `Tetrahedral { center, neighbors:
   [Ref; 4], winding: Clockwise | Anticlockwise | Unknown }` and
@@ -96,22 +96,31 @@ Designer decisions for v1 (A–G, accepted before first merge):
   `to_ir`**; retaining them is a separately tracked parser limitation, not an IR
   encoding restriction.
 - **B — Atropisomers.** `Atropisomer { bond, refs: [Ref; 4], winding:
-  M | P | Unknown }` is included in v1. The first pair of references belongs to
+  Clockwise | Anticlockwise | Unknown }` is included in v1; its JSON values are
+  `"clockwise"`, `"anticlockwise"`, and `"unknown"`. The first pair belongs to
   `bond.atoms[0]`, the second to `bond.atoms[1]`. Looking from the first endpoint
-  to the second, rotation from `refs[0]` to `refs[2]` is clockwise for P and
-  anticlockwise for M. These are reference-relative structural windings, not
-  cached CIP labels; switching one pair reverses the winding. OPSIN axes, including
+  to the second, the shortest turn from `refs[0]` to `refs[2]` has the stated
+  winding. These are reference-relative structural windings, not
+  cached CIP labels; switching one pair reverses it, while reversing the bond
+  and exchanging both pairs preserves it. OPSIN axes, including
   the binaphthol M/P and Ra/Sa corpus, are retained.
 - **C — Enhanced stereo.** A known center without a group is absolute.
   `StereoGroup` contains only `And(id)` and `Or(id)`, serialized flat as
   `{"kind":"and","id":7,"stereo":[0]}`; members index `Molecule.stereo`.
+  Validation rejects any group member whose winding or relation is unknown.
 - **D — JSON.** `Ref` is an untagged atom index or the string
   `"implicit_hydrogen"` / `"lone_pair"`. Optional fields default on input and
-  empty/None annotations are omitted on output. Documents and nested records
+  empty/None annotations are omitted on output. Atom defaults `charge: 0`,
+  `radical_electrons: 0`, and `hydrogens_stated: false` are also omitted on write
+  and restored on read. Documents and nested records
   are objects, never positional arrays; each variant accepts only its own
   fields. Readers inspect `nazuchem_ir` before the document shape and report a
   typed `UnsupportedVersion`; unknown fields and variants also have typed
-  errors. **Every new field or variant increments `nazuchem_ir`; readers accept
+  errors. A fully populated serialization test covers every wire type/variant
+  and compares decoder field/variant lists with serialized keys to prevent drift.
+  **IR v1 freezes at the first published release; until then it may change
+  without a version bump. After freezing, every new field or variant increments
+  `nazuchem_ir`; readers accept
   supported versions up to their own; writers emit the lowest version able to
   represent the document.** Only v1 exists today; zero and later versions are
   unsupported. Graph constraints are validated in addition to schema shape.
@@ -124,17 +133,30 @@ Designer decisions for v1 (A–G, accepted before first merge):
   any stereo role stays a vertex; only unannotated ordinary H can become a count.
 - **F — Scope.** No coordinates, zero-order or dative bonds in v1. Layout belongs
   to hosts; coordination chemistry is outside both engines' supported contract.
-  Localized Kekulé orders and integer annotations preserve `Eq`. The later IR →
+  Allene axial chirality is not representable in v1. Localized Kekulé orders and
+  integer annotations preserve structural `Eq`; it does not test stereo-equivalence
+  under reordered atoms or references. The later IR →
   s2n adapter still owes the aromaticity/localized-pi corpus proof (step 8b).
 - **G — CXSMILES.** JSON is lossless. CX output uses standard fields plus
   `$_AV:` first-locant atom values and just `nazuchemParent` and
   `nazuchemLocants` properties (the latter stores every locant). No topology or
   index re-embedding is permitted. Export never asserts configuration absent
   from the IR: unrepresentable stereo, including the outer E bonds in
-  `(2E,6E)-octa-2,4,6-triene` with its unspecified middle bond, returns
+  `(2E,6E)-octa-2,4,6-triene` with its unspecified middle bond or
+  `(2E,8E)-deca-2,4,5,6,8-pentaene` with its unspecified odd cumulene, returns
   `CxsmilesError::StereoNotExpressible`. The legacy comparison projection is
   hidden test support. Every emitted corpus structure is reparsed with the
-  kernel and checked for specified/unspecified state and configuration.
+  kernel and checked for specified/unspecified state and configuration, including
+  maximal odd cumulene chains. Use simple pruning and a final audit, plus greedy
+  distinct wavy-bond carriers. Remove 2-SAT and augmenting matching: comparing
+  both implementations gives zero CX refusals in all three IR corpora, with
+  unchanged exact/canonical counts. Ordinary-chain properties remain 940
+  exports / 424 refusals; cumulene properties remain 336 / 48. Across 64 synthetic
+  unknown-centre carrier cases, matching gives 48 / 16 and greedy assignment
+  gives 42 / 22. These six additional conservative refusals retain their complete
+  configuration in JSON.
+- **H — Facade.** Re-export `AxialWinding`, `IR_VERSION`, and `JSON_SCHEMA`.
+  Use `CxsmilesError` throughout the public API and docs, without a spelling alias.
 
 Atoms additionally retain element, isotope, charge, hydrogen count and whether
 that count was stated, and radical electrons. Atom index is identity. Bonds

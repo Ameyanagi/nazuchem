@@ -31,11 +31,11 @@ above 99, as supported by the [RDKit SMILES extensions](https://www.rdkit.org/do
 | Radical electrons 1, 2, 3 | `^1:`, `^2:`, `^5:` respectively. Spin multiplicity is not inferred. Other counts have no dedicated exported radical layer. |
 | Known tetrahedral stereo | `@` or `@@`, adjusted for the emitted neighbour order. An implicit hydrogen or lone pair occupies the virtual ligand slot. |
 | Known double-bond stereo | `/` and `\` on adjacent single bonds, with parity constraints solved across conjugated systems. |
-| Unknown tetrahedral stereo | No `@` or `@@`; `w:atom.bond` on a distinct incident single bond without a slash for each centre. A record without an assignable carrier returns a typed error. |
+| Unknown tetrahedral stereo | No `@` or `@@`; `w:atom.bond` on a distinct incident single bond without a slash for each centre. A record without an available carrier returns a typed error. |
 | Unknown double-bond stereo | No asserted slash configuration; `w:atom.bond` and `ctu:bond`. |
 | Known axial stereo | A typed `CxsmilesError::StereoNotExpressible` error. No portable axial encoding is implemented. |
 | Unknown axial stereo | The same typed error; omitting the record would lose its stated unknown state. Its record remains available in IR JSON. |
-| Enhanced stereo | `&number:` or `onumber:` for groups consisting entirely of known tetrahedral centres. Other group members return a typed error. Known ungrouped entries are absolute. |
+| Enhanced stereo | `&number:` or `onumber:` for groups consisting entirely of known tetrahedral centres. Other known group members return a typed error; unknown members fail IR validation. Known ungrouped entries are absolute. |
 | Position variation | `m:attachment:endpoint.endpoint`, with the attachment source taken from `bonds[bond].atoms[0]`. |
 | Repeat units | `Sg:n:atoms:label:ht`, `hh`, or `eu`. The complete crossing-bond boundary and ordered attachment-point roles remain in JSON. |
 
@@ -71,29 +71,41 @@ parent-only display projection.
 
 The writer must never assert a configuration absent from the IR. Slash pruning
 retains a mark at each end of every known double bond and leaves at least one
-end unmarked for each absent or unknown double-bond record. If local pruning
-cannot meet those conditions, a Boolean constraint solver checks whether any
-subset of the available marks can do so. If no subset works, export returns
-`CxsmilesError::StereoNotExpressible`.
+end unmarked for each absent or unknown double-bond record. It also leaves at
+least one terminal atom unmarked on every maximal odd cumulene chain of three
+or more double bonds. Marks at both terminals would assert extended cis/trans
+stereo under [OpenSMILES §3.8.3](https://opensmiles.org/opensmiles.html),
+which IR v1 cannot record. Even cumulenes use extended tetrahedral stereo;
+terminal slash marks do not assign their axial configuration.
+
+After deterministic pruning, a final audit checks all ordinary double bonds
+and odd cumulene chains. If any required assertion is missing or any absent
+configuration would be asserted, export returns
+`CxsmilesError::StereoNotExpressible`. The writer uses no global mark-selection
+solver and may conservatively refuse a graph that another traversal or mark
+selection could express.
 
 For example, `(2E,6E)-octa-2,4,6-triene` has specified outer double bonds and an
 unspecified middle bond. The slashes required by the outer configurations would
 also assert a middle configuration, so this molecule returns the typed error.
 Adding custom metadata would not undo that extra standard SMILES assertion.
+Likewise, `(2E,8E)-deca-2,4,5,6,8-pentaene` has a central three-double-bond
+cumulene with unspecified geometry. The marks needed by both outer alkenes
+would assert a configuration across that cumulene, so export returns the same
+typed error.
 
 The same error covers every axial state, known tetrahedral records requiring
 more than one virtual ligand, unknown tetrahedral records without a usable
 wiggly single bond, double-bond reference bonds that cannot carry slashes, and
-enhanced groups containing any member other than a known tetrahedral record.
-Unknown centres receive globally distinct wiggly carriers through augmenting
-paths in a centre-to-bond matching. If their eligible bonds cannot supply one
-distinct carrier per centre, export returns the typed error. Group membership
-is never silently dropped or reduced.
+enhanced groups containing a known member other than a tetrahedral record.
+Unknown centres receive distinct wiggly carriers in stereo-record order, each
+taking the first available incident single bond without a slash. If a centre
+has no remaining carrier, export returns the typed error without reassigning
+earlier carriers. Group membership is never silently dropped or reduced.
 Inconsistent slash parity constraints return
 `CxsmilesError::ContradictoryStereo`. Invalid graphs return
-`CxsmilesError::InvalidStructure`. The older spelling `CxSmilesError` is a type
-alias for source compatibility. No JSON implementation error type appears in
-this error API.
+`CxsmilesError::InvalidStructure`, including enhanced groups with unknown
+members. No JSON implementation error type appears in this error API.
 
 ## Internal compatibility support
 

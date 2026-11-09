@@ -16,6 +16,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
 /// Version written in every serialized molecule.
+///
+/// IR v1 freezes at the first published release. Before that release, its shape
+/// may change without a version bump; afterward, new fields or variants require
+/// a new IR version.
 pub const IR_VERSION: u64 = 1;
 
 /// Published JSON Schema for the serialized IR v1 document.
@@ -63,6 +67,8 @@ fn add_index_bounds(value: &mut serde_json::Value) {
 /// Bonds carry localized Kekulé orders; aromaticity and coordinates are absent.
 /// Fields remain public for adapters and callers constructing structures. Call
 /// [`Self::validate`] after mutation; JSON input and output validate automatically.
+/// Equality compares stored fields and reference order. It does not test graph
+/// isomorphism or stereochemical equivalence under reordered references.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Molecule {
     pub atoms: Vec<Atom>,
@@ -75,6 +81,9 @@ pub struct Molecule {
 }
 
 /// An atom with its stated hydrogen origin, locants, and attachment label.
+///
+/// JSON omits zero charge, zero radical electrons, and false
+/// `hydrogens_stated`, restoring those defaults when the fields are absent.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(deny_unknown_fields)]
@@ -86,11 +95,17 @@ pub struct Atom {
     #[cfg_attr(any(test, feature = "schema"), schemars(range(min = 1)))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub isotope: Option<u16>,
+    /// Formal charge; defaults to zero when omitted from JSON.
+    #[serde(default, skip_serializing_if = "is_zero")]
     pub charge: i8,
     /// Hydrogen atoms not represented as graph vertices.
     pub hydrogens: u8,
     /// Distinguishes explicitly stated counts such as `[CH4]` from inferred `C`.
+    /// Defaults to false when omitted from JSON.
+    #[serde(default, skip_serializing_if = "is_false")]
     pub hydrogens_stated: bool,
+    /// Stated unpaired electron count; defaults to zero when omitted from JSON.
+    #[serde(default, skip_serializing_if = "is_zero")]
     pub radical_electrons: u8,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
@@ -167,18 +182,19 @@ pub enum Relation {
 /// Axis winding relative to its ordered references, independent of CIP ranking.
 ///
 /// Look along `bond.atoms[0]` toward `bond.atoms[1]`. The first reference pair is
-/// attached to the near end, the second to the far end. `P` means the shortest
-/// turn from the projection of `refs[0]` to `refs[2]` is clockwise; `M` means
-/// anticlockwise. Swapping either pair reverses winding. Reversing the bond and
-/// exchanging the two pairs preserves winding. The values are M/P-equivalent
-/// only for this reference order; no ligand priorities are inferred.
+/// attached to the near end, the second to the far end. `Clockwise` means the
+/// shortest turn from the projection of `refs[0]` to `refs[2]` is clockwise;
+/// `Anticlockwise` means anticlockwise. Swapping either pair reverses winding.
+/// Reversing the bond and exchanging the two pairs preserves winding. These
+/// values describe the stored reference order, not CIP M/P descriptors; no
+/// ligand priorities are inferred. `Unknown` records stated unknown winding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum AxialWinding {
-    M,
-    P,
+    Clockwise,
+    Anticlockwise,
     Unknown,
 }
 
@@ -188,6 +204,9 @@ pub enum AxialWinding {
 /// an absent entry means unspecified stereochemistry. For a double bond,
 /// `refs[i]` is attached to `bonds[bond].atoms[i]`. For an atropisomer,
 /// `refs[0..2]` are attached to the first bond end and `refs[2..4]` to the second.
+/// Axial chirality of allenes and other cumulenes is not representable in v1.
+/// Equality is structural: equivalent configurations with permuted references
+/// and adjusted winding can compare unequal.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -213,6 +232,8 @@ pub enum Stereo {
 }
 
 /// A relative or racemic group. Known ungrouped stereo is absolute.
+/// Every member must have known winding or relation; stated unknown stereo
+/// cannot participate in a relative or racemic group.
 ///
 /// JSON flattens `kind` and its identifier:
 /// `{"kind":"and","id":7,"stereo":[0]}`.
@@ -542,6 +563,21 @@ impl Molecule {
                 &format!("stereo_groups[{group}].stereo"),
             )?;
             for stereo in &data.stereo {
+                if matches!(
+                    self.stereo[*stereo as usize],
+                    Stereo::Tetrahedral {
+                        winding: Winding::Unknown,
+                        ..
+                    } | Stereo::DoubleBond {
+                        relation: Relation::Unknown,
+                        ..
+                    } | Stereo::Atropisomer {
+                        winding: AxialWinding::Unknown,
+                        ..
+                    }
+                ) {
+                    return Err(invalid("group member has unknown configuration"));
+                }
                 if !grouped_stereo.insert(*stereo) {
                     return Err(invalid("stereo entry belongs to more than one group"));
                 }
@@ -626,6 +662,14 @@ impl Molecule {
     }
 }
 
+fn is_zero<T: Default + PartialEq>(value: &T) -> bool {
+    *value == T::default()
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 fn check_index(index: u32, len: usize, path: String) -> Result<(), ValidationError> {
     if index as usize >= len {
         Err(ValidationError::IndexOutOfBounds { path, index, len })
@@ -699,12 +743,15 @@ fn normalize_integer_numbers(value: &mut serde_json::Value) {
 
 macro_rules! string_enum_deserialize {
     ($name:ident { $($variant:ident => $wire:literal),* $(,)? }) => {
+        impl $name {
+            const WIRE_VARIANTS: &'static [&'static str] = &[$($wire),*];
+        }
         impl<'de> Deserialize<'de> for $name {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 let value = String::deserialize(deserializer)?;
                 match value.as_str() {
                     $($wire => Ok(Self::$variant),)*
-                    _ => Err(serde::de::Error::unknown_variant(&value, &[$($wire),*])),
+                    _ => Err(serde::de::Error::unknown_variant(&value, Self::WIRE_VARIANTS)),
                 }
             }
         }
@@ -713,11 +760,14 @@ macro_rules! string_enum_deserialize {
 string_enum_deserialize!(BondOrder { Single => "single", Double => "double", Triple => "triple", Quadruple => "quadruple" });
 string_enum_deserialize!(Winding { Clockwise => "clockwise", Anticlockwise => "anticlockwise", Unknown => "unknown" });
 string_enum_deserialize!(Relation { Cis => "cis", Trans => "trans", Unknown => "unknown" });
-string_enum_deserialize!(AxialWinding { M => "m", P => "p", Unknown => "unknown" });
+string_enum_deserialize!(AxialWinding { Clockwise => "clockwise", Anticlockwise => "anticlockwise", Unknown => "unknown" });
 string_enum_deserialize!(Connectivity { HeadToTail => "head_to_tail", HeadToHead => "head_to_head", Unknown => "unknown" });
 
 macro_rules! object_deserialize {
     ($name:ident { $($(#[$attr:meta])* $field:ident: $ty:ty),* $(,)? }) => {
+        impl $name {
+            const WIRE_FIELDS: &'static [&'static str] = &[$(stringify!($field)),*];
+        }
         impl<'de> Deserialize<'de> for $name {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 #[derive(Deserialize)]
@@ -733,10 +783,10 @@ macro_rules! object_deserialize {
 object_deserialize!(Atom {
     element: u8,
     #[serde(default)] isotope: Option<u16>,
-    charge: i8,
+    #[serde(default)] charge: i8,
     hydrogens: u8,
-    hydrogens_stated: bool,
-    radical_electrons: u8,
+    #[serde(default)] hydrogens_stated: bool,
+    #[serde(default)] radical_electrons: u8,
     #[serde(default)] label: Option<String>,
     #[serde(default)] atom_map: Option<u32>,
     #[serde(default)] attachment_point: Option<u32>,
@@ -764,6 +814,9 @@ impl Serialize for Ref {
         }
     }
 }
+impl Ref {
+    const WIRE_VARIANTS: &'static [&'static str] = &["implicit_hydrogen", "lone_pair"];
+}
 impl<'de> Deserialize<'de> for Ref {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
@@ -781,7 +834,7 @@ impl<'de> Deserialize<'de> for Ref {
                 "lone_pair" => Ok(Self::LonePair),
                 _ => Err(serde::de::Error::unknown_variant(
                     &value,
-                    &["implicit_hydrogen", "lone_pair"],
+                    Self::WIRE_VARIANTS,
                 )),
             },
         }
@@ -794,8 +847,21 @@ impl JsonSchema for Ref {
     }
     fn json_schema(generator: &mut SchemaGenerator) -> Schema {
         json_schema!({"anyOf": [generator.subschema_for::<u32>(), {
-            "type": "string", "enum": ["implicit_hydrogen", "lone_pair"]
+            "type": "string", "enum": Self::WIRE_VARIANTS
         }]})
+    }
+}
+
+impl Stereo {
+    const WIRE_VARIANTS: &'static [&'static str] = &["tetrahedral", "double_bond", "atropisomer"];
+
+    fn wire_fields(kind: &str) -> &'static [&'static str] {
+        match kind {
+            "tetrahedral" => &["kind", "center", "neighbors", "winding"],
+            "double_bond" => &["kind", "bond", "refs", "relation"],
+            "atropisomer" => &["kind", "bond", "refs", "winding"],
+            _ => &["kind"],
+        }
     }
 }
 
@@ -852,6 +918,12 @@ impl<'de> Deserialize<'de> for Stereo {
     }
 }
 
+impl StereoGroupKind {
+    const WIRE_VARIANTS: &'static [&'static str] = &["and", "or"];
+    #[cfg(test)]
+    const WIRE_FIELDS: &'static [&'static str] = &["kind", "id"];
+}
+
 impl<'de> Deserialize<'de> for StereoGroupKind {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
@@ -902,6 +974,9 @@ impl<'de> Deserialize<'de> for StereoGroup {
         })
     }
 }
+impl StereoGroup {
+    const WIRE_FIELDS: &'static [&'static str] = &["kind", "id", "stereo"];
+}
 impl Serialize for StereoGroup {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let (kind, id) = match self.kind {
@@ -950,6 +1025,17 @@ struct MoleculeDocument {
 }
 
 impl MoleculeDocument {
+    const WIRE_FIELDS: &'static [&'static str] = &[
+        "nazuchem_ir",
+        "atoms",
+        "bonds",
+        "stereo",
+        "stereo_groups",
+        "position_variation",
+        "polymers",
+        "parent",
+    ];
+
     fn into_molecule(self) -> Result<Molecule, JsonError> {
         debug_assert_eq!(self.nazuchem_ir, IR_VERSION);
         let molecule = Molecule {
@@ -1024,20 +1110,7 @@ fn check_variant(
 }
 
 fn check_document_fields(value: &serde_json::Value) -> Result<(), JsonError> {
-    check_fields(
-        value,
-        &[
-            "nazuchem_ir",
-            "atoms",
-            "bonds",
-            "stereo",
-            "stereo_groups",
-            "position_variation",
-            "polymers",
-            "parent",
-        ],
-        "$",
-    )?;
+    check_fields(value, MoleculeDocument::WIRE_FIELDS, "$")?;
     for collection in [
         "atoms",
         "bonds",
@@ -1055,65 +1128,47 @@ fn check_document_fields(value: &serde_json::Value) -> Result<(), JsonError> {
         {
             let path = format!("$.{collection}[{index}]");
             let allowed: &[&str] = match collection {
-                "atoms" => &[
-                    "element",
-                    "isotope",
-                    "charge",
-                    "hydrogens",
-                    "hydrogens_stated",
-                    "radical_electrons",
-                    "label",
-                    "atom_map",
-                    "attachment_point",
-                    "locants",
-                ],
-                "bonds" => &["atoms", "order"],
+                "atoms" => Atom::WIRE_FIELDS,
+                "bonds" => Bond::WIRE_FIELDS,
                 "stereo" => {
                     check_variant(
                         item.get("kind"),
-                        &["tetrahedral", "double_bond", "atropisomer"],
+                        Stereo::WIRE_VARIANTS,
                         &format!("{path}.kind"),
                     )?;
-                    match item.get("kind").and_then(serde_json::Value::as_str) {
-                        Some("tetrahedral") => &["kind", "center", "neighbors", "winding"],
-                        Some("double_bond") => &["kind", "bond", "refs", "relation"],
-                        Some("atropisomer") => &["kind", "bond", "refs", "winding"],
-                        _ => &["kind"],
-                    }
+                    Stereo::wire_fields(
+                        item.get("kind")
+                            .and_then(serde_json::Value::as_str)
+                            .unwrap_or(""),
+                    )
                 }
-                "stereo_groups" => &["kind", "id", "stereo"],
-                "position_variation" => &["bond", "endpoints"],
-                "polymers" => &[
-                    "atoms",
-                    "crossing_bonds",
-                    "attachment_points",
-                    "connectivity",
-                    "label",
-                ],
+                "stereo_groups" => StereoGroup::WIRE_FIELDS,
+                "position_variation" => PositionVariation::WIRE_FIELDS,
+                "polymers" => RepeatUnit::WIRE_FIELDS,
                 _ => unreachable!(),
             };
             check_fields(item, allowed, &path)?;
             match collection {
                 "bonds" => check_variant(
                     item.get("order"),
-                    &["single", "double", "triple", "quadruple"],
+                    BondOrder::WIRE_VARIANTS,
                     &format!("{path}.order"),
                 )?,
                 "stereo" => {
                     match item.get("kind").and_then(serde_json::Value::as_str) {
                         Some("tetrahedral") => check_variant(
                             item.get("winding"),
-                            &["clockwise", "anticlockwise", "unknown"],
+                            Winding::WIRE_VARIANTS,
                             &format!("{path}.winding"),
                         )?,
                         Some("double_bond") => check_variant(
                             item.get("relation"),
-                            &["cis", "trans", "unknown"],
+                            Relation::WIRE_VARIANTS,
                             &format!("{path}.relation"),
                         )?,
                         Some("atropisomer") => check_variant(
                             item.get("winding"),
-                            &["m", "p", "unknown"],
+                            AxialWinding::WIRE_VARIANTS,
                             &format!("{path}.winding"),
                         )?,
                         _ => {}
@@ -1133,18 +1188,20 @@ fn check_document_fields(value: &serde_json::Value) -> Result<(), JsonError> {
                         {
                             check_variant(
                                 Some(value),
-                                &["implicit_hydrogen", "lone_pair"],
+                                Ref::WIRE_VARIANTS,
                                 &format!("{path}.{field}[{reference}]"),
                             )?;
                         }
                     }
                 }
-                "stereo_groups" => {
-                    check_variant(item.get("kind"), &["and", "or"], &format!("{path}.kind"))?
-                }
+                "stereo_groups" => check_variant(
+                    item.get("kind"),
+                    StereoGroupKind::WIRE_VARIANTS,
+                    &format!("{path}.kind"),
+                )?,
                 "polymers" => check_variant(
                     item.get("connectivity"),
-                    &["head_to_tail", "head_to_head", "unknown"],
+                    Connectivity::WIRE_VARIANTS,
                     &format!("{path}.connectivity"),
                 )?,
                 _ => {}
@@ -1232,6 +1289,215 @@ impl<'de> Deserialize<'de> for Molecule {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn assert_round_trip<T>(value: &T) -> serde_json::Value
+    where
+        T: Serialize + DeserializeOwned + PartialEq + std::fmt::Debug,
+    {
+        let json = serde_json::to_value(value).unwrap();
+        assert_eq!(&serde_json::from_value::<T>(json.clone()).unwrap(), value);
+        json
+    }
+
+    fn assert_keys(value: &serde_json::Value, fields: &[&str]) {
+        let serialized: BTreeSet<_> = value
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(serialized, fields.iter().copied().collect());
+    }
+
+    #[test]
+    fn every_wire_type_and_variant_agrees_with_decoder_lists() {
+        // Explicit fields keep this fixture fully populated when a record grows.
+        // Exhaustive enum matches below likewise require every new variant to
+        // have a serialization fixture before its decoder lists can drift.
+        let atom = Atom {
+            element: 6,
+            isotope: Some(13),
+            charge: -1,
+            hydrogens: 1,
+            hydrogens_stated: true,
+            radical_electrons: 1,
+            label: Some("C".into()),
+            atom_map: Some(12),
+            attachment_point: Some(2),
+            locants: vec!["1".into()],
+        };
+        assert_keys(&assert_round_trip(&atom), Atom::WIRE_FIELDS);
+
+        let bond = Bond {
+            atoms: [0, 1],
+            order: BondOrder::Single,
+        };
+        assert_keys(&assert_round_trip(&bond), Bond::WIRE_FIELDS);
+        let stereo = [
+            Stereo::Tetrahedral {
+                center: 0,
+                neighbors: [
+                    Ref::Atom(1),
+                    Ref::Atom(2),
+                    Ref::Atom(3),
+                    Ref::ImplicitHydrogen,
+                ],
+                winding: Winding::Clockwise,
+            },
+            Stereo::DoubleBond {
+                bond: 0,
+                refs: [2, 3],
+                relation: Relation::Cis,
+            },
+            Stereo::Atropisomer {
+                bond: 0,
+                refs: [
+                    Ref::Atom(2),
+                    Ref::ImplicitHydrogen,
+                    Ref::Atom(3),
+                    Ref::LonePair,
+                ],
+                winding: AxialWinding::Anticlockwise,
+            },
+        ];
+        let mut stereo_variants = BTreeSet::new();
+        for entry in &stereo {
+            match entry {
+                Stereo::Tetrahedral { .. }
+                | Stereo::DoubleBond { .. }
+                | Stereo::Atropisomer { .. } => {}
+            }
+            let value = assert_round_trip(entry);
+            let kind = value["kind"].as_str().unwrap();
+            assert_keys(&value, Stereo::wire_fields(kind));
+            stereo_variants.insert(kind.to_owned());
+        }
+        assert_eq!(
+            stereo_variants,
+            Stereo::WIRE_VARIANTS
+                .iter()
+                .map(|v| (*v).to_owned())
+                .collect()
+        );
+
+        let groups = [StereoGroupKind::And(1), StereoGroupKind::Or(2)].map(|kind| StereoGroup {
+            kind,
+            stereo: vec![0],
+        });
+        let mut group_variants = BTreeSet::new();
+        for group in &groups {
+            match group.kind {
+                StereoGroupKind::And(_) | StereoGroupKind::Or(_) => {}
+            }
+            let value = assert_round_trip(group);
+            assert_keys(&value, StereoGroup::WIRE_FIELDS);
+            let kind = assert_round_trip(&group.kind);
+            assert_keys(&kind, StereoGroupKind::WIRE_FIELDS);
+            group_variants.insert(value["kind"].as_str().unwrap().to_owned());
+        }
+        assert_eq!(
+            group_variants,
+            StereoGroupKind::WIRE_VARIANTS
+                .iter()
+                .map(|v| (*v).to_owned())
+                .collect()
+        );
+
+        let polymer = RepeatUnit {
+            atoms: vec![0, 2, 3],
+            crossing_bonds: vec![0],
+            attachment_points: vec![1],
+            connectivity: Connectivity::HeadToTail,
+            label: Some("n".into()),
+        };
+        assert_keys(&assert_round_trip(&polymer), RepeatUnit::WIRE_FIELDS);
+        let variation = PositionVariation {
+            bond: 0,
+            endpoints: vec![2, 3],
+        };
+        assert_keys(
+            &assert_round_trip(&variation),
+            PositionVariation::WIRE_FIELDS,
+        );
+        let molecule = Molecule {
+            atoms: vec![
+                atom,
+                Atom::default(),
+                Atom {
+                    element: 9,
+                    ..Atom::default()
+                },
+                Atom {
+                    element: 17,
+                    ..Atom::default()
+                },
+            ],
+            bonds: (1..=3)
+                .map(|atom| Bond {
+                    atoms: [0, atom],
+                    order: BondOrder::Single,
+                })
+                .collect(),
+            stereo: vec![stereo[0].clone()],
+            stereo_groups: vec![groups[0].clone()],
+            position_variation: vec![variation],
+            polymers: vec![polymer],
+            parent: vec![0],
+        };
+        let document = assert_round_trip(&molecule);
+        assert_keys(&document, MoleculeDocument::WIRE_FIELDS);
+        check_document_fields(&document).unwrap();
+
+        macro_rules! assert_string_variants {
+            ($name:ident { $($variant:ident),+ $(,)? }) => {{
+                let mut serialized = BTreeSet::new();
+                for value in [$($name::$variant),+] {
+                    match value { $($name::$variant => {}),+ }
+                    serialized.insert(assert_round_trip(&value).as_str().unwrap().to_owned());
+                }
+                assert_eq!(serialized, $name::WIRE_VARIANTS.iter().map(|v| (*v).to_owned()).collect());
+            }};
+        }
+        assert_string_variants!(BondOrder {
+            Single,
+            Double,
+            Triple,
+            Quadruple
+        });
+        assert_string_variants!(Winding {
+            Clockwise,
+            Anticlockwise,
+            Unknown
+        });
+        assert_string_variants!(Relation {
+            Cis,
+            Trans,
+            Unknown
+        });
+        assert_string_variants!(AxialWinding {
+            Clockwise,
+            Anticlockwise,
+            Unknown
+        });
+        assert_string_variants!(Connectivity {
+            HeadToTail,
+            HeadToHead,
+            Unknown
+        });
+        let mut virtual_refs = BTreeSet::new();
+        for reference in [Ref::Atom(1), Ref::ImplicitHydrogen, Ref::LonePair] {
+            match reference {
+                Ref::Atom(_) | Ref::ImplicitHydrogen | Ref::LonePair => {}
+            }
+            if let Some(name) = assert_round_trip(&reference).as_str() {
+                virtual_refs.insert(name.to_owned());
+            }
+        }
+        assert_eq!(
+            virtual_refs,
+            Ref::WIRE_VARIANTS.iter().map(|v| (*v).to_owned()).collect()
+        );
+    }
 
     #[test]
     fn published_schema_matches_the_derived_wire_document() {

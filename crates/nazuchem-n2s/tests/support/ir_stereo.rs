@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use nazuchem_ir::{AxialWinding, Molecule, Ref, Relation, Stereo, Winding};
-use nazuchem_kernel::{smiles, stereo::bond_stereo_from_directions};
+use nazuchem_kernel::{kekulize::Direction, smiles, stereo::bond_stereo_from_directions};
 use nazuchem_n2s::{
     Structure,
     graph::{AtomId, BondStereoValue, StereoGroupType, StereoReference},
@@ -178,9 +178,9 @@ pub fn source(
             let clockwise = axis.clockwise ^ (expected[0] != refs[0]) ^ (expected[1] != refs[2]);
             if *winding
                 != if clockwise {
-                    AxialWinding::P
+                    AxialWinding::Clockwise
                 } else {
-                    AxialWinding::M
+                    AxialWinding::Anticlockwise
                 }
             {
                 return Err("source axis configuration changed".into());
@@ -201,6 +201,57 @@ pub fn written(molecule: &Molecule, text: &str, order: &[u32]) -> Result<(), Str
     let parsed = smiles::parse(super::cx::bare(text)).map_err(|e| e.to_string())?;
     let metadata =
         bond_stereo_from_directions(&parsed.graph, &parsed.metadata, &parsed.directions)?;
+    // The kernel's raw per-bond conversion deliberately does not assign
+    // extended cis/trans stereo. Independently inspect entire connected
+    // components of double bonds before any preparation can erase the marks.
+    let mut doubles = vec![Vec::new(); parsed.graph.atoms.len()];
+    let mut directed = vec![false; parsed.graph.atoms.len()];
+    for (id, bond) in parsed.graph.bonds.iter().enumerate() {
+        if bond.order == 2 {
+            doubles[bond.a].push(bond.b);
+            doubles[bond.b].push(bond.a);
+        } else if matches!(parsed.directions[id], Direction::Up | Direction::Down) {
+            directed[bond.a] = true;
+            directed[bond.b] = true;
+        }
+    }
+    let mut seen = vec![false; doubles.len()];
+    for root in 0..doubles.len() {
+        if seen[root] || doubles[root].is_empty() {
+            continue;
+        }
+        let mut stack = vec![root];
+        let mut component = Vec::new();
+        seen[root] = true;
+        while let Some(atom) = stack.pop() {
+            component.push(atom);
+            for &next in &doubles[atom] {
+                if !seen[next] {
+                    seen[next] = true;
+                    stack.push(next);
+                }
+            }
+        }
+        let terminals = component
+            .iter()
+            .copied()
+            .filter(|&atom| doubles[atom].len() == 1)
+            .collect::<Vec<_>>();
+        if let &[first, last] = terminals.as_slice()
+            && component.iter().all(|&atom| doubles[atom].len() <= 2)
+            && component.len() >= 4
+            && component.len() % 2 == 0
+            && directed[first]
+            && directed[last]
+        {
+            // An even number of vertices is an odd number of double bonds.
+            // IR v1 has no extended cis/trans record that could authorize it.
+            return Err(format!(
+                "writer introduced extended cis/trans stereo across cumulene {}..{}",
+                order[first], order[last]
+            ));
+        }
+    }
     // Parse the actual CX extension too, without preparation/cleanup. In
     // particular, w/ctu must describe only unknown units present in the IR.
     let mut unknown_atoms = BTreeSet::new();

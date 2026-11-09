@@ -578,6 +578,199 @@ fn unspecified_middle_double_bond_cannot_be_exported_with_extra_stereo() {
     ));
 }
 
+fn cumulene_between_alkenes(
+    length: usize,
+    states: [u8; 2],
+    unknown_chain: bool,
+    reversed: bool,
+) -> Molecule {
+    use nazuchem_ir::{Atom, Bond, BondOrder, Relation, Stereo};
+    let orders = [BondOrder::Single, BondOrder::Double, BondOrder::Single]
+        .into_iter()
+        .chain(std::iter::repeat_n(BondOrder::Double, length))
+        .chain([BondOrder::Single, BondOrder::Double, BondOrder::Single])
+        .collect::<Vec<_>>();
+    let atoms = (0..=orders.len())
+        .map(|i| {
+            let valence = [i.checked_sub(1), (i < orders.len()).then_some(i)]
+                .into_iter()
+                .flatten()
+                .map(|bond| {
+                    if orders[bond] == BondOrder::Double {
+                        2
+                    } else {
+                        1
+                    }
+                })
+                .sum::<u8>();
+            Atom {
+                element: 6,
+                hydrogens: 4 - valence,
+                ..Atom::default()
+            }
+        })
+        .collect();
+    let bonds = orders
+        .into_iter()
+        .enumerate()
+        .map(|(i, order)| Bond {
+            atoms: if reversed {
+                [(i + 1) as u32, i as u32]
+            } else {
+                [i as u32, (i + 1) as u32]
+            },
+            order,
+        })
+        .collect();
+    let mut molecule = Molecule::new(atoms, bonds).unwrap();
+    for (bond, state) in [(1, states[0]), (length + 4, states[1])]
+        .into_iter()
+        .chain((3..3 + length).filter_map(|bond| unknown_chain.then_some((bond, 3))))
+    {
+        let relation = match state {
+            0 => continue,
+            1 => Relation::Cis,
+            2 => Relation::Trans,
+            3 => Relation::Unknown,
+            _ => unreachable!(),
+        };
+        let refs = [(bond - 1) as u32, (bond + 2) as u32];
+        molecule.stereo.push(Stereo::DoubleBond {
+            bond: bond as u32,
+            refs: if reversed { [refs[1], refs[0]] } else { refs },
+            relation,
+        });
+    }
+    molecule
+}
+
+#[test]
+fn specified_outer_alkenes_cannot_assert_absent_odd_cumulene_stereo() {
+    // Explicit IR for (2E,8E)-deca-2,4,5,6,8-pentaene. Its central
+    // three-double-bond cumulene has no extended cis/trans assertion.
+    let molecule = cumulene_between_alkenes(3, [2, 2], false, false);
+    assert_eq!(molecule.atoms.len(), 10);
+    assert_eq!(molecule.stereo.len(), 2);
+    molecule.validate().unwrap();
+    for result in [
+        molecule.to_cxsmiles(),
+        molecule.semantic_cxsmiles_for_tests(),
+    ] {
+        assert!(matches!(result, Err(CxsmilesError::StereoNotExpressible)));
+    }
+    // This was the faulty output: ordinary per-bond parsing sees only the
+    // two intended alkenes, but the independent full-chain audit rejects it.
+    let bad = r"C\C=C\C=C=C=C\C=C\C";
+    let error = stereo::written(&molecule, bad, &(0..10).collect::<Vec<_>>()).unwrap_err();
+    assert!(error.contains("extended cis/trans"), "{error}");
+}
+
+#[test]
+fn odd_and_even_cumulene_specification_patterns_preserve_stereo_when_exported() {
+    let mut emitted = 0;
+    let mut refused = 0;
+    for length in 2..=7 {
+        for first in 0..4 {
+            for last in 0..4 {
+                for unknown_chain in [false, true] {
+                    for reversed in [false, true] {
+                        let molecule = cumulene_between_alkenes(
+                            length,
+                            [first, last],
+                            unknown_chain,
+                            reversed,
+                        );
+                        let must_refuse =
+                            length % 2 == 1 && matches!(first, 1 | 2) && matches!(last, 1 | 2);
+                        match molecule.to_cxsmiles() {
+                            Ok(text) => {
+                                assert!(!must_refuse, "{length}: {text}");
+                                stereo::written(
+                                    &molecule,
+                                    &text,
+                                    &molecule.smiles_atom_order().unwrap(),
+                                )
+                                .unwrap_or_else(|error| panic!("{length}: {text}: {error}"));
+                                emitted += 1;
+                            }
+                            Err(CxsmilesError::StereoNotExpressible) => {
+                                assert!(must_refuse, "{length}: {first}/{last}");
+                                refused += 1;
+                            }
+                            Err(error) => panic!("unexpected export error: {error}"),
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!((emitted, refused), (336, 48));
+    eprintln!("cumulene property cases: emitted={emitted}, StereoNotExpressible={refused}");
+}
+
+#[test]
+fn unknown_tetrahedral_carrier_patterns_preserve_stereo_when_exported() {
+    use nazuchem_ir::{Atom, Bond, BondOrder, Ref, Stereo, Winding};
+    // Structural IR does not perform valence perception. Exhaust incident
+    // single/double carrier choices even for unusual valence patterns, and
+    // both record orders, to measure conservative carrier refusals explicitly.
+    let mut emitted = 0;
+    let mut refused = 0;
+    for mask in 0..32 {
+        for reversed in [false, true] {
+            let atoms = [6, 6, 9, 17, 35, 53]
+                .into_iter()
+                .enumerate()
+                .map(|(id, element)| Atom {
+                    element,
+                    hydrogens: u8::from(id < 2),
+                    ..Atom::default()
+                })
+                .collect();
+            let bonds = [[0, 1], [0, 2], [0, 3], [1, 4], [1, 5]]
+                .into_iter()
+                .enumerate()
+                .map(|(id, atoms)| Bond {
+                    atoms,
+                    order: if mask & (1 << id) != 0 {
+                        BondOrder::Single
+                    } else {
+                        BondOrder::Double
+                    },
+                })
+                .collect();
+            let mut molecule = Molecule::new(atoms, bonds).unwrap();
+            for (center, others) in [(0, [1, 2, 3]), (1, [0, 4, 5])] {
+                molecule.stereo.push(Stereo::Tetrahedral {
+                    center,
+                    neighbors: [
+                        Ref::ImplicitHydrogen,
+                        Ref::Atom(others[0]),
+                        Ref::Atom(others[1]),
+                        Ref::Atom(others[2]),
+                    ],
+                    winding: Winding::Unknown,
+                });
+            }
+            if reversed {
+                molecule.stereo.reverse();
+            }
+            match molecule.to_cxsmiles() {
+                Ok(text) => {
+                    stereo::written(&molecule, &text, &molecule.smiles_atom_order().unwrap())
+                        .unwrap_or_else(|error| panic!("mask={mask}: {text}: {error}"));
+                    emitted += 1;
+                }
+                Err(CxsmilesError::StereoNotExpressible) => refused += 1,
+                Err(error) => panic!("mask={mask}: unexpected export error: {error}"),
+            }
+        }
+    }
+    assert_eq!(emitted + refused, 64);
+    assert!(emitted > 0 && refused > 0);
+    eprintln!("unknown-carrier property cases: emitted={emitted}, StereoNotExpressible={refused}");
+}
+
 #[test]
 fn all_conjugated_chain_specification_patterns_preserve_stereo_when_exported() {
     use nazuchem_ir::{Atom, Bond, BondOrder, Relation, Stereo};
@@ -666,10 +859,10 @@ fn direct_source_comparison_rejects_inverted_configurations() {
                 }
             }
             Stereo::Atropisomer { winding, .. } => {
-                *winding = if *winding == AxialWinding::M {
-                    AxialWinding::P
+                *winding = if *winding == AxialWinding::Anticlockwise {
+                    AxialWinding::Clockwise
                 } else {
-                    AxialWinding::M
+                    AxialWinding::Anticlockwise
                 }
             }
             _ => panic!("new untested stereo variant"),

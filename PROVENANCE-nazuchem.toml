@@ -1235,7 +1235,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "b359d2dfa47aa307c8da67b4e677845e9327ffb03d7756958418fcf868477a25"
+sha256 = "f55cb49fd009b0357e53069744655ef42eea6b5b2cd6b77fae5f9f7e5a7b1931"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/ExportComponents.java.txt"
@@ -7392,7 +7392,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/README.md", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained."
-sha256 = "cb5bcf4c3349dd386f51cea499aead7057ed0bc5a5c9768d15867f0bd338f8d1"
+sha256 = "8903224d1f56a1a910f637f7997a88f92ba5b70f61522303840746e293fd474c"
 
 [[file]]
 path = "crates/nazuchem/licenses/centres/LICENSE"
@@ -7603,7 +7603,7 @@ sources = [
   { project = "Nazuchem", path = "crates/nazuchem-ir/docs/cxsmiles.md", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Phase B step 8a implementation, documentation, schema or regression gate."
-sha256 = "4134e8de8a01648564fd8b0943838427e1112f5ef07f520e4ca6d85fbb0fcbe8"
+sha256 = "6ad56576690f5345524c5354a887698fa129333f399916219d6dbf77258e4550"
 
 [[file]]
 path = "crates/nazuchem-ir/schema/nazuchem-ir-1.schema.json"
@@ -7613,7 +7613,7 @@ sources = [
   { project = "Nazuchem", path = "crates/nazuchem-ir/schema/nazuchem-ir-1.schema.json", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Phase B step 8a implementation, documentation, schema or regression gate."
-sha256 = "48c196948507db73c16db9c923c2abc561d54860f265049c9fe5e1c92ab7f62f"
+sha256 = "fae28a43a8ad6cb31713d6572e805c75b5875176549e3be1093cb689cef0f430"
 
 [[file]]
 path = "crates/nazuchem-ir/src/cxsmiles.rs"

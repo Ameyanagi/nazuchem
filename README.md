@@ -48,11 +48,23 @@ for admission limits and unsupported stereochemistry.
 
 `name_to_molecule` returns IR v1 with stable identities, full locants, parent
 membership, and tetrahedral, double-bond and atropisomer stereo. JSON is the
-lossless interchange format. CXSMILES is a convenience export and returns
+lossless interchange format. The facade also exports `AxialWinding`,
+`CxsmilesError`, `IR_VERSION`, and `JSON_SCHEMA` without requiring engine
+features. CXSMILES is a convenience export and returns
 `CxsmilesError::StereoNotExpressible` when standard notation cannot preserve
 specified/unspecified stereo, including some partially specified polyenes and
-atropisomers. Layout coordinates belong to hosts; v1 has no dative or
+atropisomers. Allene axial chirality is not representable in v1.
+Layout coordinates belong to hosts; v1 has no dative or
 zero-order bonds and coordination chemistry is outside both engines' contract.
+
+IR v1 freezes at the first published release; until then it may change without
+a version bump. After freezing, new fields or variants require a new IR version.
+`Eq` is structural equality of the ordered graph and annotations, not
+stereochemical equivalence. Atom JSON omits zero charge, zero radical electrons,
+and false `hydrogens_stated`, restoring them on read; for example, an
+unannotated methane atom is `{"element":6,"hydrogens":4}`. Axial JSON windings
+are `"clockwise"`, `"anticlockwise"`, or `"unknown"` relative to the ordered
+references, as defined in the [facade documentation](crates/nazuchem/README.md).
 
 The IR distinguishes explicit `Unknown` stereo from an absent assertion, but
 the pinned OPSIN parser currently erases ξ/unknown descriptors in names before

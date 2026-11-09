@@ -78,6 +78,10 @@ fn alkene() -> Molecule {
 #[test]
 fn all_annotations_round_trip_without_reordering_or_folding_hydrogen() {
     let mut molecule = tetrahedral();
+    let Stereo::Tetrahedral { winding, .. } = &mut molecule.stereo[0] else {
+        unreachable!()
+    };
+    *winding = Winding::Clockwise;
     molecule.atoms[0].locants = vec!["2".into(), "2′".into()];
     molecule.atoms[1].hydrogens_stated = true;
     molecule.atoms.push(Atom {
@@ -240,6 +244,10 @@ fn stereo_rejects_duplicate_nonadjacent_and_unavailable_references() {
 #[test]
 fn group_parent_position_variation_and_polymer_references_are_checked() {
     let mut invalid_group = tetrahedral();
+    let Stereo::Tetrahedral { winding, .. } = &mut invalid_group.stereo[0] else {
+        unreachable!()
+    };
+    *winding = Winding::Clockwise;
     invalid_group.stereo_groups.push(StereoGroup {
         kind: StereoGroupKind::And(1),
         stereo: vec![1],
@@ -371,6 +379,9 @@ fn optional_annotations_default_and_empty_fields_are_omitted() {
     let atom = serde_json::to_value(carbon(4)).unwrap();
     for field in [
         "isotope",
+        "charge",
+        "hydrogens_stated",
+        "radical_electrons",
         "label",
         "locants",
         "atom_map",
@@ -382,12 +393,55 @@ fn optional_annotations_default_and_empty_fields_are_omitted() {
 }
 
 #[test]
+fn atom_defaults_are_optional_on_read_and_omitted_on_write() {
+    let minimal = json!({"element":6,"hydrogens":4});
+    assert_eq!(serde_json::to_value(carbon(4)).unwrap(), minimal);
+    assert_eq!(
+        serde_json::from_value::<Atom>(minimal.clone()).unwrap(),
+        carbon(4)
+    );
+    let document = json!({"nazuchem_ir":1,"atoms":[minimal],"bonds":[]});
+    let molecule = Molecule::new(vec![carbon(4)], vec![]).unwrap();
+    assert_eq!(
+        Molecule::from_json(&document.to_string()).unwrap(),
+        molecule
+    );
+    assert_eq!(
+        serde_json::from_value::<Molecule>(document).unwrap(),
+        molecule
+    );
+
+    let mut stated = carbon(4);
+    stated.charge = -1;
+    stated.radical_electrons = 2;
+    stated.hydrogens_stated = true;
+    let value = serde_json::to_value(&stated).unwrap();
+    assert_eq!(
+        value,
+        json!({"element":6,"hydrogens":4,"charge":-1,"radical_electrons":2,"hydrogens_stated":true})
+    );
+    assert_eq!(serde_json::from_value::<Atom>(value).unwrap(), stated);
+
+    let explicit_defaults = json!({"element":6,"hydrogens":4,"charge":0,"radical_electrons":0,"hydrogens_stated":false});
+    let read: Atom = serde_json::from_value(explicit_defaults).unwrap();
+    assert_eq!(
+        serde_json::to_value(read).unwrap(),
+        json!({"element":6,"hydrogens":4})
+    );
+    for missing_required in [json!({"element":6}), json!({"hydrogens":4})] {
+        assert!(serde_json::from_value::<Atom>(missing_required).is_err());
+    }
+}
+
+#[test]
 fn all_enum_types_reject_unknown_wire_variants_and_tag_fields() {
     assert!(serde_json::from_value::<BondOrder>(json!("aromatic")).is_err());
     assert!(serde_json::from_value::<BondOrder>(json!({"single":null})).is_err());
     assert!(serde_json::from_value::<Winding>(json!({"clockwise":null})).is_err());
     assert!(serde_json::from_value::<Relation>(json!({"cis":null})).is_err());
-    assert!(serde_json::from_value::<AxialWinding>(json!({"m":null})).is_err());
+    assert!(serde_json::from_value::<AxialWinding>(json!({"clockwise":null})).is_err());
+    assert!(serde_json::from_value::<AxialWinding>(json!("m")).is_err());
+    assert!(serde_json::from_value::<AxialWinding>(json!("p")).is_err());
     assert!(serde_json::from_value::<Connectivity>(json!({"unknown":null})).is_err());
     assert!(serde_json::from_value::<Winding>(json!("future")).is_err());
     assert!(serde_json::from_value::<Relation>(json!("unspecified")).is_err());
@@ -422,7 +476,7 @@ fn axis() -> Molecule {
     molecule.stereo.push(Stereo::Atropisomer {
         bond: 0,
         refs: [Ref::Atom(2), Ref::Atom(3), Ref::Atom(4), Ref::Atom(5)],
-        winding: AxialWinding::P,
+        winding: AxialWinding::Clockwise,
     });
     molecule
 }
@@ -430,6 +484,10 @@ fn axis() -> Molecule {
 #[test]
 fn untagged_refs_flattened_groups_and_typed_atom_annotations_have_exact_json() {
     let mut molecule = tetrahedral();
+    let Stereo::Tetrahedral { winding, .. } = &mut molecule.stereo[0] else {
+        unreachable!()
+    };
+    *winding = Winding::Clockwise;
     molecule.atoms[0].atom_map = Some(12);
     molecule.atoms.push(Atom {
         attachment_point: Some(2),
@@ -444,7 +502,7 @@ fn untagged_refs_flattened_groups_and_typed_atom_annotations_have_exact_json() {
         value["stereo"][0]["neighbors"],
         json!([1, 2, 3, "implicit_hydrogen"])
     );
-    assert_eq!(value["stereo"][0]["winding"], "unknown");
+    assert_eq!(value["stereo"][0]["winding"], "clockwise");
     assert!(value["stereo"][0].get("known").is_none());
     assert_eq!(
         value["stereo_groups"],
@@ -465,7 +523,11 @@ fn untagged_refs_flattened_groups_and_typed_atom_annotations_have_exact_json() {
 
 #[test]
 fn axial_unknown_and_known_stereo_validate_and_round_trip() {
-    for winding in [AxialWinding::M, AxialWinding::P, AxialWinding::Unknown] {
+    for winding in [
+        AxialWinding::Anticlockwise,
+        AxialWinding::Clockwise,
+        AxialWinding::Unknown,
+    ] {
         let mut molecule = axis();
         let Stereo::Atropisomer { winding: value, .. } = &mut molecule.stereo[0] else {
             unreachable!()
@@ -528,6 +590,65 @@ fn axial_unknown_and_known_stereo_validate_and_round_trip() {
         Molecule::from_json(&alkene.to_json().unwrap()).unwrap(),
         alkene
     );
+}
+
+#[test]
+fn groups_require_known_configuration_for_every_stereo_kind() {
+    for mut molecule in [tetrahedral(), alkene(), axis()] {
+        match &mut molecule.stereo[0] {
+            Stereo::Tetrahedral { winding, .. } => *winding = Winding::Clockwise,
+            Stereo::DoubleBond { relation, .. } => *relation = Relation::Cis,
+            Stereo::Atropisomer { winding, .. } => *winding = AxialWinding::Clockwise,
+            _ => unreachable!(),
+        }
+        for kind in [StereoGroupKind::And(1), StereoGroupKind::Or(1)] {
+            let mut grouped = molecule.clone();
+            grouped.stereo_groups.push(StereoGroup {
+                kind,
+                stereo: vec![0],
+            });
+            grouped.validate().unwrap();
+            let mut document = serde_json::to_value(&grouped).unwrap();
+            let field = match &mut grouped.stereo[0] {
+                Stereo::Tetrahedral { winding, .. } => {
+                    *winding = Winding::Unknown;
+                    "winding"
+                }
+                Stereo::DoubleBond { relation, .. } => {
+                    *relation = Relation::Unknown;
+                    "relation"
+                }
+                Stereo::Atropisomer { winding, .. } => {
+                    *winding = AxialWinding::Unknown;
+                    "winding"
+                }
+                _ => unreachable!(),
+            };
+            assert!(matches!(
+                grouped.validate(),
+                Err(ValidationError::InvalidStereoGroup { group: 0, .. })
+            ));
+            assert!(matches!(
+                grouped.to_json(),
+                Err(JsonError::Validation(ValidationError::InvalidStereoGroup {
+                    group: 0,
+                    ..
+                }))
+            ));
+            assert!(serde_json::to_value(&grouped).is_err());
+            document["stereo"][0][field] = json!("unknown");
+            assert!(matches!(
+                Molecule::from_json(&document.to_string()),
+                Err(JsonError::Validation(ValidationError::InvalidStereoGroup {
+                    group: 0,
+                    ..
+                }))
+            ));
+            assert!(serde_json::from_value::<Molecule>(document).is_err());
+            grouped.stereo_groups.clear();
+            grouped.validate().unwrap();
+        }
+    }
 }
 
 #[test]
@@ -628,6 +749,10 @@ fn schema_and_both_deserializers_agree_on_representative_wire_shapes() {
     let alkene_document = serde_json::to_value(alkene()).unwrap();
     let grouped = {
         let mut m = tetrahedral();
+        let Stereo::Tetrahedral { winding, .. } = &mut m.stereo[0] else {
+            unreachable!()
+        };
+        *winding = Winding::Anticlockwise;
         m.stereo_groups.push(StereoGroup {
             kind: StereoGroupKind::Or(2),
             stereo: vec![0],
@@ -726,12 +851,12 @@ fn schema_and_both_deserializers_agree_on_representative_wire_shapes() {
         (
             &axis,
             "/stereo/0",
-            json!({"kind":"atropisomer","bond":0,"refs":[2,3,4,5],"winding":"p","relation":null}),
+            json!({"kind":"atropisomer","bond":0,"refs":[2,3,4,5],"winding":"clockwise","relation":null}),
         ),
         (&tetra, "/bonds/0/order", json!({"single":null})),
         (&tetra, "/stereo/0/winding", json!({"unknown":null})),
         (&alkene_document, "/stereo/0/relation", json!({"cis":null})),
-        (&axis, "/stereo/0/winding", json!({"m":null})),
+        (&axis, "/stereo/0/winding", json!({"clockwise":null})),
         (
             &polymer,
             "/polymers/0/connectivity",

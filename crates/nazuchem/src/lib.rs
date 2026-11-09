@@ -8,9 +8,9 @@
 #![forbid(unsafe_code)]
 
 pub use nazuchem_ir::{
-    AlternativeName, Atom, Bond, BondOrder, Connectivity, CxSmilesError, IsotopeStyle, JsonError,
-    Molecule, NameReason, NameStatus, PositionVariation, Ref, Relation, RepeatUnit, Stereo,
-    StereoGroup, StereoGroupKind, ValidationError, Winding,
+    AlternativeName, Atom, AxialWinding, Bond, BondOrder, Connectivity, CxsmilesError, IR_VERSION,
+    IsotopeStyle, JSON_SCHEMA, JsonError, Molecule, NameReason, NameStatus, PositionVariation, Ref,
+    Relation, RepeatUnit, Stereo, StereoGroup, StereoGroupKind, ValidationError, Winding,
 };
 pub use nazuchem_kernel::budget::Budget;
 
