@@ -198,8 +198,11 @@ pub fn smiles_to_name(smiles: &str) -> Result<s2n::Name, Error> {
 
 /// Generate a name directly from an IR molecule using IUPAC isotope notation.
 ///
-/// Uses the default unbounded budget. Atom indices remain the caller's IR
-/// identities throughout graph admission and component naming.
+/// Uses the default unbounded budget. Graph admission and ordinary component
+/// naming retain surviving caller atom IDs. Identity checks serialize canonical
+/// SMILES; the monatomic-cation probe and unknown-stereo baseline, salt, cation
+/// and radical-ion naming routes can reparse it into detached graphs. The
+/// caller's IR is never changed.
 // Provenance: fn molecule_to_name | original
 // Source: Nazuchem | crates/nazuchem/src/lib.rs::molecule_to_name
 #[cfg(feature = "s2n")]

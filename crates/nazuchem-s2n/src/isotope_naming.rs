@@ -9,9 +9,7 @@
 //! unique heteroatoms and completely substituted elements are supported. A
 //! bounded automorphism proof chooses the lowest equivalent isotope locants;
 //! the finished name must independently reconstruct the original graph.
-use super::{
-    Name, component_namer, graph_io, locants::retained_locant_sort_key, molecule::Molecule,
-};
+use super::{Name, component_namer, locants::retained_locant_sort_key, molecule::Molecule};
 use nazuchem_ir::{IsotopeStyle, NameReason, NameStatus};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -368,15 +366,6 @@ fn verify(smiles: &str, name: &str) -> Result<(), String> {
         .map_err(|_| "openclatura: isotope descriptor does not exactly reconstruct the labelled structure and stereochemistry".into())
 }
 
-pub(super) fn name_smiles(
-    smiles: &str,
-    style: IsotopeStyle,
-    budget: &nazuchem_kernel::budget::Budget,
-) -> Result<Name, String> {
-    let source = graph_io::read_smiles(smiles, budget)?;
-    name_molecule(&source, style)
-}
-
 /// Name the already admitted graph without serializing its atom identities.
 pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Name, String> {
     if source
@@ -428,6 +417,7 @@ pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Na
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::name_smiles_with_style as name_smiles;
 
     #[test]
     fn stripped_parents_keep_isotope_provenance_and_original_cip() {
@@ -435,7 +425,7 @@ mod tests {
             "[13CH3][C@H](F)C([C@H](F)C)CCCC",
             "[2H][C@H](F)C([C@H](F)C)CCCC",
         ] {
-            let source = graph_io::read_smiles(smiles, &Default::default()).unwrap();
+            let source = crate::graph_io::read_smiles(smiles, &Default::default()).unwrap();
             let (parent, _) = stripped_parent(&source).unwrap();
             assert!(parent.atoms.values().all(|a| a.isotope.is_none()));
             assert!(parent.isotope_labels_stripped);

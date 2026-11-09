@@ -2,10 +2,11 @@
 // Origin: adapted
 // Source: RDKit | Code/GraphMol/Chirality.cpp | 0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985
 // Source: ReShiki | crates/chemistry/src/stereo/perception/bonds.rs | be63a799aa03a83dc6ec74bb294f4d42b89298d3
+// Source: Nazuchem | crates/nazuchem-kernel/src/stereo/perception/bonds.rs | Phase B step 8b
 // Copyright (c) 2006-2015, Rational Discovery LLC, Greg Landrum, and Julie Penzotti and others
-// Changes: Rust adaptation; the internal chemistry-to-kernel copy and any extraction changes remain recorded below.
+// Changes: Rust adaptation; normalize authoritative IR cis/trans carriers into legacy E/Z assignment without requiring slash directions.
 
-// Copied unchanged from crates/chemistry/src/stereo/perception/bonds.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3
+// Copied from crates/chemistry/src/stereo/perception/bonds.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: assign authoritative IR bond configurations
 use super::*;
 impl Context {
     pub(super) fn directed_neighbors(
@@ -77,23 +78,29 @@ impl Context {
         for i in 0..self.state.graph.bonds.len() {
             work.spend(1)?;
             let bond = at(&self.state.graph.bonds, i)?.clone();
+            let authoritative = self
+                .authoritative_bonds
+                .as_ref()
+                .is_some_and(|mask| mask.get(i).copied().unwrap_or(false));
+            let configuration = authoritative
+                && self.bond_configurations
+                && matches!(at(&self.state.metadata.bonds, i)?.stereo, 4 | 5);
             if bond.order != 2
-                || at(&self.state.metadata.bonds, i)?.stereo != 0
-                || self
-                    .authoritative_bonds
-                    .as_ref()
-                    .is_some_and(|mask| mask.get(i).copied().unwrap_or(false))
+                || authoritative && !configuration
+                || !authoritative && at(&self.state.metadata.bonds, i)?.stereo != 0
             {
                 continue;
             }
             self.ensure_ranks(work)?;
-            self.state
-                .metadata
-                .bonds
-                .get_mut(i)
-                .ok_or("Missing stereo bond")?
-                .stereo_atoms
-                .clear();
+            if !configuration {
+                self.state
+                    .metadata
+                    .bonds
+                    .get_mut(i)
+                    .ok_or("Missing stereo bond")?
+                    .stereo_atoms
+                    .clear();
+            }
             if !self.detectable(i)?
                 || !matches!(at(&self.neighbors, bond.a)?.len(), 2 | 3)
                 || !matches!(at(&self.neighbors, bond.b)?.len(), 2 | 3)
@@ -102,13 +109,28 @@ impl Context {
             }
             unassigned += 1;
             let mut unknown = self.unknown_atom(bond.a)? || self.unknown_atom(bond.b)?;
-            let left = self.directed_neighbors(bond.a, i, &mut unknown, true, work)?;
-            let right = self.directed_neighbors(bond.b, i, &mut unknown, true, work)?;
+            let left = self.directed_neighbors(bond.a, i, &mut unknown, !configuration, work)?;
+            let right = self.directed_neighbors(bond.b, i, &mut unknown, !configuration, work)?;
             if left.is_empty() || right.is_empty() {
                 continue;
             }
             let (first, first_dir) = self.best_neighbor(&left)?;
             let (second, second_dir) = self.best_neighbor(&right)?;
+            if configuration {
+                let meta = self
+                    .state
+                    .metadata
+                    .bonds
+                    .get_mut(i)
+                    .ok_or("Missing stereo bond")?;
+                let switched = (first != *at(&meta.stereo_atoms, 0)?)
+                    ^ (second != *at(&meta.stereo_atoms, 1)?);
+                meta.stereo = if (meta.stereo == 4) ^ switched { 2 } else { 3 };
+                meta.stereo_atoms = vec![first, second];
+                changed = true;
+                unassigned -= 1;
+                continue;
+            }
             let conflict_left = left.len() == 2 && at(&left, 0)?.1 == at(&left, 1)?.1;
             let conflict_right = right.len() == 2 && at(&right, 0)?.1 == at(&right, 1)?.1;
             if conflict_left || conflict_right {

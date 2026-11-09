@@ -3,8 +3,10 @@
 // Source: Nazuchem | crates/nazuchem-s2n/src/ir_input.rs | Phase B step 8b
 // Copyright (c) 2026 Ameyanagi and Nazuchem contributors
 
-//! Direct IR admission and chemistry preparation. Atom and bond positions are
-//! identities throughout; this adapter never serializes or reparses a graph.
+//! Direct IR admission and chemistry preparation preserve caller atom and bond
+//! positions in the admitted state. The adapter builds that state without a
+//! SMILES round trip; later naming gates serialize canonical identity, reparse
+//! radical identities for verification, and use SMILES in shared fallback routes.
 
 use nazuchem_ir::{
     AxialWinding, BondOrder, Molecule, Ref, Relation, Stereo, StereoGroupKind, Winding,
@@ -240,10 +242,29 @@ pub(crate) fn prepare(molecule: &Molecule, budget: &Budget) -> Result<perception
             _ => {}
         }
     }
-    // The ordinary clean pass validates tetrahedral winding. Double-bond IR
-    // entries are installed afterward: legacy cleanup otherwise discards their
-    // authoritative cis/trans relation merely because no slash carriers exist.
-    state = perception::perceive(
+    // Install authoritative bond relations before validating atom winding:
+    // E/Z can be the only distinction between two tetrahedral ligands. The
+    // shared assignment loop normalizes these carriers, then refines ligand
+    // ranks before deciding whether cleanup must discard an atom winding.
+    for entry in &molecule.stereo {
+        if let Stereo::DoubleBond {
+            bond,
+            refs,
+            relation,
+        } = entry
+        {
+            let meta = &mut state.metadata.bonds[*bond as usize];
+            meta.stereo = match relation {
+                Relation::Cis => 4,
+                Relation::Trans => 5,
+                Relation::Unknown => 1,
+                _ => return Err(NONCLASSICAL_STEREO.into()),
+            };
+            meta.stereo_atoms = refs.iter().map(|&atom| atom as usize).collect();
+            meta.unknown_stereo = *relation == Relation::Unknown;
+        }
+    }
+    state = perception::perceive_bond_configurations(
         &state,
         perception::Options {
             clean: true,
@@ -1023,6 +1044,51 @@ mod tests {
         reversed.bonds[*bond as usize].atoms.swap(0, 1);
         refs.swap(0, 1);
         assert_eq!(identity(&reversed), expected);
+    }
+
+    #[test]
+    fn alkene_configuration_distinguishes_tetrahedral_ligands() {
+        for (text, tetrahedral) in [
+            (r"F[C@](Cl)(/C=C/C)\C=C/C", true),
+            (r"F[C@@](Cl)(/C=C/C)\C=C/C", true),
+            (r"FC(Cl)(/C=C/C)/C=C/C", false),
+        ] {
+            let molecule = input(text);
+            let state = prepare(&molecule, &Budget::default()).unwrap();
+            assert_eq!(
+                state.metadata.atoms[1].chiral_tag != 0,
+                tetrahedral,
+                "{text}"
+            );
+            assert!(
+                state
+                    .directions
+                    .iter()
+                    .all(|direction| *direction == Direction::None),
+                "{text}"
+            );
+            let expected =
+                serde_json::to_value(crate::name_smiles(text, &Budget::default()).unwrap())
+                    .unwrap();
+            assert_eq!(complete_name(&molecule), expected, "{text}");
+        }
+
+        // Equal E-propenyl ligands still cannot support an asserted winding.
+        // The IR route must retain the SMILES route's refusal to erase it.
+        let mut nonstereogenic = input(r"FC(Cl)(/C=C/C)/C=C/C");
+        nonstereogenic.stereo.push(Stereo::Tetrahedral {
+            center: 1,
+            neighbors: [Ref::Atom(0), Ref::Atom(2), Ref::Atom(3), Ref::Atom(6)],
+            winding: Winding::Clockwise,
+        });
+        assert_eq!(
+            prepare(&nonstereogenic, &Budget::default()).unwrap_err(),
+            TETRAHEDRAL_LOSS
+        );
+        assert_eq!(
+            crate::name_smiles(r"F[C@](Cl)(/C=C/C)/C=C/C", &Budget::default()).unwrap_err(),
+            TETRAHEDRAL_LOSS
+        );
     }
 
     #[test]

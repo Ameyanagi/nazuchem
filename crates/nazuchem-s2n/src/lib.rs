@@ -244,10 +244,14 @@ fn finish_name(mut name: Name) -> Result<Name, String> {
     Ok(name)
 }
 
-/// Generate a name directly from a validated IR graph with stable atom indices.
+/// Generate a name from a validated IR graph.
 ///
 /// Uses the same chemical admission policy and naming rules as [`name_smiles`].
 /// Unsupported annotations and stereo return an error rather than being lost.
+/// Admission and ordinary component naming preserve surviving caller atom IDs.
+/// Identity checks serialize canonical SMILES; the monatomic-cation probe and
+/// the unknown-stereo baseline, salt, cation and radical-ion naming routes can
+/// reparse it into detached graphs. The caller's IR is never changed.
 /// Molecular perception uses the caller's budget.
 // Provenance: fn name_molecule | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs::name_molecule
@@ -259,6 +263,8 @@ pub fn name_molecule(
     let state = ir_input::prepare(molecule, budget)?;
     let canonical = identity::canonical_state(&state, budget)?;
     let name = if unknown_stereo::has_unknown(&state) {
+        #[cfg(test)]
+        ir_proof_tests::record_fallback("unknown stereo");
         let normal = name_smiles_with_style(&canonical, style, budget)?;
         // The legacy unknown route admits its unspecified baseline first, then
         // requires one connected graph before rendering explicit descriptors.
@@ -268,23 +274,22 @@ pub fn name_molecule(
         let mol = graph_io::read_state(state, Some(molecule))?;
         unknown_stereo::name_graph(normal, &mol)?
     } else if canonical.contains('.') {
+        #[cfg(test)]
+        ir_proof_tests::record_fallback("salt");
         species::name_salt(&canonical, style, budget)?
-    } else if let Some(name) = species::monatomic_cation(&canonical, false, budget)? {
+    } else if let Some(name) = {
+        #[cfg(test)]
+        ir_proof_tests::record_monatomic_probe();
+        species::monatomic_cation(&canonical, false, budget)?
+    } {
+        #[cfg(test)]
+        ir_proof_tests::record_fallback("monatomic cation");
         name
     } else if let Some((neutral, suffix)) = radical_ions::recover_state(&state, &canonical, budget)?
     {
-        let name = name_smiles_with_style(&neutral, style, budget)?;
-        Name {
-            text: format!("{} {suffix}", name.text),
-            status: nazuchem_ir::NameStatus::NotPreferred(nazuchem_ir::NameReason::RadicalIon),
-            alternatives: vec![],
-            omitted_stereo: vec![],
-            omitted_units: 0,
-            verification: Some(Verification {
-                name: name.text,
-                smiles: neutral,
-            }),
-        }
+        #[cfg(test)]
+        ir_proof_tests::record_fallback("radical ion");
+        name_radical_ion(neutral, suffix, style, budget)?
     } else {
         name_graph(graph_io::read_state(state, Some(molecule))?, style)?
     };
@@ -356,24 +361,33 @@ fn name_routes(
         return Ok(name);
     }
     if let Some((neutral, suffix)) = radical_ions::recover(&canonical, budget)? {
-        let name = name_smiles_with_style(&neutral, style, budget)?;
-        return Ok(Name {
-            text: format!("{} {suffix}", name.text),
-            status: nazuchem_ir::NameStatus::NotPreferred(nazuchem_ir::NameReason::RadicalIon),
-            alternatives: vec![],
-            omitted_stereo: vec![],
-            omitted_units: 0,
-            verification: Some(Verification {
-                name: name.text,
-                smiles: neutral,
-            }),
-        });
+        return name_radical_ion(neutral, suffix, style, budget);
     }
     let mol = graph_io::read_smiles(smiles, budget)?;
-    if mol.atoms.values().any(|atom| atom.isotope.is_some()) {
-        return isotope_naming::name_smiles(smiles, style, budget);
-    }
     name_graph(mol, style)
+}
+
+// Provenance: fn name_radical_ion | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs::name_radical_ion
+// Source: ReShiki | src/naming/openclatura/mod.rs::name_routes
+fn name_radical_ion(
+    neutral: String,
+    suffix: &str,
+    style: nazuchem_ir::IsotopeStyle,
+    budget: &nazuchem_kernel::budget::Budget,
+) -> Result<Name, String> {
+    let name = name_smiles_with_style(&neutral, style, budget)?;
+    Ok(Name {
+        text: format!("{} {suffix}", name.text),
+        status: nazuchem_ir::NameStatus::NotPreferred(nazuchem_ir::NameReason::RadicalIon),
+        alternatives: vec![],
+        omitted_stereo: vec![],
+        omitted_units: 0,
+        verification: Some(Verification {
+            name: name.text,
+            smiles: neutral,
+        }),
+    })
 }
 
 // Provenance: fn name_graph | adapted

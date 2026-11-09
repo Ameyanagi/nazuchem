@@ -8,8 +8,10 @@
 //! distinct source SMILES is accounted for, including inputs the test converter
 //! cannot represent, and every parsed n2s structure enters `Structure::to_ir`.
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader};
+use std::time::Instant;
 
 use flate2::read::GzDecoder;
 use nazuchem_ir::IsotopeStyle;
@@ -19,6 +21,64 @@ use serde_json::Value;
 
 use crate::{Name, graph_io, ir_input, molecule, name_molecule, name_smiles};
 
+#[derive(Debug, Default)]
+struct RouteCounts {
+    fallbacks: BTreeMap<String, usize>,
+    monatomic_probes: usize,
+}
+
+thread_local! {
+    // Only the compared IR call enables collection. Other tests sharing this
+    // module, and other test-harness threads, cannot contaminate the counters.
+    static ROUTE_COUNTS: RefCell<Option<RouteCounts>> = const { RefCell::new(None) };
+}
+
+pub(crate) fn record_fallback(path: &str) {
+    ROUTE_COUNTS.with_borrow_mut(|counts| {
+        if let Some(counts) = counts {
+            *counts.fallbacks.entry(path.into()).or_default() += 1;
+        }
+    });
+}
+
+pub(crate) fn record_monatomic_probe() {
+    ROUTE_COUNTS.with_borrow_mut(|counts| {
+        if let Some(counts) = counts {
+            counts.monatomic_probes += 1;
+        }
+    });
+}
+
+struct RouteScope;
+
+impl Drop for RouteScope {
+    fn drop(&mut self) {
+        // Clear collection even when a comparison panics.
+        ROUTE_COUNTS.with_borrow_mut(|counts| *counts = None);
+    }
+}
+
+fn compared_name_molecule(
+    molecule: &nazuchem_ir::Molecule,
+    budget: &Budget,
+    counts: &mut NameCounts,
+) -> Result<Name, String> {
+    ROUTE_COUNTS.with_borrow_mut(|current| {
+        assert!(current.is_none(), "proof route collection cannot nest");
+        *current = Some(RouteCounts::default());
+    });
+    let _scope = RouteScope;
+    let result = name_molecule(molecule, IsotopeStyle::Iupac, budget);
+    let routes = ROUTE_COUNTS.with_borrow_mut(|current| current.take().unwrap());
+    counts.ir_calls += 1;
+    counts.monatomic_probes += routes.monatomic_probes;
+    counts.fallback_comparisons += usize::from(!routes.fallbacks.is_empty());
+    for (path, count) in routes.fallbacks {
+        *counts.fallback_paths.entry(path).or_default() += count;
+    }
+    result
+}
+
 #[derive(Debug, Default, PartialEq, Eq)]
 struct NameCounts {
     records: usize,
@@ -27,6 +87,10 @@ struct NameCounts {
     both_rejected: usize,
     one_rejected: usize,
     rejection_causes: BTreeMap<String, usize>,
+    ir_calls: usize,
+    fallback_comparisons: usize,
+    fallback_paths: BTreeMap<String, usize>,
+    monatomic_probes: usize,
 }
 
 impl NameCounts {
@@ -38,14 +102,24 @@ impl NameCounts {
             both_rejected,
             one_rejected,
             rejection_causes,
+            ir_calls,
+            fallback_comparisons,
+            fallback_paths,
+            monatomic_probes,
         } = other;
         self.records += records;
         self.identical += identical;
         self.differing += differing;
         self.both_rejected += both_rejected;
         self.one_rejected += one_rejected;
+        self.ir_calls += ir_calls;
+        self.fallback_comparisons += fallback_comparisons;
+        self.monatomic_probes += monatomic_probes;
         for (cause, count) in rejection_causes {
             *self.rejection_causes.entry(cause).or_default() += count;
+        }
+        for (path, count) in fallback_paths {
+            *self.fallback_paths.entry(path).or_default() += count;
         }
     }
 
@@ -99,6 +173,25 @@ impl NameCounts {
             "every naming comparison must be accounted for: {self:?}"
         );
         assert_eq!((self.differing, self.one_rejected), (0, 0), "{self:?}");
+        assert_eq!(
+            self.fallback_comparisons,
+            self.fallback_paths.values().sum::<usize>(),
+            "each compared IR call selects at most one fallback: {self:?}"
+        );
+        assert!(self.monatomic_probes <= self.ir_calls, "{self:?}");
+    }
+
+    fn assert_routes(&self, paths: &[(&str, usize)], monatomic_probes: usize) {
+        assert_eq!(self.ir_calls, self.records, "{self:?}");
+        assert_eq!(
+            self.fallback_paths,
+            paths
+                .iter()
+                .map(|&(path, count)| (path.into(), count))
+                .collect(),
+            "{self:?}"
+        );
+        assert_eq!(self.monatomic_probes, monatomic_probes, "{self:?}");
     }
 }
 
@@ -156,8 +249,11 @@ fn difference(differences: &mut Vec<String>, text: String) {
     }
 }
 
-fn finish(label: &str, counts: &impl std::fmt::Debug, differences: Vec<String>) {
-    eprintln!("{label}: {counts:?}");
+fn finish(label: &str, counts: &impl std::fmt::Debug, differences: Vec<String>, started: Instant) {
+    eprintln!(
+        "{label}: {counts:?}; elapsed_seconds={:.3}",
+        started.elapsed().as_secs_f64()
+    );
     assert!(
         differences.is_empty(),
         "{label} IR/localized-pi proof failed; first differences:\n{}",
@@ -165,9 +261,7 @@ fn finish(label: &str, counts: &impl std::fmt::Debug, differences: Vec<String>) 
     );
 }
 
-#[test]
-fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
-    let budget = Budget::default();
+fn distinct_smiles_inputs() -> BTreeMap<String, Vec<String>> {
     let mut inputs = BTreeMap::<String, Vec<String>>::new();
     for (source, fixture, rows) in [
         (
@@ -220,10 +314,16 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
             .or_default()
             .push(format!("golden:{}", line + 1));
     }
+    inputs
+}
 
+#[test]
+fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
+    let started = Instant::now();
+    let budget = Budget::default();
     let (mut counts, mut differences) = (SmilesCounts::default(), Vec::new());
     let mut conversion_errors = BTreeMap::<String, usize>::new();
-    for (text, sources) in inputs {
+    for (text, sources) in distinct_smiles_inputs() {
         let label = format!("{text} ({})", sources.join(", "));
         let legacy_name = name_smiles(&text, &budget);
         match ir_input::from_smiles(&text, &budget) {
@@ -328,7 +428,7 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
                         );
                     }
                 }
-                let adapted_name = name_molecule(&ir, IsotopeStyle::Iupac, &budget);
+                let adapted_name = compared_name_molecule(&ir, &budget, &mut counts.names);
                 if let (Err(before), Err(after)) = (&legacy_name, &adapted_name) {
                     if before == after {
                         counts.rejection_messages_identical += 1;
@@ -361,7 +461,7 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
         }
     }
     eprintln!("source-to-IR rejections: {conversion_errors:?}");
-    finish("distinct SMILES", &counts, differences);
+    finish("distinct SMILES", &counts, differences, started);
     counts.names.assert_complete();
     assert_eq!(counts.graph_differing, 0);
     assert_eq!(counts.graph_one_rejected, 0);
@@ -374,6 +474,9 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
         (counts.names.identical, counts.names.both_rejected),
         (1616, 34)
     );
+    counts
+        .names
+        .assert_routes(&[("monatomic cation", 1), ("salt", 11)], 1638);
     assert_eq!(counts.converter_rejected, 0);
     assert_eq!(
         (
@@ -402,6 +505,327 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
             counts.localized_aromatic_endpoint_bonds
         ),
         (987, 11212, 11760, 149)
+    );
+}
+
+#[derive(Debug, Default)]
+struct ExplicitHydrogenCounts {
+    sources: usize,
+    converter_rejected: usize,
+    stereo_excluded: usize,
+    no_expandable_hydrogens: usize,
+    explicit_hydrogen_vertices: usize,
+    radical_sources: usize,
+    radical_stereo_excluded: usize,
+    radical_no_expandable_hydrogens: usize,
+    radical_compared: usize,
+    radical_identical: usize,
+    radical_both_rejected: usize,
+    names: NameCounts,
+}
+
+impl ExplicitHydrogenCounts {
+    fn merge(&mut self, other: Self) {
+        self.sources += other.sources;
+        self.converter_rejected += other.converter_rejected;
+        self.stereo_excluded += other.stereo_excluded;
+        self.no_expandable_hydrogens += other.no_expandable_hydrogens;
+        self.explicit_hydrogen_vertices += other.explicit_hydrogen_vertices;
+        self.radical_sources += other.radical_sources;
+        self.radical_stereo_excluded += other.radical_stereo_excluded;
+        self.radical_no_expandable_hydrogens += other.radical_no_expandable_hydrogens;
+        self.radical_compared += other.radical_compared;
+        self.radical_identical += other.radical_identical;
+        self.radical_both_rejected += other.radical_both_rejected;
+        self.names.merge(other.names);
+    }
+}
+
+fn ordinary_hydrogen_variant(source: &nazuchem_ir::Molecule) -> nazuchem_ir::Molecule {
+    use nazuchem_ir::{Atom, Bond, BondOrder, Molecule};
+
+    assert!(source.stereo.is_empty() && source.stereo_groups.is_empty());
+    assert!(source.position_variation.is_empty() && source.polymers.is_empty());
+    let mut variant = Molecule::default();
+    let mut indices = Vec::with_capacity(source.atoms.len());
+    for atom in &source.atoms {
+        let mut atom = atom.clone();
+        // Materialize one ordinary H at every H-bearing heavy atom, including
+        // radical centers. Interleave H before its parent so folding must retain
+        // sparse caller identities; methyl becomes H(0)-C(1), with two count H.
+        let hydrogen = (atom.element > 1 && atom.hydrogens > 0).then(|| {
+            atom.hydrogens -= 1;
+            let hydrogen = variant.atoms.len() as u32;
+            variant.atoms.push(Atom {
+                element: 1,
+                ..Atom::default()
+            });
+            hydrogen
+        });
+        let index = variant.atoms.len() as u32;
+        indices.push(index);
+        variant.atoms.push(atom);
+        if let Some(hydrogen) = hydrogen {
+            variant.bonds.push(Bond {
+                atoms: [hydrogen, index],
+                order: BondOrder::Single,
+            });
+        }
+    }
+    variant.bonds.extend(source.bonds.iter().map(|bond| Bond {
+        atoms: [
+            indices[bond.atoms[0] as usize],
+            indices[bond.atoms[1] as usize],
+        ],
+        order: bond.order,
+    }));
+    variant.parent = source
+        .parent
+        .iter()
+        .map(|&index| indices[index as usize])
+        .collect();
+    variant.validate().expect("ordinary-H variant is valid IR");
+    variant
+}
+
+fn compare_ordinary_hydrogen_variant(
+    label: &str,
+    text: &str,
+    ir: &nazuchem_ir::Molecule,
+    budget: &Budget,
+    counts: &mut ExplicitHydrogenCounts,
+    differences: &mut Vec<String>,
+) {
+    let radical = ir.atoms.iter().any(|atom| atom.radical_electrons > 0);
+    counts.radical_sources += usize::from(radical);
+    if !ir.stereo.is_empty() || !ir.stereo_groups.is_empty() {
+        counts.stereo_excluded += 1;
+        counts.radical_stereo_excluded += usize::from(radical);
+        return;
+    }
+    if !ir
+        .atoms
+        .iter()
+        .any(|atom| atom.element > 1 && atom.hydrogens > 0)
+    {
+        counts.no_expandable_hydrogens += 1;
+        counts.radical_no_expandable_hydrogens += usize::from(radical);
+        return;
+    }
+    let variant = ordinary_hydrogen_variant(ir);
+    counts.explicit_hydrogen_vertices += variant.atoms.len() - ir.atoms.len();
+    let legacy = name_smiles(text, budget);
+    let adapted = compared_name_molecule(&variant, budget, &mut counts.names);
+    let before = (counts.names.identical, counts.names.both_rejected);
+    counts.names.compare(label, legacy, adapted, differences);
+    if radical {
+        counts.radical_compared += 1;
+        counts.radical_identical += counts.names.identical - before.0;
+        counts.radical_both_rejected += counts.names.both_rejected - before.1;
+    }
+}
+
+#[test]
+fn stereo_free_corpus_ordinary_hydrogen_variants_retain_complete_name_results() {
+    let started = Instant::now();
+    // The baseline helper reads prepared SMILES and therefore folds source H
+    // vertices already. Explicitly materializing H independently here covers
+    // representations absent from that helper, including all eligible radicals.
+    // Eligibility is exhaustive and structural: no stereo entries/groups, and
+    // at least one aggregate H on a non-H, non-wildcard atom. Rejected names stay
+    // in the comparison; successful naming is never an eligibility condition.
+    let mut shards: [Vec<(String, Vec<String>)>; 4] = std::array::from_fn(|_| Vec::new());
+    for (row, input) in distinct_smiles_inputs().into_iter().enumerate() {
+        shards[row % 4].push(input);
+    }
+    let results = std::thread::scope(|scope| {
+        let workers: Vec<_> = shards
+            .into_iter()
+            .map(|rows| {
+                scope.spawn(move || {
+                    let budget = Budget::default();
+                    let (mut counts, mut differences) =
+                        (ExplicitHydrogenCounts::default(), Vec::new());
+                    for (text, sources) in rows {
+                        counts.sources += 1;
+                        let label = format!("ordinary-H {text} ({})", sources.join(", "));
+                        let ir = match ir_input::from_smiles(&text, &budget) {
+                            Ok(ir) => ir,
+                            Err(error) => {
+                                counts.converter_rejected += 1;
+                                difference(&mut differences, format!("{label}: {error}"));
+                                continue;
+                            }
+                        };
+                        compare_ordinary_hydrogen_variant(
+                            &label,
+                            &text,
+                            &ir,
+                            &budget,
+                            &mut counts,
+                            &mut differences,
+                        );
+                    }
+                    (counts, differences)
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .map(|worker| {
+                worker
+                    .join()
+                    .expect("ordinary-H corpus shard did not panic")
+            })
+            .collect::<Vec<_>>()
+    });
+    let (mut counts, mut differences) = (ExplicitHydrogenCounts::default(), Vec::new());
+    for (shard_counts, shard_differences) in results {
+        counts.merge(shard_counts);
+        for text in shard_differences {
+            difference(&mut differences, text);
+        }
+    }
+    finish("ordinary-H variants", &counts, differences, started);
+    counts.names.assert_complete();
+    assert_eq!(counts.sources, 1650);
+    assert_eq!(counts.converter_rejected, 0);
+    assert_eq!(
+        (
+            counts.stereo_excluded,
+            counts.no_expandable_hydrogens,
+            counts.explicit_hydrogen_vertices
+        ),
+        (266, 8, 10953)
+    );
+    assert_eq!(
+        (
+            counts.names.records,
+            counts.names.identical,
+            counts.names.both_rejected
+        ),
+        (1376, 1345, 31)
+    );
+    counts.names.assert_routes(&[("salt", 9)], 1366);
+    assert_eq!(
+        (
+            counts.radical_sources,
+            counts.radical_stereo_excluded,
+            counts.radical_no_expandable_hydrogens,
+            counts.radical_compared,
+            counts.radical_identical,
+            counts.radical_both_rejected
+        ),
+        (5, 0, 0, 5, 1, 4)
+    );
+    assert_eq!(
+        counts.sources,
+        counts.converter_rejected
+            + counts.stereo_excluded
+            + counts.no_expandable_hydrogens
+            + counts.names.records
+    );
+    assert_eq!(
+        counts.radical_sources,
+        counts.radical_stereo_excluded
+            + counts.radical_no_expandable_hydrogens
+            + counts.radical_compared
+    );
+    assert_eq!(
+        counts.radical_compared,
+        counts.radical_identical + counts.radical_both_rejected
+    );
+}
+
+#[test]
+fn n2s_radical_corpus_ordinary_hydrogen_variants_retain_complete_name_results() {
+    let started = Instant::now();
+    let parser = Parser::new().expect("embedded OPSIN resources");
+    let budget = Budget::default();
+    let reader = BufReader::new(GzDecoder::new(
+        include_bytes!("../../nazuchem-n2s/tests/fixtures/structure-golden.jsonl.gz").as_slice(),
+    ));
+    let (mut counts, mut differences) = (ExplicitHydrogenCounts::default(), Vec::new());
+    let (mut success, mut warning) = (0, 0);
+    for line in reader.lines() {
+        let record: Value =
+            serde_json::from_str(&line.expect("fixture decompression")).expect("fixture JSON");
+        if record["family"] != "radicals" || record["allow_radicals"] != true {
+            continue;
+        }
+        counts.sources += 1;
+        let name = record["input"].as_str().unwrap();
+        let label = format!("n2s radical ordinary-H: {name}");
+        let result = parser.parse(
+            name,
+            &ParseOptions {
+                allow_radicals: true,
+                ..ParseOptions::strict()
+            },
+        );
+        let status = match result.status {
+            Status::Success => {
+                success += 1;
+                "SUCCESS"
+            }
+            Status::Warning => {
+                warning += 1;
+                "WARNING"
+            }
+            Status::Failure => "FAILURE",
+        };
+        assert_eq!(status, record["status"].as_str().unwrap(), "{label}");
+        let structure = result.structure.expect("radical corpus structure");
+        let ir = structure.to_ir().expect("radical corpus IR");
+        let text = structure
+            .semantic_cxsmiles()
+            .expect("radical corpus semantic CXSMILES");
+        // This source is independent of the SMILES test bridge: the expanded
+        // graph comes from Structure::to_ir, and the baseline names the original
+        // semantic CXSMILES, without an IR -> SMILES serialization step.
+        compare_ordinary_hydrogen_variant(
+            &label,
+            &text,
+            &ir,
+            &budget,
+            &mut counts,
+            &mut differences,
+        );
+    }
+    finish(
+        "n2s radical ordinary-H variants",
+        &counts,
+        differences,
+        started,
+    );
+    counts.names.assert_complete();
+    assert_eq!((counts.sources, success, warning), (12, 11, 1));
+    assert_eq!(counts.converter_rejected, 0);
+    assert_eq!(counts.radical_sources, 12);
+    assert_eq!(
+        (
+            counts.stereo_excluded,
+            counts.no_expandable_hydrogens,
+            counts.explicit_hydrogen_vertices
+        ),
+        (0, 1, 32)
+    );
+    assert_eq!(
+        (
+            counts.names.records,
+            counts.names.identical,
+            counts.names.both_rejected
+        ),
+        (11, 7, 4)
+    );
+    counts.names.assert_routes(&[("radical ion", 1)], 10);
+    assert_eq!(
+        counts.sources,
+        counts.stereo_excluded + counts.no_expandable_hydrogens + counts.names.records
+    );
+    assert_eq!(
+        counts.radical_compared,
+        counts.radical_identical + counts.radical_both_rejected
     );
 }
 
@@ -499,7 +923,7 @@ fn compare_structure(
             return;
         }
     };
-    let adapted = name_molecule(&ir, IsotopeStyle::Iupac, budget);
+    let adapted = compared_name_molecule(&ir, budget, &mut counts.names);
     match structure.semantic_cxsmiles() {
         Ok(text) => counts
             .names
@@ -536,24 +960,27 @@ fn assert_n2s_coverage(counts: &N2sCounts, baseline: (usize, usize, usize, usize
 
 #[test]
 fn every_n2s_structure_oracle_structure_retains_complete_name_results() {
+    let started = Instant::now();
     let reader = BufReader::new(GzDecoder::new(
         include_bytes!("../../nazuchem-n2s/tests/fixtures/structure-golden.jsonl.gz").as_slice(),
     ));
     // Only the test harness uses threads. Every record still invokes to_ir and
     // both naming routes; separate parsers and thread-local fusion caches keep
-    // requests independent. Four bounded shards reduce the full oracle gate's
+    // requests independent. Eight bounded shards reduce the full oracle gate's
     // wall time, and joining in shard order keeps diagnostics deterministic.
-    let mut shards: [Vec<(usize, Value)>; 4] = std::array::from_fn(|_| Vec::new());
+    const SHARDS: usize = 8;
+    let mut shards: [Vec<(usize, Value)>; SHARDS] = std::array::from_fn(|_| Vec::new());
     for (row, line) in reader.lines().enumerate() {
         let record =
             serde_json::from_str(&line.expect("fixture decompression")).expect("fixture JSON");
-        shards[row % 4].push((row + 1, record));
+        shards[row % SHARDS].push((row + 1, record));
     }
     let results = std::thread::scope(|scope| {
         let workers: Vec<_> = shards
             .into_iter()
             .map(|rows| {
                 scope.spawn(move || {
+                    let shard_started = Instant::now();
                     let parser = Parser::new().expect("embedded OPSIN resources");
                     let budget = Budget::default();
                     let (mut counts, mut differences) = (N2sCounts::default(), Vec::new());
@@ -575,7 +1002,7 @@ fn every_n2s_structure_oracle_structure_retains_complete_name_results() {
                             &mut differences,
                         );
                     }
-                    (counts, differences)
+                    (counts, differences, shard_started.elapsed())
                 })
             })
             .collect();
@@ -585,22 +1012,34 @@ fn every_n2s_structure_oracle_structure_retains_complete_name_results() {
             .collect::<Vec<_>>()
     });
     let (mut counts, mut differences) = (N2sCounts::default(), Vec::new());
-    for (shard_counts, shard_differences) in results {
+    for (shard, (shard_counts, shard_differences, elapsed)) in results.into_iter().enumerate() {
+        eprintln!(
+            "n2s structure oracle shard {}/{}: records={}, comparisons={}, elapsed_seconds={:.3}",
+            shard + 1,
+            SHARDS,
+            shard_counts.records,
+            shard_counts.names.records,
+            elapsed.as_secs_f64(),
+        );
         counts.merge(shard_counts);
         for text in shard_differences {
             difference(&mut differences, text);
         }
     }
-    finish("n2s structure oracle", &counts, differences);
+    finish("n2s structure oracle", &counts, differences, started);
     assert_n2s_coverage(&counts, (2624, 2535, 70, 19));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
         (2293, 312)
     );
+    counts
+        .names
+        .assert_routes(&[("radical ion", 1), ("salt", 116)], 2457);
 }
 
 #[test]
 fn every_n2s_configuration_oracle_structure_retains_complete_name_results() {
+    let started = Instant::now();
     let parser = Parser::new().expect("embedded OPSIN resources");
     let budget = Budget::default();
     let reader = BufReader::new(GzDecoder::new(
@@ -640,16 +1079,18 @@ fn every_n2s_configuration_oracle_structure_retains_complete_name_results() {
             &mut differences,
         );
     }
-    finish("n2s configuration oracle", &counts, differences);
+    finish("n2s configuration oracle", &counts, differences, started);
     assert_n2s_coverage(&counts, (640, 304, 112, 224));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
         (336, 80)
     );
+    counts.names.assert_routes(&[], 336);
 }
 
 #[test]
 fn every_n2s_golden_structure_retains_complete_name_results() {
+    let started = Instant::now();
     let parser = Parser::new().expect("embedded OPSIN resources");
     let budget = Budget::default();
     let (mut counts, mut differences, mut records) = (N2sCounts::default(), Vec::new(), 0);
@@ -668,11 +1109,14 @@ fn every_n2s_golden_structure_retains_complete_name_results() {
             );
         }
     }
-    finish("n2s generated-name golden", &counts, differences);
+    finish("n2s generated-name golden", &counts, differences, started);
     assert_eq!(records, 1650);
     assert_n2s_coverage(&counts, (1650, 1609, 0, 41));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
         (1608, 1)
     );
+    counts
+        .names
+        .assert_routes(&[("monatomic cation", 1), ("salt", 3)], 1605);
 }
