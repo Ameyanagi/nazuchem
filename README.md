@@ -206,13 +206,8 @@ BSD-3-Clause, centres BSD-2-Clause, and CPython Python-2.0. See [NOTICE](NOTICE)
 the per-file [`PROVENANCE-nazuchem.toml`](PROVENANCE-nazuchem.toml) ledger and
 each crate's `NOTICE` and `licenses/` texts for the applicable scope and pins.
 
-The owner's 2026-11-10 **Rust stable sort** decision replaces the kernel's
-per-OS C++ sorting reproductions with Rust standard library stable sort calls.
-Equal keys retain input order; reproducing each C++ library's tie ordering is
-no longer a compatibility target. The old sort code and fingerprints were
-removed, and no Rust standard library implementation was copied. No remaining
-incorporated material requires the former LLVM libc++/Microsoft STL licence
-texts or LLVM-exception term.
+Sorts with equal keys keep their input order (Rust's stable sort); nazuchem
+does not reproduce C++ standard-library tie order.
 
 Owner decisions remain pending for IUPAC Blue Book table reuse permission
 and the test-only PubChem-derived corpus's source terms. These entries retain

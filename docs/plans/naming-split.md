@@ -448,27 +448,8 @@ Risks: step 4 is the hardest (openclatura uses `crate::naming` in 112 places plu
 - D4 Licence for original code: MIT OR Apache-2.0.
 - D5 Naming work during Phase A: freeze naming features and non-urgent fixes until step 6.
 - D6 IR: nazuchem's own typed graph with versioned JSON (§5).
+- D7 Kernel sort (2026-11-10): Rust's stable sort, so equal keys keep their input order on every
+  platform; C++ standard-library tie order is no longer reproduced. This removed the `native_order`
+  modules, their fingerprint fixtures and, as nothing else used them, the LLVM libc++/Microsoft STL
+  notices, licence texts and `Apache-2.0 WITH LLVM-exception` term.
 - Optional courtesy: tell OPSIN's author and lamalab-org before the first public release.
-
-**D7 — Rust stable sort (owner decision, 2026-11-10).** Following extraction,
-the kernel stops reproducing each C++ standard library's per-OS sort and heap
-policies. It uses Rust standard library stable sort calls; equal keys preserve
-their input order. Legacy C++ tie permutations and their fingerprint fixtures
-are no longer compatibility targets. No Rust standard library implementation
-is copied into this repository.
-
-The six `native_order` module files and three sort fingerprint fixtures are
-removed, together with their active provenance entries. A source and ledger
-audit found no retained LLVM libc++/Microsoft STL adaptations: the only
-`Apache-2.0 WITH LLVM-exception` implementation files were the deleted Apple
-and Windows sort policies, and the only other attributed code was the deleted
-shared sort helper. Their six kernel/facade notice and licence-text copies and
-the corresponding package-expression term are therefore removed. Historical
-source pins for retained files remain unchanged; local edits are recorded in
-the ledger notes.
-
-This closes the sort-policy provenance blocker by removing the affected code.
-The IUPAC Blue Book table reuse-permission decision and the test-only
-PubChem-derived corpus terms remain unresolved, as do the recorded source-pin
-and generation-method gaps. All crates retain `publish = false`, and the npm
-package remains private.

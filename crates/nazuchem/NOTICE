@@ -37,12 +37,7 @@ remains NOASSERTION pending the owner's reuse-permission decision.
 publish = false remains in force. The repository-root PROVENANCE-nazuchem.toml
 retains those facts.
 
-Owner decision 2026-11-10, "Rust stable sort": the kernel's per-OS C++ sorting
-adaptations, shared sort helpers and reference fingerprints were removed in
-favor of Rust standard library stable sort calls. No Rust standard library
-implementation was copied. The removed code was the only incorporated use of
-LLVM libc++/Microsoft STL; its notices, license texts and LLVM-exception term
-are no longer part of this package's incorporated terms.
+Equal-key sorts use Rust's stable sort; no C++ standard library code is included.
 
 Copied notices retain historical paths and broader ReShiki inventories.
 The per-file ledger and dependency scope notices identify the incorporated

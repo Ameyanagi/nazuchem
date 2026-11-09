@@ -255,15 +255,6 @@ class ProvenanceTests(unittest.TestCase):
         )
         self.assertTrue(check_rust("another_pending.rs", text, entry))
 
-    def test_removed_sort_paths_have_no_legacy_header_exemption(self):
-        entry = {"origin": "original", "license": "MIT", "sources": [SOURCE]}
-        valid = header() + "fn x() {}"
-        for name in ("linux_sort.rs", "sort_common.rs"):
-            path = f"crates/nazuchem-kernel/src/native_order/{name}"
-            with self.subTest(path=path):
-                self.assertEqual(check_rust(path, valid, entry), [])
-                self.assertTrue(check_rust(path, "fn x() {}", entry))
-
     def test_cli_exit_codes_and_diagnostics(self):
         self.write_ledger()
         with contextlib.redirect_stdout(io.StringIO()) as output:

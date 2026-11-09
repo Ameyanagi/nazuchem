@@ -3,7 +3,7 @@
 // Source: RDKit | Code/GraphMol/FindRings.cpp | 0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985
 // Source: ReShiki | crates/chemistry/src/rings.rs | be63a799aa03a83dc6ec74bb294f4d42b89298d3
 // Copyright (C) 2003-2021 Greg Landrum and other RDKit contributors.
-// Changes: Rust adaptation; allow unused copied shared-work helper; Rust stable sort (2026-11-10 owner decision), retaining ring budgets and size limits.
+// Changes: Rust adaptation; allow unused copied shared-work helper; Rust stable sort (2026-11-10 owner decision), retaining ring budgets.
 
 //! Symmetric SSSR ring perception adapted from RDKit FindRings.cpp (2026.03.6).
 //! Copyright (C) 2003-2021 Greg Landrum and other RDKit contributors.

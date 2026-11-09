@@ -4,7 +4,7 @@
 // Source: RDKit | Code/GraphMol/SmilesParse/SmilesWrite.cpp | 0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985
 // Source: ReShiki | crates/chemistry/src/smiles/traversal.rs | be63a799aa03a83dc6ec74bb294f4d42b89298d3
 // Copyright (C) 2001-2025 Greg Landrum and other RDKit contributors.
-// Changes: Rust adaptation; Rust stable sort for all graph sizes (2026-11-10 owner decision); retain traversal limits.
+// Changes: Rust adaptation; Rust stable sort for all graph sizes (2026-11-10 owner decision).
 
 //! Ranked depth-first traversal from RDKit Canon.cpp and SmilesWrite.cpp.
 //! Copyright (C) 2001-2025 Greg Landrum and other RDKit contributors.

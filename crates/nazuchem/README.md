@@ -113,11 +113,8 @@ BSD-3-Clause (RDKit), BSD-2-Clause (centres), and Python-2.0 (a CPython adaptati
 Complete license texts, copyright notices and dependency scope notices are
 included in `licenses/`; `LICENSE-MIT` and `LICENSE-APACHE` cover local code.
 
-The owner's 2026-11-10 **Rust stable sort** decision removed the kernel's
-per-OS C++ sorting reproductions, shared helpers and sort fingerprints. The
-kernel uses Rust standard library stable sort calls; no implementation was
-copied from Rust. The old code was the only incorporated LLVM libc++/Microsoft
-STL use, so its licence texts, notices and LLVM-exception term were removed.
+Sorts with equal keys keep their input order (Rust's stable sort); nazuchem
+does not reproduce C++ standard-library tie order.
 
 The dependencies' IUPAC Blue Book table reuse permission remains unresolved.
 That table retains `NOASSERTION` in the repository-root `PROVENANCE-nazuchem.toml`;

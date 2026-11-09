@@ -35,9 +35,7 @@ contributions. Historical ReShiki paths in copied notices identify the source
 repository.
 
 The manifest combines these established terms as
-`(MIT OR Apache-2.0) AND BSD-3-Clause AND BSD-2-Clause`. The removed sort code
-was the only incorporated use of LLVM libc++/Microsoft STL, so its notices,
-licence texts and LLVM-exception term have also been removed. Repository
+`(MIT OR Apache-2.0) AND BSD-3-Clause AND BSD-2-Clause`. Repository
 provenance work remains incomplete, and `publish = false` remains in force.
 `PROVENANCE-nazuchem.toml` at the repository root records per-file ancestry,
 local function boundaries and the unresolved facts; the crate's `NOTICE`

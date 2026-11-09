@@ -42,12 +42,7 @@ notices retain historical ReShiki paths and broader source inventories;
 PROVENANCE-nazuchem.toml and the crate scope notices identify the subset
 incorporated into this repository. Historical source pins remain unchanged.
 
-Owner decision 2026-11-10, "Rust stable sort": the kernel uses Rust standard
-library stable sort calls. The per-OS C++ sorting adaptations, shared sort
-helpers and reference fingerprints were removed; no Rust standard library
-implementation was copied. Their source/licensing questions do not apply to
-the retained code. No remaining incorporated material requires the removed
-LLVM libc++/Microsoft STL notices, license texts or LLVM-exception term.
+Equal-key sorts use Rust's stable sort; no C++ standard library code is included.
 
 Owner decisions are still required for s2n data/bluebook/p25_retained.tsv
 reuse permission and the test-only PubChem-derived

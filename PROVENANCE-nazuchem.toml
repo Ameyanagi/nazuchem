@@ -19,7 +19,7 @@ sources = [
   { project = "Nazuchem/ReShiki", ref = "777cdd3f98dfb955e165b17e352d3ce6da768b0c", path = "crates/nazuchem-kernel/Cargo.toml", license = "MIT OR Apache-2.0" },
 ]
 notes = "Kernel metadata declares the retained incorporated licences after owner decision 2026-11-10, Rust stable sort; the removed C++ sorts were the only incorporated LLVM libc++/Microsoft STL uses, so their LLVM-exception term is removed. publish = false remains in force."
-sha256 = "4ea18cde87ffa9c1a269f1fe0185a1815f556037233e5aca57ed1a55adda7fc5"
+sha256 = "71a73d92a60d2e15e5ac2a322c5ab7d527ea1ca21f30a50cc53ddc024b945e29"
 
 [[file]]
 path = "crates/nazuchem-kernel/LICENSE"
@@ -59,7 +59,7 @@ sources = [
   { project = "ReShiki/nazuchem", path = "crates/nazuchem-kernel/NOTICE", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0" },
 ]
 notes = "Phase A step 2 crate-local attribution. Phase A step 3 adds the pure identity, axis-marker and pseudoasymmetric-classifier scope with original ReShiki source pins. Standalone packaging updates local path and scope wording; source pins and upstream attribution for retained files are unchanged. Owner decision 2026-11-10, Rust stable sort: per-OS C++ sorts, shared helpers and sort fingerprints are removed; no Rust standard library implementation is copied. The removed code was the only incorporated LLVM libc++/Microsoft STL use, so its notices, licence texts and LLVM-exception term are removed. publish = false is retained."
-sha256 = "dfcc5fa87514335814c3e28a03c58a545a299c931b2158d688fa958a3ca8d58a"
+sha256 = "f4a0ff70760d88a5ed20ac70b3072bbd90a2f638618cf9b47eb045b43a047940"
 
 [[file]]
 path = "crates/nazuchem-kernel/README.md"
@@ -69,7 +69,7 @@ sources = [
   { project = "Nazuchem/ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "crates/nazuchem-kernel/README.md", license = "MIT OR Apache-2.0" },
 ]
 notes = "Extraction documentation records copied source, RDKit and centres attribution, crate-local notices and the original extraction inventory. Phase A step 3 adds the pure identity, axis-marker and pseudoasymmetric-classifier scope with original ReShiki source pins. Standalone packaging updates local path and scope wording; source pins and upstream attribution for retained files are unchanged. Owner decision 2026-11-10, Rust stable sort: documents stable input-order ties and removal of the native C++ sorts, helpers, fingerprints and their sole-use LLVM libc++/Microsoft STL terms; no Rust standard library implementation is copied. publish = false is retained."
-sha256 = "437aa0382d8417485fa34b5bd2df4827db0a2549994739490e95ebe4ba186d7c"
+sha256 = "861efc47d6f8c048d203fe95a538b525025c44396285e15fa316e64a9015aa65"
 
 [[file]]
 path = "crates/nazuchem-kernel/licenses/centres/LICENSE"
@@ -385,7 +385,7 @@ sources = [
   { project = "RDKit", ref = "0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985", path = "Code/GraphMol/FindRings.cpp", license = "BSD-3-Clause" },
   { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/rings.rs", license = "BSD-3-Clause" },
 ]
-notes = "RDKit molecular-perception adaptation retained through the chemistry-to-kernel copy. Owner decision 2026-11-10, Rust stable sort: replace the native C++ size-ordering policy with a Rust standard library stable sort call, preserving input order for equal ring sizes and existing limits; no Rust standard library implementation is copied."
+notes = "RDKit molecular-perception adaptation retained through the chemistry-to-kernel copy. Owner decision 2026-11-10, Rust stable sort: replace the native C++ size-ordering policy with a Rust standard library stable sort call, preserving input order for equal ring sizes."
 
 [[file]]
 path = "crates/nazuchem-kernel/src/rings/search.rs"
@@ -555,7 +555,7 @@ sources = [
   { project = "RDKit", ref = "0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985", path = "Code/GraphMol/SmilesParse/SmilesWrite.cpp", license = "BSD-3-Clause" },
   { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/smiles/traversal.rs", license = "BSD-3-Clause" },
 ]
-notes = "RDKit molecular-perception adaptation retained through the chemistry-to-kernel copy. Owner decision 2026-11-10, Rust stable sort: replace native C++ neighbor ordering with a Rust standard library stable sort call, preserving input order for equal keys and existing limits; no Rust standard library implementation is copied."
+notes = "RDKit molecular-perception adaptation retained through the chemistry-to-kernel copy. Owner decision 2026-11-10, Rust stable sort: replace native C++ neighbor ordering with a Rust standard library stable sort call, preserving input order for equal keys."
 
 [[file]]
 path = "crates/nazuchem-kernel/src/smiles/write.rs"
@@ -705,7 +705,7 @@ sources = [
   { project = "RDKit", ref = "0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985", path = "Code/GraphMol/CIPLabeler/CIPLabeler.cpp", license = "BSD-3-Clause" },
   { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/stereo/cip/label.rs", license = "BSD-3-Clause" },
 ]
-notes = "RDKit molecular-perception adaptation retained through the chemistry-to-kernel copy. Owner decision 2026-11-10, Rust stable sort: replace native C++ CIP index ordering with a Rust standard library stable sort call, preserving input order for equal keys and existing limits; no Rust standard library implementation is copied."
+notes = "RDKit molecular-perception adaptation retained through the chemistry-to-kernel copy. Owner decision 2026-11-10, Rust stable sort: replace native C++ CIP index ordering with a Rust standard library stable sort call, preserving input order for equal keys."
 
 [[file]]
 path = "crates/nazuchem-kernel/src/stereo/cip/mancude.rs"
@@ -7237,7 +7237,7 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/Cargo.toml", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Standalone facade tests add serde_json as a development dependency. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it. Other established terms, unresolved provenance and publication restrictions remain unchanged."
+notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Standalone facade tests add serde_json as a development dependency. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
 sha256 = "af72aaeb39f88c0c9991c26fc2254595ce791ee6acbe8497b2562e524a252c7b"
 
 [[file]]
@@ -7277,8 +7277,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/NOTICE", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it. Other established terms, unresolved provenance and publication restrictions remain unchanged."
-sha256 = "74c279a497f6902a5341ca80a4773c3a403dc48ddfa2178e4c0d7e166e808708"
+notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
+sha256 = "81ab9a2692d2d740b977b120ee03fb402699d9970b869eaae1c199dd2f43ab93"
 
 [[file]]
 path = "crates/nazuchem/README.md"
@@ -7287,8 +7287,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/README.md", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it. Other established terms, unresolved provenance and publication restrictions remain unchanged."
-sha256 = "6bc4f0d0a394ad0736b8cbd47c848768883874c07d8d5036d2ff11430bb2ce92"
+notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
+sha256 = "400445d262a067657fac703c709c286742c19b175d8a8fbd6a246e2de4c08f28"
 
 [[file]]
 path = "crates/nazuchem/licenses/centres/LICENSE"
@@ -7348,7 +7348,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem-kernel/NOTICE", ref = "b2e00834cb43f347e2376efde308d57242c44397", license = "MIT OR Apache-2.0" },
 ]
 notes = "Complete license or notice inherited from crates/nazuchem-kernel/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained. Owner decision 2026-11-10, Rust stable sort: synchronized with the current kernel scope notice after removal of the per-OS C++ sorts, helpers, fingerprints and sole-use LLVM libc++/Microsoft STL terms. The recorded historical source pin is retained."
-sha256 = "dfcc5fa87514335814c3e28a03c58a545a299c931b2158d688fa958a3ca8d58a"
+sha256 = "f4a0ff70760d88a5ed20ac70b3072bbd90a2f638618cf9b47eb045b43a047940"
 
 [[file]]
 path = "crates/nazuchem/licenses/nazuchem-s2n/NOTICE"
@@ -7610,7 +7610,7 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/python/Cargo.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it. Other established terms, unresolved provenance and publication restrictions remain unchanged."
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
 sha256 = "1a469b640d1a3797dae9d43f4bbb1b679aeee1e1f8b4b0c666510b07b7ffe83e"
 
 [[file]]
@@ -7630,7 +7630,7 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/python/pyproject.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it. Other established terms, unresolved provenance and publication restrictions remain unchanged."
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
 sha256 = "baf587a2e38f4147c7f0af7590ee34f6355f05b9b6c105862eb3b69d1e2b7fba"
 
 [[file]]
@@ -7729,7 +7729,7 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/wasm/Cargo.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it. Other established terms, unresolved provenance and publication restrictions remain unchanged."
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
 sha256 = "69cac4a7430ca34857b750c283bac699edd8cf9196b79b58e39c32d6f35d8ffa"
 
 [[file]]
@@ -7759,7 +7759,7 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/wasm/package.json", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Adds the local Bun benchmark command; npm remains private and benchmark files remain outside the package whitelist. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it. Other established terms, unresolved provenance and publication restrictions remain unchanged."
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Adds the local Bun benchmark command; npm remains private and benchmark files remain outside the package whitelist. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
 sha256 = "5cca5f60a62b15c12d64e0cb2a95a94aee4ea196243b29bc3ac3012d5b4bc7f7"
 
 [[file]]

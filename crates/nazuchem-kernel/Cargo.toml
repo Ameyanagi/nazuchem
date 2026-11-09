@@ -3,7 +3,6 @@ name = "nazuchem-kernel"
 version = "0.1.0"
 edition = "2024"
 publish = false
-# Incorporated terms after the 2026-11-10 owner decision to use Rust stable sort.
 # Publication remains disabled while repository provenance work is incomplete.
 license = "(MIT OR Apache-2.0) AND BSD-3-Clause AND BSD-2-Clause"
 description = "Internal molecular perception kernel for nazuchem, adapted from RDKit and centres"

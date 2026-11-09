@@ -3,7 +3,7 @@
 // Source: RDKit | Code/GraphMol/CIPLabeler/CIPLabeler.cpp | 0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985
 // Source: ReShiki | crates/chemistry/src/stereo/cip/label.rs | be63a799aa03a83dc6ec74bb294f4d42b89298d3
 // Copyright (C) 2020 Schrödinger, LLC. BSD-3-Clause; see licenses/rdkit/.
-// Changes: Rust adaptation; Rust stable sort (2026-11-10 owner decision), retaining CIP candidate and distance limits.
+// Changes: Rust adaptation; Rust stable sort (2026-11-10 owner decision), retaining the CIP candidate limit.
 
 //! Atomic full CIP labeling adapted from RDKit CIPLabeler.cpp (2026.03.6).
 //! Copyright (C) 2020 Schrödinger, LLC. BSD-3-Clause; see licenses/rdkit/.
