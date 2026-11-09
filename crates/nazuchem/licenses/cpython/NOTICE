@@ -1,3 +1,8 @@
+This historical ReShiki notice retains the broader source inventory.
+nazuchem-s2n incorporates only the integer-set adaptation described
+below, now in src/python_int_set.rs. The numeric adaptations and
+their independent CPython 3.12.12 pin are outside this extraction.
+
 ReShiki adapts the compensated vector_norm algorithm from CPython 3.12.12,
 Modules/mathmodule.c, commit 4a5632fbf9bf59477c540e3f53fa7cdbeea3e3f5:
 https://github.com/python/cpython/tree/v3.12.12

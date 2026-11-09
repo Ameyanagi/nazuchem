@@ -45,9 +45,12 @@ of the pinned jar has not been independently reproduced by the read-only
 provenance audit; it remains an export-process claim. Cargo reads the checked binary directly.
 Frozen upstream oracle fixtures are unchanged.
 
-After editing `regexTokens.xml`, regenerate the table and every hash that pins
-it with one command. It needs the pinned jar above and a JDK 21 (Temurin
-21.0.13 reproduces the checked table byte for byte):
+The following records the historical ReShiki regeneration procedure. Its
+`scripts/regenerate_opsin_grammar.py` and catalog paths are outside this
+standalone extraction; it is not a command supplied by nazuchem. In that source
+repository, editing `regexTokens.xml` required regenerating the table and every
+hash that pins it with the pinned jar above and JDK 21 (Temurin 21.0.13 reproduces
+the checked table byte for byte):
 
 ```sh
 OPSIN_JAR=/path/to/opsin-core-3.0-SNAPSHOT-jar-with-dependencies.jar \
@@ -123,7 +126,7 @@ Compile each development exporter with the pinned JAR and the compiled
 ExportFrontend class on its classpath; the latter supplies JSON quoting. Run
 from a fresh working directory with absolute input/output paths. Exporter
 source and every checked fixture hash are recorded in `manifest.json`.
-Its historical `ExportDfa.java.txt` hash predates the Phase A step 2
+Its historical `ExportDfa.java.txt` hash predates the extraction's
 provenance-comment correction; the exporter body is unchanged and
 `PROVENANCE-nazuchem.toml` at the repository root records its current hash.
 Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.

@@ -1,6 +1,6 @@
 # nazuchem-kernel
 
-Internal molecular perception kernel for nazuchem. This first extraction copies
+Internal molecular perception kernel for nazuchem. The standalone library copies
 the transitive chemistry modules used by OPSIN and openclatura from ReShiki at
 `be63a799aa03a83dc6ec74bb294f4d42b89298d3`, preserving the existing algorithms,
 platform sort policies, attribution comments, and relevant unit tests.
@@ -11,11 +11,11 @@ module declarations, and crate attributes from the original root. The unused
 generated-wedging module and the host allocation-measurement test stay outside
 the extraction. Four existing JSON test fixtures are copied without changes.
 
-Phase A step 3 also copies ReShiki's pure canonical identity, private M/P axis
+It also includes ReShiki's pure canonical identity, private M/P axis
 marker codec, and pseudoasymmetric-centre classifier. These operate on kernel
 states; identity and axis helpers take an explicit `Budget`. Document selection,
-component admission and caption policy remain in `reshiki-model`, whose own
-chemistry implementation is checked against the kernel by parity tests.
+component admission and caption policy belong to the host application and are
+outside this library. ReShiki's integration parity tests are maintained there.
 
 Molecular perception is adapted from RDKit under BSD-3-Clause. Extended
 tetrahedral CIP code is adapted from SiMolecule centres under BSD-2-Clause.
@@ -23,8 +23,8 @@ Apple and Windows sorting policies adapt LLVM libc++ and Microsoft STL under
 Apache-2.0 WITH LLVM-exception. Original ReShiki/nazuchem code uses
 MIT OR Apache-2.0. Complete applicable third-party texts and notices travel
 with this crate in `licenses/rdkit/`, `licenses/centres/` and `licenses/stdlib/`;
-`LICENSE-MIT` and `LICENSE-APACHE` cover the local contributions. Root copies
-remain because ReShiki also retains the chemistry implementations.
+`LICENSE-MIT` and `LICENSE-APACHE` cover the local contributions. Historical
+ReShiki paths in copied notices identify the source repository.
 
 The manifest combines these established terms as
 `(MIT OR Apache-2.0) AND BSD-3-Clause AND BSD-2-Clause AND (Apache-2.0 WITH LLVM-exception)`.

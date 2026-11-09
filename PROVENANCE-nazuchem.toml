@@ -1,5 +1,5 @@
-# Provenance for the files that will form the nazuchem library.
-# Phase A step 5 renames opsin to nazuchem-n2s and adds the string-API facade.
+# Provenance for the standalone nazuchem library crates and regression fixtures.
+# Extracted from ReShiki after Phase A step 5; repository scaffolding is out of scope.
 # Historical source paths and unresolved source/licensing decisions remain unchanged.
 # Source audit: 2026-11-09; owner decisions and source-pin gaps remain explicit below.
 # NOASSERTION is not a licence grant. Test-only fixtures are excluded from packages.
@@ -51,8 +51,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "ReShiki/nazuchem", path = "crates/nazuchem-kernel/NOTICE", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0" },
 ]
-notes = "Phase A step 2 crate-local attribution and unresolved sort-policy notice. Phase A step 3 adds the pure identity, axis-marker and pseudoasymmetric-classifier scope with original ReShiki source pins."
-sha256 = "5e673728376b3b33598f1a544c1dcecfa4a10bfaab28a77e4189f44b0d7fbb22"
+notes = "Phase A step 2 crate-local attribution and unresolved sort-policy notice. Phase A step 3 adds the pure identity, axis-marker and pseudoasymmetric-classifier scope with original ReShiki source pins. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
+sha256 = "d34223c39be5e4c4e3d016a92c6c1de8e2aa277cf32dae53f18e4c0d3d4b53a9"
 
 [[file]]
 path = "crates/nazuchem-kernel/README.md"
@@ -61,8 +61,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "crates/nazuchem-kernel/README.md", license = "MIT OR Apache-2.0" },
 ]
-notes = "Extraction documentation records copied source, RDKit, centres and LLVM/Microsoft adaptations, crate-local notices and remaining sort-policy decisions. Phase A step 3 adds the pure identity, axis-marker and pseudoasymmetric-classifier scope with original ReShiki source pins."
-sha256 = "9574f3706a88b288ab7f676b986f71bd6d53a0287fad7d925f9dea13633465f7"
+notes = "Extraction documentation records copied source, RDKit, centres and LLVM/Microsoft adaptations, crate-local notices and remaining sort-policy decisions. Phase A step 3 adds the pure identity, axis-marker and pseudoasymmetric-classifier scope with original ReShiki source pins. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
+sha256 = "02b030fa0409b486cf97a08d43a67bc319c9a697282013a3976dc2c5267d0be0"
 
 [[file]]
 path = "crates/nazuchem-kernel/licenses/centres/LICENSE"
@@ -214,7 +214,7 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/cx/number.rs", license = "MIT OR Apache-2.0" },
 ]
-notes = "ReShiki coordinate parser reproduces observed platform lexical-cast behavior without importing a standard-library implementation."
+notes = "ReShiki coordinate parser reproduces observed platform lexical-cast behavior without importing a standard-library implementation. Standalone packaging formats lexical_cast<double> as inline code for rustdoc; parser behavior and source attribution are unchanged."
 
 [[file]]
 path = "crates/nazuchem-kernel/src/cx/number/tests.rs"
@@ -1366,8 +1366,8 @@ license = "MIT"
 sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
-notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "b8a59e0363d3e486ee72a4070b13024a6da3820a3d4987af2736e677df8703ae"
+notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
+sha256 = "52fea89647ce7008a3f6a16d8aa735dc5b43eeee6a99c8b0b46c26d7d8c93c4a"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -3940,64 +3940,6 @@ sources = [
   { project = "ReShiki", ref = "bfce35014e5c5a0062ea26a3381a883c5acc829d", path = "crates/opsin/tests/unknown_stereochemistry.rs", license = "MIT" },
 ]
 notes = "Original xi-case and unknown-configuration regression suite introduced with the native xi extension. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-
-[[file]]
-path = "src/naming/catalog/data.json"
-origin = "data"
-license = "MIT AND CC-BY-4.0 AND (MIT OR Apache-2.0)"
-sources = [
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/alkanes.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/aminoAcids.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/arylGroups.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/arylSubstituents.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/carbohydrateSuffixes.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/carbohydrates.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/carboxylicAcids.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/functionalTerms.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/groupStemsAllowingInlineSuffixes.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/inlineSuffixes.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/miscTokens.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/multipliers.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/simpleCyclicGroups.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/simpleGroups.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/simpleSubstituents.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixes.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/unsaturators.xml", license = "MIT" },
-  { project = "ChEBI", ref = "CHEBI:422; modified 2024-04-18; accessed 2026-10-11", path = "https://www.ebi.ac.uk/chebi/CHEBI:422", license = "CC-BY-4.0" },
-  { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "assets/template-catalog.json", license = "MIT OR Apache-2.0" },
-  { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "assets/haworth-sugars.json", license = "MIT OR Apache-2.0" },
-]
-notes = "Curated OPSIN retained-name aliases plus one CC-BY-4.0 ChEBI alias, indexed by explicit local graphs."
-sha256 = "f49943ea10c21c8d49c4b743acbbe84a0903117ddc2d934b7c4b16dc1aec7769"
-
-[[file]]
-path = "src/naming/catalog/provenance.json"
-origin = "original"
-license = "MIT OR Apache-2.0"
-sources = [
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/alkanes.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/aminoAcids.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/arylGroups.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/arylSubstituents.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/carbohydrateSuffixes.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/carbohydrates.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/carboxylicAcids.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/functionalTerms.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/groupStemsAllowingInlineSuffixes.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/inlineSuffixes.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/miscTokens.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/multipliers.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/simpleCyclicGroups.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/simpleGroups.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/simpleSubstituents.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixes.xml", license = "MIT" },
-  { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/unsaturators.xml", license = "MIT" },
-  { project = "ChEBI", ref = "CHEBI:422; modified 2024-04-18; accessed 2026-10-11", path = "https://www.ebi.ac.uk/chebi/CHEBI:422", license = "CC-BY-4.0" },
-  { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "assets/template-catalog.json", license = "MIT OR Apache-2.0" },
-  { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "assets/haworth-sugars.json", license = "MIT OR Apache-2.0" },
-]
-notes = "Original provenance metadata recording OPSIN/ChEBI sources, adaptations and frozen resource/reference-graph hashes."
-sha256 = "f50f0c2debaa201d291d3758f07b32caccc266927a4e2663b08c05932164b377"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/additive.rs"
@@ -7229,15 +7171,6 @@ sources = [
 notes = "git log --follow and introduction diffs show original ReShiki orchestration: canonical identity consolidated in f751b382eba9731cc39e6e1838697100b531c4ea, unknown stereo handling added in 0d10886c93f6f7aa673f4179739143986d392a01, radical preservation in 381ac4164154afecf04bb4a89d8eef32eeb52190, and axial identity in 2df788dc456793c687b934afd6d4b317e3c73ef8. Calls into separately attributed RDKit/centres-derived chemistry implementations are not copied implementations of those algorithms. Document/component admission stays in model molecule_names.rs."
 
 [[file]]
-path = "crates/model/src/molecule_names/identity.rs"
-origin = "original"
-license = "MIT OR Apache-2.0"
-sources = [
-  { project = "ReShiki", path = "crates/model/src/molecule_names.rs", ref = "2df788dc456793c687b934afd6d4b317e3c73ef8", license = "MIT OR Apache-2.0" },
-]
-notes = "git log --follow and introduction diffs show original ReShiki orchestration: canonical identity consolidated in f751b382eba9731cc39e6e1838697100b531c4ea, unknown stereo handling added in 0d10886c93f6f7aa673f4179739143986d392a01, radical preservation in 381ac4164154afecf04bb4a89d8eef32eeb52190, and axial identity in 2df788dc456793c687b934afd6d4b317e3c73ef8. Calls into separately attributed RDKit/centres-derived chemistry implementations are not copied implementations of those algorithms. Document/component admission stays in model molecule_names.rs."
-
-[[file]]
 path = "crates/nazuchem-kernel/src/identity/axis_markers.rs"
 origin = "original"
 license = "MIT OR Apache-2.0"
@@ -7254,19 +7187,6 @@ sources = [
   { project = "ReShiki", path = "crates/model/src/chemistry/stereo_lint.rs", ref = "82b8e6e9c0133fe31a59109ec0adc91507bc8d6f", license = "MIT OR Apache-2.0" },
 ]
 notes = "git log --follow and the 82b8e6e9c0133fe31a59109ec0adc91507bc8d6f introduction diff establish this original ReShiki two-trial classifier. It invokes the separately attributed full CIP engine; no CIP algorithm implementation is copied into this file."
-
-[[file]]
-path = "crates/model/src/molecule_names/identity_parity.rs"
-origin = "original"
-license = "MIT OR Apache-2.0"
-sources = [
-  { project = "Nazuchem/ReShiki", path = "crates/model/src/molecule_names/identity_parity.rs", ref = "098298a396d6d2b51edeebd62dd66cd9c5871b48", license = "MIT OR Apache-2.0" },
-  { project = "ReShiki", path = "crates/model/src/molecule_names.rs", ref = "381ac4164154afecf04bb4a89d8eef32eeb52190", license = "MIT OR Apache-2.0" },
-  { project = "ReShiki", path = "crates/model/src/molecule_names/axis_markers.rs", ref = "2df788dc456793c687b934afd6d4b317e3c73ef8", license = "MIT OR Apache-2.0" },
-  { project = "ReShiki", path = "crates/model/src/chemistry/document/atrop_tests.rs", ref = "feed38dc791ee59fb0b8c4b392a3f72c100a1be7", license = "MIT OR Apache-2.0" },
-  { project = "ReShiki", path = "src/naming/openclatura/unknown_stereo.rs", ref = "0d10886c93f6f7aa673f4179739143986d392a01", license = "MIT OR Apache-2.0" },
-]
-notes = "New Phase A step 3 parity and denied-budget assertions. Original ReShiki radical, malformed-axis and pseudoasymmetric cases are reused with their introduction commits recorded; binol is a local drawing fixture independently checked against RDKit, not a copied RDKit implementation. JSON conversion is confined to these cross-type tests; engine calls use kernel State directly."
 
 [[file]]
 path = "crates/nazuchem-s2n/Cargo.toml"
@@ -7315,8 +7235,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { "project" = "Nazuchem/ReShiki", "path" = "crates/nazuchem-s2n/NOTICE", "ref" = "Phase A step 4 (local extraction)", "license" = "MIT OR Apache-2.0" },
 ]
-notes = "Phase A step 4 local extraction documentation and package metadata. Established terms do not resolve the retained Blue Book table; publish = false remains in force."
-sha256 = "9173fced764b862d51871b0b8e474f30d51d9a1df52a1895df47d0a671878faa"
+notes = "Phase A step 4 local extraction documentation and package metadata. Established terms do not resolve the retained Blue Book table; publish = false remains in force. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
+sha256 = "286f821800e3f08a4e78869ba6cbd83b7daca85a43d59790c0ddde4344009bca"
 
 [[file]]
 path = "crates/nazuchem-s2n/README.md"
@@ -7325,8 +7245,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { "project" = "Nazuchem/ReShiki", "path" = "crates/nazuchem-s2n/README.md", "ref" = "Phase A step 4 (local extraction)", "license" = "MIT OR Apache-2.0" },
 ]
-notes = "Phase A step 4 local extraction documentation and package metadata. Established terms do not resolve the retained Blue Book table; publish = false remains in force."
-sha256 = "5698555beb2c82a3556ef16ea16291913c0b8745bac3d65fa9100550a7a7a90b"
+notes = "Phase A step 4 local extraction documentation and package metadata. Established terms do not resolve the retained Blue Book table; publish = false remains in force. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
+sha256 = "dca06ec0d55c60cc56e33cb7624b6eb9dce8fa351710ed4386fd5ccd0b9dea2d"
 
 [[file]]
 path = "crates/nazuchem-s2n/licenses/cpython/LICENSE"
@@ -7345,8 +7265,8 @@ license = "Python-2.0"
 sources = [
   { "project" = "CPython", "path" = "licenses/cpython/NOTICE", "ref" = "4460ac34c3ad6bf79358c4e4ae07103f69e5f42d", "license" = "Python-2.0" },
 ]
-notes = "Crate-local complete upstream terms/notice copied byte-for-byte from licenses/cpython/NOTICE. The crate NOTICE qualifies historical path references, incorporated scope and unresolved upstream pins."
-sha256 = "aacc8aa61d679ab70d08a0b9b0ba658013f574c9e7c1442b17b843f7ac2a21ad"
+notes = "Crate-local complete upstream terms/notice inherited from licenses/cpython/NOTICE. The crate NOTICE qualifies historical path references, incorporated scope and unresolved upstream pins. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
+sha256 = "096be7b10e3f44cbf476aa18fe291bdd9f87b565bf23a0a990f8ed426be98146"
 
 [[file]]
 path = "crates/nazuchem-s2n/licenses/openclatura/LICENSE"
@@ -7365,8 +7285,8 @@ license = "MIT"
 sources = [
   { "project" = "openclatura", "path" = "licenses/openclatura/NOTICE", "ref" = "4460ac34c3ad6bf79358c4e4ae07103f69e5f42d", "license" = "MIT" },
 ]
-notes = "Crate-local complete upstream terms/notice copied byte-for-byte from licenses/openclatura/NOTICE. The crate NOTICE qualifies historical path references, incorporated scope and unresolved upstream pins."
-sha256 = "91e03be9047f65abf4a62dd1c0b19a32452a2b4d3378e474276659890953e8eb"
+notes = "Crate-local complete upstream terms/notice inherited from licenses/openclatura/NOTICE. The crate NOTICE qualifies historical path references, incorporated scope and unresolved upstream pins. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
+sha256 = "e7c9527137fbf9fe090ae91c3c2d1b4f9d2591893fd75cfc7efed2c4b0e4ab41"
 
 [[file]]
 path = "crates/nazuchem-s2n/licenses/opsin/LICENSE"
@@ -7402,28 +7322,6 @@ sources = [
 notes = "Original ReShiki naming admission, canonical identity verification and alternative verification moved onto kernel State with an injected Budget. Preserves the private atom-token admission regression and original rejection/verification policy; crate tests share the prepared-state admission and relative-stereo syntax helpers."
 
 [[file]]
-path = "src/naming/s2n_integration_tests.rs"
-origin = "mixed"
-license = "MIT AND (MIT OR Apache-2.0)"
-sources = [
-  { "project" = "ReShiki", "ref" = "5f559fd482e237307a589dfcb7ea333cee0a6e13", "path" = "src/naming/openclatura/phane/tests.rs", "license" = "MIT OR Apache-2.0" },
-  { "project" = "OPSIN", "ref" = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", "path" = "opsin-inchi/src/test/resources/uk/ac/cam/ch/wwmm/opsin/phanes.txt", "license" = "MIT" },
-  { "project" = "ReShiki", "ref" = "5f559fd482e237307a589dfcb7ea333cee0a6e13", "path" = "src/naming/openclatura/radical_ions.rs", "license" = "MIT OR Apache-2.0" },
-  { "project" = "openclatura", "path" = "tests/integration/test_describer.py", "ref" = "90dc5bcb4910c196122ec0405d06a32929a8f308", "license" = "MIT" },
-  { "project" = "ReShiki", "path" = "src/naming/openclatura/mod.rs", "ref" = "5f559fd482e237307a589dfcb7ea333cee0a6e13", "license" = "MIT OR Apache-2.0" },
-  { "project" = "ReShiki", "path" = "src/naming/s2n_integration_tests.rs", "ref" = "Phase A step 4 (local extraction)", "license" = "MIT OR Apache-2.0" },
-]
-notes = "Application document and upstream-InChI integration tests retained in ReShiki after extracting the host-neutral engine. Individual functions preserve their previous source attribution; phane_name is a local test wrapper. Pheno-fusion name/status and strict identity regressions live in the crate; this file retains the InChI comparison."
-parts = [
-  { "origin" = "original", "sources" = [{ "project" = "ReShiki", "ref" = "5f559fd482e237307a589dfcb7ea333cee0a6e13", "path" = "src/naming/openclatura/phane/tests.rs", "license" = "MIT OR Apache-2.0", "symbol" = "fixture_smiles" }], "items" = ["fn fixture_smiles"] },
-  { "origin" = "mixed", "sources" = [{ "project" = "OPSIN", "ref" = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", "path" = "opsin-inchi/src/test/resources/uk/ac/cam/ch/wwmm/opsin/phanes.txt", "license" = "MIT", "symbol" = "module scope (mapping uncertain)" }, { "project" = "ReShiki", "ref" = "5f559fd482e237307a589dfcb7ea333cee0a6e13", "path" = "src/naming/openclatura/phane/tests.rs", "license" = "MIT OR Apache-2.0", "symbol" = "names_independent_upstream_inchi_graphs" }], "items" = ["fn names_independent_upstream_inchi_graphs"] },
-  { "origin" = "original", "sources" = [{ "project" = "ReShiki", "ref" = "5f559fd482e237307a589dfcb7ea333cee0a6e13", "path" = "src/naming/openclatura/phane/tests.rs", "license" = "MIT OR Apache-2.0", "symbol" = "round_trip" }], "items" = ["fn round_trip"] },
-  { "items" = ["fn drawn_localized_benzene_radical_cation_recovers_benzene"], "origin" = "adapted", "sources" = [{ "project" = "ReShiki", "ref" = "5f559fd482e237307a589dfcb7ea333cee0a6e13", "path" = "src/naming/openclatura/radical_ions.rs", "license" = "MIT OR Apache-2.0", "symbol" = "tests::drawn_localized_benzene_radical_cation_recovers_benzene" }, { "project" = "openclatura", "path" = "tests/integration/test_describer.py", "ref" = "90dc5bcb4910c196122ec0405d06a32929a8f308", "license" = "MIT", "symbol" = "test_describe_handles_benzene_without_functional_group" }], "notes" = "Conservatively adapted exact upstream test inputs/expected names; exact coincidence does not establish independent ancestry. Local harness, assertions, status checks and additional cases remain local extensions. Conservative test-data attribution required by the requested audit rule: shared SMILES/chemical-name literals are attributed even when common chemistry or independent introduction is plausible. Implementation ancestry is uncertain; this decision attributes the test data and does not assert a mechanical port." },
-  { "origin" = "original", "sources" = [{ "project" = "ReShiki", "path" = "src/naming/openclatura/mod.rs", "ref" = "5f559fd482e237307a589dfcb7ea333cee0a6e13", "license" = "MIT OR Apache-2.0", "symbol" = "tests::pheno_fusion_components_choose_preferred_parents_and_round_trip" }], "items" = ["fn pheno_fusion_components_preserve_inchi"] },
-  { "origin" = "original", "sources" = [{ "project" = "ReShiki", "path" = "src/naming/s2n_integration_tests.rs", "ref" = "Phase A step 4 (local extraction)", "license" = "MIT OR Apache-2.0", "symbol" = "phane_name" }], "items" = ["fn phane_name"] },
-]
-
-[[file]]
 path = "crates/nazuchem-s2n/src/test_support.rs"
 origin = "original"
 license = "MIT OR Apache-2.0"
@@ -7440,8 +7338,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/Cargo.toml", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained."
-sha256 = "33387a1959d1351d3c14766223c5bd541272bc66f946492e0820dbe131e6ffaa"
+notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Standalone facade tests add serde_json as a development dependency."
+sha256 = "195de835115fce32586ab5a96bf2381cda33c28ff023c57bd4834bbcd0e6ecd7"
 
 [[file]]
 path = "crates/nazuchem/LICENSE"
@@ -7480,8 +7378,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/NOTICE", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained."
-sha256 = "e9444ea72f8790ff1f3ab8a556a403a0d04b718dbf704dd5a054c0e1e2b0c396"
+notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
+sha256 = "e480ff5cee568842beb2508239caaf8f9503eb9ae1cdf6aeb668c1ecef7eeb9a"
 
 [[file]]
 path = "crates/nazuchem/README.md"
@@ -7530,8 +7428,8 @@ license = "Python-2.0"
 sources = [
   { project = "CPython", path = "crates/nazuchem-s2n/licenses/cpython/NOTICE", ref = "b2e00834cb43f347e2376efde308d57242c44397", license = "Python-2.0" },
 ]
-notes = "Complete license or notice copied byte-for-byte from crates/nazuchem-s2n/licenses/cpython/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance."
-sha256 = "aacc8aa61d679ab70d08a0b9b0ba658013f574c9e7c1442b17b843f7ac2a21ad"
+notes = "Complete license or notice inherited from crates/nazuchem-s2n/licenses/cpython/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
+sha256 = "096be7b10e3f44cbf476aa18fe291bdd9f87b565bf23a0a990f8ed426be98146"
 
 [[file]]
 path = "crates/nazuchem/licenses/nazuchem-ir/NOTICE"
@@ -7550,8 +7448,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem-kernel/NOTICE", ref = "b2e00834cb43f347e2376efde308d57242c44397", license = "MIT OR Apache-2.0" },
 ]
-notes = "Complete license or notice copied byte-for-byte from crates/nazuchem-kernel/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance."
-sha256 = "5e673728376b3b33598f1a544c1dcecfa4a10bfaab28a77e4189f44b0d7fbb22"
+notes = "Complete license or notice inherited from crates/nazuchem-kernel/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
+sha256 = "d34223c39be5e4c4e3d016a92c6c1de8e2aa277cf32dae53f18e4c0d3d4b53a9"
 
 [[file]]
 path = "crates/nazuchem/licenses/nazuchem-s2n/NOTICE"
@@ -7560,8 +7458,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem-s2n/NOTICE", ref = "b2e00834cb43f347e2376efde308d57242c44397", license = "MIT OR Apache-2.0" },
 ]
-notes = "Complete license or notice copied byte-for-byte from crates/nazuchem-s2n/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance."
-sha256 = "9173fced764b862d51871b0b8e474f30d51d9a1df52a1895df47d0a671878faa"
+notes = "Complete license or notice inherited from crates/nazuchem-s2n/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
+sha256 = "286f821800e3f08a4e78869ba6cbd83b7daca85a43d59790c0ddde4344009bca"
 
 [[file]]
 path = "crates/nazuchem/licenses/openclatura/LICENSE"
@@ -7580,8 +7478,8 @@ license = "MIT"
 sources = [
   { project = "openclatura", path = "crates/nazuchem-s2n/licenses/openclatura/NOTICE", ref = "b2e00834cb43f347e2376efde308d57242c44397", license = "MIT" },
 ]
-notes = "Complete license or notice copied byte-for-byte from crates/nazuchem-s2n/licenses/openclatura/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance."
-sha256 = "91e03be9047f65abf4a62dd1c0b19a32452a2b4d3378e474276659890953e8eb"
+notes = "Complete license or notice inherited from crates/nazuchem-s2n/licenses/openclatura/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
+sha256 = "e7c9527137fbf9fe090ae91c3c2d1b4f9d2591893fd75cfc7efed2c4b0e4ab41"
 
 [[file]]
 path = "crates/nazuchem/licenses/opsin/LICENSE"
@@ -7669,3 +7567,25 @@ parts = [
   { origin = "original", sources = [{ project = "Nazuchem/ReShiki", path = "crates/nazuchem/src/lib.rs", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0", symbol = "smiles_to_name" }], items = ["fn smiles_to_name"] },
   { origin = "original", sources = [{ project = "Nazuchem/ReShiki", path = "crates/nazuchem/src/lib.rs", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0", symbol = "tests" }], items = ["mod tests"], members = { "mod tests" = ["fn tests::error_kind_and_message_are_available_without_engines", "fn tests::invalid_name_is_a_parse_error", "fn tests::parser_warning_is_a_warning_error", "fn tests::axial_structure_is_a_serialization_error", "fn tests::typed_parsing_error_preserves_its_message", "fn tests::unsupported_smiles_is_a_naming_error"] } },
 ]
+
+[[file]]
+path = "crates/nazuchem/tests/golden.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/tests/golden.rs", ref = "standalone library golden gate", license = "MIT OR Apache-2.0" },
+]
+notes = "Original standalone integration harness freezes full s2n Name/error results and strict n2s observations for generated names, alternatives and verification targets. It reads the separately attributed root corpora without copying their names into Rust source."
+
+[[file]]
+path = "tests/fixtures/golden/s2n_n2s.jsonl"
+origin = "data"
+license = "NOASSERTION"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/tests/golden.rs", ref = "standalone library golden gate", license = "MIT OR Apache-2.0" },
+  { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/bakeoff_corpus.tsv", ref = "sha256:1625f3e4331553e9de6e27117568535066c30f4ed5295bcb3a92210a30dce604", license = "NOASSERTION" },
+  { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/openclatura_tests.tsv", ref = "sha256:024ce1b12acd89d621b5318a13b89c536f2be4e768a0a39b5bf9b6a13a9aeacb", license = "MIT AND (MIT OR Apache-2.0)" },
+  { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
+]
+notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including unresolved PubChem source terms for bakeoff_corpus.tsv. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
+sha256 = "8731317af36837df5ef47ed7a6455fcef53eb8a291f5bdc14cdde38400b2a540"

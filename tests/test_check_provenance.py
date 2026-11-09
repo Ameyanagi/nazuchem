@@ -16,6 +16,8 @@ from unittest.mock import patch
 from scripts.check_provenance import (
     FROZEN_PENDING,
     LEDGER_NAME,
+    REQUIRED_FIXTURES,
+    REQUIRED_ROOTS,
     check_provenance,
     check_rust,
     main,
@@ -142,6 +144,13 @@ class ProvenanceTests(unittest.TestCase):
     def test_required_fixture_cannot_be_dropped_from_ledger(self):
         self.entries.pop()
         self.assertIn("fixtures/corpus.tsv: missing ledger entry", self.check())
+
+    def test_standalone_scope_requires_golden_fixture_without_host_application_paths(self):
+        # These are the production constants imported before the miniature-tree
+        # patches in setUp; extracting the library must not require ReShiki.
+        self.assertIn("tests/fixtures/golden/s2n_n2s.jsonl", REQUIRED_FIXTURES)
+        self.assertTrue(all(path.startswith("crates/nazuchem") for path in REQUIRED_ROOTS))
+        self.assertTrue(all(path.startswith("tests/fixtures/") for path in REQUIRED_FIXTURES))
 
     def test_missing_ledger_path_fails(self):
         (self.root / "fixtures/corpus.tsv").unlink()

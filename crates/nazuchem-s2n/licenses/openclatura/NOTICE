@@ -1,6 +1,11 @@
 openclatura structure-to-name source and reference data
 ======================================================
 
+Historical ReShiki paths below retain the source-repository inventory.
+In nazuchem-s2n, src/naming/openclatura/ maps to the crate's src/;
+fixture paths refer to the standalone repository root. The root
+PROVENANCE-nazuchem.toml ledger identifies the incorporated subset.
+
 src/naming/openclatura/ is a native Rust adaptation of the openclatura 0.4.3
 plain-name pipeline, from chains to fused ring systems. Its embedded
 data/ JSON registries are copied from the same upstream release. The graph
@@ -23,7 +28,7 @@ Licensed under MIT; see LICENSE in this directory.
 The adapted source, copied registries, and derived fixtures retain their MIT
 terms and are not represented as original dual-licensed ReShiki material.
 
-Scope clarification from the Phase A provenance audit:
+Scope clarification for standalone nazuchem:
 src/naming/openclatura/ began as a port of openclatura 0.4.3, extended in
 ReShiki. The introductory source description above records that lineage;
 the current JSON registries include both copied and locally adapted data,

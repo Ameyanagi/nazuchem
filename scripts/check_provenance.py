@@ -1,5 +1,8 @@
-"""Check the Phase A naming ledger without rewriting source files or recorded hashes.
+"""Check the standalone naming ledger without rewriting sources or recorded hashes.
 
+Coverage includes every committable file in the five library crates and the
+required root-level regression fixtures. Repository scaffolding is outside this
+inventory; any additional paths recorded in the ledger are still validated.
 Rust files carry exact opening SPDX/Origin/Source headers. Every function in a
 mixed file belongs to an explicitly marked function or enclosing module/impl
 region; a more specific assignment overrides the region. Each region records all
@@ -29,8 +32,7 @@ REQUIRED_ROOTS = (
     "crates/nazuchem",
 )
 REQUIRED_FIXTURES = (
-    "src/naming/catalog/data.json",
-    "src/naming/catalog/provenance.json",
+    "tests/fixtures/golden/s2n_n2s.jsonl",
     "tests/fixtures/openclatura/graph_oracle.json",
     "tests/fixtures/s2n/bakeoff_corpus.tsv",
     "tests/fixtures/s2n/baseline.tsv",

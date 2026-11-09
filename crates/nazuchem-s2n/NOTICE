@@ -35,8 +35,8 @@ not include or invoke the Python interpreter.
 The copied upstream notices retain their original ReShiki path references
 and broader inventories. References to src/naming/openclatura/ in them now
 identify this crate's src/; they do not assert that every listed ReShiki
-component is incorporated here. Root copies remain for ReShiki's retained
-implementations and reference corpora.
+component is incorporated here. The standalone repository's per-file ledger
+identifies the extracted subset and preserves the historical source pins.
 
 Original ReShiki/nazuchem code uses MIT OR Apache-2.0; see LICENSE-MIT and
 LICENSE-APACHE. Pending owner decision: src/data/bluebook/p25_retained.tsv

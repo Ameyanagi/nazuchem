@@ -27,5 +27,5 @@ That expression does not resolve the reuse terms of
 `publish = false` remains in force. Some inherited OPSIN generation revisions
 and the CPython patch release remain unrecorded, as qualified in `NOTICE`
 and the repository-root `PROVENANCE-nazuchem.toml`. The ledger preserves
-historical source paths after the move. ReShiki keeps the root notices while
-it retains the corresponding implementations and reference corpora.
+historical ReShiki source paths; copied notices describe the source repository,
+and the ledger identifies the subset incorporated into this library.

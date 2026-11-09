@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "crates/nazuchem",
+    "crates/nazuchem-ir",
+    "crates/nazuchem-kernel",
+    "crates/nazuchem-n2s",
+    "crates/nazuchem-s2n",
+]
+resolver = "2"

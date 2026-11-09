@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
+
+jobs:
+  rust:
+    name: Rust (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Workspace tests and frozen oracle gates
+        run: cargo test --workspace --locked
+
+  configurations:
+    name: Features, wasm and documentation
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+      - name: Install wasm target
+        run: rustup target add wasm32-unknown-unknown --toolchain 1.99.1
+      - name: Check facade without engines
+        run: cargo check -p nazuchem --no-default-features --locked
+      - name: Check name-to-structure independently
+        run: cargo check -p nazuchem --no-default-features --features n2s --locked
+      - name: Check structure-to-name independently
+        run: cargo check -p nazuchem --no-default-features --features s2n --locked
+      - name: Check wasm facade
+        run: cargo check -p nazuchem --target wasm32-unknown-unknown --locked
+      - name: Build workspace documentation
+        run: cargo doc --workspace --no-deps --locked
+
+  provenance:
+    name: Provenance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Check provenance ledger
+        run: python3 scripts/check_provenance.py
+      - name: Test provenance checker
+        run: python3 -m unittest tests.test_check_provenance

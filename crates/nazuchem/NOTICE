@@ -41,4 +41,4 @@ in force. The repository-root PROVENANCE-nazuchem.toml retains those facts.
 
 Copied notices retain historical paths and broader ReShiki inventories.
 The per-file ledger and dependency scope notices identify the incorporated
-subset. Root notices remain in ReShiki while it retains those implementations.
+subset in this standalone repository and preserve the historical source pins.
