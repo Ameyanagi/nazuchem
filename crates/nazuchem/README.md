@@ -116,8 +116,11 @@ included in `licenses/`; `LICENSE-MIT` and `LICENSE-APACHE` cover local code.
 Sorts with equal keys keep their input order (Rust's stable sort); nazuchem
 does not reproduce C++ standard-library tie order.
 
-The s2n `src/data/bluebook/p25_retained.tsv` table is retained as factual data
-transcribed from IUPAC 2013 Recommendations P-25.2.1 Table 2.8. It is excluded
-from the MIT/Apache-2.0 grant; its ledger licence remains `NOASSERTION`
-(owner decision 2026-11-10).
+`nazuchem-s2n`'s `src/data/bluebook/p25_retained.tsv` lists the retained heterocycle
+names of IUPAC Nomenclature of Organic Chemistry: Recommendations and Preferred
+Names 2013, P-25.2.1 Table 2.8, transcribed from
+https://iupac.qmul.ac.uk/BlueBook/P2.html; IUPAC holds copyright in the
+Recommendations. The names are included as factual data with this attribution;
+this package's licences do not cover the file, and no licence is asserted for it
+(SPDX NOASSERTION).
 The crate's `NOTICE` and copied dependency notices describe the exact scope.

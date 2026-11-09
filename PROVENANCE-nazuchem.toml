@@ -70,7 +70,7 @@ sources = [
   { project = "Nazuchem/ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "crates/nazuchem-kernel/README.md", license = "MIT OR Apache-2.0" },
 ]
 notes = "Extraction documentation records copied source, RDKit and centres attribution, crate-local notices and the original extraction inventory. Phase A step 3 adds the pure identity, axis-marker and pseudoasymmetric-classifier scope with original ReShiki source pins. Standalone packaging updates local path and scope wording; source pins and upstream attribution for retained files are unchanged. Owner decision 2026-11-10, Rust stable sort: documents stable input-order ties and removal of the native C++ sorts, helpers, fingerprints and their sole-use LLVM libc++/Microsoft STL terms; no Rust standard library implementation is copied."
-sha256 = "f4a3e08f42a712e49a95a6e873cd00b6ee7696528e01ad31ccc68f3f5506f23a"
+sha256 = "b0e8607aac0df95c4b88094076fc8d37c63d44e35a8cda2b2d3f0268039a2179"
 
 [[file]]
 path = "crates/nazuchem-kernel/licenses/centres/LICENSE"
@@ -7136,7 +7136,7 @@ sources = [
   { "project" = "Nazuchem/ReShiki", "path" = "crates/nazuchem-s2n/NOTICE", "ref" = "Phase A step 4 (local extraction)", "license" = "MIT OR Apache-2.0" },
 ]
 notes = "Phase A step 4 local extraction documentation and package metadata. Owner decision 2026-11-10 retains the Blue Book factual table outside the MIT/Apache-2.0 grant, with ledger licence NOASSERTION. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "08258f9bbe7d74a92afac997aba6f713b8e78e04b8c2ccee5ce6ecaf51fec019"
+sha256 = "eac8c2188abbb5bf6881e432d827c3be8f6788fe5a35328eadaa85776bbdaa27"
 
 [[file]]
 path = "crates/nazuchem-s2n/README.md"
@@ -7146,7 +7146,7 @@ sources = [
   { "project" = "Nazuchem/ReShiki", "path" = "crates/nazuchem-s2n/README.md", "ref" = "Phase A step 4 (local extraction)", "license" = "MIT OR Apache-2.0" },
 ]
 notes = "Phase A step 4 local extraction documentation and package metadata. Owner decision 2026-11-10 retains the Blue Book factual table outside the MIT/Apache-2.0 grant, with ledger licence NOASSERTION. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "414da6bba467aa7ab2c9a9a9198bee623f62ebd5e139ce5b90280d3f92cb6a7d"
+sha256 = "8a47a547c7a46f0703c6b843feae376d20cdc7301824f37ad8a8d5917d056540"
 
 [[file]]
 path = "crates/nazuchem-s2n/licenses/cpython/LICENSE"
@@ -7186,7 +7186,7 @@ sources = [
   { "project" = "openclatura", "path" = "licenses/openclatura/NOTICE", "ref" = "4460ac34c3ad6bf79358c4e4ae07103f69e5f42d", "license" = "MIT" },
 ]
 notes = "Crate-local complete upstream terms/notice inherited from licenses/openclatura/NOTICE. The crate NOTICE qualifies historical path references, incorporated scope and unresolved upstream pins. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "ad1d888bb4cfee1d24112049ba2da1ff4cdc81cb1237f6a44f21ecf3134c858a"
+sha256 = "90cf3a2c7aeb06ee65b3a14a6d6aa84ecb6885aa6acbe0ba05a5c9eb8805f20b"
 
 [[file]]
 path = "crates/nazuchem-s2n/licenses/opsin/LICENSE"
@@ -7279,7 +7279,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/NOTICE", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; the retained Blue Book factual table is excluded from the MIT/Apache-2.0 grant, with NOASSERTION in dependency records (owner decision 2026-11-10). Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
-sha256 = "34ade30d702b97adfc6ef416a7fbdb2b946f2a89b963db47696d2707d076317e"
+sha256 = "5eaa6edee8239534a705d75fa356259ab538f54cd9cdfbf679293b48a0af25dd"
 
 [[file]]
 path = "crates/nazuchem/README.md"
@@ -7289,7 +7289,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/README.md", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; the retained Blue Book factual table is excluded from the MIT/Apache-2.0 grant, with NOASSERTION in dependency records (owner decision 2026-11-10). Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
-sha256 = "b326059a9458ecf1c90a038b0f35e745926f2ca24022456d495ce2a849418aa4"
+sha256 = "3dafe21cbc9e2b8c03231e2b7932891a3ed67a3c56e778ad3f2b3b3104476367"
 
 [[file]]
 path = "crates/nazuchem/licenses/centres/LICENSE"
@@ -7359,7 +7359,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem-s2n/NOTICE", ref = "b2e00834cb43f347e2376efde308d57242c44397", license = "MIT OR Apache-2.0" },
 ]
 notes = "Complete license or notice inherited from crates/nazuchem-s2n/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "08258f9bbe7d74a92afac997aba6f713b8e78e04b8c2ccee5ce6ecaf51fec019"
+sha256 = "eac8c2188abbb5bf6881e432d827c3be8f6788fe5a35328eadaa85776bbdaa27"
 
 [[file]]
 path = "crates/nazuchem/licenses/openclatura/LICENSE"
@@ -7379,7 +7379,7 @@ sources = [
   { project = "openclatura", path = "crates/nazuchem-s2n/licenses/openclatura/NOTICE", ref = "b2e00834cb43f347e2376efde308d57242c44397", license = "MIT" },
 ]
 notes = "Complete license or notice inherited from crates/nazuchem-s2n/licenses/openclatura/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "ad1d888bb4cfee1d24112049ba2da1ff4cdc81cb1237f6a44f21ecf3134c858a"
+sha256 = "90cf3a2c7aeb06ee65b3a14a6d6aa84ecb6885aa6acbe0ba05a5c9eb8805f20b"
 
 [[file]]
 path = "crates/nazuchem/licenses/opsin/LICENSE"
@@ -7622,7 +7622,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/python/README.md", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "20224320fe19ca9ff93abfe0e6aeb3971e6be5c4b4ae138654b60f9e204b92b0"
+sha256 = "e9300312aa2f81017e4acdf11a6f7d0e18bfa451d3a0ef496f8fd260345ed69d"
 
 [[file]]
 path = "bindings/python/pyproject.toml"

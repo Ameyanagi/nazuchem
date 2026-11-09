@@ -14,7 +14,7 @@ the extraction. That inventory predates removal of the six sort module files
 and three sort fingerprint fixtures. The remaining ring-order fixture retains
 its original bytes and recorded provenance.
 
-Owner decision 2026-11-10, **Rust stable sort**: ordering uses Rust standard
+Sort policy: ordering uses Rust standard
 library stable sort calls. Equal keys preserve input order. Reproducing the
 per-OS C++ standard libraries' equal-key permutations is no longer a target.
 The native sort reproductions, shared helpers and C++ fingerprints were removed;

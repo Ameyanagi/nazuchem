@@ -7,8 +7,8 @@
 Python bindings for chemical names, semantic CXSMILES, and the versioned
 Nazuchem molecule IR. Python 3.10 or newer is required. The PyO3 extension uses
 `abi3-py310`, with a thin typed Python facade and no runtime Python dependencies.
-See the generated `NOTICE` and root `NOTICE` for the established licence scope
-and unresolved materials.
+See the generated `NOTICE` and root `NOTICE` for the licence scope and the data
+files those licences do not cover.
 
 Install with uv:
 

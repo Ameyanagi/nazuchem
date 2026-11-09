@@ -6,7 +6,8 @@ notes, the wheels and the npm package. All versions are currently **0.1.0**.
 Releases accept only numeric **X.Y.Z** versions and matching **vX.Y.Z** tags; prerelease
 and build-metadata suffixes are not supported.
 
-The owner gates were lifted on 2026-11-10 after the sort-policy, Blue Book and PubChem decisions (D7–D9).
+`nazuchem-python` and `nazuchem-wasm` keep `publish = false`; they ship only to PyPI and npm, never
+to crates.io.
 
 ## One-time setup
 

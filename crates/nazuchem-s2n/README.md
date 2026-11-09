@@ -21,10 +21,13 @@ notices are included in `licenses/openclatura/`, `licenses/opsin/` and
 contributions. The manifest combines the established terms as
 `MIT AND (MIT OR Apache-2.0) AND Python-2.0`.
 
-`src/data/bluebook/p25_retained.tsv` is retained as factual data transcribed from
-IUPAC 2013 Recommendations P-25.2.1 Table 2.8. It is excluded from the
-MIT/Apache-2.0 grant; its ledger licence remains `NOASSERTION` (owner decision
-2026-11-10).
+`src/data/bluebook/p25_retained.tsv` lists the retained heterocycle names of
+IUPAC Nomenclature of Organic Chemistry: Recommendations and Preferred Names
+2013, P-25.2.1 Table 2.8, transcribed from
+https://iupac.qmul.ac.uk/BlueBook/P2.html; IUPAC holds copyright in the
+Recommendations. The names are included as factual data with this attribution;
+this package's licences do not cover the file, and no licence is asserted for it
+(SPDX NOASSERTION).
 
 Some inherited OPSIN generation revisions
 and the CPython patch release remain unrecorded, as qualified in `NOTICE`

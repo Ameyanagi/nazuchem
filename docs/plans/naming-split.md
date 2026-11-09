@@ -355,8 +355,8 @@ still run. Standard labels/groups/position variation/SRU layers are compared
 separately under the writer identity map. The original golden gate and fixtures
 remain unchanged. See `crates/nazuchem-ir/docs/cxsmiles.md` for export limits.
 
-Step 9 adds unpublished `bindings/python` (PyO3 abi3-py310, maturin/uv) and
-`bindings/wasm` (wasm-bindgen, bun; bundler/web/node). Both expose the four facade
+Step 9 adds `bindings/python` (PyPI; PyO3 abi3-py310, maturin/uv) and
+`bindings/wasm` (npm; wasm-bindgen, bun; bundler/web/node), neither published to crates.io. Both expose the four facade
 operations, complete naming metadata, IR v1 JSON objects and schema constants.
 Their builds collect target-specific Cargo dependency licences/notices, and CI
 checks the actual wheel/npm archive contents. The five library publication gates
@@ -453,5 +453,5 @@ Risks: step 4 is the hardest (openclatura uses `crate::naming` in 112 places plu
   modules, their fingerprint fixtures and, as nothing else used them, the LLVM libc++/Microsoft STL
   notices, licence texts and `Apache-2.0 WITH LLVM-exception` term.
 - D8 Blue Book (2026-11-10): keep `crates/nazuchem-s2n/src/data/bluebook/p25_retained.tsv` as factual data transcribed from IUPAC 2013 Recommendations P-25.2.1 Table 2.8, excluded from the MIT/Apache-2.0 grant; ledger licence stays `NOASSERTION`.
-- D9 PubChem (2026-11-10): keep `tests/fixtures/s2n/bakeoff_corpus.tsv` test-only in the repository, excluded from all published crates, wheels and npm packages; NOTICE attributes its CIDs and IUPAC names to PubChem (NCBI), and its ledger licence is unchanged.
+- D9 PubChem (2026-11-10): keep `tests/fixtures/s2n/bakeoff_corpus.tsv` test-only in the repository, excluded from all published crates, wheels and npm packages; NOTICE attributes its CIDs and IUPAC names to PubChem (NCBI), and its ledger licence stays `NOASSERTION`.
 - Optional courtesy: tell OPSIN's author and lamalab-org before the first public release.
