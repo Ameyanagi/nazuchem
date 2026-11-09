@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Origin: original
 // Source: ReShiki | crates/chemistry/src/stereo/perception/tests.rs | be63a799aa03a83dc6ec74bb294f4d42b89298d3
+// Source: Nazuchem | crates/nazuchem-kernel/src/stereo/perception/tests.rs | Phase B step 8b
 
-// Copied from crates/chemistry/src/stereo/perception/tests.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: pass explicit default preparation/import budgets
+// Copied from crates/chemistry/src/stereo/perception/tests.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: pass explicit default preparation/import budgets; cover authoritative cis/trans assignment
 use super::*;
 use crate::{
     graph::{Atom, Bond},
@@ -28,6 +29,44 @@ fn options() -> Options {
         force: true,
         flag_possible: true,
     }
+}
+
+#[test]
+fn authoritative_bonds_assign_without_atom_winding_or_candidate_flags() -> TestResult {
+    for text in ["F/C=C/F", "F/C=C\\F"] {
+        let mut input = crate::smiles::prepare(text, &crate::budget::Budget::default())?.state;
+        let bond = input
+            .graph
+            .bonds
+            .iter()
+            .position(|bond| bond.order == 2)
+            .unwrap();
+        let expected = input.metadata.bonds[bond].stereo;
+        assert!(matches!(expected, 2 | 3));
+        input.metadata.bonds[bond].stereo += 2;
+        input.directions.fill(Direction::None);
+        let options = Options {
+            flag_possible: false,
+            ..options()
+        };
+        let assigned = perceive_bond_configurations(&input, options).map_err(anyhow::Error::msg)?;
+        assert_eq!(assigned.metadata.bonds[bond].stereo, expected, "{text}");
+        let preserved = perceive_preserving_bonds(
+            &input,
+            Options {
+                clean: false,
+                ..options
+            },
+            &vec![true; input.graph.bonds.len()],
+        )
+        .map_err(anyhow::Error::msg)?;
+        assert_eq!(
+            preserved.metadata.bonds[bond].stereo,
+            expected + 2,
+            "{text}"
+        );
+    }
+    Ok(())
 }
 
 #[test]

@@ -135,8 +135,8 @@ Designer decisions for v1 (A–H, including final PR #35 revisions):
   to hosts; coordination chemistry is outside both engines' supported contract.
   Allene axial chirality is not representable in v1. Localized Kekulé orders and
   integer annotations preserve structural `Eq`; it does not test stereo-equivalence
-  under reordered atoms or references. The later IR →
-  s2n adapter still owes the aromaticity/localized-pi corpus proof (step 8b).
+  under reordered atoms or references. The step 8b corpus proof below confirms
+  that v1 remains Kekulé-only; no aromatic atom or bond field is needed.
 - **G — CXSMILES.** JSON is lossless. CX output uses standard fields plus
   `$_AV:` first-locant atom values and just `nazuchemParent` and
   `nazuchemLocants` properties (the latter stores every locant). No topology or
@@ -157,6 +157,111 @@ Designer decisions for v1 (A–H, including final PR #35 revisions):
   configuration in JSON.
 - **H — Facade.** Re-export `AxialWinding`, `IR_VERSION`, and `JSON_SCHEMA`.
   Use `CxsmilesError` throughout the public API and docs, without a spelling alias.
+
+**Step 8b aromaticity proof (2026-11-09).** The regular s2n corpus gate
+compares all 1,650 distinct SMILES in the bakeoff (703), openclatura (894),
+rules (94), and golden inputs (the golden set adds no new strings). A test-only
+SMILES → kernel → IR bridge retains prepared atom/bond order and discards all
+aromatic flags, leaving only localized Kekulé orders. Direct IR preparation
+reproduces the aromatic atom/bond snapshot for **all 1,650** inputs before
+naming admission. The 1,637 connected, admitted graph snapshots additionally
+have identical canonically localized orders; the other 13 graphs are rejected
+on both paths. These snapshots include 987 aromatic graphs, 11,212 aromatic
+atoms, 11,760 aromatic bonds, and 149 localized nonaromatic bonds between
+aromatic endpoints. Thus the fusion audit retains its localized-pi rejections.
+Full `Name` comparison (text, status, ordered alternatives, omitted stereo and
+units, and verification) gives **1,616 identical / 0 differing / 34 rejected on
+both / 0 rejected on one**. All source strings convert to IR.
+
+The complementary n2s proof runs every `Structure::to_ir` result from the
+structure oracle, configuration oracle and generated-name golden corpus
+through both `name_molecule` and legacy semantic CXSMILES → `name_smiles`.
+It covers 4,630 structures from 4,914 parse records; the remaining 284 records
+are parser failures and produce no IR. There are no IR conversion failures or
+missing semantic-CXSMILES baselines.
+
+The two corpus sources have different independence limits. The SMILES baseline
+and test-only SMILES-to-IR bridge share the kernel reader, so they can share
+reader bugs; the bridge does not call the IR adapter. The n2s comparisons start
+from `Structure::to_ir` independently of the semantic-CXSMILES serialization
+used by the baseline. All comparisons share the naming implementation and
+prove route equivalence for these fixtures, not independent chemical
+correctness. **The Kekulé-only decision rests primarily on those n2s
+comparisons together with the aromatic snapshot checks; no IR schema change
+is needed.**
+
+| Corpus | Complete names identical | Differing | Rejected on both | Rejected on one | SMILES fallbacks | Cation probes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Distinct SMILES inputs (1,650) | 1,616 | 0 | 34 | 0 | 12 | 1,638 |
+| n2s structure oracle (2,605 structures) | 2,293 | 0 | 312 | 0 | 117 | 2,457 |
+| n2s configuration oracle (416 structures) | 336 | 0 | 80 | 0 | 0 | 336 |
+| n2s generated-name golden (1,609 structures) | 1,608 | 0 | 1 | 0 | 4 | 1,605 |
+| **Original subtotal (6,280 comparisons)** | **5,853** | **0** | **427** | **0** | **133** | **6,036** |
+| SMILES ordinary-H variants (1,376) | 1,345 | 0 | 31 | 0 | 9 | 1,366 |
+| n2s radical ordinary-H variants (11) | 7 | 0 | 4 | 0 | 1 | 10 |
+| **Total (7,667 comparisons)** | **7,205** | **0** | **462** | **0** | **143** | **7,412** |
+
+Fallback counts record the selected IR naming branch, including attempts that
+reject: 139 salts, two monatomic cations and two radical ions; no corpus input
+selects the unknown-stereo fallback (focused tests cover it). A separate count
+records the 7,412 monatomic-cation probes, which reparse canonical SMILES even
+when naming continues through the ordinary graph route. These counts overlap
+for selected cation/radical-ion fallbacks. The proof collects actual branch
+visits only during each compared IR call, with thread-local counters, and pins
+the per-corpus totals and path breakdowns.
+
+The new SMILES variant proof materializes one ordinary H before every
+H-bearing heavy atom, preserving the heavy atoms' relative order and testing
+sparse surviving IDs. It includes all 1,376 eligible inputs, all five radical
+SMILES, and 10,953 new H vertices. The 266 stereo-bearing inputs and eight inputs
+without expandable H are explicitly counted as exclusions; naming success is
+not an eligibility condition. The independent radical variant proof starts
+with all 12 n2s radical-family structures: 11 have expandable H, adding 32
+vertices; `nitrilo` has none. Both variant proofs compare every `Name` field and
+admission outcome with the original SMILES baseline.
+
+All 34 source-SMILES rejection messages also match byte for byte. The regular
+test pins these counts and compares every `Name` field. The initial debug run
+of the largest n2s oracle took 348.6 seconds with four bounded shards, exceeding
+the approximately five-minute target. It now uses eight bounded test-only
+shards, with per-shard timings, without skipping or caching any record. In the
+final unoptimized debug workspace run, that proof passed in **301.3 seconds**
+(individual shards: 117.1–299.5 seconds). The other proof timings were 218.2
+seconds for source SMILES, 216.9 for generated names, 38.4 for configurations,
+68.5 for the four-shard ordinary-H SMILES variants, and 2.3 for independent n2s
+radical variants. These are wall times under the concurrent default test
+harness, not isolated benchmarks; the focused ordinary-H variant run took
+22.0 seconds. The complete `cargo test --workspace --locked -- --nocapture`
+gate passed in **516.9 seconds**, with no new ignored tests. All six corpus
+proofs remain in the regular workspace gate.
+Focused tests exercise R/S, E/Z and M/P through the naming API, reference
+permutations, reversed axes, all three Unknown forms, enhanced groups, isotope
+styles, hydrogen vertices and sparse original atom IDs. Admission regressions
+cover Unknown with symmetric ligands/cumulene bonds, nonbiaryl unknown axes,
+and disconnected unknown salts (including rejection precedence).
+
+The direct adapter preserves atom/bond indices, hydrogen origin/counts, charge,
+isotopes, radicals, maps and reference-relative stereo. The ordinary naming
+projection folds nonisotopic H vertices with the same kernel removal/winding
+rules as SMILES import, retaining original (possibly sparse) surviving IDs;
+the caller's IR, including stereo-reference and annotated H vertices, is
+unchanged. This fixes the initial n2s comparison differences caused by the
+legacy engine encountering those H vertices as substituents. Isotopic H remains
+a vertex. Radical reconstruction checks also use a detached ordinary-H-folded
+projection, mapping writer traversal to surviving atoms and comparing aggregate
+hydrogen counts. Canonical aromatic localization uses the same detached
+projection before copying localized bond orders back to caller IDs. The new
+variant proof exposed a porphyrin pi-locant mismatch when H vertices were
+included in canonical ranking; the projection fixes it and retains the fixture
+in the proof. Canonical identity checks serialize SMILES. The monatomic-cation
+probe reparses it, including on ordinary component routes; the unknown-stereo
+baseline, salts, monatomic cations and radical ions use legacy SMILES naming
+routes with detached identities. Enhanced groups and unsupported CX-only
+annotations retain the existing rejection policy, and unknown axes receive
+the same biaryl eligibility check as specified axes. Tetrahedral validation
+considers authoritative IR double-bond configurations in the shared E/Z and
+ligand-rank refinement loop before cleanup, including ligands distinguished
+only by E/Z.
 
 Atoms additionally retain element, isotope, charge, hydrogen count and whether
 that count was stated, and radical electrons. Atom index is identity. Bonds
@@ -212,7 +317,7 @@ Baseline first: freeze the outputs of the OPSIN gates (8,100 lexical, 2,624 stru
 | Step | Work                                                                                                              |
 | ---- | ----------------------------------------------------------------------------------------------------------------- |
 | 8a   | IR v1 to §5's requirements; n2s → IR adapter, convenience CXSMILES export, lossless JSON/schema and corpus gates next to the string API |
-| 8b   | IR → structure-to-name adapter and the §5 aromaticity/localized-pi proof on the full corpora (separate work) |
+| 8b   | IR → structure-to-name adapter and the §5 aromaticity/localized-pi proof on the full corpora |
 | 9    | Python and npm bindings on the IR API                                                                             |
 | 10   | ReShiki: `IR → chemistry State` converter, worker protocol v5 after the size measurement                          |
 | 11   | 0.1.0 via tag-triggered trusted publishing (crates.io, PyPI, npm); ReShiki moves from git rev to version          |
@@ -226,8 +331,10 @@ JSON fields and variants still fail explicitly. The schema is generated with
 the dev-only schemars dependency and checked against the published file. Corpus
 tests validate each emitted document against that file with a strict test-only
 validator (unknown schema keywords fail), avoiding a runtime schema dependency.
-Step 8a adds the n2s adapter and CXSMILES exporter only; the IR → s2n adapter and
-the aromaticity proof remain step 8b.
+Step 8a adds the n2s adapter and CXSMILES exporter. Step 8b adds
+`nazuchem_s2n::name_molecule(&Molecule, IsotopeStyle, &Budget)` and facade
+`nazuchem::molecule_to_name(&Molecule)`, plus the regular corpus and focused
+stereo/admission gates described in §5.
 
 Step 8a comparison policy: exact legacy semantic CXSMILES is checked first;
 the test-only projection may fold metadata-free stereo-reference H into a

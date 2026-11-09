@@ -57,18 +57,63 @@ pub fn canonical_identity(
         // Plain SMILES encodes radicals through a valence deficit, rather than
         // an explicit electron field. Admit a radical only when that encoding
         // reconstructs every atom's exact electron count, including atoms that
-        // have no radicals. Traversal order supplies the source-to-reader map.
+        // have no radicals. The reader folds ordinary H vertices, so compare
+        // against the same detached projection and its aggregate H counts.
+        // Keep the caller's graph and atom identities intact; surviving source
+        // indices map the writer's traversal onto the projected reader order.
+        let projected = chemistry::hydrogens::remove(&chemistry::hydrogens::Input {
+            graph: state.graph.clone(),
+            metadata: state.metadata.clone(),
+            directions: state.directions.clone(),
+            unknown_atoms: state
+                .properties
+                .atoms
+                .iter()
+                .map(|atom| atom.unknown)
+                .collect(),
+            annotations: chemistry::hydrogens::Annotations {
+                // Only neutral, closed-shell H may become a count. Retaining
+                // other H vertices makes a lossy reader reconstruction fail.
+                protected_atoms: state
+                    .graph
+                    .atoms
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, atom)| {
+                        (atom.atomic_number == 1
+                            && (atom.charge != 0 || atom.radical_electrons != 0))
+                            .then_some(index)
+                    })
+                    .collect(),
+                ..Default::default()
+            },
+        })
+        .map_err(|_| IdentityRejection::UnsupportedAtomsOrBonds)?;
+        let projected_valences = projected
+            .graph
+            .valences()
+            .map_err(|_| IdentityRejection::UnsupportedAtomsOrBonds)?;
+        let mut projected_indices = vec![None; state.graph.atoms.len()];
+        for (projected_index, &source) in projected.kept_atoms.iter().enumerate() {
+            *projected_indices
+                .get_mut(source)
+                .ok_or(IdentityRejection::UnsupportedAtomsOrBonds)? = Some(projected_index);
+        }
+        let projected_order = smiles
+            .atom_order
+            .iter()
+            .filter_map(|&source| projected_indices.get(source).copied().flatten())
+            .collect::<Vec<_>>();
         let reconstructed = chemistry::smiles::prepare(&smiles.text, budget)
             .map_err(|_| IdentityRejection::UnsupportedAtomsOrBonds)?;
-        if smiles.atom_order.len() != reconstructed.state.graph.atoms.len()
-            || smiles
-                .atom_order
+        if projected_order.len() != reconstructed.state.graph.atoms.len()
+            || projected_order
                 .iter()
                 .zip(&reconstructed.state.graph.atoms)
                 .enumerate()
                 .any(|(target_index, (&source, target))| {
-                    state.graph.atoms.get(source).is_none_or(|atom| {
-                        let source_hydrogens = state.valences.get(source).map(|valence| {
+                    projected.graph.atoms.get(source).is_none_or(|atom| {
+                        let source_hydrogens = projected_valences.get(source).map(|valence| {
                             u32::from(atom.explicit_hydrogens) + valence.implicit_hydrogens
                         });
                         let target_hydrogens =

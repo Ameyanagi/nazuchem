@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem/src/lib.rs | Phase B step 8b
 // Source: Nazuchem | crates/nazuchem/src/lib.rs | Phase B step 8a
 // Source: Nazuchem/ReShiki | crates/nazuchem/src/lib.rs | Phase A step 5 (local extraction)
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
@@ -29,8 +30,8 @@ pub mod n2s {
 #[cfg(feature = "s2n")]
 pub mod s2n {
     pub use nazuchem_s2n::{
-        Name, PROFILE, Verification, canonical_smiles, name_smiles, name_smiles_with_style,
-        recover_radical_ion, verify_alternative_identity, verify_identity,
+        Name, PROFILE, Verification, canonical_smiles, name_molecule, name_smiles,
+        name_smiles_with_style, recover_radical_ion, verify_alternative_identity, verify_identity,
     };
 }
 
@@ -193,6 +194,23 @@ pub fn smiles_to_name(smiles: &str) -> Result<s2n::Name, Error> {
             message,
         },
     )
+}
+
+/// Generate a name directly from an IR molecule using IUPAC isotope notation.
+///
+/// Uses the default unbounded budget. Graph admission and ordinary component
+/// naming retain surviving caller atom IDs. Identity checks serialize canonical
+/// SMILES; the monatomic-cation probe and unknown-stereo baseline, salt, cation
+/// and radical-ion naming routes can reparse it into detached graphs. The
+/// caller's IR is never changed.
+// Provenance: fn molecule_to_name | original
+// Source: Nazuchem | crates/nazuchem/src/lib.rs::molecule_to_name
+#[cfg(feature = "s2n")]
+pub fn molecule_to_name(molecule: &Molecule) -> Result<s2n::Name, Error> {
+    s2n::name_molecule(molecule, IsotopeStyle::Iupac, &Budget::default()).map_err(|message| Error {
+        kind: ErrorKind::Naming,
+        message,
+    })
 }
 
 // Provenance: mod tests | original

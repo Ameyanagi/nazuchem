@@ -1,7 +1,7 @@
 # nazuchem
 
 Chemical names to a typed structure IR or semantic CXSMILES, and molecular
-SMILES to names with preference assessments.
+IR or SMILES to names with preference assessments.
 
 The name-to-structure engine is a Rust port of OPSIN by Daniel Lowe (MIT).
 The structure-to-name engine began as a port of openclatura 0.4.3, extended
@@ -19,6 +19,8 @@ fn main() -> Result<(), nazuchem::Error> {
         let molecule = nazuchem::name_to_molecule("ethanol")?;
         let json = molecule.to_json().expect("validated IR JSON");
         assert_eq!(nazuchem::Molecule::from_json(&json).unwrap(), molecule);
+        #[cfg(feature = "s2n")]
+        assert_eq!(nazuchem::molecule_to_name(&molecule)?.text, "ethanol");
     }
     #[cfg(feature = "s2n")]
     {
@@ -37,7 +39,9 @@ The IR exports include `AxialWinding`, `CxsmilesError`, `IR_VERSION`, and
 `name_to_smiles` uses strict OPSIN options, rejects parser warnings and returns
 semantic CXSMILES. Axial configurations require the engine API that returns
 axes separately. `smiles_to_name` uses IUPAC isotope notation and returns the
-engine's complete `Name` result.
+engine's complete `Name` result. `molecule_to_name` applies the same defaults
+directly to an IR graph; it is available with `s2n` alone. The lower-level
+`s2n::name_molecule` accepts an isotope style and a caller-supplied `Budget`.
 
 `name_to_molecule` applies the same strict parsing policy and returns validated
 IR v1, with stable atom identities, all locants and the principal-parent set.
@@ -48,7 +52,12 @@ unrepresentable CX stereo returns `CxsmilesError::StereoNotExpressible`. IR v1
 includes atropisomer axes; allene axial chirality is not representable in v1.
 The pinned OPSIN parser erases explicit ξ/unknown
 name descriptors before conversion, a separately tracked parser limitation.
-This step provides no CXSMILES reader or IR-to-name API.
+The IR-to-name adapter validates the graph and chemical admission constraints
+before naming, retaining the caller's atom indices. Locants, principal-parent
+membership and ordinary atom maps do not constrain the generated name.
+Annotations the naming engine cannot represent, including text labels,
+attachment points, position variation, polymers and enhanced stereo groups,
+return errors instead of being silently discarded. There is no CXSMILES reader.
 
 IR v1 freezes at the first published release. Until that release, its fields and
 variants may change without a version bump; after freezing, new fields or
@@ -78,8 +87,10 @@ neutral mono-/diradicals and radical ions when a closed-shell neutral parent
 can be recovered from one charge and one unpaired electron on the same atom
 or the two ends of a broken pi bond.
 
-`s2n` input is limited to 32,768 bytes and 512 atom tokens, with 1–512 atoms
-after import. It rejects CXSMILES extensions, reaction SMILES, allene and
+`s2n` SMILES input is limited to 32,768 bytes and 512 atom tokens, with 1–512
+atoms after import; IR input has the same 1–512 atom limit. Naming also retains
+the native atom-map admission ceiling of 2,147,483,639, although IR JSON can
+store the full `u32` range. It rejects CXSMILES extensions, reaction SMILES, allene and
 coordination stereo classes, mixtures, neutral components mixed with ions,
 and isotope-labelled neutral radicals. Unsupported chemistry or naming paths
 return `Err`; comprehensive IUPAC coverage is not claimed. A successful name

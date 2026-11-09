@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs | Phase B step 8b
 // Source: openclatura | src/openclatura/graph_io.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/small_ring_stereo.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/graph_io.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
@@ -40,8 +41,37 @@ pub fn read_smiles(
         return Err("Openclatura requires a single connected molecule".into());
     }
     let prepared = smiles::prepare(text, budget).map_err(|error| error.to_string())?;
-    let mut state = nazuchem_kernel::identity::apply_axis_markers(&prepared.state, budget)
+    let state = nazuchem_kernel::identity::apply_axis_markers(&prepared.state, budget)
         .map_err(|_| "openclatura: invalid biaryl axis markers".to_owned())?;
+    read_state(state, None)
+}
+
+/// Read IR directly without changing its atom or bond indices.
+// Provenance: fn read_molecule | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs::read_molecule
+#[cfg(test)]
+pub(crate) fn read_molecule(
+    molecule: &nazuchem_ir::Molecule,
+    budget: &nazuchem_kernel::budget::Budget,
+) -> Result<Molecule, String> {
+    // This test-only entry point deliberately duplicates name_molecule's IR
+    // preparation and identity admission before inspecting the naming graph.
+    let state = super::ir_input::prepare(molecule, budget)?;
+    let canonical = super::identity::canonical_state(&state, budget)?;
+    if canonical.contains('.') {
+        return Err("Openclatura requires a single connected molecule".into());
+    }
+    read_state(state, Some(molecule))
+}
+
+/// Shared graph construction keeps the aromatic snapshot and naming decisions
+/// identical for both input formats.
+// Provenance: fn read_state | adapted
+// Source: openclatura | src/openclatura/graph_io.py::read_smiles
+pub(crate) fn read_state(
+    mut state: perception::State,
+    input: Option<&nazuchem_ir::Molecule>,
+) -> Result<Molecule, String> {
     // Upstream divergence: aromatic atom endpoints cannot identify localized
     // inter-ring bonds; retain bond aromaticity for the final fusion pi audit.
     let aromatic_bonds: Vec<_> = state.graph.bonds.iter().map(|b| b.aromatic).collect();
@@ -61,39 +91,14 @@ pub fn read_smiles(
 
     // Preserve the aromatic/H snapshot before asking for the same ordinary
     // Kekule single/double graph consumed by upstream naming rules.
-    // The upstream environment's Kekulize defaults to canonical atom ranking.
-    let ranks = if state.graph.atoms.iter().any(|a| a.aromatic)
-        || state.graph.bonds.iter().any(|b| b.aromatic)
-    {
-        Some(ranking::rank_cached(
-            &state.graph,
-            &state.rings.atoms,
-            &state.metadata,
-            ranking::Options {
-                fragment: true,
-                ..ranking::Options::default()
-            },
-            &state.valences,
-        )?)
-    } else {
-        None
-    };
-    let kekule = kekulize::assign(
-        &state.graph,
-        &state.rings.atoms,
-        &state.directions,
-        kekulize::Options {
-            ranks: ranks.as_deref(),
-            ..kekulize::Options::default()
-        },
-    )?;
+    let kekule = assign_naming_kekule(&state, input.is_some())?;
     state.graph = kekule.graph;
     state.directions = kekule.directions;
     state.valences = state.graph.valences()?;
     let legacy = perception::perceive(
         &state,
         perception::Options {
-            clean: true,
+            clean: input.is_none(),
             force: true,
             flag_possible: true,
         },
@@ -118,10 +123,17 @@ pub fn read_smiles(
     mol.accurate_cip = accurate.as_ref().map_or_else(BTreeMap::new, atom_cip);
 
     for (idx, atom) in legacy.graph.atoms.iter().enumerate() {
-        let (is_aromatic, explicit_h_count, total_h_count) = atom_metadata
+        let (is_aromatic, mut explicit_h_count, total_h_count) = atom_metadata
             .get(idx)
             .copied()
             .ok_or("Missing naming atom metadata")?;
+        if let Some(atom) = input.and_then(|input| input.atoms.get(idx)) {
+            explicit_h_count = if atom.hydrogens_stated {
+                usize::from(atom.hydrogens)
+            } else {
+                0
+            };
+        }
         // The full pass also labels ring r/s centres that legacy CIP leaves
         // unlabelled. Use the same descriptors that the canvas displays.
         let mut stereo = mol
@@ -206,11 +218,217 @@ pub fn read_smiles(
             in_small_ring,
         })?;
     }
-    super::unknown_stereo::annotate(&legacy, &mut mol)?;
+    if input.is_some() {
+        super::unknown_stereo::annotate_native(&legacy, &mut mol)?;
+        mol = fold_ordinary_hydrogens(&legacy, mol)?;
+    } else {
+        super::unknown_stereo::annotate(&legacy, &mut mol)?;
+    }
     require_supported_ring_blocks(&mol)?;
     super::identity_validation::validate_input(&mol)?;
     super::identity_validation::validate_mancude_duplicate_ranking(&mol)?;
     Ok(mol)
+}
+
+/// Canonical localization sees the same ordinary-H projection as SMILES
+/// import. Transfer only the localized representation back onto caller IDs;
+/// stereo assignment and the final naming projection retain their own order.
+// Provenance: fn assign_naming_kekule | adapted
+// Source: openclatura | src/openclatura/graph_io.py::read_smiles
+// Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs::assign_naming_kekule
+fn assign_naming_kekule(
+    state: &perception::State,
+    fold_hydrogens: bool,
+) -> Result<kekulize::Assignment, String> {
+    let projection = if fold_hydrogens
+        && (state.graph.atoms.iter().any(|atom| atom.aromatic)
+            || state.graph.bonds.iter().any(|bond| bond.aromatic))
+    {
+        ordinary_hydrogen_projection(state)?
+            .map(|removed| {
+                let mut indices = vec![None; state.graph.atoms.len()];
+                for (index, &original) in removed.kept_atoms.iter().enumerate() {
+                    *indices.get_mut(original).ok_or("Missing projected atom")? = Some(index);
+                }
+                let rings =
+                    state
+                        .rings
+                        .atoms
+                        .iter()
+                        .map(|ring| {
+                            ring.iter()
+                                .map(|&atom| {
+                                    indices.get(atom).copied().flatten().ok_or_else(|| {
+                                        "Hydrogen projection removed a ring atom".into()
+                                    })
+                                })
+                                .collect::<Result<Vec<_>, String>>()
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                let valences = removed.graph.valences()?;
+                Ok::<_, String>((removed, rings, valences))
+            })
+            .transpose()?
+    } else {
+        None
+    };
+    let (graph, metadata, directions, rings, valences) = match &projection {
+        Some((removed, rings, valences)) => (
+            &removed.graph,
+            &removed.metadata,
+            &removed.directions,
+            rings,
+            valences,
+        ),
+        None => (
+            &state.graph,
+            &state.metadata,
+            &state.directions,
+            &state.rings.atoms,
+            &state.valences,
+        ),
+    };
+    // The upstream environment's Kekulize defaults to canonical atom ranking.
+    let ranks = if graph.atoms.iter().any(|a| a.aromatic) || graph.bonds.iter().any(|b| b.aromatic)
+    {
+        Some(ranking::rank_cached(
+            graph,
+            rings,
+            metadata,
+            ranking::Options {
+                fragment: true,
+                ..ranking::Options::default()
+            },
+            valences,
+        )?)
+    } else {
+        None
+    };
+    let kekule = kekulize::assign(
+        graph,
+        rings,
+        directions,
+        kekulize::Options {
+            ranks: ranks.as_deref(),
+            ..kekulize::Options::default()
+        },
+    )?;
+    let Some((removed, _, _)) = projection else {
+        return Ok(kekule);
+    };
+    let mut result = kekulize::Assignment {
+        graph: state.graph.clone(),
+        directions: state.directions.clone(),
+    };
+    for (&original, atom) in removed.kept_atoms.iter().zip(&kekule.graph.atoms) {
+        result
+            .graph
+            .atoms
+            .get_mut(original)
+            .ok_or("Missing localized atom")?
+            .aromatic = atom.aromatic;
+    }
+    for ((&original, bond), &direction) in removed
+        .kept_bonds
+        .iter()
+        .zip(&kekule.graph.bonds)
+        .zip(&kekule.directions)
+    {
+        let target = result
+            .graph
+            .bonds
+            .get_mut(original)
+            .ok_or("Missing localized bond")?;
+        target.order = bond.order;
+        target.aromatic = bond.aromatic;
+        *result
+            .directions
+            .get_mut(original)
+            .ok_or("Missing localized bond direction")? = direction;
+    }
+    Ok(result)
+}
+
+/// Detached default-H removal shared by localization and naming projection.
+// Provenance: fn ordinary_hydrogen_projection | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs::ordinary_hydrogen_projection
+fn ordinary_hydrogen_projection(
+    state: &perception::State,
+) -> Result<Option<nazuchem_kernel::hydrogens::Removal>, String> {
+    use nazuchem_kernel::hydrogens;
+    if !state
+        .graph
+        .atoms
+        .iter()
+        .any(|atom| atom.atomic_number == 1 && atom.isotope == 0)
+    {
+        return Ok(None);
+    }
+    let removed = hydrogens::remove(&hydrogens::Input {
+        graph: state.graph.clone(),
+        metadata: state.metadata.clone(),
+        directions: state.directions.clone(),
+        unknown_atoms: state
+            .properties
+            .atoms
+            .iter()
+            .map(|atom| atom.unknown)
+            .collect(),
+        annotations: hydrogens::Annotations::default(),
+    })
+    .map_err(|error| error.to_string())?;
+    Ok((removed.kept_atoms.len() != state.graph.atoms.len()).then_some(removed))
+}
+
+/// Match the ordinary-H projection of SMILES import while retaining original
+/// IR atom and bond IDs in the naming graph (including sparse surviving IDs).
+/// CIP is assigned before projection; native H removal adjusts raw winding.
+// Provenance: fn fold_ordinary_hydrogens | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs::fold_ordinary_hydrogens
+fn fold_ordinary_hydrogens(
+    state: &perception::State,
+    source: Molecule,
+) -> Result<Molecule, String> {
+    let Some(removed) = ordinary_hydrogen_projection(state)? else {
+        return Ok(source);
+    };
+    let valences = removed.graph.valences()?;
+    let mut projected = Molecule::new();
+    for (index, &original) in removed.kept_atoms.iter().enumerate() {
+        let mut atom = source.atoms[&original].clone();
+        atom.total_h_count = usize::from(removed.graph.atoms[index].explicit_hydrogens)
+            + valences[index].implicit_hydrogens as usize;
+        atom.raw_stereo = match removed.metadata.atoms[index].chiral_tag {
+            1 => Some("CW".into()),
+            2 => Some("CCW".into()),
+            _ => None,
+        };
+        projected.add_atom(atom)?;
+    }
+    for &original in &removed.kept_bonds {
+        projected.add_bond(source.bonds[&(original + 1)].clone())?;
+    }
+    projected.legacy_cip = source
+        .legacy_cip
+        .into_iter()
+        .filter(|(id, _)| projected.atoms.contains_key(id))
+        .collect();
+    projected.accurate_cip = source
+        .accurate_cip
+        .into_iter()
+        .filter(|(id, _)| projected.atoms.contains_key(id))
+        .collect();
+    projected.stereogenic_atoms = source
+        .stereogenic_atoms
+        .into_iter()
+        .filter(|id| projected.atoms.contains_key(id))
+        .collect();
+    projected.stereogenic_bonds = source
+        .stereogenic_bonds
+        .into_iter()
+        .filter(|id| projected.bonds.contains_key(id))
+        .collect();
+    Ok(projected)
 }
 
 /// Input checks that do not depend on the selected nomenclature system.
@@ -385,6 +603,104 @@ pub fn assign_local_cip_with_locant_labels(
 mod tests {
     use super::*;
     use serde_json::{Value, json};
+
+    // Provenance: fn tests::ordinary_hydrogen_vertices_do_not_change_canonical_aromatic_localization | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs::tests::ordinary_hydrogen_vertices_do_not_change_canonical_aromatic_localization
+    #[test]
+    fn ordinary_hydrogen_vertices_do_not_change_canonical_aromatic_localization() {
+        use nazuchem_ir::{Atom as IrAtom, Bond as IrBond, BondOrder};
+
+        let budget = Default::default();
+        let text = "C1=CC2=CC3=CC=C(N3)C=C4C=CC(=N4)C=C5C=CC(=N5)C=C1N2";
+        let source = crate::ir_input::from_smiles(text, &budget).unwrap();
+        let expected = serde_json::to_value(crate::name_smiles(text, &budget).unwrap()).unwrap();
+        let baseline = read_smiles(text, &budget).unwrap();
+        let edges = |mol: &Molecule| {
+            let indices = mol
+                .atoms
+                .keys()
+                .copied()
+                .enumerate()
+                .map(|(index, atom)| (atom, index))
+                .collect::<BTreeMap<_, _>>();
+            mol.bonds
+                .values()
+                .map(|bond| {
+                    (
+                        indices[&bond.u],
+                        indices[&bond.v],
+                        bond.order,
+                        bond.is_aromatic,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        for interleaved in [false, true] {
+            let mut expanded = if interleaved {
+                nazuchem_ir::Molecule::default()
+            } else {
+                source.clone()
+            };
+            let mut indices = Vec::new();
+            for (index, source_atom) in source.atoms.iter().enumerate() {
+                let mut atom = source_atom.clone();
+                let hydrogen = if atom.element > 1 && atom.hydrogens > 0 {
+                    atom.hydrogens -= 1;
+                    let hydrogen = expanded.atoms.len() as u32;
+                    expanded.atoms.push(IrAtom {
+                        element: 1,
+                        ..IrAtom::default()
+                    });
+                    Some(hydrogen)
+                } else {
+                    None
+                };
+                let parent = if interleaved {
+                    let parent = expanded.atoms.len() as u32;
+                    expanded.atoms.push(atom);
+                    parent
+                } else {
+                    expanded.atoms[index] = atom;
+                    index as u32
+                };
+                indices.push(parent);
+                if let Some(hydrogen) = hydrogen {
+                    expanded.bonds.push(IrBond {
+                        atoms: [parent, hydrogen],
+                        order: BondOrder::Single,
+                    });
+                }
+            }
+            if interleaved {
+                expanded
+                    .bonds
+                    .extend(source.bonds.iter().map(|bond| IrBond {
+                        atoms: bond.atoms.map(|atom| indices[atom as usize]),
+                        order: bond.order,
+                    }));
+            }
+            expanded.validate().unwrap();
+            let original = expanded.clone();
+            let graph = read_molecule(&expanded, &budget).unwrap();
+            assert_eq!(
+                graph.atoms.keys().copied().collect::<Vec<_>>(),
+                indices
+                    .iter()
+                    .map(|&atom| atom as usize)
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(edges(&graph), edges(&baseline), "interleaved={interleaved}");
+            assert_eq!(
+                serde_json::to_value(
+                    crate::name_molecule(&expanded, Default::default(), &budget).unwrap()
+                )
+                .unwrap(),
+                expected,
+                "interleaved={interleaved}"
+            );
+            assert_eq!(expanded, original);
+        }
+    }
 
     fn graph_snapshot(mol: &Molecule, text: &str) -> Value {
         let atoms = mol

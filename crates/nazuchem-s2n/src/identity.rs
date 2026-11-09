@@ -194,6 +194,120 @@ pub(crate) fn relative_stereo_smiles(smiles: &str) -> Option<&str> {
 mod tests {
     use super::*;
 
+    fn methyl_radical_with_hydrogen_vertices(isotopes: &[Option<u16>]) -> nazuchem_ir::Molecule {
+        use nazuchem_ir::{Atom, Bond, BondOrder, Molecule};
+
+        let carbon = isotopes.len() as u32;
+        let mut atoms = isotopes
+            .iter()
+            .map(|&isotope| Atom {
+                element: 1,
+                isotope,
+                ..Atom::default()
+            })
+            .collect::<Vec<_>>();
+        atoms.push(Atom {
+            element: 6,
+            hydrogens: 3 - isotopes.len() as u8,
+            hydrogens_stated: true,
+            radical_electrons: 1,
+            ..Atom::default()
+        });
+        Molecule {
+            atoms,
+            bonds: (0..carbon)
+                .map(|hydrogen| Bond {
+                    atoms: [hydrogen, carbon],
+                    order: BondOrder::Single,
+                })
+                .collect(),
+            ..Molecule::default()
+        }
+    }
+
+    #[test]
+    fn radical_identity_folds_ordinary_h_vertices_without_changing_caller_identities() {
+        let budget = Budget::default();
+        let expected = crate::name_smiles("[CH3]", &budget).unwrap();
+        assert_eq!(expected.text, "methyl");
+        assert_eq!(
+            serde_json::to_value(crate::name_smiles("[H][CH2]", &budget).unwrap()).unwrap(),
+            serde_json::to_value(&expected).unwrap()
+        );
+        // Construct IR directly: the SMILES fixture bridge has already removed
+        // ordinary H vertices and cannot exercise this admission boundary.
+        for count in 1..=3 {
+            let source = methyl_radical_with_hydrogen_vertices(&vec![None; count]);
+            for reversed in [false, true] {
+                let mut molecule = source.clone();
+                if reversed {
+                    molecule.atoms.reverse();
+                    for bond in &mut molecule.bonds {
+                        bond.atoms = bond.atoms.map(|atom| count as u32 - atom);
+                    }
+                }
+                let original = molecule.clone();
+                let state = crate::ir_input::prepare(&molecule, &budget).unwrap();
+                let state_before = serde_json::to_value(&state).unwrap();
+                let canonical = canonical_state(&state, &budget).unwrap();
+                assert_eq!(canonical_smiles(&canonical, &budget).unwrap(), "[CH3]");
+                assert_eq!(serde_json::to_value(&state).unwrap(), state_before);
+                let carbon = if reversed { 0 } else { count };
+                let graph = crate::graph_io::read_molecule(&molecule, &budget).unwrap();
+                assert_eq!(graph.atoms.keys().copied().collect::<Vec<_>>(), [carbon]);
+                assert_eq!(graph.atoms[&carbon].total_h_count, 3);
+                assert_eq!(graph.atoms[&carbon].radical_electrons, 1);
+                let actual =
+                    crate::name_molecule(&molecule, nazuchem_ir::IsotopeStyle::default(), &budget)
+                        .unwrap();
+                assert_eq!(
+                    serde_json::to_value(actual).unwrap(),
+                    serde_json::to_value(&expected).unwrap(),
+                    "{count} H vertices, reversed={reversed}"
+                );
+                assert_eq!(molecule, original);
+            }
+        }
+    }
+
+    #[test]
+    fn radical_identity_retains_isotopic_h_while_folding_ordinary_h() {
+        let budget = Budget::default();
+        let expected_error = crate::name_smiles("[2H][CH2]", &budget).unwrap_err();
+        assert_eq!(
+            expected_error,
+            "openclatura: combined isotope and radical nomenclature is not supported"
+        );
+        for isotopes in [vec![Some(2)], vec![None, Some(2)]] {
+            let molecule = methyl_radical_with_hydrogen_vertices(&isotopes);
+            let original = molecule.clone();
+            let carbon = isotopes.len();
+            let isotope = carbon - 1;
+            let state = crate::ir_input::prepare(&molecule, &budget).unwrap();
+            let state_before = serde_json::to_value(&state).unwrap();
+            let canonical = canonical_state(&state, &budget).unwrap();
+            assert_eq!(
+                canonical_smiles(&canonical, &budget).unwrap(),
+                canonical_smiles("[2H][CH2]", &budget).unwrap()
+            );
+            assert_eq!(serde_json::to_value(&state).unwrap(), state_before);
+            let graph = crate::graph_io::read_molecule(&molecule, &budget).unwrap();
+            assert_eq!(
+                graph.atoms.keys().copied().collect::<Vec<_>>(),
+                [isotope, carbon]
+            );
+            assert_eq!(graph.atoms[&isotope].isotope, Some(2));
+            assert_eq!(graph.atoms[&carbon].total_h_count, 2);
+            assert_eq!(graph.atoms[&carbon].radical_electrons, 1);
+            assert_eq!(
+                crate::name_molecule(&molecule, nazuchem_ir::IsotopeStyle::default(), &budget)
+                    .unwrap_err(),
+                expected_error
+            );
+            assert_eq!(molecule, original);
+        }
+    }
+
     #[test]
     fn oversized_smiles_are_rejected_before_graph_preparation() {
         assert!(bound_atom_tokens(&"C".repeat(513)).is_err());
