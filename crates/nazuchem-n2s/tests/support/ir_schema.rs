@@ -165,13 +165,19 @@ impl Validator {
                 return fail("type");
             }
         }
-        if object.get("const").is_some_and(|value| instance != value) {
+        if object
+            .get("const")
+            .is_some_and(|value| !json_equal(instance, value))
+        {
             return fail("const");
         }
-        if object
-            .get("enum")
-            .is_some_and(|values| !values.as_array().unwrap().contains(instance))
-        {
+        if object.get("enum").is_some_and(|values| {
+            !values
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| json_equal(instance, value))
+        }) {
             return fail("enum");
         }
         for keyword in ["allOf", "anyOf", "oneOf"] {
@@ -246,10 +252,11 @@ impl Validator {
                 }
             }
             if object.get("uniqueItems") == Some(&Value::Bool(true))
-                && items
-                    .iter()
-                    .enumerate()
-                    .any(|(index, value)| items[..index].contains(value))
+                && items.iter().enumerate().any(|(index, value)| {
+                    items[..index]
+                        .iter()
+                        .any(|previous| json_equal(previous, value))
+                })
             {
                 return fail("uniqueItems");
             }
@@ -284,4 +291,11 @@ impl Validator {
         }
         Ok(())
     }
+}
+
+// JSON Schema compares numbers mathematically, regardless of integer/exponent
+// token spelling. The published numeric constants and enum bounds are exactly
+// representable in f64; structural equality remains exact for other values.
+fn json_equal(left: &Value, right: &Value) -> bool {
+    left == right || (left.is_number() && right.is_number() && left.as_f64() == right.as_f64())
 }

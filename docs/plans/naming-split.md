@@ -76,45 +76,73 @@ Library invariants (stated in the README): no I/O, no threads, no process-wide m
 
 ## 5. The structure IR (Phase B)
 
-nazuchem's own typed graph is the contract; versioned JSON (`{"nazuchem_ir": 1}`, additive-only, unknown variants rejected with a typed error) with a published schema; lossless CXSMILES export (locants as atom values, parent set as atom property); Molfile V3000 export later. Standard formats were compared and rejected as the contract: CXSMILES (uneven extension support, every consumer needs a SMILES parser, canonical reordering loses atom identity), V3000 (verbose, coordinate-based, numbering-dependent parity), CommonChem (order-dependent stereo, no position variation), InChI (identity check only).
+nazuchem's typed graph and versioned JSON (`{"nazuchem_ir":1}`) are the
+lossless public contract, with a published JSON Schema. CXSMILES is a convenience
+export; Molfile V3000 may follow later. Standard formats were rejected as the
+contract because they depend on external interpretation, reorder atom identities,
+or cannot carry every name annotation.
 
-```rust
-struct Molecule {
-    atoms: Vec<Atom>,                            // index = identity; s2n input order preserved
-    bonds: Vec<Bond>,                            // Kekulé orders only
-    stereo: Vec<Stereo>,
-    stereo_groups: Vec<StereoGroup>,             // Abs | And(n) | Or(n) over stereo entries
-    position_variation: Vec<PositionVariation>,  // { bond, endpoints: Vec<u32> }
-    polymers: Vec<RepeatUnit>,                   // { atoms, crossing_bonds, connectivity: HeadToTail | HeadToHead | Unknown }
-    parent: Vec<u32>,                            // principal-parent atoms
-}
-struct Atom {
-    element: u8,                 // 0 = wildcard / attachment point
-    isotope: Option<u16>,
-    charge: i8,
-    hydrogens: u8,               // H not present as vertices; isotopic H always are vertices
-    hydrogens_stated: bool,      // [CH4] = true, C = false
-    radical_electrons: u8,
-    label: Option<String>,       // wildcard attachment / R-group label
-    locants: Vec<String>,        // all locants in name order; display = locants[0] if atom ∈ parent
-}
-enum Stereo {
-    Tetrahedral { center: u32, neighbors: [Ref; 4], winding: Winding, known: bool }, // Ref = Atom | ImplicitH | LonePair
-    DoubleBond  { bond: u32, refs: [u32; 2], relation: Cis | Trans, known: bool },
-    // later, additively: ExtendedTetrahedral, Atropisomer
-}
-```
+Designer decisions for v1 (A–G, accepted before first merge):
 
-`known: false` = ξ / wavy bond; no entry = unspecified. Coordinates are not part of the IR.
+- **A — Stereo unknowns and convention.** `Tetrahedral { center, neighbors:
+  [Ref; 4], winding: Clockwise | Anticlockwise | Unknown }` and
+  `DoubleBond { bond, refs: [u32; 2], relation: Cis | Trans | Unknown }` have no
+  `known` boolean. An absent entry means unspecified; `Unknown` explicitly
+  records an unknown configuration. Looking from `neighbors[0]` toward the
+  tetrahedral center, `neighbors[1]`, `[2]`, `[3]` run in the stated winding.
+  Double-bond `refs[i]` is attached to `bonds[bond].atoms[i]`; cis/trans compares
+  those two references. OPSIN parity conversion is checked against known R/S CIP
+  labels. The pinned OPSIN parser **erases ξ/unknown name descriptors before
+  `to_ir`**; retaining them is a separately tracked parser limitation, not an IR
+  encoding restriction.
+- **B — Atropisomers.** `Atropisomer { bond, refs: [Ref; 4], winding:
+  M | P | Unknown }` is included in v1. The first pair of references belongs to
+  `bond.atoms[0]`, the second to `bond.atoms[1]`. Looking from the first endpoint
+  to the second, rotation from `refs[0]` to `refs[2]` is clockwise for P and
+  anticlockwise for M. These are reference-relative structural windings, not
+  cached CIP labels; switching one pair reverses the winding. OPSIN axes, including
+  the binaphthol M/P and Ra/Sa corpus, are retained.
+- **C — Enhanced stereo.** A known center without a group is absolute.
+  `StereoGroup` contains only `And(id)` and `Or(id)`, serialized flat as
+  `{"kind":"and","id":7,"stereo":[0]}`; members index `Molecule.stereo`.
+- **D — JSON.** `Ref` is an untagged atom index or the string
+  `"implicit_hydrogen"` / `"lone_pair"`. Optional fields default on input and
+  empty/None annotations are omitted on output. Documents and nested records
+  are objects, never positional arrays; each variant accepts only its own
+  fields. Readers inspect `nazuchem_ir` before the document shape and report a
+  typed `UnsupportedVersion`; unknown fields and variants also have typed
+  errors. **Every new field or variant increments `nazuchem_ir`; readers accept
+  supported versions up to their own; writers emit the lowest version able to
+  represent the document.** Only v1 exists today; zero and later versions are
+  unsupported. Graph constraints are validated in addition to schema shape.
+- **E — Typed identities.** Atoms carry `atom_map: Option<u32>` and
+  `attachment_point: Option<u32>` (OPSIN `_AP{n}`); ordinary maps are accepted.
+  `label: Option<String>` is genuine text/R-group content. Polymer star/end roles
+  are `RepeatUnit.attachment_points`, not atom label strings. Locants retain all
+  name-order values, and `Molecule.parent` records the complete principal parent.
+  A hydrogen carrying locants, parent membership, isotope, charge, label/map, or
+  any stereo role stays a vertex; only unannotated ordinary H can become a count.
+- **F — Scope.** No coordinates, zero-order or dative bonds in v1. Layout belongs
+  to hosts; coordination chemistry is outside both engines' supported contract.
+  Localized Kekulé orders and integer annotations preserve `Eq`. The later IR →
+  s2n adapter still owes the aromaticity/localized-pi corpus proof (step 8b).
+- **G — CXSMILES.** JSON is lossless. CX output uses standard fields plus
+  `$_AV:` first-locant atom values and just `nazuchemParent` and
+  `nazuchemLocants` properties (the latter stores every locant). No topology or
+  index re-embedding is permitted. Export never asserts configuration absent
+  from the IR: unrepresentable stereo, including the outer E bonds in
+  `(2E,6E)-octa-2,4,6-triene` with its unspecified middle bond, returns
+  `CxsmilesError::StereoNotExpressible`. The legacy comparison projection is
+  hidden test support. Every emitted corpus structure is reparsed with the
+  kernel and checked for specified/unspecified state and configuration.
 
-The shape above covers these requirements (the engines use all of them today):
-
-1. **Position-variation bonds** (CXSMILES `m:`, e.g. `*CC |$_AP1$,m:0:1.2|`) as typed multi-attachment references.
-2. **Complete polymer units** (SRU connectivity `ht`/`hh`/`eu`, brackets) and fully typed `Abs/And/Or` stereo groups, matching what OPSIN serializes today.
-3. **Hydrogen counts with their origin** (`hydrogens` + `hydrogens_stated`; naming branches on `explicit_h_count`, so `C` vs `[CH4]` must stay distinguishable), isotopic H kept as graph vertices (never folded into a count), and atom index = identity so s2n output maps back to input atoms.
-4. **Locants as a defined contract**: per atom, `locants: Vec<String>` (all, in name order) plus `Molecule.parent` (the principal-parent atoms); the displayed locant is `locants[0]` for parent atoms, so ReShiki's current parent-only projection is reproducible exactly.
-5. **Aromaticity**: Kekulé orders stay the contract, with a proof obligation: the IR → `nazuchem-kernel` adapter must reproduce `graph_io`'s aromatic-bond snapshot and the fusion audit's localized-pi rejections on the full corpora; if it cannot, carry an `aromatic` bond annotation.
-6. **Radicals vs wildcards** remain distinct (genuine radical electrons vs OPSIN wildcard attachment atoms with labels).
+Atoms additionally retain element, isotope, charge, hydrogen count and whether
+that count was stated, and radical electrons. Atom index is identity. Bonds
+carry endpoint identities and localized orders. Position variation retains the
+attachment bond and all possible endpoints. Repeat units carry atom membership,
+connectivity (`HeadToTail`, `HeadToHead`, `Unknown`), optional text, attachment
+roles and `crossing_bonds` equal to the **full boundary** of the member atom set.
+The displayed locant is the first locant of a principal-parent atom.
 
 Result types must keep today's semantics:
 
@@ -161,7 +189,7 @@ Baseline first: freeze the outputs of the OPSIN gates (8,100 lexical, 2,624 stru
 
 | Step | Work                                                                                                              |
 | ---- | ----------------------------------------------------------------------------------------------------------------- |
-| 8a   | IR v1 to §5's requirements; n2s → IR adapter, lossless CXSMILES export, JSON/schema and corpus gates next to the string API |
+| 8a   | IR v1 to §5's requirements; n2s → IR adapter, convenience CXSMILES export, lossless JSON/schema and corpus gates next to the string API |
 | 8b   | IR → structure-to-name adapter and the §5 aromaticity/localized-pi proof on the full corpora (separate work) |
 | 9    | Python and npm bindings on the IR API                                                                             |
 | 10   | ReShiki: `IR → chemistry State` converter, worker protocol v5 after the size measurement                          |
@@ -179,19 +207,20 @@ validator (unknown schema keywords fail), avoiding a runtime schema dependency.
 Step 8a adds the n2s adapter and CXSMILES exporter only; the IR → s2n adapter and
 the aromaticity proof remain step 8b.
 
-Step 8a comparison policy: exact semantic CXSMILES is checked first. OPSIN's
-per-atom bond insertion order can differ from its fragment bond-vector order
-after assembly; D6 stores only the latter. The original IR exporter therefore
-can choose different traversals, ring numbers, or equivalent slash signs.
-Nonexact outputs must agree under the kernel's canonical isomeric identity,
-with labels, enhanced stereo groups, position variation, and SRU layers checked
-separately after mapping output atom indices to IR identities. Tests also check
-the raw emitted atom/bond graph and the locant identity map. Inputs rejected by
-canonical identity (such as wildcards) require exact molecular SMILES. The old
-golden gate and fixtures remain unchanged. No oracle structure uses axial
-stereo; outside those corpora the adapter rejects it explicitly because v1 has
-no axial variant. CXSMILES extension details and the metadata needed to retain
-ordered identities are documented in `crates/nazuchem-ir/docs/cxsmiles.md`.
+Step 8a comparison policy: exact legacy semantic CXSMILES is checked first;
+the test-only projection may fold metadata-free stereo-reference H into a
+virtual H for that legacy string comparison. Full IR and public CX output keep
+and independently check those vertices. Otherwise the kernel canonical
+isomeric identity must agree. The fallback fails
+closed if preparation drops any specified stereo unit. Independently, source
+OPSIN tetrahedral winding, double-bond relation and atropisomer configuration are
+compared directly against the IR under the source identity map, alongside full
+locants and parent membership before H folding. Every successful CX export is
+reparsed without stereo cleanup to detect lost or newly asserted stereo; a typed
+`StereoNotExpressible` is counted explicitly while its JSON/source graph checks
+still run. Standard labels/groups/position variation/SRU layers are compared
+separately under the writer identity map. The original golden gate and fixtures
+remain unchanged. See `crates/nazuchem-ir/docs/cxsmiles.md` for export limits.
 
 Risks: step 4 is the hardest (openclatura uses `crate::naming` in 112 places plus `super::super` paths; only about 32 are the status/reason enums, the rest are `canonical_smiles`, `IsotopeStyle` and test calls into the worker). The two chemistry copies can drift; mirror fixes deliberately. The npm package carries ~5.7 MB of OPSIN resources; features allow n2s-only or s2n-only builds.
 

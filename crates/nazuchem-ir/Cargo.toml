@@ -8,6 +8,7 @@ description = "Shared naming vocabulary and versioned molecular structure IR for
 
 [features]
 schema = ["dep:schemars"]
+test-support = []
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

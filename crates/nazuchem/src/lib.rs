@@ -147,7 +147,7 @@ pub fn name_to_smiles(name: &str) -> Result<String, Error> {
 /// Interpret a name with strict OPSIN options and return the validated IR v1 graph.
 ///
 /// Uses the default unbounded budget and rejects parser warnings. Configurations
-/// outside IR v1, including axial stereo, return a serialization error.
+/// outside IR v1 return a serialization error; atropisomer axes are supported.
 // Provenance: fn name_to_molecule | original
 // Source: Nazuchem | crates/nazuchem/src/lib.rs::name_to_molecule
 #[cfg(feature = "n2s")]

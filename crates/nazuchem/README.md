@@ -40,9 +40,12 @@ engine's complete `Name` result.
 `name_to_molecule` applies the same strict parsing policy and returns validated
 IR v1, with stable atom identities, all locants and the principal-parent set.
 `Molecule::to_json`/`from_json` use a strict versioned envelope;
-`Molecule::to_cxsmiles` exports the complete IR using the
-[documented CX extensions](../nazuchem-ir/docs/cxsmiles.md). IR v1 rejects axial
-stereo with an error. This step provides no CXSMILES reader or IR-to-name API.
+`Molecule::to_cxsmiles` provides a convenience export using the
+[documented CX extensions](../nazuchem-ir/docs/cxsmiles.md). JSON is lossless;
+unrepresentable CX stereo returns `CxsmilesError::StereoNotExpressible`. IR v1
+includes atropisomer axes. The pinned OPSIN parser erases explicit ξ/unknown
+name descriptors before conversion, a separately tracked parser limitation.
+This step provides no CXSMILES reader or IR-to-name API.
 
 ## Scope and limits
 

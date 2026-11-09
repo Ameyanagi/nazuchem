@@ -773,16 +773,28 @@ pub fn write_semantic_cxsmiles_with_locants_and_axes(
     Ok((smiles, locants, axes))
 }
 
-/// Share the semantic writer's hydrogen folding and atom identity projection.
+/// Share the semantic writer's traversal and hydrogen folding without requiring
+/// that its string format can express every structural stereo reference.
 // Provenance: fn semantic_atom_order | original
 // Source: Nazuchem | crates/nazuchem-n2s/src/smiles.rs::semantic_atom_order
 pub(crate) fn semantic_atom_order(
     graph: &Graph,
     fragment: FragmentId,
 ) -> Result<Vec<AtomId>, SerializationError> {
-    Writer::new(graph, fragment)?
-        .write()
-        .map(|(_, order)| order)
+    let mut writer = Writer::new(graph, fragment)?;
+    let roots = writer.assign_roots();
+    let mut order = Vec::new();
+    let mut stack: Vec<_> = roots.into_iter().rev().map(|atom| (atom, 0)).collect();
+    while let Some((atom, depth)) = stack.pop() {
+        order.push(atom);
+        for &bond in graph.atom(atom).bonds.iter().rev() {
+            let neighbour = graph.bond(bond).other_atom(atom).unwrap();
+            if writer.depth[neighbour.0] == Some(depth + 1) {
+                stack.push((neighbour, depth + 1));
+            }
+        }
+    }
+    Ok(order)
 }
 
 struct Writer<'a> {
@@ -951,7 +963,7 @@ impl<'a> Writer<'a> {
         }
     }
 
-    fn write(mut self) -> Result<(String, Vec<AtomId>), SerializationError> {
+    fn assign_roots(&mut self) -> Vec<AtomId> {
         let mut roots = Vec::new();
         let atoms = self.graph.fragment(self.fragment).atoms.clone();
         for &atom in &atoms {
@@ -966,6 +978,11 @@ impl<'a> Writer<'a> {
                 roots.push(atom);
             }
         }
+        roots
+    }
+
+    fn write(mut self) -> Result<(String, Vec<AtomId>), SerializationError> {
+        let roots = self.assign_roots();
         self.assign_stereo_directions()?;
         for root in roots {
             if !self.output.is_empty() {

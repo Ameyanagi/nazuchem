@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 mod molecule;
 pub use molecule::*;
 mod cxsmiles;
-pub use cxsmiles::CxSmilesError;
+pub use cxsmiles::{CxSmilesError, CxsmilesError};
 
 /// Notation used for isotopically substituted structures.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

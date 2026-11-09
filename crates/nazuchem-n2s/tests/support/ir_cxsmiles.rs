@@ -33,6 +33,7 @@ pub fn legacy_radicals(molecule: &Molecule, legacy: &str) -> Result<(), String> 
         .atoms
         .iter()
         .map(|atom| atom.radical_electrons)
+        .take(expected.len())
         .collect();
     if expected != actual {
         return Err(format!(

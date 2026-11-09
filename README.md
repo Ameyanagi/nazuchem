@@ -1,8 +1,8 @@
 # nazuchem
 
 Rust library for IUPAC-style chemical name ↔ structure conversion. It accepts
-names and molecular SMILES through the current string APIs. Python and npm/WASM
-bindings and a versioned structure IR are planned.
+names and molecular SMILES through string APIs and exposes a versioned structure
+IR for name-to-structure results. Python and npm/WASM bindings are planned.
 
 Extracted from [ReShiki](https://github.com/Ameyanagi/ReShiki), a molecular
 drawing app. The name-to-structure engine is a Rust port of OPSIN by Daniel Lowe
@@ -33,7 +33,7 @@ assessment, alternatives and omitted stereochemistry.
 | Crate | Purpose |
 | --- | --- |
 | [`nazuchem`](crates/nazuchem) | Public string-API facade and engine re-exports |
-| [`nazuchem-ir`](crates/nazuchem-ir) | Shared naming vocabulary; structure IR planned |
+| [`nazuchem-ir`](crates/nazuchem-ir) | Shared naming vocabulary and versioned structure IR |
 | [`nazuchem-kernel`](crates/nazuchem-kernel) | Internal molecular perception and canonical identity |
 | [`nazuchem-n2s`](crates/nazuchem-n2s) | OPSIN name-to-structure port |
 | [`nazuchem-s2n`](crates/nazuchem-s2n) | Extended openclatura structure-to-name port |
@@ -45,6 +45,19 @@ name or structure. A successful generated name is not necessarily a preferred
 IUPAC name. Unsupported chemistry returns an error; OPSIN compatibility data
 does not certify IUPAC PIN compliance. See the [facade documentation](crates/nazuchem/README.md)
 for admission limits and unsupported stereochemistry.
+
+`name_to_molecule` returns IR v1 with stable identities, full locants, parent
+membership, and tetrahedral, double-bond and atropisomer stereo. JSON is the
+lossless interchange format. CXSMILES is a convenience export and returns
+`CxsmilesError::StereoNotExpressible` when standard notation cannot preserve
+specified/unspecified stereo, including some partially specified polyenes and
+atropisomers. Layout coordinates belong to hosts; v1 has no dative or
+zero-order bonds and coordination chemistry is outside both engines' contract.
+
+The IR distinguishes explicit `Unknown` stereo from an absent assertion, but
+the pinned OPSIN parser currently erases ξ/unknown descriptors in names before
+`Structure::to_ir`. Preserving those source annotations is a separate parser
+limitation tracked in the [IR plan](docs/plans/naming-split.md#5-the-structure-ir-phase-b).
 
 The library performs no I/O, creates no threads and has no process-wide mutable
 naming state. Embedded parser resources are immutable; fusion uses bounded

@@ -15,15 +15,17 @@
 use std::io::{BufRead, BufReader};
 
 use flate2::read::GzDecoder;
-use nazuchem_ir::Molecule;
+use nazuchem_ir::{CxsmilesError, Molecule};
 use nazuchem_kernel::{budget::Budget, identity::canonical_identity, smiles};
-use nazuchem_n2s::{IrError, ParseOptions, ParseResult, Parser, Status, Structure};
+use nazuchem_n2s::{ParseOptions, ParseResult, Parser, Status, Structure};
 use serde_json::{Value, json};
 
 #[path = "support/ir_cxsmiles.rs"]
 mod cx;
 #[path = "support/ir_schema.rs"]
 mod schema;
+#[path = "support/ir_stereo.rs"]
+mod stereo;
 
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Counts {
@@ -35,6 +37,10 @@ struct Counts {
     axial: usize,
     exact: usize,
     canonical: usize,
+    not_expressible: usize,
+    direct_tetrahedral: usize,
+    direct_double_bond: usize,
+    direct_atropisomer: usize,
 }
 
 impl Counts {
@@ -54,12 +60,12 @@ impl Counts {
             "parse coverage/status counts changed: {self:?}"
         );
         assert_eq!(
-            self.supported + self.axial,
+            self.supported,
             success + warning,
             "every parsed structure must be checked: {self:?}"
         );
         assert_eq!(
-            self.exact + self.canonical,
+            self.exact + self.canonical + self.not_expressible,
             self.supported,
             "every supported IR must reproduce molecular identity: {self:?}"
         );
@@ -106,7 +112,69 @@ fn check_parse(result: &ParseResult, expected: &Value) -> Result<(), String> {
 
 fn canonical(text: &str) -> Result<String, String> {
     let budget = Budget::default();
+    let raw = smiles::parse(cx::bare(text)).map_err(|error| error.to_string())?;
+    let raw_metadata = nazuchem_kernel::stereo::bond_stereo_from_directions(
+        &raw.graph,
+        &raw.metadata,
+        &raw.directions,
+    )?;
     let prepared = smiles::prepare(cx::bare(text), &budget).map_err(|error| error.to_string())?;
+    // Use the kernel's own H-removal identity map, rather than assuming atom
+    // counts or canonical equivalence can prove preservation of every unit.
+    let removed = nazuchem_kernel::hydrogens::remove(&nazuchem_kernel::hydrogens::Input {
+        unknown_atoms: vec![false; raw.graph.atoms.len()],
+        graph: raw.graph,
+        metadata: raw.metadata,
+        directions: raw.directions,
+        annotations: Default::default(),
+    })
+    .map_err(|error| error.to_string())?;
+    for (id, atom) in raw_metadata.atoms.iter().enumerate() {
+        if atom.chiral_tag != 0 {
+            let kept = removed
+                .kept_atoms
+                .iter()
+                .position(|&old| old == id)
+                .and_then(|new| prepared.state.metadata.atoms.get(new));
+            if kept.is_none_or(|atom| atom.chiral_tag == 0) {
+                return Err(format!(
+                    "kernel preparation dropped specified atom stereo {id}"
+                ));
+            }
+        }
+    }
+    for (id, bond) in raw_metadata.bonds.iter().enumerate() {
+        if matches!(bond.stereo, 2..=7) {
+            let kept = removed
+                .kept_bonds
+                .iter()
+                .position(|&old| old == id)
+                .and_then(|new| prepared.state.metadata.bonds.get(new));
+            if kept.is_none_or(|bond| !matches!(bond.stereo, 2..=7)) {
+                return Err(format!(
+                    "kernel preparation dropped specified bond stereo {id}"
+                ));
+            }
+        }
+    }
+    let counts = |metadata: &nazuchem_kernel::ranking::Metadata| {
+        (
+            metadata.atoms.iter().filter(|a| a.chiral_tag != 0).count(),
+            metadata
+                .bonds
+                .iter()
+                .filter(|b| matches!(b.stereo, 2..=5))
+                .count(),
+            metadata
+                .bonds
+                .iter()
+                .filter(|b| matches!(b.stereo, 6 | 7))
+                .count(),
+        )
+    };
+    if counts(&raw_metadata) != counts(&prepared.state.metadata) {
+        return Err("kernel preparation dropped a specified stereo unit".into());
+    }
     canonical_identity(&prepared.state, &budget).map_err(|error| format!("{error:?}"))
 }
 
@@ -134,28 +202,22 @@ fn check_structure(
             "legacy locants changed: expected {expected}, actual {legacy_locants:?}"
         ));
     }
-    if !axes.is_empty() {
-        return match structure.to_ir() {
-            Err(IrError::UnsupportedAxialStereo) => {
-                counts.axial += 1;
-                Ok(())
-            }
-            other => Err(format!(
-                "axial stereo must return typed UnsupportedAxialStereo, got {other:?}"
-            )),
-        };
-    }
-    let molecule = structure
-        .to_ir()
+    let (molecule, source_order) = structure
+        .to_ir_with_atom_mapping()
         .map_err(|error| format!("IR projection: {error}"))?;
+    let direct = stereo::source(structure, &molecule, &source_order)?;
+    counts.direct_tetrahedral += direct.tetrahedral;
+    counts.direct_double_bond += direct.double_bond;
+    counts.direct_atropisomer += direct.atropisomer;
+    counts.axial += usize::from(!axes.is_empty());
     molecule
         .validate()
         .map_err(|error| format!("IR validation: {error}"))?;
-    if molecule.atoms.len() != legacy_locants.len() {
+    if molecule.atoms.len() < legacy_locants.len() {
         return Err("IR atom identities differ from legacy written atoms".into());
     }
     cx::legacy_radicals(&molecule, &legacy)?;
-    if molecule.displayed_locants() != legacy_locants {
+    if molecule.displayed_locants()[..legacy_locants.len()] != legacy_locants {
         return Err(format!(
             "IR displayed locants differ: expected {legacy_locants:?}, actual {:?}",
             molecule.displayed_locants()
@@ -173,14 +235,23 @@ fn check_structure(
     if restored != molecule {
         return Err("JSON round trip changed the complete IR".into());
     }
-    let actual = molecule
-        .semantic_cxsmiles()
+    let projection = match molecule.to_cxsmiles() {
+        Ok(text) => text,
+        Err(CxsmilesError::StereoNotExpressible) => {
+            counts.not_expressible += 1;
+            counts.supported += 1;
+            return Ok(());
+        }
+        Err(error) => return Err(format!("IR convenience writer: {error}")),
+    };
+    let (actual, semantic_order) = molecule
+        .semantic_cxsmiles_with_atom_order_for_tests()
         .map_err(|error| format!("IR semantic writer: {error}"))?;
     if restored
-        .semantic_cxsmiles()
+        .semantic_cxsmiles_for_tests()
         .map_err(|error| error.to_string())?
         != actual
-        || restored.displayed_locants() != legacy_locants
+        || restored.displayed_locants() != molecule.displayed_locants()
         || restored.to_cxsmiles().map_err(|error| error.to_string())?
             != molecule.to_cxsmiles().map_err(|error| error.to_string())?
     {
@@ -197,9 +268,10 @@ fn check_structure(
             "writer traversal is not an identity permutation: {order:?}"
         ));
     }
-    cx::written_graph(&molecule, &actual, &order)?;
-    let expected_layers = cx::semantic_layers(&legacy, &identity)?;
-    let actual_layers = cx::semantic_layers(&actual, &order)?;
+    cx::written_graph(&molecule, &projection, &order)?;
+    stereo::written(&molecule, &projection, &order)?;
+    let expected_layers = cx::semantic_layers(&legacy, &identity[..legacy_locants.len()])?;
+    let actual_layers = cx::semantic_layers(&actual, &semantic_order)?;
     if expected_layers != actual_layers {
         return Err(format!(
             "standard semantic CX layers changed: expected {expected_layers:?}, actual {actual_layers:?}\nlegacy {legacy}\nIR {actual}"
@@ -479,4 +551,212 @@ fn published_schema_rejects_invalid_json_independently_of_deserialization() {
             .validate(&json!({"next":{"invalid":true}}))
             .is_err()
     );
+}
+
+#[test]
+fn canonical_fallback_fails_closed_when_preparation_erases_stereo() {
+    for text in ["[N@](C)(CC)CCC", "[N@@](C)(CC)CCC", "F/C(F)=C/F"] {
+        assert!(
+            canonical(text).is_err(),
+            "cleanup must not conceal raw assertions: {text}"
+        );
+    }
+}
+
+#[test]
+fn unspecified_middle_double_bond_cannot_be_exported_with_extra_stereo() {
+    let structure = Parser::new()
+        .unwrap()
+        .parse("(2E,6E)-octa-2,4,6-triene", &ParseOptions::strict())
+        .structure
+        .unwrap();
+    let molecule = structure.to_ir().unwrap();
+    assert_eq!(molecule.stereo.len(), 2);
+    assert!(matches!(
+        molecule.to_cxsmiles(),
+        Err(CxsmilesError::StereoNotExpressible)
+    ));
+}
+
+#[test]
+fn all_conjugated_chain_specification_patterns_preserve_stereo_when_exported() {
+    use nazuchem_ir::{Atom, Bond, BondOrder, Relation, Stereo};
+    // Exhaust all unspecified/cis/trans choices on one through five alternating
+    // double bonds, plus unknown entries (which must not become assertions).
+    let mut emitted = 0;
+    let mut refused = 0;
+    for n in 1..=5 {
+        for mut pattern in 0..4usize.pow(n as u32) {
+            let atoms = (0..2 * n + 2)
+                .map(|i| Atom {
+                    element: 6,
+                    hydrogens: if i == 0 || i == 2 * n + 1 { 3 } else { 1 },
+                    ..Atom::default()
+                })
+                .collect();
+            let bonds = (0..2 * n + 1)
+                .map(|i| Bond {
+                    atoms: [i as u32, (i + 1) as u32],
+                    order: if i % 2 == 0 {
+                        BondOrder::Single
+                    } else {
+                        BondOrder::Double
+                    },
+                })
+                .collect();
+            let mut molecule = Molecule::new(atoms, bonds).unwrap();
+            for i in 0..n {
+                let choice = pattern % 4;
+                pattern /= 4;
+                if choice > 0 {
+                    molecule.stereo.push(Stereo::DoubleBond {
+                        bond: (2 * i + 1) as u32,
+                        refs: [(2 * i) as u32, (2 * i + 3) as u32],
+                        relation: match choice {
+                            1 => Relation::Cis,
+                            2 => Relation::Trans,
+                            _ => Relation::Unknown,
+                        },
+                    });
+                }
+            }
+            match molecule.to_cxsmiles() {
+                Ok(text) => {
+                    stereo::written(&molecule, &text, &molecule.smiles_atom_order().unwrap())
+                        .unwrap();
+                    emitted += 1;
+                }
+                Err(CxsmilesError::StereoNotExpressible) => refused += 1,
+                Err(error) => panic!("unexpected export error: {error}"),
+            }
+        }
+    }
+    assert!(emitted > 0 && refused > 0);
+    eprintln!("conjugated-chain property cases: emitted={emitted}, StereoNotExpressible={refused}");
+}
+
+#[test]
+fn direct_source_comparison_rejects_inverted_configurations() {
+    use nazuchem_ir::{AxialWinding, Relation, Stereo, Winding};
+    let parser = Parser::new().unwrap();
+    for name in [
+        "(2R)-butan-2-ol",
+        "(E)-but-2-ene",
+        "(1M)-[1,1'-binaphthalene]-2,2'-diol",
+    ] {
+        let structure = parser
+            .parse(name, &ParseOptions::strict())
+            .structure
+            .unwrap();
+        let (mut molecule, order) = structure.to_ir_with_atom_mapping().unwrap();
+        stereo::source(&structure, &molecule, &order).unwrap();
+        match &mut molecule.stereo[0] {
+            Stereo::Tetrahedral { winding, .. } => {
+                *winding = if *winding == Winding::Clockwise {
+                    Winding::Anticlockwise
+                } else {
+                    Winding::Clockwise
+                }
+            }
+            Stereo::DoubleBond { relation, .. } => {
+                *relation = if *relation == Relation::Cis {
+                    Relation::Trans
+                } else {
+                    Relation::Cis
+                }
+            }
+            Stereo::Atropisomer { winding, .. } => {
+                *winding = if *winding == AxialWinding::M {
+                    AxialWinding::P
+                } else {
+                    AxialWinding::M
+                }
+            }
+            _ => panic!("new untested stereo variant"),
+        }
+        assert!(
+            stereo::source(&structure, &molecule, &order).is_err(),
+            "inversion escaped direct audit: {name}"
+        );
+    }
+}
+
+#[test]
+fn branched_and_ring_stereo_survives_reversed_bond_and_neighbor_orders() {
+    use nazuchem_ir::Stereo;
+    let parser = Parser::new().unwrap();
+    for name in [
+        "(2R)-butan-2-ol",
+        "(1R,2S)-1,2-dichlorocyclohexane",
+        "(E)-3-methylhex-3-ene",
+        "(E)-cyclodec-1-ene",
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        let original = result
+            .structure
+            .unwrap_or_else(|| panic!("{name}: {}", result.message))
+            .to_ir()
+            .unwrap();
+        for reverse in [false, true] {
+            let mut molecule = original.clone();
+            if reverse {
+                for bond in &mut molecule.bonds {
+                    bond.atoms.swap(0, 1);
+                }
+                for unit in &mut molecule.stereo {
+                    match unit {
+                        Stereo::Tetrahedral { neighbors, .. } => neighbors.rotate_left(2), // even permutation
+                        Stereo::DoubleBond { refs, .. } => refs.swap(0, 1),
+                        _ => {}
+                    }
+                }
+            }
+            let text = molecule.to_cxsmiles().unwrap();
+            stereo::written(&molecule, &text, &molecule.smiles_atom_order().unwrap())
+                .unwrap_or_else(|error| panic!("{name}: {error}: {text}"));
+        }
+    }
+}
+
+#[test]
+fn adjacent_unknown_centers_use_distinct_parseable_wavy_bonds() {
+    use nazuchem_ir::{Stereo, Winding};
+    let structure = Parser::new()
+        .unwrap()
+        .parse("(2R,3S)-2,3-dichlorobutane", &ParseOptions::strict())
+        .structure
+        .unwrap();
+    let original = structure.to_ir().unwrap();
+    let centers = original
+        .stereo
+        .iter()
+        .filter_map(|unit| match unit {
+            Stereo::Tetrahedral { center, .. } => Some(*center),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(centers.len(), 2);
+    let shared = original
+        .bonds
+        .iter()
+        .position(|bond| centers.iter().all(|atom| bond.atoms.contains(atom)))
+        .unwrap();
+    for unknown_mask in 0..4 {
+        let mut molecule = original.clone();
+        // Make the shared carrier the first choice at both centers. Selecting
+        // it twice emits invalid duplicate CX w entries, even though each
+        // center independently has a usable single bond.
+        molecule.bonds.swap(0, shared);
+        for (index, unit) in molecule.stereo.iter_mut().enumerate() {
+            if unknown_mask & (1 << index) != 0 {
+                let Stereo::Tetrahedral { winding, .. } = unit else {
+                    unreachable!()
+                };
+                *winding = Winding::Unknown;
+            }
+        }
+        let text = molecule.to_cxsmiles().unwrap();
+        stereo::written(&molecule, &text, &molecule.smiles_atom_order().unwrap())
+            .unwrap_or_else(|error| panic!("{error}: {text}"));
+    }
 }

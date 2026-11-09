@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(any(test, feature = "schema"))]
 use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
+use serde::de::{DeserializeOwned, MapAccess, Visitor, value::MapAccessDeserializer};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
@@ -74,7 +75,7 @@ pub struct Molecule {
 }
 
 /// An atom with its stated hydrogen origin, locants, and attachment label.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Atom {
@@ -83,6 +84,7 @@ pub struct Atom {
     pub element: u8,
     /// Isotope mass number. Isotopic hydrogen is an atom, never a count.
     #[cfg_attr(any(test, feature = "schema"), schemars(range(min = 1)))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub isotope: Option<u16>,
     pub charge: i8,
     /// Hydrogen atoms not represented as graph vertices.
@@ -90,13 +92,21 @@ pub struct Atom {
     /// Distinguishes explicitly stated counts such as `[CH4]` from inferred `C`.
     pub hydrogens_stated: bool,
     pub radical_electrons: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    /// An explicit SMILES atom-map number, independent of text labels.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub atom_map: Option<u32>,
+    /// A numbered wildcard attachment, corresponding to OPSIN `_AP{n}`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachment_point: Option<u32>,
     /// All name locants, in name order. Parent membership controls display.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub locants: Vec<String>,
 }
 
 /// A localized bond; endpoint order defines double-bond references and the position-variation attachment end.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Bond {
@@ -105,7 +115,7 @@ pub struct Bond {
     pub order: BondOrder,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
@@ -116,15 +126,11 @@ pub enum BondOrder {
     Quadruple,
 }
 
-/// An ordered tetrahedral reference, including non-vertex ligands.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
-#[serde(
-    tag = "kind",
-    content = "atom",
-    rename_all = "snake_case",
-    deny_unknown_fields
-)]
+/// An ordered structural reference, including non-vertex ligands.
+///
+/// JSON represents atom indices as integers and the two virtual ligands as the
+/// strings `"implicit_hydrogen"` and `"lone_pair"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum Ref {
     Atom(u32),
@@ -132,30 +138,57 @@ pub enum Ref {
     LonePair,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Tetrahedral winding, viewed from `neighbors[0]` toward the center.
+///
+/// `Clockwise` means `neighbors[1]`, `neighbors[2]`, `neighbors[3]` occur in
+/// clockwise order in that view; `Anticlockwise` means the reverse order.
+/// `Unknown` records explicitly unknown configuration. No stereo entry means
+/// unspecified configuration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Winding {
     Clockwise,
     Anticlockwise,
+    Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Relation {
     Cis,
     Trans,
+    Unknown,
+}
+
+/// Axis winding relative to its ordered references, independent of CIP ranking.
+///
+/// Look along `bond.atoms[0]` toward `bond.atoms[1]`. The first reference pair is
+/// attached to the near end, the second to the far end. `P` means the shortest
+/// turn from the projection of `refs[0]` to `refs[2]` is clockwise; `M` means
+/// anticlockwise. Swapping either pair reverses winding. Reversing the bond and
+/// exchanging the two pairs preserves winding. The values are M/P-equivalent
+/// only for this reference order; no ligand priorities are inferred.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum AxialWinding {
+    M,
+    P,
+    Unknown,
 }
 
 /// Ordered structural stereochemistry, independent of CIP assignment.
 ///
-/// `known: false` records unknown (wavy/ξ) stereochemistry. An absent entry means
-/// unspecified stereochemistry. In a double-bond entry, `refs[i]` is attached
-/// to `bonds[bond].atoms[i]`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Unknown winding/relation records stated unknown (wavy/ξ) stereochemistry;
+/// an absent entry means unspecified stereochemistry. For a double bond,
+/// `refs[i]` is attached to `bonds[bond].atoms[i]`. For an atropisomer,
+/// `refs[0..2]` are attached to the first bond end and `refs[2..4]` to the second.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
@@ -165,28 +198,32 @@ pub enum Stereo {
         #[cfg_attr(any(test, feature = "schema"), schemars(extend("uniqueItems" = true)))]
         neighbors: [Ref; 4],
         winding: Winding,
-        known: bool,
     },
     DoubleBond {
         bond: u32,
         #[cfg_attr(any(test, feature = "schema"), schemars(extend("uniqueItems" = true)))]
         refs: [u32; 2],
         relation: Relation,
-        known: bool,
+    },
+    Atropisomer {
+        bond: u32,
+        refs: [Ref; 4],
+        winding: AxialWinding,
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
-#[serde(deny_unknown_fields)]
+/// A relative or racemic group. Known ungrouped stereo is absolute.
+///
+/// JSON flattens `kind` and its identifier:
+/// `{"kind":"and","id":7,"stereo":[0]}`.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StereoGroup {
     pub kind: StereoGroupKind,
     /// Indices into [`Molecule::stereo`], rather than atom indices.
-    #[cfg_attr(any(test, feature = "schema"), schemars(length(min = 1), extend("uniqueItems" = true)))]
     pub stereo: Vec<u32>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(
     tag = "kind",
@@ -196,12 +233,11 @@ pub struct StereoGroup {
 )]
 #[non_exhaustive]
 pub enum StereoGroupKind {
-    Abs,
     And(u32),
     Or(u32),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
@@ -212,20 +248,26 @@ pub enum Connectivity {
 }
 
 /// A repeating unit, including its bonds to atoms outside the unit.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct RepeatUnit {
     #[cfg_attr(any(test, feature = "schema"), schemars(length(min = 1), extend("uniqueItems" = true)))]
     pub atoms: Vec<u32>,
     #[cfg_attr(any(test, feature = "schema"), schemars(extend("uniqueItems" = true)))]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub crossing_bonds: Vec<u32>,
+    /// External wildcard atom identities that represent polymer end roles.
+    #[cfg_attr(any(test, feature = "schema"), schemars(extend("uniqueItems" = true)))]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachment_points: Vec<u32>,
     pub connectivity: Connectivity,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
 }
 
 /// Possible attachment endpoints for a position-variation bond.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PositionVariation {
@@ -273,8 +315,12 @@ pub enum ValidationError {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum JsonError {
-    #[error("invalid IR JSON: {0}")]
-    Json(#[from] serde_json::Error),
+    #[error("invalid IR JSON: {message}")]
+    InvalidJson { message: String },
+    #[error("unknown IR field {field:?} at {path}")]
+    UnknownField { path: String, field: String },
+    #[error("unknown IR variant {variant:?} at {path}")]
+    UnknownVariant { path: String, variant: String },
     #[error("unsupported nazuchem IR version {version}; supported version is {IR_VERSION}")]
     UnsupportedVersion { version: u64 },
     #[error(transparent)]
@@ -296,12 +342,12 @@ impl Molecule {
     /// Validate and write a complete, versioned JSON document.
     pub fn to_json(&self) -> Result<String, JsonError> {
         self.validate()?;
-        Ok(serde_json::to_string(self)?)
+        serde_json::to_string(&ValidatedDocument(self)).map_err(json_error)
     }
 
     /// Read a complete IR document, rejecting unknown fields and variants.
     pub fn from_json(json: &str) -> Result<Self, JsonError> {
-        serde_json::from_str::<MoleculeDocument>(json)?.into_molecule()
+        molecule_from_value(serde_json::from_str(json).map_err(json_error)?)
     }
 
     /// Check index bounds and metadata consistency without chemistry perception.
@@ -344,6 +390,7 @@ impl Molecule {
         }
         let mut tetra_centers = BTreeSet::new();
         let mut double_bonds = BTreeSet::new();
+        let mut axial_bonds = BTreeSet::new();
         for (stereo, data) in self.stereo.iter().enumerate() {
             let invalid = |reason: &str| ValidationError::InvalidStereo {
                 stereo,
@@ -422,6 +469,58 @@ impl Molecule {
                         }
                     }
                 }
+                Stereo::Atropisomer { bond, refs, .. } => {
+                    check_index(*bond, self.bonds.len(), format!("stereo[{stereo}].bond"))?;
+                    if !axial_bonds.insert(*bond) {
+                        return Err(invalid("duplicate atropisomer axis"));
+                    }
+                    let axis = &self.bonds[*bond as usize];
+                    if axis.order != BondOrder::Single {
+                        return Err(invalid("atropisomer stereo requires a single bond"));
+                    }
+                    for end in 0..2 {
+                        let center = axis.atoms[end];
+                        let pair = &refs[2 * end..2 * end + 2];
+                        if pair[0] == pair[1] {
+                            return Err(invalid("duplicate reference at an atropisomer axis end"));
+                        }
+                        let mut atom_refs = BTreeSet::new();
+                        for reference in pair {
+                            match reference {
+                                Ref::Atom(atom) => {
+                                    check_index(
+                                        *atom,
+                                        self.atoms.len(),
+                                        format!("stereo[{stereo}].refs"),
+                                    )?;
+                                    if axis.atoms.contains(atom)
+                                        || !adjacency[center as usize].contains(atom)
+                                    {
+                                        return Err(invalid(
+                                            "axis reference is not a substituent of the corresponding end",
+                                        ));
+                                    }
+                                    atom_refs.insert(*atom);
+                                }
+                                Ref::ImplicitHydrogen
+                                    if self.atoms[center as usize].hydrogens == 0 =>
+                                {
+                                    return Err(invalid(
+                                        "axis implicit hydrogen reference has no hydrogen count",
+                                    ));
+                                }
+                                Ref::ImplicitHydrogen | Ref::LonePair => {}
+                            }
+                        }
+                        let mut substituents = adjacency[center as usize].clone();
+                        substituents.remove(&axis.atoms[1 - end]);
+                        if atom_refs != substituents {
+                            return Err(invalid(
+                                "atropisomer references omit a bonded substituent",
+                            ));
+                        }
+                    }
+                }
             }
         }
         let mut group_kinds = BTreeSet::new();
@@ -490,11 +589,34 @@ impl Molecule {
                 &format!("polymers[{unit}].crossing_bonds"),
             )?;
             let atoms: BTreeSet<_> = data.atoms.iter().copied().collect();
-            for bond in &data.crossing_bonds {
-                let [a, b] = self.bonds[*bond as usize].atoms;
-                if atoms.contains(&a) == atoms.contains(&b) {
+            let boundary: BTreeSet<_> = self
+                .bonds
+                .iter()
+                .enumerate()
+                .filter_map(|(bond, data)| {
+                    let [a, b] = data.atoms;
+                    (atoms.contains(&a) != atoms.contains(&b)).then_some(bond as u32)
+                })
+                .collect();
+            if data.crossing_bonds.iter().copied().collect::<BTreeSet<_>>() != boundary {
+                return Err(invalid(
+                    "crossing bonds must be the full boundary of the unit atom set",
+                ));
+            }
+            check_indices(
+                &data.attachment_points,
+                self.atoms.len(),
+                &format!("polymers[{unit}].attachment_points"),
+            )?;
+            for atom in &data.attachment_points {
+                if atoms.contains(atom)
+                    || self.atoms[*atom as usize].element != 0
+                    || !adjacency[*atom as usize]
+                        .iter()
+                        .any(|neighbor| atoms.contains(neighbor))
+                {
                     return Err(invalid(
-                        "crossing bond must have exactly one atom in the unit",
+                        "attachment point must be an external wildcard bonded to the unit",
                     ));
                 }
             }
@@ -526,8 +648,285 @@ fn check_indices(indices: &[u32], len: usize, path: &str) -> Result<(), Validati
     Ok(())
 }
 
-// One owned document type provides deserialization and schema generation. The
-// version stays outside the public graph so callers cannot accidentally mutate it.
+// A map visitor deliberately omits visit_seq: derived structs otherwise accept
+// positional arrays, which are not part of the published object wire format.
+fn deserialize_object<'de, T: DeserializeOwned, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<T, D::Error> {
+    struct ObjectVisitor<T>(std::marker::PhantomData<T>);
+    impl<'de, T: DeserializeOwned> Visitor<'de> for ObjectVisitor<T> {
+        type Value = T;
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("an IR object with named fields")
+        }
+        fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<T, A::Error> {
+            let mut value = serde_json::Value::deserialize(MapAccessDeserializer::new(map))?;
+            normalize_integer_numbers(&mut value);
+            T::deserialize(value).map_err(serde::de::Error::custom)
+        }
+    }
+    deserializer.deserialize_map(ObjectVisitor(std::marker::PhantomData))
+}
+
+// JSON Schema defines integer by mathematical value, so `1.0` and `1e0`
+// have the same wire meaning as `1`. Normalize only exact integral floats in
+// range; retain nonintegral/out-of-range floats for the typed decoder to reject.
+fn normalize_integer_numbers(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(object) => {
+            for value in object.values_mut() {
+                normalize_integer_numbers(value);
+            }
+        }
+        serde_json::Value::Array(array) => {
+            for value in array {
+                normalize_integer_numbers(value);
+            }
+        }
+        serde_json::Value::Number(number) if number.is_f64() => {
+            let value = number.as_f64().expect("JSON floating point number");
+            if value.fract() == 0.0 {
+                if value >= 0.0 && value < u64::MAX as f64 {
+                    *number = (value as u64).into();
+                } else if value >= i64::MIN as f64 && value < 0.0 {
+                    *number = (value as i64).into();
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+macro_rules! string_enum_deserialize {
+    ($name:ident { $($variant:ident => $wire:literal),* $(,)? }) => {
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                let value = String::deserialize(deserializer)?;
+                match value.as_str() {
+                    $($wire => Ok(Self::$variant),)*
+                    _ => Err(serde::de::Error::unknown_variant(&value, &[$($wire),*])),
+                }
+            }
+        }
+    };
+}
+string_enum_deserialize!(BondOrder { Single => "single", Double => "double", Triple => "triple", Quadruple => "quadruple" });
+string_enum_deserialize!(Winding { Clockwise => "clockwise", Anticlockwise => "anticlockwise", Unknown => "unknown" });
+string_enum_deserialize!(Relation { Cis => "cis", Trans => "trans", Unknown => "unknown" });
+string_enum_deserialize!(AxialWinding { M => "m", P => "p", Unknown => "unknown" });
+string_enum_deserialize!(Connectivity { HeadToTail => "head_to_tail", HeadToHead => "head_to_head", Unknown => "unknown" });
+
+macro_rules! object_deserialize {
+    ($name:ident { $($(#[$attr:meta])* $field:ident: $ty:ty),* $(,)? }) => {
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                #[derive(Deserialize)]
+                #[serde(deny_unknown_fields)]
+                struct Wire { $($(#[$attr])* $field: $ty),* }
+                let Wire { $($field),* } = deserialize_object(deserializer)?;
+                Ok(Self { $($field),* })
+            }
+        }
+    };
+}
+
+object_deserialize!(Atom {
+    element: u8,
+    #[serde(default)] isotope: Option<u16>,
+    charge: i8,
+    hydrogens: u8,
+    hydrogens_stated: bool,
+    radical_electrons: u8,
+    #[serde(default)] label: Option<String>,
+    #[serde(default)] atom_map: Option<u32>,
+    #[serde(default)] attachment_point: Option<u32>,
+    #[serde(default)] locants: Vec<String>,
+});
+object_deserialize!(Bond {
+    atoms: [u32; 2],
+    order: BondOrder
+});
+object_deserialize!(RepeatUnit {
+    atoms: Vec<u32>,
+    #[serde(default)] crossing_bonds: Vec<u32>,
+    #[serde(default)] attachment_points: Vec<u32>,
+    connectivity: Connectivity,
+    #[serde(default)] label: Option<String>,
+});
+object_deserialize!(PositionVariation { bond: u32, endpoints: Vec<u32> });
+
+impl Serialize for Ref {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Atom(atom) => serializer.serialize_u32(*atom),
+            Self::ImplicitHydrogen => serializer.serialize_str("implicit_hydrogen"),
+            Self::LonePair => serializer.serialize_str("lone_pair"),
+        }
+    }
+}
+impl<'de> Deserialize<'de> for Ref {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Wire {
+            Atom(u32),
+            Virtual(String),
+        }
+        let mut value = serde_json::Value::deserialize(deserializer)?;
+        normalize_integer_numbers(&mut value);
+        match Wire::deserialize(value).map_err(serde::de::Error::custom)? {
+            Wire::Atom(atom) => Ok(Self::Atom(atom)),
+            Wire::Virtual(value) => match value.as_str() {
+                "implicit_hydrogen" => Ok(Self::ImplicitHydrogen),
+                "lone_pair" => Ok(Self::LonePair),
+                _ => Err(serde::de::Error::unknown_variant(
+                    &value,
+                    &["implicit_hydrogen", "lone_pair"],
+                )),
+            },
+        }
+    }
+}
+#[cfg(any(test, feature = "schema"))]
+impl JsonSchema for Ref {
+    fn schema_name() -> Cow<'static, str> {
+        "Ref".into()
+    }
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        json_schema!({"anyOf": [generator.subschema_for::<u32>(), {
+            "type": "string", "enum": ["implicit_hydrogen", "lone_pair"]
+        }]})
+    }
+}
+
+impl<'de> Deserialize<'de> for Stereo {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+        enum Wire {
+            Tetrahedral {
+                center: u32,
+                neighbors: [Ref; 4],
+                winding: Winding,
+            },
+            DoubleBond {
+                bond: u32,
+                refs: [u32; 2],
+                relation: Relation,
+            },
+            Atropisomer {
+                bond: u32,
+                refs: [Ref; 4],
+                winding: AxialWinding,
+            },
+        }
+        Ok(match deserialize_object(deserializer)? {
+            Wire::Tetrahedral {
+                center,
+                neighbors,
+                winding,
+            } => Self::Tetrahedral {
+                center,
+                neighbors,
+                winding,
+            },
+            Wire::DoubleBond {
+                bond,
+                refs,
+                relation,
+            } => Self::DoubleBond {
+                bond,
+                refs,
+                relation,
+            },
+            Wire::Atropisomer {
+                bond,
+                refs,
+                winding,
+            } => Self::Atropisomer {
+                bond,
+                refs,
+                winding,
+            },
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for StereoGroupKind {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(
+            tag = "kind",
+            content = "id",
+            rename_all = "snake_case",
+            deny_unknown_fields
+        )]
+        enum Wire {
+            And(u32),
+            Or(u32),
+        }
+        Ok(match deserialize_object(deserializer)? {
+            Wire::And(id) => Self::And(id),
+            Wire::Or(id) => Self::Or(id),
+        })
+    }
+}
+
+#[derive(Deserialize)]
+#[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[cfg_attr(any(test, feature = "schema"), schemars(rename = "StereoGroup"))]
+enum StereoGroupDocument {
+    And {
+        id: u32,
+        #[cfg_attr(any(test, feature = "schema"), schemars(length(min = 1), extend("uniqueItems" = true)))]
+        stereo: Vec<u32>,
+    },
+    Or {
+        id: u32,
+        #[cfg_attr(any(test, feature = "schema"), schemars(length(min = 1), extend("uniqueItems" = true)))]
+        stereo: Vec<u32>,
+    },
+}
+impl<'de> Deserialize<'de> for StereoGroup {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match deserialize_object(deserializer)? {
+            StereoGroupDocument::And { id, stereo } => Self {
+                kind: StereoGroupKind::And(id),
+                stereo,
+            },
+            StereoGroupDocument::Or { id, stereo } => Self {
+                kind: StereoGroupKind::Or(id),
+                stereo,
+            },
+        })
+    }
+}
+impl Serialize for StereoGroup {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let (kind, id) = match self.kind {
+            StereoGroupKind::And(id) => ("and", id),
+            StereoGroupKind::Or(id) => ("or", id),
+        };
+        let mut object = serializer.serialize_struct("StereoGroup", 3)?;
+        object.serialize_field("kind", kind)?;
+        object.serialize_field("id", &id)?;
+        object.serialize_field("stereo", &self.stereo)?;
+        object.end()
+    }
+}
+#[cfg(any(test, feature = "schema"))]
+impl JsonSchema for StereoGroup {
+    fn schema_name() -> Cow<'static, str> {
+        "StereoGroup".into()
+    }
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        StereoGroupDocument::json_schema(generator)
+    }
+}
+
+// Version is checked on the raw envelope before inspecting version-specific
+// fields. This remains true when a newer document introduces unfamiliar shapes.
 #[derive(Deserialize)]
 #[cfg_attr(any(test, feature = "schema"), derive(JsonSchema))]
 #[serde(deny_unknown_fields)]
@@ -537,21 +936,22 @@ struct MoleculeDocument {
     nazuchem_ir: u64,
     atoms: Vec<Atom>,
     bonds: Vec<Bond>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     stereo: Vec<Stereo>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     stereo_groups: Vec<StereoGroup>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     position_variation: Vec<PositionVariation>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     polymers: Vec<RepeatUnit>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[cfg_attr(any(test, feature = "schema"), schemars(extend("uniqueItems" = true)))]
     parent: Vec<u32>,
 }
 
 impl MoleculeDocument {
     fn into_molecule(self) -> Result<Molecule, JsonError> {
-        if self.nazuchem_ir != IR_VERSION {
-            return Err(JsonError::UnsupportedVersion {
-                version: self.nazuchem_ir,
-            });
-        }
+        debug_assert_eq!(self.nazuchem_ir, IR_VERSION);
         let molecule = Molecule {
             atoms: self.atoms,
             bonds: self.bonds,
@@ -566,9 +966,196 @@ impl MoleculeDocument {
     }
 }
 
+fn json_error(error: serde_json::Error) -> JsonError {
+    JsonError::InvalidJson {
+        message: error.to_string(),
+    }
+}
+
+fn molecule_from_value(mut value: serde_json::Value) -> Result<Molecule, JsonError> {
+    normalize_integer_numbers(&mut value);
+    let object = value.as_object().ok_or_else(|| JsonError::InvalidJson {
+        message: "molecule must be an object with named fields".into(),
+    })?;
+    let version = object
+        .get("nazuchem_ir")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| JsonError::InvalidJson {
+            message: "nazuchem_ir must be an unsigned integer".into(),
+        })?;
+    if version != IR_VERSION {
+        return Err(JsonError::UnsupportedVersion { version });
+    }
+    check_document_fields(&value)?;
+    serde_json::from_value::<MoleculeDocument>(value)
+        .map_err(json_error)?
+        .into_molecule()
+}
+
+fn check_fields(value: &serde_json::Value, allowed: &[&str], path: &str) -> Result<(), JsonError> {
+    let object = value.as_object().ok_or_else(|| JsonError::InvalidJson {
+        message: format!("{path} must be an object with named fields"),
+    })?;
+    for field in object.keys() {
+        if !allowed.contains(&field.as_str()) {
+            return Err(JsonError::UnknownField {
+                path: path.into(),
+                field: field.clone(),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn check_variant(
+    value: Option<&serde_json::Value>,
+    allowed: &[&str],
+    path: &str,
+) -> Result<(), JsonError> {
+    if let Some(variant) = value.and_then(serde_json::Value::as_str)
+        && !allowed.contains(&variant)
+    {
+        return Err(JsonError::UnknownVariant {
+            path: path.into(),
+            variant: variant.into(),
+        });
+    }
+    Ok(())
+}
+
+fn check_document_fields(value: &serde_json::Value) -> Result<(), JsonError> {
+    check_fields(
+        value,
+        &[
+            "nazuchem_ir",
+            "atoms",
+            "bonds",
+            "stereo",
+            "stereo_groups",
+            "position_variation",
+            "polymers",
+            "parent",
+        ],
+        "$",
+    )?;
+    for collection in [
+        "atoms",
+        "bonds",
+        "stereo",
+        "stereo_groups",
+        "position_variation",
+        "polymers",
+    ] {
+        for (index, item) in value
+            .get(collection)
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .enumerate()
+        {
+            let path = format!("$.{collection}[{index}]");
+            let allowed: &[&str] = match collection {
+                "atoms" => &[
+                    "element",
+                    "isotope",
+                    "charge",
+                    "hydrogens",
+                    "hydrogens_stated",
+                    "radical_electrons",
+                    "label",
+                    "atom_map",
+                    "attachment_point",
+                    "locants",
+                ],
+                "bonds" => &["atoms", "order"],
+                "stereo" => {
+                    check_variant(
+                        item.get("kind"),
+                        &["tetrahedral", "double_bond", "atropisomer"],
+                        &format!("{path}.kind"),
+                    )?;
+                    match item.get("kind").and_then(serde_json::Value::as_str) {
+                        Some("tetrahedral") => &["kind", "center", "neighbors", "winding"],
+                        Some("double_bond") => &["kind", "bond", "refs", "relation"],
+                        Some("atropisomer") => &["kind", "bond", "refs", "winding"],
+                        _ => &["kind"],
+                    }
+                }
+                "stereo_groups" => &["kind", "id", "stereo"],
+                "position_variation" => &["bond", "endpoints"],
+                "polymers" => &[
+                    "atoms",
+                    "crossing_bonds",
+                    "attachment_points",
+                    "connectivity",
+                    "label",
+                ],
+                _ => unreachable!(),
+            };
+            check_fields(item, allowed, &path)?;
+            match collection {
+                "bonds" => check_variant(
+                    item.get("order"),
+                    &["single", "double", "triple", "quadruple"],
+                    &format!("{path}.order"),
+                )?,
+                "stereo" => {
+                    match item.get("kind").and_then(serde_json::Value::as_str) {
+                        Some("tetrahedral") => check_variant(
+                            item.get("winding"),
+                            &["clockwise", "anticlockwise", "unknown"],
+                            &format!("{path}.winding"),
+                        )?,
+                        Some("double_bond") => check_variant(
+                            item.get("relation"),
+                            &["cis", "trans", "unknown"],
+                            &format!("{path}.relation"),
+                        )?,
+                        Some("atropisomer") => check_variant(
+                            item.get("winding"),
+                            &["m", "p", "unknown"],
+                            &format!("{path}.winding"),
+                        )?,
+                        _ => {}
+                    }
+                    for field in ["neighbors", "refs"] {
+                        if item.get("kind").and_then(serde_json::Value::as_str)
+                            == Some("double_bond")
+                        {
+                            continue;
+                        }
+                        for (reference, value) in item
+                            .get(field)
+                            .and_then(serde_json::Value::as_array)
+                            .into_iter()
+                            .flatten()
+                            .enumerate()
+                        {
+                            check_variant(
+                                Some(value),
+                                &["implicit_hydrogen", "lone_pair"],
+                                &format!("{path}.{field}[{reference}]"),
+                            )?;
+                        }
+                    }
+                }
+                "stereo_groups" => {
+                    check_variant(item.get("kind"), &["and", "or"], &format!("{path}.kind"))?
+                }
+                "polymers" => check_variant(
+                    item.get("connectivity"),
+                    &["head_to_tail", "head_to_head", "unknown"],
+                    &format!("{path}.connectivity"),
+                )?,
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(any(test, feature = "schema"))]
 struct VersionOne;
-
 #[cfg(any(test, feature = "schema"))]
 impl JsonSchema for VersionOne {
     fn schema_name() -> Cow<'static, str> {
@@ -581,7 +1168,6 @@ impl JsonSchema for VersionOne {
         json_schema!({ "type": "integer", "const": IR_VERSION })
     }
 }
-
 #[cfg(any(test, feature = "schema"))]
 impl JsonSchema for Molecule {
     fn schema_name() -> Cow<'static, str> {
@@ -592,26 +1178,53 @@ impl JsonSchema for Molecule {
     }
 }
 
-impl Serialize for Molecule {
+// This wrapper is only created after validation. Both public serialization
+// paths validate exactly once while to_json retains its typed validation error.
+struct ValidatedDocument<'a>(&'a Molecule);
+impl Serialize for ValidatedDocument<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.validate().map_err(serde::ser::Error::custom)?;
-        let mut document = serializer.serialize_struct("Molecule", 8)?;
+        let molecule = self.0;
+        let optional_count = [
+            !molecule.stereo.is_empty(),
+            !molecule.stereo_groups.is_empty(),
+            !molecule.position_variation.is_empty(),
+            !molecule.polymers.is_empty(),
+            !molecule.parent.is_empty(),
+        ]
+        .into_iter()
+        .filter(|present| *present)
+        .count();
+        let mut document = serializer.serialize_struct("Molecule", 3 + optional_count)?;
         document.serialize_field("nazuchem_ir", &IR_VERSION)?;
-        document.serialize_field("atoms", &self.atoms)?;
-        document.serialize_field("bonds", &self.bonds)?;
-        document.serialize_field("stereo", &self.stereo)?;
-        document.serialize_field("stereo_groups", &self.stereo_groups)?;
-        document.serialize_field("position_variation", &self.position_variation)?;
-        document.serialize_field("polymers", &self.polymers)?;
-        document.serialize_field("parent", &self.parent)?;
+        document.serialize_field("atoms", &molecule.atoms)?;
+        document.serialize_field("bonds", &molecule.bonds)?;
+        if !molecule.stereo.is_empty() {
+            document.serialize_field("stereo", &molecule.stereo)?;
+        }
+        if !molecule.stereo_groups.is_empty() {
+            document.serialize_field("stereo_groups", &molecule.stereo_groups)?;
+        }
+        if !molecule.position_variation.is_empty() {
+            document.serialize_field("position_variation", &molecule.position_variation)?;
+        }
+        if !molecule.polymers.is_empty() {
+            document.serialize_field("polymers", &molecule.polymers)?;
+        }
+        if !molecule.parent.is_empty() {
+            document.serialize_field("parent", &molecule.parent)?;
+        }
         document.end()
     }
 }
-
+impl Serialize for Molecule {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.validate().map_err(serde::ser::Error::custom)?;
+        ValidatedDocument(self).serialize(serializer)
+    }
+}
 impl<'de> Deserialize<'de> for Molecule {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        MoleculeDocument::deserialize(deserializer)?
-            .into_molecule()
+        molecule_from_value(serde_json::Value::deserialize(deserializer)?)
             .map_err(serde::de::Error::custom)
     }
 }
@@ -622,8 +1235,25 @@ mod tests {
 
     #[test]
     fn published_schema_matches_the_derived_wire_document() {
-        let published: serde_json::Value = serde_json::from_str(JSON_SCHEMA).unwrap();
         let generated = serde_json::to_value(json_schema()).unwrap();
+        if std::env::var_os("UPDATE_NAZUCHEM_IR_SCHEMA").is_some() {
+            std::fs::write(
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/schema/nazuchem-ir-1.schema.json"
+                ),
+                format!("{}\n", serde_json::to_string_pretty(&generated).unwrap()),
+            )
+            .unwrap();
+        }
+        let published: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/schema/nazuchem-ir-1.schema.json"
+            ))
+            .unwrap(),
+        )
+        .unwrap();
         assert_eq!(published, generated);
     }
 }

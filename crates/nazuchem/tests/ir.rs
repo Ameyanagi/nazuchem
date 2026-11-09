@@ -17,7 +17,7 @@ fn facade_returns_ethanol_ir_with_parent_locants_and_json_roundtrip() {
         [Some("1".into()), Some("2".into()), None]
     );
     assert_eq!(
-        molecule.semantic_cxsmiles().unwrap(),
+        molecule.to_cxsmiles().unwrap().split(" |").next().unwrap(),
         name_to_smiles("ethanol").unwrap()
     );
     let restored = Molecule::from_json(&molecule.to_json().unwrap()).unwrap();
@@ -48,15 +48,22 @@ fn strict_ir_facade_preserves_warning_and_parse_error_classification() {
 }
 
 #[test]
-fn axial_ir_rejection_is_typed_and_classified_as_facade_serialization_error() {
+fn axial_ir_is_available_through_the_facade() {
     let name = "(1M)-[1,1'-binaphthalene]-2,2'-diol";
     let parsed = n2s::Parser::new()
         .unwrap()
         .parse(name, &n2s::ParseOptions::strict());
     assert_eq!(parsed.status, n2s::Status::Success, "{}", parsed.message);
-    let unsupported = parsed.structure.unwrap().to_ir().unwrap_err();
-    assert!(matches!(unsupported, n2s::IrError::UnsupportedAxialStereo));
-    let error = name_to_molecule(name).unwrap_err();
-    assert_eq!(error.kind(), ErrorKind::Serialize);
-    assert_eq!(error.to_string(), unsupported.to_string());
+    let molecule = name_to_molecule(name).unwrap();
+    assert_eq!(molecule, parsed.structure.unwrap().to_ir().unwrap());
+    assert!(
+        molecule
+            .stereo
+            .iter()
+            .any(|stereo| matches!(stereo, nazuchem::Stereo::Atropisomer { .. }))
+    );
+    assert_eq!(
+        Molecule::from_json(&molecule.to_json().unwrap()).unwrap(),
+        molecule
+    );
 }

@@ -1,94 +1,48 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Molecule",
-  "type": "object",
-  "properties": {
-    "atoms": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/Atom"
-      }
-    },
-    "bonds": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/Bond"
-      }
-    },
-    "nazuchem_ir": {
-      "type": "integer",
-      "const": 1
-    },
-    "parent": {
-      "type": "array",
-      "items": {
-        "type": "integer",
-        "format": "uint32",
-        "maximum": 4294967295,
-        "minimum": 0
-      },
-      "uniqueItems": true
-    },
-    "polymers": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/RepeatUnit"
-      }
-    },
-    "position_variation": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/PositionVariation"
-      }
-    },
-    "stereo": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/Stereo"
-      }
-    },
-    "stereo_groups": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/StereoGroup"
-      }
-    }
-  },
-  "additionalProperties": false,
-  "required": [
-    "nazuchem_ir",
-    "atoms",
-    "bonds",
-    "stereo",
-    "stereo_groups",
-    "position_variation",
-    "polymers",
-    "parent"
-  ],
   "$defs": {
     "Atom": {
+      "additionalProperties": false,
       "description": "An atom with its stated hydrogen origin, locants, and attachment label.",
-      "type": "object",
       "properties": {
+        "atom_map": {
+          "description": "An explicit SMILES atom-map number, independent of text labels.",
+          "format": "uint32",
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "attachment_point": {
+          "description": "A numbered wildcard attachment, corresponding to OPSIN `_AP{n}`.",
+          "format": "uint32",
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "charge": {
-          "type": "integer",
           "format": "int8",
           "maximum": 127,
-          "minimum": -128
+          "minimum": -128,
+          "type": "integer"
         },
         "element": {
           "description": "Atomic number; zero denotes a wildcard or attachment point.",
-          "type": "integer",
           "format": "uint8",
           "maximum": 118,
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         },
         "hydrogens": {
           "description": "Hydrogen atoms not represented as graph vertices.",
-          "type": "integer",
           "format": "uint8",
           "maximum": 255,
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         },
         "hydrogens_stated": {
           "description": "Distinguishes explicitly stated counts such as `[CH4]` from inferred `C`.",
@@ -96,13 +50,13 @@
         },
         "isotope": {
           "description": "Isotope mass number. Isotopic hydrogen is an atom, never a count.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 1,
           "type": [
             "integer",
             "null"
-          ],
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 1
+          ]
         },
         "label": {
           "type": [
@@ -112,183 +66,169 @@
         },
         "locants": {
           "description": "All name locants, in name order. Parent membership controls display.",
-          "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "type": "array"
         },
         "radical_electrons": {
-          "type": "integer",
           "format": "uint8",
           "maximum": 255,
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         }
       },
-      "additionalProperties": false,
       "required": [
         "element",
         "charge",
         "hydrogens",
         "hydrogens_stated",
-        "radical_electrons",
-        "locants"
-      ]
+        "radical_electrons"
+      ],
+      "type": "object"
+    },
+    "AxialWinding": {
+      "description": "Axis winding relative to its ordered references, independent of CIP ranking.\n\nLook along `bond.atoms[0]` toward `bond.atoms[1]`. The first reference pair is\nattached to the near end, the second to the far end. `P` means the shortest\nturn from the projection of `refs[0]` to `refs[2]` is clockwise; `M` means\nanticlockwise. Swapping either pair reverses winding. Reversing the bond and\nexchanging the two pairs preserves winding. The values are M/P-equivalent\nonly for this reference order; no ligand priorities are inferred.",
+      "enum": [
+        "m",
+        "p",
+        "unknown"
+      ],
+      "type": "string"
     },
     "Bond": {
+      "additionalProperties": false,
       "description": "A localized bond; endpoint order defines double-bond references and the position-variation attachment end.",
-      "type": "object",
       "properties": {
         "atoms": {
-          "type": "array",
           "items": {
-            "type": "integer",
             "format": "uint32",
             "maximum": 4294967295,
-            "minimum": 0
+            "minimum": 0,
+            "type": "integer"
           },
           "maxItems": 2,
           "minItems": 2,
+          "type": "array",
           "uniqueItems": true
         },
         "order": {
           "$ref": "#/$defs/BondOrder"
         }
       },
-      "additionalProperties": false,
       "required": [
         "atoms",
         "order"
-      ]
+      ],
+      "type": "object"
     },
     "BondOrder": {
-      "type": "string",
       "enum": [
         "single",
         "double",
         "triple",
         "quadruple"
-      ]
+      ],
+      "type": "string"
     },
     "Connectivity": {
-      "type": "string",
       "enum": [
         "head_to_tail",
         "head_to_head",
         "unknown"
-      ]
+      ],
+      "type": "string"
     },
     "PositionVariation": {
+      "additionalProperties": false,
       "description": "Possible attachment endpoints for a position-variation bond.",
-      "type": "object",
       "properties": {
         "bond": {
-          "type": "integer",
           "format": "uint32",
           "maximum": 4294967295,
-          "minimum": 0
+          "minimum": 0,
+          "type": "integer"
         },
         "endpoints": {
-          "type": "array",
           "items": {
-            "type": "integer",
             "format": "uint32",
             "maximum": 4294967295,
-            "minimum": 0
+            "minimum": 0,
+            "type": "integer"
           },
           "minItems": 1,
+          "type": "array",
           "uniqueItems": true
         }
       },
-      "additionalProperties": false,
       "required": [
         "bond",
         "endpoints"
-      ]
+      ],
+      "type": "object"
     },
     "Ref": {
-      "description": "An ordered tetrahedral reference, including non-vertex ligands.",
-      "oneOf": [
+      "anyOf": [
         {
-          "type": "object",
-          "properties": {
-            "atom": {
-              "type": "integer",
-              "format": "uint32",
-              "maximum": 4294967295,
-              "minimum": 0
-            },
-            "kind": {
-              "type": "string",
-              "const": "atom"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "kind",
-            "atom"
-          ]
+          "format": "uint32",
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
         },
         {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "implicit_hydrogen"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "lone_pair"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "kind"
-          ]
+          "enum": [
+            "implicit_hydrogen",
+            "lone_pair"
+          ],
+          "type": "string"
         }
       ]
     },
     "Relation": {
-      "type": "string",
       "enum": [
         "cis",
-        "trans"
-      ]
+        "trans",
+        "unknown"
+      ],
+      "type": "string"
     },
     "RepeatUnit": {
+      "additionalProperties": false,
       "description": "A repeating unit, including its bonds to atoms outside the unit.",
-      "type": "object",
       "properties": {
         "atoms": {
-          "type": "array",
           "items": {
-            "type": "integer",
             "format": "uint32",
             "maximum": 4294967295,
-            "minimum": 0
+            "minimum": 0,
+            "type": "integer"
           },
           "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "attachment_points": {
+          "description": "External wildcard atom identities that represent polymer end roles.",
+          "items": {
+            "format": "uint32",
+            "maximum": 4294967295,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array",
           "uniqueItems": true
         },
         "connectivity": {
           "$ref": "#/$defs/Connectivity"
         },
         "crossing_bonds": {
-          "type": "array",
           "items": {
-            "type": "integer",
             "format": "uint32",
             "maximum": 4294967295,
-            "minimum": 0
+            "minimum": 0,
+            "type": "integer"
           },
+          "type": "array",
           "uniqueItems": true
         },
         "label": {
@@ -298,185 +238,258 @@
           ]
         }
       },
-      "additionalProperties": false,
       "required": [
         "atoms",
-        "crossing_bonds",
         "connectivity"
-      ]
+      ],
+      "type": "object"
     },
     "Stereo": {
-      "description": "Ordered structural stereochemistry, independent of CIP assignment.\n\n`known: false` records unknown (wavy/ξ) stereochemistry. An absent entry means\nunspecified stereochemistry. In a double-bond entry, `refs[i]` is attached\nto `bonds[bond].atoms[i]`.",
+      "description": "Ordered structural stereochemistry, independent of CIP assignment.\n\nUnknown winding/relation records stated unknown (wavy/ξ) stereochemistry;\nan absent entry means unspecified stereochemistry. For a double bond,\n`refs[i]` is attached to `bonds[bond].atoms[i]`. For an atropisomer,\n`refs[0..2]` are attached to the first bond end and `refs[2..4]` to the second.",
       "oneOf": [
         {
-          "type": "object",
+          "additionalProperties": false,
           "properties": {
             "center": {
-              "type": "integer",
               "format": "uint32",
               "maximum": 4294967295,
-              "minimum": 0
+              "minimum": 0,
+              "type": "integer"
             },
             "kind": {
-              "type": "string",
-              "const": "tetrahedral"
-            },
-            "known": {
-              "type": "boolean"
+              "const": "tetrahedral",
+              "type": "string"
             },
             "neighbors": {
-              "type": "array",
               "items": {
                 "$ref": "#/$defs/Ref"
               },
               "maxItems": 4,
               "minItems": 4,
+              "type": "array",
               "uniqueItems": true
             },
             "winding": {
               "$ref": "#/$defs/Winding"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "center",
             "neighbors",
-            "winding",
-            "known"
-          ]
+            "winding"
+          ],
+          "type": "object"
         },
         {
-          "type": "object",
+          "additionalProperties": false,
           "properties": {
             "bond": {
-              "type": "integer",
               "format": "uint32",
               "maximum": 4294967295,
-              "minimum": 0
+              "minimum": 0,
+              "type": "integer"
             },
             "kind": {
-              "type": "string",
-              "const": "double_bond"
-            },
-            "known": {
-              "type": "boolean"
+              "const": "double_bond",
+              "type": "string"
             },
             "refs": {
-              "type": "array",
               "items": {
-                "type": "integer",
                 "format": "uint32",
                 "maximum": 4294967295,
-                "minimum": 0
+                "minimum": 0,
+                "type": "integer"
               },
               "maxItems": 2,
               "minItems": 2,
+              "type": "array",
               "uniqueItems": true
             },
             "relation": {
               "$ref": "#/$defs/Relation"
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
             "bond",
             "refs",
-            "relation",
-            "known"
-          ]
+            "relation"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bond": {
+              "format": "uint32",
+              "maximum": 4294967295,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "atropisomer",
+              "type": "string"
+            },
+            "refs": {
+              "items": {
+                "$ref": "#/$defs/Ref"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "winding": {
+              "$ref": "#/$defs/AxialWinding"
+            }
+          },
+          "required": [
+            "kind",
+            "bond",
+            "refs",
+            "winding"
+          ],
+          "type": "object"
         }
       ]
     },
     "StereoGroup": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "$ref": "#/$defs/StereoGroupKind"
-        },
-        "stereo": {
-          "description": "Indices into [`Molecule::stereo`], rather than atom indices.",
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "format": "uint32",
-            "maximum": 4294967295,
-            "minimum": 0
-          },
-          "minItems": 1,
-          "uniqueItems": true
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "kind",
-        "stereo"
-      ]
-    },
-    "StereoGroupKind": {
       "oneOf": [
         {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "abs"
-            }
-          },
           "additionalProperties": false,
-          "required": [
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
           "properties": {
             "id": {
-              "type": "integer",
               "format": "uint32",
               "maximum": 4294967295,
-              "minimum": 0
+              "minimum": 0,
+              "type": "integer"
             },
             "kind": {
-              "type": "string",
-              "const": "and"
+              "const": "and",
+              "type": "string"
+            },
+            "stereo": {
+              "items": {
+                "format": "uint32",
+                "maximum": 4294967295,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
-            "id"
-          ]
+            "id",
+            "stereo"
+          ],
+          "type": "object"
         },
         {
-          "type": "object",
+          "additionalProperties": false,
           "properties": {
             "id": {
-              "type": "integer",
               "format": "uint32",
               "maximum": 4294967295,
-              "minimum": 0
+              "minimum": 0,
+              "type": "integer"
             },
             "kind": {
-              "type": "string",
-              "const": "or"
+              "const": "or",
+              "type": "string"
+            },
+            "stereo": {
+              "items": {
+                "format": "uint32",
+                "maximum": 4294967295,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
             }
           },
-          "additionalProperties": false,
           "required": [
             "kind",
-            "id"
-          ]
+            "id",
+            "stereo"
+          ],
+          "type": "object"
         }
       ]
     },
     "Winding": {
-      "type": "string",
+      "description": "Tetrahedral winding, viewed from `neighbors[0]` toward the center.\n\n`Clockwise` means `neighbors[1]`, `neighbors[2]`, `neighbors[3]` occur in\nclockwise order in that view; `Anticlockwise` means the reverse order.\n`Unknown` records explicitly unknown configuration. No stereo entry means\nunspecified configuration.",
       "enum": [
         "clockwise",
-        "anticlockwise"
-      ]
+        "anticlockwise",
+        "unknown"
+      ],
+      "type": "string"
     }
-  }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "atoms": {
+      "items": {
+        "$ref": "#/$defs/Atom"
+      },
+      "type": "array"
+    },
+    "bonds": {
+      "items": {
+        "$ref": "#/$defs/Bond"
+      },
+      "type": "array"
+    },
+    "nazuchem_ir": {
+      "const": 1,
+      "type": "integer"
+    },
+    "parent": {
+      "items": {
+        "format": "uint32",
+        "maximum": 4294967295,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "polymers": {
+      "items": {
+        "$ref": "#/$defs/RepeatUnit"
+      },
+      "type": "array"
+    },
+    "position_variation": {
+      "items": {
+        "$ref": "#/$defs/PositionVariation"
+      },
+      "type": "array"
+    },
+    "stereo": {
+      "items": {
+        "$ref": "#/$defs/Stereo"
+      },
+      "type": "array"
+    },
+    "stereo_groups": {
+      "items": {
+        "$ref": "#/$defs/StereoGroup"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "nazuchem_ir",
+    "atoms",
+    "bonds"
+  ],
+  "title": "Molecule",
+  "type": "object"
 }

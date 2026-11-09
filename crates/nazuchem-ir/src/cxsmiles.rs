@@ -2,12 +2,12 @@
 // Origin: original
 // Source: Nazuchem | crates/nazuchem-ir/src/cxsmiles.rs | Phase B step 8a
 // Copyright (c) 2026 Ameyanagi and Nazuchem contributors
-// Changes: deterministic IR v1 SMILES traversal and lossless CXSMILES projection.
+// Changes: deterministic IR v1 SMILES traversal and conservative CXSMILES projection.
 
 //! Deterministic, perception-free CXSMILES export.
 //!
-//! See `docs/cxsmiles.md` for the standard extension mapping and the versioned
-//! `nazuchem*` atom properties that preserve information beyond standard CXSMILES.
+//! CXSMILES is a convenience view; versioned IR JSON is the lossless contract.
+//! See `docs/cxsmiles.md` for standard extensions and the two locant properties.
 //! Traversal and the compatibility projection follow the observable conventions
 //! of the existing OPSIN writer, but this module is an original implementation:
 //! no OPSIN implementation is included or copied here.
@@ -22,62 +22,82 @@ use std::fmt;
 /// A structure validation or serialization error.
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum CxSmilesError {
+pub enum CxsmilesError {
     InvalidStructure(ValidationError),
-    Metadata(serde_json::Error),
     ContradictoryStereo,
+    /// Standard CXSMILES cannot retain the stated stereo without changing it
+    /// or asserting a configuration absent from the IR.
+    StereoNotExpressible,
 }
 
-impl fmt::Display for CxSmilesError {
+/// Compatibility spelling; new code should use [`CxsmilesError`].
+pub type CxSmilesError = CxsmilesError;
+
+impl fmt::Display for CxsmilesError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidStructure(error) => write!(f, "invalid structure: {error}"),
-            Self::Metadata(error) => write!(f, "cannot encode CXSMILES metadata: {error}"),
             Self::ContradictoryStereo => f.write_str("contradictory double bond stereochemistry"),
+            Self::StereoNotExpressible => {
+                f.write_str("stereochemistry cannot be expressed in standard CXSMILES")
+            }
         }
     }
 }
 
-impl std::error::Error for CxSmilesError {
+impl std::error::Error for CxsmilesError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::InvalidStructure(error) => Some(error),
-            Self::Metadata(error) => Some(error),
-            Self::ContradictoryStereo => None,
+            Self::ContradictoryStereo | Self::StereoNotExpressible => None,
         }
     }
 }
 
-impl From<ValidationError> for CxSmilesError {
+impl From<ValidationError> for CxsmilesError {
     fn from(error: ValidationError) -> Self {
         Self::InvalidStructure(error)
     }
 }
 
-impl From<serde_json::Error> for CxSmilesError {
-    fn from(error: serde_json::Error) -> Self {
-        Self::Metadata(error)
-    }
-}
-
 impl Molecule {
-    /// Export a lossless CXSMILES view of this IR, retaining atom identities,
-    /// complete locants, hydrogen origin, and exact ordered graph annotations.
+    /// Export a deterministic standard CXSMILES convenience view.
     ///
-    /// Losslessness requires preserving the documented `nazuchem*` properties;
-    /// consumers that discard arbitrary atom properties keep the standard
-    /// chemical projection but cannot reconstruct every IR field.
-    pub fn to_cxsmiles(&self) -> Result<String, CxSmilesError> {
+    /// First locants are atom values; custom properties retain all locants and
+    /// parent membership. Use IR JSON to preserve every IR distinction.
+    /// Unrepresentable stereo returns a typed error rather than changing it.
+    pub fn to_cxsmiles(&self) -> Result<String, CxsmilesError> {
         Writer::new(self)?.write(false)
     }
 
     /// Export the legacy OPSIN semantic projection, without locants, hydrogen
-    /// origin, explicit radical layers, or IR-specific metadata.
+    /// origin, explicit radical layers, or locant properties. Test support only.
     ///
     /// This is deterministic, not canonical. Atom order, ring numbering and
     /// globally equivalent slash directions can differ from other writers.
-    pub fn semantic_cxsmiles(&self) -> Result<String, CxSmilesError> {
-        Writer::new(self)?.write(true)
+    #[cfg(any(test, feature = "test-support"))]
+    #[doc(hidden)]
+    pub fn semantic_cxsmiles_for_tests(&self) -> Result<String, CxsmilesError> {
+        self.semantic_cxsmiles_with_atom_order_for_tests()
+            .map(|(text, _)| text)
+    }
+
+    /// Test-only compatibility text and the original IR identities of its
+    /// emitted atoms. Ordinary unannotated terminal H vertices may be folded
+    /// into counts; the source molecule and public CXSMILES view are unchanged.
+    #[cfg(any(test, feature = "test-support"))]
+    #[doc(hidden)]
+    pub fn semantic_cxsmiles_with_atom_order_for_tests(
+        &self,
+    ) -> Result<(String, Vec<u32>), CxsmilesError> {
+        let (projection, identities) = compatibility_projection(self)?;
+        let writer = Writer::new(&projection)?;
+        let order = writer
+            .order
+            .iter()
+            .map(|&atom| identities[atom as usize])
+            .collect();
+        Ok((writer.write(true)?, order))
     }
 
     /// The first locant of each principal-parent atom, in IR identity order.
@@ -96,8 +116,8 @@ impl Molecule {
             .collect()
     }
 
-    /// IR atom identities in the order used by both CXSMILES projections.
-    pub fn smiles_atom_order(&self) -> Result<Vec<u32>, CxSmilesError> {
+    /// IR atom identities in the order used by the public CXSMILES projection.
+    pub fn smiles_atom_order(&self) -> Result<Vec<u32>, CxsmilesError> {
         Ok(Writer::new(self)?.order)
     }
 }
@@ -114,10 +134,11 @@ struct Writer<'a> {
     bond_index: Vec<usize>,
     bond_to: Vec<u32>,
     directions: Vec<Option<bool>>,
+    unknown_tetra_bonds: Vec<Option<usize>>,
 }
 
 impl<'a> Writer<'a> {
-    fn new(molecule: &'a Molecule) -> Result<Self, CxSmilesError> {
+    fn new(molecule: &'a Molecule) -> Result<Self, CxsmilesError> {
         molecule.validate()?;
         let count = molecule.atoms.len();
         let mut writer = Self {
@@ -132,6 +153,7 @@ impl<'a> Writer<'a> {
             bond_index: vec![usize::MAX; molecule.bonds.len()],
             bond_to: vec![0; molecule.bonds.len()],
             directions: vec![None; molecule.bonds.len()],
+            unknown_tetra_bonds: vec![None; count],
         };
         for (id, bond) in molecule.bonds.iter().enumerate() {
             for &atom in &bond.atoms {
@@ -214,7 +236,96 @@ impl<'a> Writer<'a> {
             .find(|&bond| self.other(bond, first) == second)
     }
 
-    fn assign_directions(&mut self, semantic: bool) -> Result<(), CxSmilesError> {
+    fn validate_projection(&self) -> Result<(), CxsmilesError> {
+        for stereo in &self.molecule.stereo {
+            match stereo {
+                Stereo::Tetrahedral {
+                    center, winding, ..
+                } if *winding != Winding::Unknown && self.parity(*center).is_empty() => {
+                    return Err(CxsmilesError::StereoNotExpressible);
+                }
+                // No portable standard CXSMILES encoding is implemented for
+                // ordered axial references, including explicit unknown axes.
+                // JSON retains the exact IR record.
+                Stereo::Atropisomer { .. } => {
+                    return Err(CxsmilesError::StereoNotExpressible);
+                }
+                _ => {}
+            }
+        }
+        for group in &self.molecule.stereo_groups {
+            if group.stereo.iter().any(|&entry| {
+                !matches!(
+                    self.molecule.stereo[entry as usize],
+                    Stereo::Tetrahedral { winding, .. } if winding != Winding::Unknown
+                )
+            }) {
+                // CX enhanced groups identify tetrahedral atom centres, not
+                // arbitrary stereo records or unknown configurations.
+                return Err(CxsmilesError::StereoNotExpressible);
+            }
+        }
+        Ok(())
+    }
+
+    fn assign_unknown_tetra_bonds(&mut self) -> Result<(), CxsmilesError> {
+        // A CX wavy bond can identify only one unknown tetrahedral centre.
+        // Find an injective centre-to-bond matching instead of choosing each
+        // centre's first bond independently. Alternating paths can move a
+        // previously assigned centre to another carrier when needed.
+        self.unknown_tetra_bonds.fill(None);
+        let mut owner: Vec<Option<usize>> = vec![None; self.molecule.bonds.len()];
+        for stereo in &self.molecule.stereo {
+            let Stereo::Tetrahedral {
+                center: root,
+                winding: Winding::Unknown,
+                ..
+            } = stereo
+            else {
+                continue;
+            };
+            let root = *root as usize;
+            let mut seen = vec![false; self.molecule.atoms.len()];
+            let mut previous = vec![None; self.molecule.atoms.len()];
+            let mut queue = VecDeque::from([root]);
+            seen[root] = true;
+            let mut free = None;
+            'search: while let Some(center) = queue.pop_front() {
+                for &bond in &self.adjacent[center] {
+                    if self.molecule.bonds[bond].order != BondOrder::Single
+                        || self.directions[bond].is_some()
+                    {
+                        continue;
+                    }
+                    if let Some(other) = owner[bond] {
+                        if !seen[other] {
+                            seen[other] = true;
+                            previous[other] = Some((center, bond));
+                            queue.push_back(other);
+                        }
+                    } else {
+                        free = Some((center, bond));
+                        break 'search;
+                    }
+                }
+            }
+            let (mut center, mut bond) = free.ok_or(CxsmilesError::StereoNotExpressible)?;
+            loop {
+                owner[bond] = Some(center);
+                self.unknown_tetra_bonds[center] = Some(bond);
+                match previous[center] {
+                    Some((prior, contested)) => {
+                        center = prior;
+                        bond = contested;
+                    }
+                    None => break,
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn assign_directions(&mut self) -> Result<(), CxsmilesError> {
         // Slash directions form binary parity constraints. Solving the whole
         // connected constraint component also handles conjugated systems.
         let mut equations = vec![Vec::new(); self.molecule.bonds.len()];
@@ -229,8 +340,7 @@ impl<'a> Writer<'a> {
                     bond,
                     refs,
                     relation,
-                    known: true,
-                } => Some((*bond as usize, *refs, *relation)),
+                } if *relation != Relation::Unknown => Some((*bond as usize, *refs, *relation)),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -244,9 +354,7 @@ impl<'a> Writer<'a> {
                 .iter()
                 .any(|&bond| self.molecule.bonds[bond].order != BondOrder::Single)
             {
-                // Exact references remain in metadata; cumulene-like records
-                // have no direct slash encoding in the v1 stereo vocabulary.
-                continue;
+                return Err(CxsmilesError::StereoNotExpressible);
             }
             let first_flip = self.bond_to[first] != endpoints[0];
             let second_flip = self.bond_to[second] != refs[1];
@@ -260,6 +368,9 @@ impl<'a> Writer<'a> {
                     .copied()
                     .filter(|&bond| bond != central && bond != primary)
                     .collect::<Vec<_>>();
+                if others.len() > 1 {
+                    return Err(CxsmilesError::StereoNotExpressible);
+                }
                 if let [other] = others.as_slice()
                     && self.molecule.bonds[*other].order == BondOrder::Single
                 {
@@ -283,13 +394,7 @@ impl<'a> Writer<'a> {
                     let expected = direction ^ parity;
                     match self.directions[other] {
                         Some(existing) if existing != expected => {
-                            if semantic {
-                                return Err(CxSmilesError::ContradictoryStereo);
-                            }
-                            // The exact incompatible records are still lossless
-                            // in metadata; avoid falsely asserting a stereo view.
-                            self.directions.fill(None);
-                            return Ok(());
+                            return Err(CxsmilesError::ContradictoryStereo);
                         }
                         Some(_) => {}
                         None => {
@@ -300,6 +405,7 @@ impl<'a> Writer<'a> {
                 }
             }
         }
+        let original = self.directions.clone();
         // Avoid accidentally specifying an otherwise unspecified double bond
         // using redundant marks introduced by neighbouring stereocentres.
         let mut bonds = (0..self.molecule.bonds.len()).collect::<Vec<_>>();
@@ -337,7 +443,67 @@ impl<'a> Writer<'a> {
                 }
             }
         }
+        if self.slashes_match(&specified) {
+            return Ok(());
+        }
+        // Greedy pruning keeps the established spelling when it works. When
+        // its local choices fail, solve the complete mark-presence problem:
+        // every known double bond needs a mark at each end, and every absent
+        // or unknown double bond must have an unmarked end. Each known end
+        // has at most two single bonds, so these are exactly 2-SAT clauses.
+        self.directions = original;
+        let mut clauses = Vec::new();
+        for (central, bond) in self.molecule.bonds.iter().enumerate() {
+            if bond.order != BondOrder::Double {
+                continue;
+            }
+            let marked = bond.atoms.map(|atom| self.marked_at(atom));
+            if specified[central] {
+                for side in marked {
+                    match side.as_slice() {
+                        [first] => clauses.push(((*first, true), (*first, true))),
+                        [first, second] => clauses.push(((*first, true), (*second, true))),
+                        _ => return Err(CxsmilesError::StereoNotExpressible),
+                    }
+                }
+            } else {
+                for &first in &marked[0] {
+                    for &second in &marked[1] {
+                        clauses.push(((first, false), (second, false)));
+                    }
+                }
+            }
+        }
+        let chosen = solve_marks(self.directions.len(), &clauses)
+            .ok_or(CxsmilesError::StereoNotExpressible)?;
+        for (direction, selected) in self.directions.iter_mut().zip(chosen) {
+            if !selected {
+                *direction = None;
+            }
+        }
+        if !self.slashes_match(&specified) {
+            return Err(CxsmilesError::StereoNotExpressible);
+        }
         Ok(())
+    }
+
+    fn marked_at(&self, atom: u32) -> Vec<usize> {
+        self.adjacent[atom as usize]
+            .iter()
+            .copied()
+            .filter(|&bond| self.directions[bond].is_some())
+            .collect()
+    }
+
+    fn slashes_match(&self, specified: &[bool]) -> bool {
+        self.molecule.bonds.iter().enumerate().all(|(id, bond)| {
+            bond.order != BondOrder::Double
+                || bond
+                    .atoms
+                    .iter()
+                    .all(|&atom| !self.marked_at(atom).is_empty())
+                    == specified[id]
+        })
     }
 
     fn bond_text(&self, bond: usize) -> &'static str {
@@ -353,8 +519,10 @@ impl<'a> Writer<'a> {
         }
     }
 
-    fn write(mut self, semantic: bool) -> Result<String, CxSmilesError> {
-        self.assign_directions(semantic)?;
+    fn write(mut self, semantic: bool) -> Result<String, CxsmilesError> {
+        self.assign_directions()?;
+        self.assign_unknown_tetra_bonds()?;
+        self.validate_projection()?;
         let mut output = String::new();
         let mut closure_ids = vec![None; self.molecule.bonds.len()];
         let mut available = (1..=99).chain(std::iter::once(0)).collect::<VecDeque<_>>();
@@ -435,23 +603,22 @@ impl<'a> Writer<'a> {
         Ok(output)
     }
 
-    fn tetrahedral(&self, atom: u32) -> Option<(&[Ref; 4], Winding, bool)> {
+    fn tetrahedral(&self, atom: u32) -> Option<(&[Ref; 4], Winding)> {
         self.molecule.stereo.iter().find_map(|stereo| match stereo {
             Stereo::Tetrahedral {
                 center,
                 neighbors,
                 winding,
-                known,
-            } if *center == atom => Some((neighbors, *winding, *known)),
+            } if *center == atom => Some((neighbors, *winding)),
             _ => None,
         })
     }
 
-    fn parity(&self, atom: u32, semantic: bool) -> &'static str {
-        let Some((stored, winding, known)) = self.tetrahedral(atom) else {
+    fn parity(&self, atom: u32) -> &'static str {
+        let Some((stored, winding)) = self.tetrahedral(atom) else {
             return "";
         };
-        if !semantic && !known {
+        if winding == Winding::Unknown {
             return "";
         }
         let mut current = Vec::with_capacity(4);
@@ -459,8 +626,8 @@ impl<'a> Writer<'a> {
             current.push(Ref::Atom(self.other(parent, atom)));
         }
         // A virtual ligand is first at a root, or follows the incoming atom.
-        // SMILES has one implicit ligand slot; exact exotic records containing
-        // two virtual ligands are carried by the metadata instead.
+        // SMILES has only one implicit ligand slot; preflight rejects known
+        // stereo records requiring more than one virtual ligand.
         let virtuals = stored
             .iter()
             .filter(|reference| !matches!(reference, Ref::Atom(_)));
@@ -532,13 +699,15 @@ impl<'a> Writer<'a> {
             .unwrap_or(bonds);
         let described =
             expected.contains(&total) || expected.last().is_some_and(|&last| total > last);
-        let parity = self.parity(atom, semantic);
-        let polymer_class = if semantic {
+        let parity = self.parity(atom);
+        let atom_map = if semantic {
             self.polymer_class(atom)
+                .map(|value| value as u32)
+                .or(a.atom_map)
         } else {
-            None
+            a.atom_map
         };
-        let brackets = polymer_class.is_some()
+        let brackets = atom_map.is_some()
             || expected.is_empty()
             || !described
             || total != implicit
@@ -572,7 +741,7 @@ impl<'a> Writer<'a> {
                 text.push_str(&charge.to_string());
             }
         }
-        if let Some(class) = polymer_class {
+        if let Some(class) = atom_map {
             text.push(':');
             text.push_str(&class.to_string());
         }
@@ -583,23 +752,13 @@ impl<'a> Writer<'a> {
     }
 
     fn polymer_class(&self, atom: u32) -> Option<usize> {
-        if self.molecule.atoms[atom as usize].label.as_deref() != Some("star_e") {
-            return None;
-        }
-        let points = self
+        let mut unique = Vec::new();
+        for &point in self
             .molecule
             .polymers
             .iter()
-            .flat_map(|unit| &unit.crossing_bonds)
-            .filter_map(|&bond| {
-                self.molecule.bonds[bond as usize]
-                    .atoms
-                    .into_iter()
-                    .find(|&id| self.molecule.atoms[id as usize].label.as_deref() == Some("star_e"))
-            })
-            .collect::<Vec<_>>();
-        let mut unique = Vec::new();
-        for point in points {
+            .flat_map(|unit| &unit.attachment_points)
+        {
             if !unique.contains(&point) {
                 unique.push(point);
             }
@@ -610,18 +769,25 @@ impl<'a> Writer<'a> {
             .map(|index| index + 1)
     }
 
-    fn layers(&self, semantic: bool) -> Result<Vec<String>, CxSmilesError> {
+    fn label(&self, atom: u32) -> String {
+        let atom_data = &self.molecule.atoms[atom as usize];
+        if let Some(label) = &atom_data.label {
+            escape_label(label)
+        } else if self.polymer_class(atom).is_some() {
+            "star_e".into()
+        } else if let Some(point) = atom_data.attachment_point {
+            format!("_AP{point}")
+        } else {
+            String::new()
+        }
+    }
+
+    fn layers(&self, semantic: bool) -> Result<Vec<String>, CxsmilesError> {
         let mut layers = Vec::new();
         let labels = self
             .order
             .iter()
-            .map(|&id| {
-                self.molecule.atoms[id as usize]
-                    .label
-                    .as_deref()
-                    .map(escape_label)
-                    .unwrap_or_default()
-            })
+            .map(|&id| self.label(id))
             .collect::<Vec<_>>();
         if let Some(last) = labels.iter().rposition(|label| !label.is_empty()) {
             layers.push(format!("${}$", labels[..=last].join(";")));
@@ -663,8 +829,10 @@ impl<'a> Writer<'a> {
                     .stereo
                     .iter()
                     .filter_map(|&entry| match &self.molecule.stereo[entry as usize] {
-                        Stereo::Tetrahedral { center, .. } => Some(self.index[*center as usize]),
-                        Stereo::DoubleBond { .. } => None,
+                        Stereo::Tetrahedral {
+                            center, winding, ..
+                        } if *winding != Winding::Unknown => Some(self.index[*center as usize]),
+                        _ => None,
                     })
                     .collect::<Vec<_>>();
                 atoms.sort_unstable();
@@ -675,7 +843,6 @@ impl<'a> Writer<'a> {
         groups.sort_by(|first, second| first.1.cmp(&second.1));
         if semantic && groups.len() == 1 {
             match groups[0].0 {
-                StereoGroupKind::Abs => {}
                 StereoGroupKind::And(1 | 2) => layers.push("r".into()),
                 StereoGroupKind::And(number) => layers.push(format!(
                     "&{number}:{}",
@@ -690,8 +857,6 @@ impl<'a> Writer<'a> {
             let (mut and, mut or) = (1, 1);
             for (kind, atoms) in groups {
                 let prefix = match kind {
-                    StereoGroupKind::Abs if semantic => continue,
-                    StereoGroupKind::Abs => "a".into(),
                     StereoGroupKind::And(number) => {
                         let number = if semantic {
                             let value = and;
@@ -757,21 +922,20 @@ impl<'a> Writer<'a> {
                 match stereo {
                     Stereo::Tetrahedral {
                         center,
-                        known: false,
+                        winding: Winding::Unknown,
                         ..
                     } => {
-                        if let Some(&bond) = self.adjacent[*center as usize]
-                            .iter()
-                            .find(|&&bond| self.molecule.bonds[bond].order == BondOrder::Single)
-                        {
-                            wiggly.push(format!(
-                                "{}.{}",
-                                self.index[*center as usize], self.bond_index[bond]
-                            ));
-                        }
+                        let bond = self.unknown_tetra_bonds[*center as usize]
+                            .expect("unknown tetrahedral carriers are assigned before writing");
+                        wiggly.push(format!(
+                            "{}.{}",
+                            self.index[*center as usize], self.bond_index[bond]
+                        ));
                     }
                     Stereo::DoubleBond {
-                        bond, known: false, ..
+                        bond,
+                        relation: Relation::Unknown,
+                        ..
                     } => {
                         let bond = *bond as usize;
                         wiggly.push(format!(
@@ -790,102 +954,323 @@ impl<'a> Writer<'a> {
             if !unknown_double.is_empty() {
                 layers.push(format!("ctu:{}", indices(unknown_double)));
             }
-            self.metadata(&mut layers)?;
+            self.metadata(&mut layers);
         }
         Ok(layers)
     }
 
-    fn metadata(&self, layers: &mut Vec<String>) -> Result<(), CxSmilesError> {
-        if self.order.is_empty() {
-            return Ok(());
-        }
-        let mut properties = vec!["0.nazuchemVersion.1".to_owned()];
-        let reordered = self
-            .order
-            .iter()
-            .enumerate()
-            .any(|(index, &atom)| index != atom as usize);
+    fn metadata(&self, layers: &mut Vec<String>) {
+        let mut properties = Vec::new();
         for (index, &id) in self.order.iter().enumerate() {
             let atom = &self.molecule.atoms[id as usize];
-            if reordered {
-                properties.push(format!("{index}.nazuchemIndex.{id}"));
-            }
             if self.molecule.parent.contains(&id) {
                 properties.push(format!("{index}.nazuchemParent.1"));
             }
             if !atom.locants.is_empty() {
-                properties.push(format!(
-                    "{index}.nazuchemLocants.{}",
-                    escape(&serde_json::to_string(&atom.locants)?)
-                ));
-            }
-            // Bracketed atoms otherwise look as though their H count was stated.
-            if !atom.hydrogens_stated && self.atom_text(id, false).starts_with('[') {
-                properties.push(format!("{index}.nazuchemHydrogensStated.0"));
-            }
-            // IR validation intentionally permits chemically unusual counts.
-            // Never let a consumer infer these values from valence or radicals
-            // suggested by bracket notation.
-            properties.push(format!("{index}.nazuchemHydrogens.{}", atom.hydrogens));
-            properties.push(format!(
-                "{index}.nazuchemRadicalElectrons.{}",
-                atom.radical_electrons
-            ));
-            if let Some(label) = &atom.label {
-                properties.push(format!(
-                    "{index}.nazuchemLabel.{}",
-                    escape(&serde_json::to_string(label)?)
-                ));
+                // Serializing a string vector cannot fail: it has no map keys,
+                // floats, or custom serializers.
+                let locants = serde_json::to_string(&atom.locants)
+                    .expect("serializing a string vector is infallible");
+                properties.push(format!("{index}.nazuchemLocants.{}", escape(&locants)));
             }
         }
-        // Standard CX does not retain array order, bond endpoint orientation,
-        // stereo reference order, group references to bonds, or all SRU bonds.
-        let mut topology = serde_json::Map::new();
-        for (name, value, empty) in [
-            (
-                "bonds",
-                serde_json::to_value(&self.molecule.bonds)?,
-                self.molecule.bonds.is_empty(),
-            ),
-            (
-                "stereo",
-                serde_json::to_value(&self.molecule.stereo)?,
-                self.molecule.stereo.is_empty(),
-            ),
-            (
-                "stereo_groups",
-                serde_json::to_value(&self.molecule.stereo_groups)?,
-                self.molecule.stereo_groups.is_empty(),
-            ),
-            (
-                "position_variation",
-                serde_json::to_value(&self.molecule.position_variation)?,
-                self.molecule.position_variation.is_empty(),
-            ),
-            (
-                "polymers",
-                serde_json::to_value(&self.molecule.polymers)?,
-                self.molecule.polymers.is_empty(),
-            ),
-            (
-                "parent",
-                serde_json::to_value(&self.molecule.parent)?,
-                self.molecule.parent.is_empty(),
-            ),
-        ] {
-            if !empty {
-                topology.insert(name.into(), value);
-            }
+        if !properties.is_empty() {
+            layers.push(format!("atomProp:{}", properties.join(":")));
         }
-        if !topology.is_empty() {
-            properties.push(format!(
-                "0.nazuchemTopology.{}",
-                escape(&serde_json::to_string(&topology)?)
-            ));
-        }
-        layers.push(format!("atomProp:{}", properties.join(":")));
-        Ok(())
     }
+}
+
+/// Prepare the legacy oracle's hydrogen-count view without changing the IR.
+/// Annotation-bearing vertices and bonds keep their identities. Only a
+/// tetrahedral atom reference can become an implicit-H reference; other stereo
+/// kinds keep their explicit references because their wire shapes differ.
+#[cfg(any(test, feature = "test-support"))]
+fn compatibility_projection(molecule: &Molecule) -> Result<(Molecule, Vec<u32>), CxsmilesError> {
+    let writer = Writer::new(molecule)?;
+    let mut protected = vec![false; molecule.atoms.len()];
+    for &atom in &molecule.parent {
+        protected[atom as usize] = true;
+    }
+    for stereo in &molecule.stereo {
+        match stereo {
+            Stereo::Tetrahedral {
+                center, neighbors, ..
+            } => {
+                protected[*center as usize] = true;
+                if neighbors.iter().any(|r| !matches!(r, Ref::Atom(_))) {
+                    for reference in neighbors {
+                        if let Ref::Atom(atom) = reference {
+                            protected[*atom as usize] = true;
+                        }
+                    }
+                }
+            }
+            Stereo::DoubleBond { bond, refs, .. } => {
+                for atom in molecule.bonds[*bond as usize]
+                    .atoms
+                    .into_iter()
+                    .chain(*refs)
+                {
+                    protected[atom as usize] = true;
+                }
+            }
+            Stereo::Atropisomer { bond, refs, .. } => {
+                for atom in molecule.bonds[*bond as usize].atoms {
+                    protected[atom as usize] = true;
+                }
+                for reference in refs {
+                    if let Ref::Atom(atom) = reference {
+                        protected[*atom as usize] = true;
+                    }
+                }
+            }
+        }
+    }
+    for position in &molecule.position_variation {
+        for &atom in molecule.bonds[position.bond as usize]
+            .atoms
+            .iter()
+            .chain(&position.endpoints)
+        {
+            protected[atom as usize] = true;
+        }
+    }
+    for unit in &molecule.polymers {
+        for &atom in unit.atoms.iter().chain(&unit.attachment_points) {
+            protected[atom as usize] = true;
+        }
+        for &bond in &unit.crossing_bonds {
+            for atom in molecule.bonds[bond as usize].atoms {
+                protected[atom as usize] = true;
+            }
+        }
+    }
+    let mut hydrogen_counts = molecule
+        .atoms
+        .iter()
+        .map(|atom| atom.hydrogens)
+        .collect::<Vec<_>>();
+    let mut folded = vec![false; molecule.atoms.len()];
+    for (id, atom) in molecule.atoms.iter().enumerate() {
+        if protected[id]
+            || atom.element != 1
+            || atom.isotope.is_some()
+            || atom.charge != 0
+            || atom.hydrogens != 0
+            || atom.radical_electrons != 0
+            || atom.label.is_some()
+            || atom.atom_map.is_some()
+            || atom.attachment_point.is_some()
+            || !atom.locants.is_empty()
+        {
+            continue;
+        }
+        let [bond] = writer.adjacent[id].as_slice() else {
+            continue;
+        };
+        if molecule.bonds[*bond].order != BondOrder::Single {
+            continue;
+        }
+        let neighbor = writer.other(*bond, id as u32) as usize;
+        if matches!(molecule.atoms[neighbor].element, 0 | 1)
+            || hydrogen_counts[neighbor] == u8::MAX
+            || (writer.tetrahedral(neighbor as u32).is_some() && hydrogen_counts[neighbor] != 0)
+        {
+            continue;
+        }
+        folded[id] = true;
+        hydrogen_counts[neighbor] += 1;
+    }
+    let identities = (0..molecule.atoms.len())
+        .filter(|&atom| !folded[atom])
+        .map(|atom| atom as u32)
+        .collect::<Vec<_>>();
+    let mut atom_indices = vec![0; molecule.atoms.len()];
+    let atoms = identities
+        .iter()
+        .enumerate()
+        .map(|(index, &id)| {
+            atom_indices[id as usize] = index as u32;
+            let mut atom = molecule.atoms[id as usize].clone();
+            atom.hydrogens = hydrogen_counts[id as usize];
+            atom
+        })
+        .collect();
+    let mut bond_indices = vec![0; molecule.bonds.len()];
+    let bonds = molecule
+        .bonds
+        .iter()
+        .enumerate()
+        .filter_map(|(id, bond)| {
+            if bond.atoms.iter().any(|&atom| folded[atom as usize]) {
+                None
+            } else {
+                Some((id, bond))
+            }
+        })
+        .enumerate()
+        .map(|(index, (id, bond))| {
+            bond_indices[id] = index as u32;
+            crate::Bond {
+                atoms: bond.atoms.map(|atom| atom_indices[atom as usize]),
+                order: bond.order,
+            }
+        })
+        .collect();
+    let reference = |value: Ref| match value {
+        Ref::Atom(atom) if folded[atom as usize] => Ref::ImplicitHydrogen,
+        Ref::Atom(atom) => Ref::Atom(atom_indices[atom as usize]),
+        other => other,
+    };
+    let stereo = molecule
+        .stereo
+        .iter()
+        .map(|stereo| match stereo {
+            Stereo::Tetrahedral {
+                center,
+                neighbors,
+                winding,
+            } => Stereo::Tetrahedral {
+                center: atom_indices[*center as usize],
+                neighbors: neighbors.map(reference),
+                winding: *winding,
+            },
+            Stereo::DoubleBond {
+                bond,
+                refs,
+                relation,
+            } => Stereo::DoubleBond {
+                bond: bond_indices[*bond as usize],
+                refs: refs.map(|atom| atom_indices[atom as usize]),
+                relation: *relation,
+            },
+            Stereo::Atropisomer {
+                bond,
+                refs,
+                winding,
+            } => Stereo::Atropisomer {
+                bond: bond_indices[*bond as usize],
+                refs: refs.map(reference),
+                winding: *winding,
+            },
+        })
+        .collect();
+    let position_variation = molecule
+        .position_variation
+        .iter()
+        .map(|position| crate::PositionVariation {
+            bond: bond_indices[position.bond as usize],
+            endpoints: position
+                .endpoints
+                .iter()
+                .map(|&atom| atom_indices[atom as usize])
+                .collect(),
+        })
+        .collect();
+    let polymers = molecule
+        .polymers
+        .iter()
+        .map(|unit| crate::RepeatUnit {
+            atoms: unit
+                .atoms
+                .iter()
+                .map(|&atom| atom_indices[atom as usize])
+                .collect(),
+            crossing_bonds: unit
+                .crossing_bonds
+                .iter()
+                .map(|&bond| bond_indices[bond as usize])
+                .collect(),
+            attachment_points: unit
+                .attachment_points
+                .iter()
+                .map(|&atom| atom_indices[atom as usize])
+                .collect(),
+            connectivity: unit.connectivity,
+            label: unit.label.clone(),
+        })
+        .collect();
+    Ok((
+        Molecule {
+            atoms,
+            bonds,
+            stereo,
+            position_variation,
+            polymers,
+            stereo_groups: molecule.stereo_groups.clone(),
+            parent: molecule
+                .parent
+                .iter()
+                .map(|&atom| atom_indices[atom as usize])
+                .collect(),
+        },
+        identities,
+    ))
+}
+
+type MarkLiteral = (usize, bool);
+
+/// Solve mark-presence clauses without recursion, including very large graphs.
+fn solve_marks(count: usize, clauses: &[(MarkLiteral, MarkLiteral)]) -> Option<Vec<bool>> {
+    let mut graph = vec![Vec::new(); 2 * count];
+    let mut reverse = vec![Vec::new(); 2 * count];
+    for &((first, first_value), (second, second_value)) in clauses {
+        let first = 2 * first + usize::from(first_value);
+        let second = 2 * second + usize::from(second_value);
+        for (from, to) in [(first ^ 1, second), (second ^ 1, first)] {
+            graph[from].push(to);
+            reverse[to].push(from);
+        }
+    }
+    let mut seen = vec![false; graph.len()];
+    let mut order = Vec::with_capacity(graph.len());
+    for root in 0..graph.len() {
+        if seen[root] {
+            continue;
+        }
+        seen[root] = true;
+        let mut stack = vec![(root, 0)];
+        while let Some((node, cursor)) = stack.last_mut() {
+            if *cursor == graph[*node].len() {
+                order.push(*node);
+                stack.pop();
+            } else {
+                let next = graph[*node][*cursor];
+                *cursor += 1;
+                if !seen[next] {
+                    seen[next] = true;
+                    stack.push((next, 0));
+                }
+            }
+        }
+    }
+    let mut component = vec![usize::MAX; graph.len()];
+    let mut next_component = 0;
+    for &root in order.iter().rev() {
+        if component[root] != usize::MAX {
+            continue;
+        }
+        component[root] = next_component;
+        let mut stack = vec![root];
+        while let Some(node) = stack.pop() {
+            for &next in &reverse[node] {
+                if component[next] == usize::MAX {
+                    component[next] = next_component;
+                    stack.push(next);
+                }
+            }
+        }
+        next_component += 1;
+    }
+    let mut selected = Vec::with_capacity(count);
+    for bond in 0..count {
+        let (no, yes) = (component[2 * bond], component[2 * bond + 1]);
+        if no == yes {
+            return None;
+        }
+        selected.push(yes > no);
+    }
+    Some(selected)
 }
 
 fn order_value(order: BondOrder) -> u32 {
@@ -955,7 +1340,7 @@ fn escape_label(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Atom, Bond, PositionVariation, RepeatUnit, StereoGroup};
+    use crate::{Atom, AxialWinding, Bond, PositionVariation, RepeatUnit, StereoGroup};
 
     fn atom(element: u8, hydrogens: u8) -> Atom {
         Atom {
@@ -972,308 +1357,140 @@ mod tests {
         }
     }
 
-    // A deliberately small test oracle, not a production CXSMILES importer.
-    // It reads atom tokens and the documented exact metadata, without valence
-    // perception or access to the source molecule.
-    fn restore_export(text: &str) -> Molecule {
-        if text.is_empty() {
-            return Molecule::default();
-        }
-        let (smiles, cx) = text.split_once(" |").unwrap();
-        let mut atoms = Vec::new();
-        let bytes = smiles.as_bytes();
-        let mut cursor = 0;
-        while cursor < bytes.len() {
-            let bracketed = bytes[cursor] == b'[';
-            if !bracketed && bytes[cursor] != b'*' && !bytes[cursor].is_ascii_uppercase() {
-                cursor += 1;
-                continue;
-            }
-            let start = cursor + usize::from(bracketed);
-            let end = if bracketed {
-                start + smiles[start..].find(']').unwrap()
-            } else {
-                cursor + 1 + usize::from(bytes.get(cursor + 1).is_some_and(u8::is_ascii_lowercase))
-            };
-            let token = &smiles[start..end];
-            let digit_count = token.bytes().take_while(u8::is_ascii_digit).count();
-            let isotope = (digit_count > 0).then(|| token[..digit_count].parse().unwrap());
-            let symbol_len = 1 + usize::from(
-                token
-                    .as_bytes()
-                    .get(digit_count + 1)
-                    .is_some_and(u8::is_ascii_lowercase),
-            );
-            let symbol = &token[digit_count..digit_count + symbol_len];
-            let element = ELEMENTS.iter().position(|&value| value == symbol).unwrap() as u8;
-            let charge = token
-                .find(['+', '-'])
-                .map(|position| {
-                    let sign = if token.as_bytes()[position] == b'+' {
-                        1_i16
-                    } else {
-                        -1_i16
-                    };
-                    let tail = &token[position + 1..];
-                    let digits = tail.bytes().take_while(u8::is_ascii_digit).count();
-                    (sign
-                        * if digits == 0 {
-                            1
-                        } else {
-                            tail[..digits].parse::<i16>().unwrap()
-                        }) as i8
-                })
-                .unwrap_or_default();
-            atoms.push(Atom {
-                element,
-                isotope,
-                charge,
-                hydrogens_stated: bracketed,
-                ..Atom::default()
-            });
-            cursor = end + usize::from(bracketed);
-        }
-        let block = cx.rsplit_once("atomProp:").unwrap().1.trim_end_matches('|');
-        let mut identities = (0..atoms.len()).collect::<Vec<_>>();
-        let mut result = Molecule::default();
-        for property in block.split(':') {
-            let mut parts = property.splitn(3, '.');
-            let index = parts.next().unwrap().parse::<usize>().unwrap();
-            let key = parts.next().unwrap();
-            let value = decode(parts.next().unwrap());
-            match key {
-                "nazuchemVersion" => assert_eq!(value, "1"),
-                "nazuchemIndex" => identities[index] = value.parse().unwrap(),
-                "nazuchemParent" => assert_eq!(value, "1"),
-                "nazuchemHydrogens" => atoms[index].hydrogens = value.parse().unwrap(),
-                "nazuchemHydrogensStated" => atoms[index].hydrogens_stated = value == "1",
-                "nazuchemRadicalElectrons" => {
-                    atoms[index].radical_electrons = value.parse().unwrap()
-                }
-                "nazuchemLabel" => atoms[index].label = Some(serde_json::from_str(&value).unwrap()),
-                "nazuchemLocants" => atoms[index].locants = serde_json::from_str(&value).unwrap(),
-                "nazuchemTopology" => {
-                    let mut topology: serde_json::Map<String, serde_json::Value> =
-                        serde_json::from_str(&value).unwrap();
-                    macro_rules! restore {
-                        ($field:ident) => {
-                            if let Some(value) = topology.remove(stringify!($field)) {
-                                result.$field = serde_json::from_value(value).unwrap();
-                            }
-                        };
-                    }
-                    restore!(bonds);
-                    restore!(stereo);
-                    restore!(stereo_groups);
-                    restore!(position_variation);
-                    restore!(polymers);
-                    restore!(parent);
-                    assert!(topology.is_empty());
-                }
-                other => panic!("unknown metadata property {other}"),
-            }
-        }
-        result.atoms.resize(atoms.len(), Atom::default());
-        for (identity, atom) in identities.into_iter().zip(atoms) {
-            result.atoms[identity] = atom;
-        }
-        result.validate().unwrap();
-        result
-    }
-
-    fn decode(value: &str) -> String {
-        let mut units = Vec::new();
-        let mut rest = value;
-        while !rest.is_empty() {
-            if let Some(entity) = rest.strip_prefix("&#") {
-                let (number, tail) = entity.split_once(';').unwrap();
-                units.push(number.parse().unwrap());
-                rest = tail;
-            } else {
-                let character = rest.chars().next().unwrap();
-                let mut encoded = [0; 2];
-                units.extend_from_slice(character.encode_utf16(&mut encoded));
-                rest = &rest[character.len_utf8()..];
-            }
-        }
-        String::from_utf16(&units).unwrap()
-    }
-
-    #[test]
-    fn full_export_round_trips_every_ir_field_without_chemical_inference() {
+    fn polyene(states: &[u8], reversed: bool) -> Molecule {
+        let count = 2 * states.len() + 2;
         let mut molecule = Molecule {
-            atoms: vec![
-                atom(6, 1),
-                atom(9, 0),
-                atom(17, 0),
-                atom(35, 0),
-                atom(6, 1),
-                atom(6, 1),
-                atom(9, 0),
-                atom(17, 0),
-                atom(16, 0),
-                atom(8, 0),
-                atom(7, 0),
-                atom(6, 3),
-                atom(0, 0),
-                atom(6, 2),
-                atom(0, 0),
-                atom(1, 0),
-                atom(118, 3),
-            ],
-            bonds: vec![
-                bond(0, 1, BondOrder::Single),
-                bond(0, 2, BondOrder::Single),
-                bond(0, 3, BondOrder::Single),
-                bond(5, 4, BondOrder::Double),
-                bond(4, 6, BondOrder::Single),
-                bond(7, 5, BondOrder::Single),
-                bond(8, 9, BondOrder::Single),
-                bond(10, 8, BondOrder::Single),
-                bond(8, 11, BondOrder::Single),
-                bond(12, 13, BondOrder::Single),
-                bond(13, 14, BondOrder::Single),
-                bond(15, 13, BondOrder::Single),
-            ],
-            stereo: vec![
-                Stereo::Tetrahedral {
-                    center: 0,
-                    neighbors: [
-                        Ref::Atom(2),
-                        Ref::ImplicitHydrogen,
-                        Ref::Atom(3),
-                        Ref::Atom(1),
-                    ],
-                    winding: Winding::Anticlockwise,
-                    known: false,
-                },
-                Stereo::DoubleBond {
-                    bond: 3,
-                    refs: [7, 6],
-                    relation: Relation::Cis,
-                    known: true,
-                },
-                Stereo::Tetrahedral {
-                    center: 8,
-                    neighbors: [Ref::LonePair, Ref::Atom(11), Ref::Atom(9), Ref::Atom(10)],
-                    winding: Winding::Clockwise,
-                    known: true,
-                },
-            ],
-            stereo_groups: vec![
-                StereoGroup {
-                    kind: StereoGroupKind::Or(99),
-                    stereo: vec![1],
-                },
-                StereoGroup {
-                    kind: StereoGroupKind::And(17),
-                    stereo: vec![0],
-                },
-                StereoGroup {
-                    kind: StereoGroupKind::Abs,
-                    stereo: vec![2],
-                },
-            ],
-            position_variation: vec![PositionVariation {
-                bond: 9,
-                endpoints: vec![13, 0, 5],
-            }],
-            polymers: vec![
-                RepeatUnit {
-                    atoms: vec![13],
-                    crossing_bonds: vec![11, 10, 9],
-                    connectivity: Connectivity::HeadToHead,
-                    label: Some(String::new()),
-                },
-                RepeatUnit {
-                    atoms: vec![5, 4],
-                    crossing_bonds: vec![5, 4],
-                    connectivity: Connectivity::Unknown,
-                    label: None,
-                },
-            ],
-            parent: vec![13, 0, 5],
-        };
-        molecule.atoms[0].hydrogens_stated = true;
-        molecule.atoms[0].locants = vec!["1".into(), "1′".into(), "".into()];
-        molecule.atoms[5].locants = vec!["".into()];
-        molecule.atoms[6].locants = vec!["outside parent".into()];
-        molecule.atoms[12].label = Some("_x;|$:,&🧪".into());
-        molecule.atoms[13].label = Some("".into());
-        molecule.atoms[14].label = Some("star_e".into());
-        molecule.atoms[15].isotope = Some(2);
-        molecule.atoms[16].isotope = Some(u16::MAX);
-        molecule.atoms[16].charge = i8::MIN;
-        molecule.atoms[16].radical_electrons = u8::MAX;
-        let output = molecule.to_cxsmiles().unwrap();
-        assert!(!output.contains("_x;|$"));
-        assert!(output.contains("$_AV:"));
-        assert!(output.contains("m:"));
-        assert!(output.contains("Sg:n:"));
-        assert!(output.contains("w:"));
-        assert_eq!(restore_export(&output), molecule);
-        assert_eq!(molecule.smiles_atom_order().unwrap()[0], 12);
-        assert_eq!(molecule.displayed_locants()[0], Some("1".into()));
-        assert_eq!(molecule.displayed_locants()[6], None);
-        assert_eq!(output, molecule.to_cxsmiles().unwrap());
-    }
-
-    #[test]
-    fn simple_hydrogen_origin_and_radical_counts_are_exact() {
-        for stated in [false, true] {
-            for element in [0, 1, 6, 17, 118] {
-                for hydrogens in [0, 1, 4, 255] {
-                    for radical in [0, 1, 2, 3, 4, 255] {
-                        let molecule = Molecule {
-                            atoms: vec![Atom {
-                                hydrogens_stated: stated,
-                                radical_electrons: radical,
-                                ..atom(element, hydrogens)
-                            }],
-                            ..Molecule::default()
-                        };
-                        assert_eq!(restore_export(&molecule.to_cxsmiles().unwrap()), molecule);
+            atoms: (0..count)
+                .map(|i| atom(6, if i == 0 || i + 1 == count { 3 } else { 1 }))
+                .collect(),
+            bonds: (0..count - 1)
+                .map(|i| {
+                    let order = if i % 2 == 0 {
+                        BondOrder::Single
+                    } else {
+                        BondOrder::Double
+                    };
+                    if reversed {
+                        bond(i as u32 + 1, i as u32, order)
+                    } else {
+                        bond(i as u32, i as u32 + 1, order)
                     }
-                }
-            }
+                })
+                .collect(),
+            ..Molecule::default()
+        };
+        for (i, &state) in states.iter().enumerate() {
+            let relation = match state {
+                0 => continue,
+                1 => Relation::Cis,
+                2 => Relation::Trans,
+                3 => Relation::Unknown,
+                _ => unreachable!(),
+            };
+            let refs = [2 * i as u32, 2 * i as u32 + 3];
+            molecule.stereo.push(Stereo::DoubleBond {
+                bond: 2 * i as u32 + 1,
+                refs: if reversed { [refs[1], refs[0]] } else { refs },
+                relation,
+            });
         }
+        molecule
     }
 
     #[test]
-    fn semantic_projection_keeps_legacy_stereo_and_polymer_conventions() {
+    fn convenience_projection_has_only_the_two_locant_properties() {
+        let mut molecule = Molecule {
+            atoms: vec![atom(6, 3), atom(0, 0), atom(8, 1)],
+            bonds: vec![bond(0, 2, BondOrder::Single), bond(0, 1, BondOrder::Single)],
+            parent: vec![0],
+            ..Molecule::default()
+        };
+        molecule.atoms[0].hydrogens = 2;
+        molecule.atoms[0].locants = vec!["1".into(), "1′".into(), "".into()];
+        molecule.atoms[2].locants = vec!["outside parent".into()];
+        let output = molecule.to_cxsmiles().unwrap();
+        assert!(output.contains("$_AV:;1;outside&#32;parent$"), "{output}");
+        assert!(output.contains("1.nazuchemParent.1"));
+        assert!(output.contains("1.nazuchemLocants."));
+        assert!(output.contains("2.nazuchemLocants."));
+        let properties = output
+            .split_once("atomProp:")
+            .unwrap()
+            .1
+            .trim_end_matches('|');
+        for property in properties.split(':') {
+            let key = property.split('.').nth(1).unwrap();
+            assert!(
+                ["nazuchemParent", "nazuchemLocants"].contains(&key),
+                "{property}"
+            );
+        }
+        assert_eq!(molecule.smiles_atom_order().unwrap(), [1, 0, 2]);
+        assert_eq!(molecule.displayed_locants(), [Some("1".into()), None, None]);
+        assert_eq!(output, molecule.to_cxsmiles().unwrap());
+        assert_eq!(Molecule::default().to_cxsmiles().unwrap(), "");
+    }
+
+    #[test]
+    fn atom_maps_attachment_roles_and_labels_are_separate() {
         let molecule = Molecule {
             atoms: vec![
                 Atom {
-                    label: Some("star_e".into()),
+                    atom_map: Some(7),
+                    attachment_point: Some(3),
                     ..atom(0, 0)
                 },
-                atom(8, 0),
-                atom(6, 2),
                 atom(6, 2),
                 Atom {
-                    label: Some("star_e".into()),
+                    label: Some("R;🧪".into()),
                     ..atom(0, 0)
                 },
             ],
-            bonds: vec![
-                bond(0, 1, BondOrder::Single),
-                bond(1, 2, BondOrder::Single),
-                bond(2, 3, BondOrder::Single),
-                bond(3, 4, BondOrder::Single),
-            ],
-            polymers: vec![RepeatUnit {
-                atoms: vec![1, 2, 3],
-                crossing_bonds: vec![0, 3],
-                connectivity: Connectivity::HeadToTail,
-                label: None,
-            }],
+            bonds: vec![bond(0, 1, BondOrder::Single), bond(1, 2, BondOrder::Single)],
             ..Molecule::default()
         };
         assert_eq!(
-            molecule.semantic_cxsmiles().unwrap(),
-            "[*:1]OCC[*:2] |$star_e;;;;star_e$,Sg:n:1,2,3::ht|"
+            molecule.to_cxsmiles().unwrap(),
+            "[*:7]C* |$_AP3;;R&#59;&#55358;&#56810;$|"
         );
-        let mut stereo = Molecule {
+    }
+
+    #[test]
+    fn standard_radical_and_stated_hydrogen_layers_remain() {
+        let molecule = Molecule {
+            atoms: vec![
+                Atom {
+                    hydrogens_stated: true,
+                    ..atom(6, 4)
+                },
+                Atom {
+                    radical_electrons: 1,
+                    ..atom(6, 3)
+                },
+                Atom {
+                    radical_electrons: 2,
+                    ..atom(6, 2)
+                },
+                Atom {
+                    radical_electrons: 3,
+                    ..atom(6, 1)
+                },
+                Atom {
+                    isotope: Some(2),
+                    ..atom(1, 0)
+                },
+            ],
+            ..Molecule::default()
+        };
+        assert_eq!(
+            molecule.to_cxsmiles().unwrap(),
+            "[CH4].[CH3].[CH2].[CH].[2H] |^1:1,^2:2,^5:3|"
+        );
+    }
+
+    #[test]
+    fn tetrahedral_winding_and_unknown_are_distinct() {
+        let mut molecule = Molecule {
             atoms: vec![atom(6, 1), atom(9, 0), atom(17, 0), atom(35, 0)],
             bonds: vec![
                 bond(0, 1, BondOrder::Single),
@@ -1289,85 +1506,426 @@ mod tests {
                     Ref::Atom(3),
                 ],
                 winding: Winding::Clockwise,
-                known: false,
             }],
             ..Molecule::default()
         };
-        assert_eq!(stereo.semantic_cxsmiles().unwrap(), "[C@@H](F)(Cl)Br");
-        assert!(
-            !stereo
-                .to_cxsmiles()
-                .unwrap()
-                .split_once(" |")
-                .unwrap()
-                .0
-                .contains('@')
-        );
-        stereo.stereo_groups.push(StereoGroup {
+        assert_eq!(molecule.to_cxsmiles().unwrap(), "[C@@H](F)(Cl)Br");
+        let Stereo::Tetrahedral { winding, .. } = &mut molecule.stereo[0] else {
+            unreachable!()
+        };
+        *winding = Winding::Anticlockwise;
+        assert_eq!(molecule.to_cxsmiles().unwrap(), "[C@H](F)(Cl)Br");
+        molecule.stereo_groups.push(StereoGroup {
             kind: StereoGroupKind::And(1),
             stereo: vec![0],
         });
-        assert!(stereo.semantic_cxsmiles().unwrap().ends_with(" |r|"));
-    }
-
-    #[test]
-    fn bonds_and_ring_closures_keep_exact_identities() {
-        let molecule = Molecule {
-            atoms: vec![atom(6, 0), atom(6, 0), atom(6, 0), atom(6, 0)],
-            bonds: vec![
-                bond(2, 0, BondOrder::Quadruple),
-                bond(1, 2, BondOrder::Triple),
-                bond(3, 1, BondOrder::Single),
-                bond(0, 3, BondOrder::Double),
-                bond(0, 1, BondOrder::Single),
-            ],
-            ..Molecule::default()
-        };
-        let output = molecule.to_cxsmiles().unwrap();
-        assert!(output.contains('$'));
-        assert!(output.contains('#'));
-        assert_eq!(restore_export(&output), molecule);
         assert_eq!(
-            restore_export(&Molecule::default().to_cxsmiles().unwrap()),
-            Molecule::default()
+            molecule.semantic_cxsmiles_for_tests().unwrap(),
+            "[C@H](F)(Cl)Br |r|"
+        );
+        let Stereo::Tetrahedral { winding, .. } = &mut molecule.stereo[0] else {
+            unreachable!()
+        };
+        *winding = Winding::Unknown;
+        assert!(matches!(
+            molecule.to_cxsmiles(),
+            Err(CxsmilesError::StereoNotExpressible)
+        ));
+        molecule.stereo_groups.clear();
+        assert_eq!(molecule.to_cxsmiles().unwrap(), "C(F)(Cl)Br |w:0.0|");
+        assert_eq!(
+            molecule.semantic_cxsmiles_for_tests().unwrap(),
+            "C(F)(Cl)Br"
         );
     }
 
     #[test]
-    fn cis_trans_and_unknown_double_bond_projection_are_distinct() {
-        let mut molecule = Molecule {
-            atoms: vec![atom(6, 3), atom(6, 1), atom(6, 1), atom(6, 3)],
+    fn compatibility_hydrogen_folding_retains_original_identity_mapping() {
+        let molecule = Molecule {
+            atoms: vec![atom(9, 0), atom(6, 0), atom(1, 0), atom(17, 0), atom(35, 0)],
             bonds: vec![
-                bond(0, 1, BondOrder::Single),
-                bond(1, 2, BondOrder::Double),
-                bond(2, 3, BondOrder::Single),
+                bond(1, 0, BondOrder::Single),
+                bond(1, 3, BondOrder::Single),
+                bond(1, 4, BondOrder::Single),
+                bond(1, 2, BondOrder::Single),
             ],
-            stereo: vec![Stereo::DoubleBond {
-                bond: 1,
-                refs: [0, 3],
-                relation: Relation::Trans,
-                known: true,
+            stereo: vec![Stereo::Tetrahedral {
+                center: 1,
+                neighbors: [Ref::Atom(0), Ref::Atom(2), Ref::Atom(3), Ref::Atom(4)],
+                winding: Winding::Clockwise,
             }],
             ..Molecule::default()
         };
-        assert_eq!(molecule.semantic_cxsmiles().unwrap(), r"C\C=C\C");
-        molecule.stereo[0] = Stereo::DoubleBond {
-            bond: 1,
-            refs: [0, 3],
-            relation: Relation::Cis,
-            known: true,
+        let original = molecule.clone();
+        assert_eq!(molecule.to_cxsmiles().unwrap(), "F[C@@](Cl)(Br)[H]");
+        let (semantic, order) = molecule
+            .semantic_cxsmiles_with_atom_order_for_tests()
+            .unwrap();
+        assert_eq!(semantic, "F[C@@H](Cl)Br");
+        assert_eq!(order, [0, 1, 3, 4]);
+        assert_eq!(molecule.smiles_atom_order().unwrap(), [0, 1, 3, 4, 2]);
+        assert_eq!(molecule, original);
+
+        for annotation in 0..8 {
+            let mut annotated = molecule.clone();
+            match annotation {
+                0 => annotated.parent.push(2),
+                1 => annotated.atoms[2].locants.push("H".into()),
+                2 => annotated.atoms[2].isotope = Some(2),
+                3 => annotated.atoms[2].charge = 1,
+                4 => annotated.atoms[2].radical_electrons = 1,
+                5 => annotated.atoms[2].label = Some("hydrogen".into()),
+                6 => annotated.atoms[2].atom_map = Some(7),
+                7 => annotated.atoms[2].attachment_point = Some(1),
+                _ => unreachable!(),
+            }
+            let (_, order) = annotated
+                .semantic_cxsmiles_with_atom_order_for_tests()
+                .unwrap();
+            assert!(order.contains(&2), "annotation {annotation}");
+        }
+    }
+
+    #[test]
+    fn compatibility_folding_never_duplicates_a_virtual_hydrogen() {
+        let molecule = Molecule {
+            atoms: vec![atom(6, 1), atom(9, 0), atom(17, 0), atom(1, 0)],
+            bonds: vec![
+                bond(0, 1, BondOrder::Single),
+                bond(0, 2, BondOrder::Single),
+                bond(0, 3, BondOrder::Single),
+            ],
+            stereo: vec![Stereo::Tetrahedral {
+                center: 0,
+                neighbors: [
+                    Ref::ImplicitHydrogen,
+                    Ref::Atom(1),
+                    Ref::Atom(2),
+                    Ref::Atom(3),
+                ],
+                winding: Winding::Clockwise,
+            }],
+            ..Molecule::default()
         };
-        assert_eq!(molecule.semantic_cxsmiles().unwrap(), r"C\C=C/C");
-        molecule.stereo[0] = Stereo::DoubleBond {
-            bond: 1,
-            refs: [0, 3],
-            relation: Relation::Trans,
-            known: false,
+        let (projection, identities) = compatibility_projection(&molecule).unwrap();
+        projection.validate().unwrap();
+        assert_eq!(identities, [0, 1, 2, 3]);
+        assert_eq!(projection, molecule);
+    }
+
+    #[test]
+    fn unknown_tetrahedral_without_a_wiggly_single_bond_is_an_error() {
+        let molecule = Molecule {
+            atoms: vec![
+                atom(6, 0),
+                atom(9, 0),
+                atom(17, 0),
+                atom(35, 0),
+                atom(53, 0),
+            ],
+            bonds: (1..5)
+                .map(|atom| bond(0, atom, BondOrder::Double))
+                .collect(),
+            stereo: vec![Stereo::Tetrahedral {
+                center: 0,
+                neighbors: [Ref::Atom(1), Ref::Atom(2), Ref::Atom(3), Ref::Atom(4)],
+                winding: Winding::Unknown,
+            }],
+            ..Molecule::default()
         };
-        let output = molecule.to_cxsmiles().unwrap();
-        assert!(output.starts_with("CC=CC |w:1.1,ctu:1,"));
-        assert_eq!(restore_export(&output), molecule);
-        assert_eq!(molecule.semantic_cxsmiles().unwrap(), "CC=CC");
+        molecule.validate().unwrap();
+        assert!(matches!(
+            molecule.to_cxsmiles(),
+            Err(CxsmilesError::StereoNotExpressible)
+        ));
+    }
+
+    fn adjacent_unknown_centers() -> Molecule {
+        Molecule {
+            atoms: vec![
+                atom(6, 1),
+                atom(6, 1),
+                atom(9, 0),
+                atom(17, 0),
+                atom(35, 0),
+                atom(53, 0),
+            ],
+            bonds: vec![
+                bond(0, 1, BondOrder::Single),
+                bond(0, 2, BondOrder::Single),
+                bond(0, 3, BondOrder::Single),
+                bond(1, 4, BondOrder::Single),
+                bond(1, 5, BondOrder::Single),
+            ],
+            stereo: vec![
+                Stereo::Tetrahedral {
+                    center: 0,
+                    neighbors: [
+                        Ref::ImplicitHydrogen,
+                        Ref::Atom(1),
+                        Ref::Atom(2),
+                        Ref::Atom(3),
+                    ],
+                    winding: Winding::Unknown,
+                },
+                Stereo::Tetrahedral {
+                    center: 1,
+                    neighbors: [
+                        Ref::ImplicitHydrogen,
+                        Ref::Atom(0),
+                        Ref::Atom(4),
+                        Ref::Atom(5),
+                    ],
+                    winding: Winding::Unknown,
+                },
+            ],
+            ..Molecule::default()
+        }
+    }
+
+    #[test]
+    fn adjacent_unknown_centers_get_distinct_wiggly_carriers() {
+        let molecule = adjacent_unknown_centers();
+        assert_eq!(
+            molecule.to_cxsmiles().unwrap(),
+            "C(C(Br)I)(F)Cl |w:0.0,1.1|"
+        );
+    }
+
+    #[test]
+    fn unknown_carrier_matching_can_reassign_an_earlier_center() {
+        let mut molecule = adjacent_unknown_centers();
+        // Centre 1 can use only the shared bond. Centre 0 initially chooses
+        // it too, but can move to its unshared single bond instead.
+        molecule.bonds[3].order = BondOrder::Double;
+        molecule.bonds[4].order = BondOrder::Double;
+        let mut writer = Writer::new(&molecule).unwrap();
+        writer.assign_directions().unwrap();
+        writer.assign_unknown_tetra_bonds().unwrap();
+        assert_eq!(writer.unknown_tetra_bonds[0], Some(1));
+        assert_eq!(writer.unknown_tetra_bonds[1], Some(0));
+        molecule.to_cxsmiles().unwrap();
+    }
+
+    #[test]
+    fn hall_deficient_unknown_carriers_return_a_typed_error() {
+        let mut molecule = adjacent_unknown_centers();
+        for bond in &mut molecule.bonds[1..] {
+            bond.order = BondOrder::Double;
+        }
+        molecule.validate().unwrap();
+        assert!(matches!(
+            molecule.to_cxsmiles(),
+            Err(CxsmilesError::StereoNotExpressible)
+        ));
+    }
+
+    #[test]
+    fn groups_never_drop_unknown_members_from_the_standard_projection() {
+        let mut molecule = adjacent_unknown_centers();
+        molecule.stereo_groups.push(StereoGroup {
+            kind: StereoGroupKind::And(1),
+            stereo: vec![0],
+        });
+        assert!(matches!(
+            molecule.to_cxsmiles(),
+            Err(CxsmilesError::StereoNotExpressible)
+        ));
+        let Stereo::Tetrahedral { winding, .. } = &mut molecule.stereo[0] else {
+            unreachable!()
+        };
+        *winding = Winding::Clockwise;
+        molecule.stereo_groups[0].stereo = vec![0, 1];
+        assert!(matches!(
+            molecule.to_cxsmiles(),
+            Err(CxsmilesError::StereoNotExpressible)
+        ));
+        molecule.stereo_groups[0].stereo = vec![0];
+        molecule.to_cxsmiles().unwrap();
+
+        let mut double = polyene(&[3], false);
+        double.stereo_groups.push(StereoGroup {
+            kind: StereoGroupKind::Or(2),
+            stereo: vec![0],
+        });
+        assert!(matches!(
+            double.to_cxsmiles(),
+            Err(CxsmilesError::StereoNotExpressible)
+        ));
+    }
+
+    #[test]
+    fn every_axis_state_is_a_typed_error_without_a_standard_encoding() {
+        let mut molecule = Molecule {
+            atoms: vec![
+                atom(6, 0),
+                atom(6, 0),
+                atom(9, 0),
+                atom(17, 0),
+                atom(35, 0),
+                atom(53, 0),
+            ],
+            bonds: vec![
+                bond(0, 1, BondOrder::Single),
+                bond(0, 2, BondOrder::Single),
+                bond(0, 3, BondOrder::Single),
+                bond(1, 4, BondOrder::Single),
+                bond(1, 5, BondOrder::Single),
+            ],
+            stereo: vec![Stereo::Atropisomer {
+                bond: 0,
+                refs: [Ref::Atom(2), Ref::Atom(3), Ref::Atom(4), Ref::Atom(5)],
+                winding: AxialWinding::M,
+            }],
+            ..Molecule::default()
+        };
+        for state in [AxialWinding::M, AxialWinding::P, AxialWinding::Unknown] {
+            let Stereo::Atropisomer { winding, .. } = &mut molecule.stereo[0] else {
+                unreachable!()
+            };
+            *winding = state;
+            assert!(matches!(
+                molecule.to_cxsmiles(),
+                Err(CxsmilesError::StereoNotExpressible)
+            ));
+        }
+    }
+
+    #[test]
+    fn partially_specified_triene_does_not_assert_the_middle_bond() {
+        // (2E,6E)-octa-2,4,6-triene. The required slash on each side of
+        // the unspecified middle double bond cannot be removed.
+        for state in [0, 3] {
+            let molecule = polyene(&[2, state, 2], false);
+            assert!(matches!(
+                molecule.to_cxsmiles(),
+                Err(CxsmilesError::StereoNotExpressible)
+            ));
+            assert!(matches!(
+                molecule.semantic_cxsmiles_for_tests(),
+                Err(CxsmilesError::StereoNotExpressible)
+            ));
+        }
+    }
+
+    #[test]
+    fn exhaustive_linear_polyene_slash_patterns_are_exact_or_fail_closed() {
+        // All 4^5 combinations of absent/cis/trans/unknown, with both
+        // endpoint orientations. A chain has one possible mark at either
+        // side of each double bond; only an unknown/absent bond flanked by
+        // known neighbours makes its standard projection impossible.
+        for reversed in [false, true] {
+            for code in 0_u32..4_u32.pow(5) {
+                let states = (0..5)
+                    .map(|i| ((code >> (2 * i)) & 3) as u8)
+                    .collect::<Vec<_>>();
+                let known = states
+                    .iter()
+                    .map(|&state| state == 1 || state == 2)
+                    .collect::<Vec<_>>();
+                let impossible = (1..4).any(|i| !known[i] && known[i - 1] && known[i + 1]);
+                let molecule = polyene(&states, reversed);
+                let mut writer = Writer::new(&molecule).unwrap();
+                match writer.assign_directions() {
+                    Err(CxsmilesError::StereoNotExpressible) => assert!(impossible, "{states:?}"),
+                    Err(error) => panic!("{states:?}: {error}"),
+                    Ok(()) => {
+                        assert!(!impossible, "{states:?}");
+                        let output = writer.write(false).unwrap();
+                        let smiles = output
+                            .split_once(" |")
+                            .map_or(output.as_str(), |(smiles, _)| smiles);
+                        // This independent chain tokenizer checks the standard
+                        // output rather than the solver's assignment arrays.
+                        let mut separators = Vec::new();
+                        let mut separator = None;
+                        let mut first = true;
+                        for ch in smiles.chars() {
+                            match ch {
+                                '/' | '\\' | '=' => separator = Some(ch),
+                                'C' => {
+                                    if !first {
+                                        separators.push(separator.take());
+                                    }
+                                    first = false;
+                                }
+                                _ => {}
+                            }
+                        }
+                        for i in 0..5 {
+                            let left = separators[2 * i];
+                            let right = separators[2 * i + 2];
+                            let asserted = matches!(left, Some('/' | '\\'))
+                                && matches!(right, Some('/' | '\\'));
+                            assert_eq!(asserted, known[i], "{states:?}: {output}");
+                            if asserted {
+                                assert_eq!(left == right, states[i] == 2, "{states:?}: {output}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn mark_solver_agrees_with_exhaustive_boolean_assignments() {
+        let literals = [(0, false), (0, true), (1, false), (1, true)];
+        let possibilities = (0..literals.len())
+            .flat_map(|i| (i..literals.len()).map(move |j| (literals[i], literals[j])))
+            .collect::<Vec<_>>();
+        for mask in 0..1 << possibilities.len() {
+            let clauses = possibilities
+                .iter()
+                .enumerate()
+                .filter_map(|(i, &clause)| (mask & (1 << i) != 0).then_some(clause))
+                .collect::<Vec<_>>();
+            let satisfies = |assignment: &[bool]| {
+                clauses
+                    .iter()
+                    .all(|&((a, av), (b, bv))| assignment[a] == av || assignment[b] == bv)
+            };
+            let expected =
+                (0..4).any(|assignment| satisfies(&[assignment & 1 != 0, assignment & 2 != 0]));
+            let actual = solve_marks(2, &clauses);
+            assert_eq!(actual.is_some(), expected, "{clauses:?}");
+            if let Some(assignment) = actual {
+                assert!(satisfies(&assignment), "{clauses:?}: {assignment:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn polymer_endpoints_and_position_variation_use_standard_layers() {
+        let molecule = Molecule {
+            atoms: vec![atom(0, 0), atom(8, 0), atom(6, 2), atom(6, 2), atom(0, 0)],
+            bonds: vec![
+                bond(0, 1, BondOrder::Single),
+                bond(1, 2, BondOrder::Single),
+                bond(2, 3, BondOrder::Single),
+                bond(3, 4, BondOrder::Single),
+            ],
+            polymers: vec![RepeatUnit {
+                atoms: vec![1, 2, 3],
+                crossing_bonds: vec![0, 3],
+                attachment_points: vec![0, 4],
+                connectivity: Connectivity::HeadToTail,
+                label: None,
+            }],
+            position_variation: vec![PositionVariation {
+                bond: 0,
+                endpoints: vec![1, 2],
+            }],
+            ..Molecule::default()
+        };
+        assert_eq!(
+            molecule.to_cxsmiles().unwrap(),
+            "*OCC* |$star_e;;;;star_e$,m:0:1.2,Sg:n:1,2,3::ht|"
+        );
+        assert_eq!(
+            molecule.semantic_cxsmiles_for_tests().unwrap(),
+            "[*:1]OCC[*:2] |$star_e;;;;star_e$,m:0:1.2,Sg:n:1,2,3::ht|"
+        );
     }
 
     #[test]
@@ -1381,43 +1939,6 @@ mod tests {
                 molecule.bonds.push(bond(first, second, BondOrder::Single));
             }
         }
-        let output = molecule.to_cxsmiles().unwrap();
-        assert!(output.contains("%(100)"));
-        assert_eq!(restore_export(&output), molecule);
-    }
-
-    #[test]
-    fn position_variation_source_is_the_first_bond_endpoint() {
-        for (first_element, second_element, pair, expected) in [
-            (6, 0, [0, 1], "*CC |m:1:1.2|"),
-            (6, 0, [1, 0], "*CC |m:0:1.2|"),
-            (0, 0, [1, 0], "**C |m:1:1.2|"),
-            (0, 0, [0, 1], "**C |m:0:1.2|"),
-        ] {
-            let molecule = Molecule {
-                atoms: vec![
-                    atom(first_element, if first_element == 6 { 2 } else { 0 }),
-                    atom(second_element, 0),
-                    atom(6, 3),
-                ],
-                bonds: vec![
-                    bond(pair[0], pair[1], BondOrder::Single),
-                    bond(if first_element == 6 { 0 } else { 1 }, 2, BondOrder::Single),
-                ],
-                position_variation: vec![PositionVariation {
-                    bond: 0,
-                    endpoints: vec![if first_element == 6 { 0 } else { 1 }, 2],
-                }],
-                ..Molecule::default()
-            };
-            assert_eq!(molecule.semantic_cxsmiles().unwrap(), expected);
-            let expected_layer = expected.split_once(" |").unwrap().1.trim_end_matches('|');
-            let full = molecule.to_cxsmiles().unwrap();
-            assert!(
-                full.contains(&format!(" |{expected_layer},atomProp:")),
-                "{full}"
-            );
-            assert_eq!(restore_export(&full), molecule);
-        }
+        assert!(molecule.to_cxsmiles().unwrap().contains("%(100)"));
     }
 }
