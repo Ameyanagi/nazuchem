@@ -166,7 +166,7 @@ requiring hard limits must supervise requests externally.
 
 ## Development
 
-For registry setup, owner gates and the release workflow, see
+For registry setup and the release workflow, see
 [Releasing nazuchem](docs/releasing.md).
 
 Use the pinned Rust toolchain and checked lockfile:
@@ -212,8 +212,11 @@ each crate's `NOTICE` and `licenses/` texts for the applicable scope and pins.
 Sorts with equal keys keep their input order (Rust's stable sort); nazuchem
 does not reproduce C++ standard-library tie order.
 
-Owner decisions remain pending for IUPAC Blue Book table reuse permission
-and the test-only PubChem-derived corpus's source terms. These entries retain
-`NOASSERTION`; the established license expressions
-do not grant rights for that material. All Rust crates retain `publish = false`,
-and the npm package remains private.
+`crates/nazuchem-s2n/src/data/bluebook/p25_retained.tsv` is retained as factual
+data transcribed from IUPAC 2013 Recommendations P-25.2.1 Table 2.8.
+It is excluded from the MIT/Apache-2.0 grant; its ledger licence remains
+`NOASSERTION` (owner decision 2026-11-10).
+
+`tests/fixtures/s2n/bakeoff_corpus.tsv` is a repository-only test fixture whose
+CIDs and IUPAC names come from PubChem (NCBI). It is excluded from all published
+crates, wheels and npm packages (owner decision 2026-11-10).

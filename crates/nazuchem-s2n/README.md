@@ -21,10 +21,12 @@ notices are included in `licenses/openclatura/`, `licenses/opsin/` and
 contributions. The manifest combines the established terms as
 `MIT AND (MIT OR Apache-2.0) AND Python-2.0`.
 
-That expression does not resolve the reuse terms of
-`src/data/bluebook/p25_retained.tsv`. Its ledger licence remains
-`NOASSERTION`, pending the owner's IUPAC table reuse-permission decision;
-`publish = false` remains in force. Some inherited OPSIN generation revisions
+`src/data/bluebook/p25_retained.tsv` is retained as factual data transcribed from
+IUPAC 2013 Recommendations P-25.2.1 Table 2.8. It is excluded from the
+MIT/Apache-2.0 grant; its ledger licence remains `NOASSERTION` (owner decision
+2026-11-10).
+
+Some inherited OPSIN generation revisions
 and the CPython patch release remain unrecorded, as qualified in `NOTICE`
 and the repository-root `PROVENANCE-nazuchem.toml`. The ledger preserves
 historical ReShiki source paths; copied notices describe the source repository,

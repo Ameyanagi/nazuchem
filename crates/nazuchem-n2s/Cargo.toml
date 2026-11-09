@@ -4,9 +4,7 @@ version.workspace = true
 edition.workspace = true
 license = "MIT"
 description = "A native Rust port of OPSIN chemical name interpretation"
-publish = false
 exclude = ["tests/"]
-# Release gate: publication awaits the owner's release and provenance decisions.
 repository.workspace = true
 homepage.workspace = true
 keywords.workspace = true

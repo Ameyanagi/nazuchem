@@ -39,9 +39,13 @@ component is incorporated here. The standalone repository's per-file ledger
 identifies the extracted subset and preserves the historical source pins.
 
 Original ReShiki/nazuchem code uses MIT OR Apache-2.0; see LICENSE-MIT and
-LICENSE-APACHE. Pending owner decision: src/data/bluebook/p25_retained.tsv
-retains NOASSERTION for its unresolved IUPAC table reuse permission/licensing
-and unpinned web revision. The manifest expression records established terms
-only, not a grant for unresolved material; publish = false is retained.
-PubChem-derived reference corpora retained outside this crate are test-only;
-their unresolved source terms are not covered by the local dual-licence grant.
+LICENSE-APACHE.
+
+src/data/bluebook/p25_retained.tsv is retained as factual data transcribed from
+IUPAC 2013 Recommendations P-25.2.1 Table 2.8. It is excluded from the
+MIT/Apache-2.0 grant; its ledger licence remains NOASSERTION (owner decision
+2026-11-10).
+
+tests/fixtures/s2n/bakeoff_corpus.tsv is a repository-only test fixture whose
+CIDs and IUPAC names come from PubChem (NCBI). It is excluded from all published
+crates, wheels and npm packages (owner decision 2026-11-10).

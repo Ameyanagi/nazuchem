@@ -39,7 +39,7 @@ class ReleaseGateTests(unittest.TestCase):
     def release_gates(self):
         for name in LIBRARIES:
             path = self.root / "crates" / name / "Cargo.toml"
-            path.write_text(path.read_text().replace("publish = false", "publish = true"))
+            path.write_text(path.read_text().replace("[package]\n", "[package]\npublish = true\n", 1))
 
     def test_versions_require_three_ascii_numeric_parts(self):
         path = self.root / "Cargo.toml"

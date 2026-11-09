@@ -44,9 +44,11 @@ incorporated into this repository. Historical source pins remain unchanged.
 
 Equal-key sorts use Rust's stable sort; no C++ standard library code is included.
 
-Owner decisions are still required for s2n data/bluebook/p25_retained.tsv
-reuse permission and the test-only PubChem-derived
-tests/fixtures/s2n/bakeoff_corpus.tsv source terms. The ledger
-retains NOASSERTION for these materials. Established package expressions
-and the local dual-license grant do not resolve those rights. The corpus is
-excluded from packages, and publish = false remains in force for all crates.
+crates/nazuchem-s2n/src/data/bluebook/p25_retained.tsv is retained as factual
+data transcribed from IUPAC 2013 Recommendations P-25.2.1 Table 2.8.
+It is excluded from the MIT/Apache-2.0 grant; its ledger licence remains
+NOASSERTION (owner decision 2026-11-10).
+
+tests/fixtures/s2n/bakeoff_corpus.tsv is a repository-only test fixture whose
+CIDs and IUPAC names come from PubChem (NCBI). It is excluded from all published
+crates, wheels and npm packages (owner decision 2026-11-10).

@@ -116,8 +116,8 @@ included in `licenses/`; `LICENSE-MIT` and `LICENSE-APACHE` cover local code.
 Sorts with equal keys keep their input order (Rust's stable sort); nazuchem
 does not reproduce C++ standard-library tie order.
 
-The dependencies' IUPAC Blue Book table reuse permission remains unresolved.
-That table retains `NOASSERTION` in the repository-root `PROVENANCE-nazuchem.toml`;
-the established package expression does not grant rights for that material.
-`publish = false` remains in force.
+The s2n `src/data/bluebook/p25_retained.tsv` table is retained as factual data
+transcribed from IUPAC 2013 Recommendations P-25.2.1 Table 2.8. It is excluded
+from the MIT/Apache-2.0 grant; its ledger licence remains `NOASSERTION`
+(owner decision 2026-11-10).
 The crate's `NOTICE` and copied dependency notices describe the exact scope.
