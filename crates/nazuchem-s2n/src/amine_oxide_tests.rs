@@ -7,7 +7,7 @@
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 
 use super::name_smiles;
-use crate::naming::canonical_smiles;
+use crate::test_support::canonical_smiles;
 use nazuchem_ir::{NameReason, NameStatus};
 
 type Case = (&'static str, &'static str, &'static str, NameStatus);
@@ -274,10 +274,8 @@ fn amine_oxide_keeps_source_stereo_alternatives() {
             (&actual.text, actual.status),
             (&alternative.name, alternative.status),
         ] {
-            let request = crate::naming::local::verification_request(text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::verification_result(text, &reply).unwrap();
-            crate::naming::reverse::verify_alternative_identity(smiles, &parsed.smiles, status)
+            let parsed = crate::test_support::parse_generated(text).unwrap();
+            crate::test_support::verify_alternative_identity(smiles, &parsed, status)
                 .unwrap_or_else(|error| panic!("{text}: {error}"));
         }
     }
@@ -462,11 +460,9 @@ fn amine_oxide_unknown_stereo_does_not_certify_zwitterionic_alternatives() {
         NameStatus::NotPreferred(NameReason::AmineOxideZwitterion)
     );
     for text in [&actual.text, &explicit.name] {
-        let request = crate::naming::local::parse_request(text).unwrap();
-        let reply = crate::naming::worker::respond(&request).unwrap();
-        let parsed = crate::naming::local::parse_result(text, &reply).unwrap();
+        let parsed = crate::test_support::parse_strict(text).unwrap();
         assert_eq!(
-            canonical_smiles(&parsed.smiles).unwrap(),
+            canonical_smiles(&parsed).unwrap(),
             canonical_smiles(smiles).unwrap(),
             "{text}"
         );
@@ -544,11 +540,9 @@ fn amine_oxide_ambiguous_ring_locants_remain_unverified() {
             "{}",
             actual.text
         );
-        let request = crate::naming::local::parse_request(&actual.text).unwrap();
-        let reply = crate::naming::worker::respond(&request).unwrap();
-        let parsed = crate::naming::local::parse_result(&actual.text, &reply).unwrap();
+        let parsed = crate::test_support::parse_strict(&actual.text).unwrap();
         assert_eq!(
-            canonical_smiles(&parsed.smiles).unwrap(),
+            canonical_smiles(&parsed).unwrap(),
             identity,
             "{smiles}: {}",
             actual.text
@@ -567,13 +561,11 @@ fn amine_oxide_functional_class_names_round_trip() {
     for &(row, smiles, expected, _) in FUNCTIONAL_CLASS_CASES.iter().chain(CHALCOGEN_ANALOGUES) {
         let actual = name(smiles).unwrap();
         assert_eq!(actual.text, expected, "{row}: {smiles}");
-        let request = crate::naming::local::parse_request(&actual.text).unwrap();
-        let reply = crate::naming::worker::respond(&request).unwrap();
-        let parsed = crate::naming::local::parse_result(&actual.text, &reply)
+        let parsed = crate::test_support::parse_strict(&actual.text)
             .unwrap_or_else(|error| panic!("{row}: {}: {error}", actual.text));
         assert_eq!(
             canonical_smiles(smiles).unwrap(),
-            canonical_smiles(&parsed.smiles).unwrap(),
+            canonical_smiles(&parsed).unwrap(),
             "{row}: {}",
             actual.text
         );
@@ -603,12 +595,10 @@ fn amine_oxide_functional_class_names_preserve_remote_carbon_stereo() {
             "{smiles}: expected source descriptor {cip}, got {}",
             actual.text
         );
-        let request = crate::naming::local::parse_request(&actual.text).unwrap();
-        let reply = crate::naming::worker::respond(&request).unwrap();
-        let parsed = crate::naming::local::parse_result(&actual.text, &reply).unwrap();
+        let parsed = crate::test_support::parse_strict(&actual.text).unwrap();
         let identity = canonical_smiles(smiles).unwrap();
         assert_eq!(
-            canonical_smiles(&parsed.smiles).unwrap(),
+            canonical_smiles(&parsed).unwrap(),
             identity,
             "{}",
             actual.text
@@ -657,11 +647,9 @@ fn amine_oxide_keeps_source_carbon_stereo_when_neutral_priorities_reverse() {
             format!("(1{descriptor})-1-fluoro-N,N-dimethyl-1-(piperidin-1-yl)methanamine N-oxide")
         );
         assert_eq!(actual.status, NameStatus::Preferred);
-        let request = crate::naming::local::parse_request(&actual.text).unwrap();
-        let reply = crate::naming::worker::respond(&request).unwrap();
-        let parsed = crate::naming::local::parse_result(&actual.text, &reply).unwrap();
+        let parsed = crate::test_support::parse_strict(&actual.text).unwrap();
         assert_eq!(
-            canonical_smiles(&parsed.smiles).unwrap(),
+            canonical_smiles(&parsed).unwrap(),
             canonical_smiles(smiles).unwrap(),
             "{}",
             actual.text
@@ -683,11 +671,9 @@ fn amine_oxide_nitrones_keep_opposite_double_bond_stereo() {
             format!("({descriptor})-N-methylethanimine N-oxide")
         );
         assert_eq!(actual.status, NameStatus::Preferred);
-        let request = crate::naming::local::parse_request(&actual.text).unwrap();
-        let reply = crate::naming::worker::respond(&request).unwrap();
-        let parsed = crate::naming::local::parse_result(&actual.text, &reply).unwrap();
+        let parsed = crate::test_support::parse_strict(&actual.text).unwrap();
         assert_eq!(
-            canonical_smiles(&parsed.smiles).unwrap(),
+            canonical_smiles(&parsed).unwrap(),
             canonical_smiles(smiles).unwrap(),
             "{}",
             actual.text

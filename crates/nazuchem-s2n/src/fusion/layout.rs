@@ -2529,7 +2529,7 @@ fn ordered_construction_layouts(
 // Source: openclatura | tests/unit/test_fusion_large_ring_port_layout.py::test_macro88584_expanded_geometry_reproduces_both_opsin_perimeters
 mod tests {
     use super::*;
-    use crate::naming::openclatura::{
+    use crate::{
         fusion::faces::{select_bounded_face_model, typed_face_model},
         graph_io::read_smiles,
     };
@@ -2637,7 +2637,7 @@ mod tests {
     // Provenance: fn tests::coupled_and_branched_large_rings_need_an_extra_parser_witness | original
     // Source: ReShiki | src/naming/openclatura/fusion/layout.rs::tests::coupled_and_branched_large_rings_need_an_extra_parser_witness
     fn coupled_and_branched_large_rings_need_an_extra_parser_witness() {
-        use crate::naming::openclatura::molecule::{Atom, Bond, Molecule};
+        use crate::molecule::{Atom, Bond, Molecule};
         let model = |cycles: Vec<Vec<usize>>| {
             let edges = cycles
                 .iter()

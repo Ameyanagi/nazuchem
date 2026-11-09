@@ -1174,14 +1174,12 @@ mod tests {
             NameStatus::NotPreferred(NameReason::RelativeRingStereo),
             "{smiles}"
         );
-        let identity = crate::naming::canonical_smiles(smiles).unwrap();
+        let identity = crate::test_support::canonical_smiles(smiles).unwrap();
         for text in std::iter::once(&name.text).chain(name.alternatives.iter().map(|n| &n.name)) {
-            let request = crate::naming::local::parse_request(text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(text, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(text).unwrap();
             assert_eq!(
                 identity,
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{smiles}: {text}"
             );
         }
@@ -1387,12 +1385,10 @@ mod tests {
             }
             let name = name_smiles(smiles, &Default::default()).unwrap().text;
             assert_eq!(name, expected, "{smiles}");
-            let request = crate::naming::local::parse_request(&name).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(&name, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(&name).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{name}",
             );
         }
@@ -1417,12 +1413,10 @@ mod tests {
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap().text;
             assert_eq!(name, expected, "{smiles}");
-            let request = crate::naming::local::parse_request(&name).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(&name, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(&name).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{name}",
             );
         }
@@ -1454,12 +1448,10 @@ mod tests {
         let smiles = "C/C=C\\C(=C/C)[C@H](C)/C=C\\C";
         let name = name_smiles(smiles, &Default::default()).unwrap().text;
         assert_eq!(name, "(2Z,4E,5R,6Z)-4-ethylidene-5-methylocta-2,6-diene");
-        let request = crate::naming::local::parse_request(&name).unwrap();
-        let reply = crate::naming::worker::respond(&request).unwrap();
-        let parsed = crate::naming::local::parse_result(&name, &reply).unwrap();
+        let parsed = crate::test_support::parse_strict(&name).unwrap();
         assert_eq!(
-            crate::naming::canonical_smiles(smiles).unwrap(),
-            crate::naming::canonical_smiles(&parsed.smiles).unwrap()
+            crate::test_support::canonical_smiles(smiles).unwrap(),
+            crate::test_support::canonical_smiles(&parsed).unwrap()
         );
     }
 }

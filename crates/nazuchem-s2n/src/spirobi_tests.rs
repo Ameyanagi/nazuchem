@@ -293,8 +293,8 @@ fn spirobi_target_names_reconstruct_matrix_graphs() {
         assert!(parsed.warnings.is_empty(), "{row}: {:?}", parsed.warnings);
         let reconstructed = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
         assert_eq!(
-            crate::naming::canonical_smiles(&reconstructed).unwrap(),
-            crate::naming::canonical_smiles(smiles).unwrap(),
+            crate::test_support::canonical_smiles(&reconstructed).unwrap(),
+            crate::test_support::canonical_smiles(smiles).unwrap(),
             "{row}: {expected} -> {reconstructed}"
         );
     }

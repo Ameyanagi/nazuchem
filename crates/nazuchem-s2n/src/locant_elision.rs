@@ -1310,7 +1310,7 @@ mod tests {
             ),
             ("O=C(O)[C@H](F)Cl", "(R)-chlorofluoroacetic acid"),
         ] {
-            let canonical = crate::naming::canonical_smiles(smiles).unwrap();
+            let canonical = crate::test_support::canonical_smiles(smiles).unwrap();
             let name = super::super::name_smiles(&canonical, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
@@ -1322,7 +1322,7 @@ mod tests {
                 parsed.message
             );
             let actual = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-            crate::naming::verify_identity(smiles, &actual).unwrap();
+            crate::test_support::verify_identity(smiles, &actual).unwrap();
         }
         let input =
             nazuchem_kernel::smiles::read("C[C@H](CC)OC(=O)[C@H](F)Cl", &Default::default())
@@ -1395,7 +1395,7 @@ mod tests {
                 parsed.warnings
             );
             let actual = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-            crate::naming::verify_identity(smiles, &actual).unwrap();
+            crate::test_support::verify_identity(smiles, &actual).unwrap();
         }
     }
 

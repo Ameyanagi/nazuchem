@@ -842,7 +842,7 @@ mod tests {
                 parsed.message
             );
             let reconstructed = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-            crate::naming::verify_identity(smiles, &reconstructed).unwrap_or_else(|error| {
+            crate::test_support::verify_identity(smiles, &reconstructed).unwrap_or_else(|error| {
                 panic!("{smiles} -> {} -> {reconstructed}: {error}", name.text)
             });
         }
@@ -997,7 +997,7 @@ mod tests {
                 parsed.message
             );
             let reconstructed = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-            crate::naming::verify_identity(smiles, &reconstructed)
+            crate::test_support::verify_identity(smiles, &reconstructed)
                 .unwrap_or_else(|e| panic!("{smiles} -> {} -> {reconstructed}: {e}", name.text));
         }
     }

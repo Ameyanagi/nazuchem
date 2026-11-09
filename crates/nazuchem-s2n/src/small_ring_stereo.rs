@@ -94,7 +94,7 @@ pub fn scoped_small_ring_stereo_features(
 // Source: ReShiki | src/naming/openclatura/small_ring_stereo.rs::tests
 mod tests {
     use super::*;
-    use crate::naming::openclatura::graph_io::read_smiles;
+    use crate::graph_io::read_smiles;
 
     #[test]
     fn modern_cip_precedes_the_scoped_local_isotope_fallback() {

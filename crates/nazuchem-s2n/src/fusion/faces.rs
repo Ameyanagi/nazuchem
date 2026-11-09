@@ -18,7 +18,7 @@ use super::{
     config::fusion_nomenclature_config,
     model::{Edge, EdgeSet, Face, FaceModel, normalize_edge},
 };
-use crate::naming::openclatura::{
+use crate::{
     chains::canonical_ranks,
     graph_kernel::{adjacency_from_edges, connected_components},
     molecule::{AtomSet, Molecule},
@@ -956,7 +956,7 @@ fn independent_face_sets(
 // Source: openclatura | tests/unit/test_fusion_larger_carbon_bicycle.py::test_two_path_proof_bypasses_exponential_cycle_search
 mod tests {
     use super::*;
-    use crate::naming::openclatura::{
+    use crate::{
         graph_io::read_smiles,
         molecule::{Atom, Bond},
     };

@@ -248,7 +248,7 @@ fn salt_anion_spelling_matrix() {
             NameStatus::Unverified(NameReason::BridgedFusedParent),
         ),
     ] {
-        let result = crate::naming::canonical_smiles(smiles)
+        let result = crate::test_support::canonical_smiles(smiles)
             .and_then(|canonical| super::name_smiles(&canonical, &Default::default()));
         let actual = match result {
             Ok(actual) => actual,
@@ -270,7 +270,7 @@ fn salt_anion_spelling_matrix() {
             continue;
         }
         let round_trip = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-        if let Err(error) = crate::naming::verify_identity(smiles, &round_trip) {
+        if let Err(error) = crate::test_support::verify_identity(smiles, &round_trip) {
             failures.push(format!("{row}: {} -> {round_trip}: {error}", actual.text));
         }
     }

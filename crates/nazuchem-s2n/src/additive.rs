@@ -1529,7 +1529,7 @@ mod tests {
     // Test provenance: upstream inputs/expected names with local assertions and extensions;
     // exact matches are conservatively adapted; independent ancestry is not established.
     fn ring_ketone_numbering_compares_suffix_before_added_hydrogen() {
-        use crate::naming::verify_identity;
+        use crate::test_support::verify_identity;
         use nazuchem_ir::NameStatus;
         let parser = opsin::Parser::new().unwrap();
         for (smiles, expected) in [
@@ -1600,7 +1600,7 @@ mod tests {
     // Test provenance: upstream inputs/expected names with local assertions and extensions;
     // exact matches are conservatively adapted; independent ancestry is not established.
     fn suffix_hydrogen_names_are_preferred_and_round_trip() {
-        use crate::naming::verify_identity;
+        use crate::test_support::verify_identity;
         use nazuchem_ir::NameStatus;
         let parser = opsin::Parser::new().unwrap();
         let mut failures = Vec::new();
@@ -1745,7 +1745,7 @@ mod tests {
             .parse(&name.text, &opsin::ParseOptions::strict());
         assert_eq!(parsed.status, opsin::Status::Success, "{}", parsed.message);
         let reconstructed = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-        crate::naming::verify_identity(smiles, &reconstructed).unwrap();
+        crate::test_support::verify_identity(smiles, &reconstructed).unwrap();
     }
 
     #[test]
@@ -1929,7 +1929,7 @@ mod tests {
                     parsed.warnings
                 );
                 let reconstructed = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-                crate::naming::verify_identity(smiles, &reconstructed)
+                crate::test_support::verify_identity(smiles, &reconstructed)
                     .unwrap_or_else(|error| panic!("{smiles} -> {candidate}: {error}"));
             }
         }

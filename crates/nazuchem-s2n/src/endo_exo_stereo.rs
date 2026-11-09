@@ -158,7 +158,7 @@ fn reference_parity(
 #[cfg(test)]
 mod tests {
     use super::super::name_smiles;
-    use crate::naming::canonical_smiles;
+    use crate::test_support::canonical_smiles;
     use nazuchem_ir::{NameReason, NameStatus};
     use nazuchem_kernel::smiles;
 
@@ -274,17 +274,15 @@ mod tests {
     }
 
     fn assert_round_trip(name: &str, expected: &str, relative: bool) {
-        let request = crate::naming::local::verification_request(name).unwrap();
-        let reply = crate::naming::worker::respond(&request).unwrap();
-        let parsed = crate::naming::local::verification_result(name, &reply).unwrap();
+        let parsed = crate::test_support::parse_generated(name).unwrap();
         let result = if relative {
-            crate::naming::reverse::verify_alternative_identity(
+            crate::test_support::verify_alternative_identity(
                 expected,
-                &parsed.smiles,
+                &parsed,
                 NameStatus::NotPreferred(NameReason::EndoExoStereo),
             )
         } else {
-            crate::naming::verify_identity(expected, &parsed.smiles)
+            crate::test_support::verify_identity(expected, &parsed)
         };
         result.unwrap_or_else(|error| panic!("{name}: {error}"));
     }

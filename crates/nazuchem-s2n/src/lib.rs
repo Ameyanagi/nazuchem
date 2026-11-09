@@ -50,9 +50,28 @@
 //!
 //! Supports chains, monocycles, retained and systematic fused parents, pure
 //! spiro and von Baeyer ring systems, with independent reconstruction proofs.
+//!
+//! Callers supply a [`nazuchem_kernel::budget::Budget`]; `Budget::default()` is
+//! unbounded. The library performs no I/O. Worst-case time on adversarial input
+//! is unbounded, so hosts needing hard limits should supervise requests externally.
 // Direct graph/path indexing preserves upstream invariants and panic behavior;
 // JSON Value indexing preserves null for missing optional fields.
 #![cfg_attr(not(test), allow(clippy::indexing_slicing))]
+#![forbid(unsafe_code)]
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented
+    )
+)]
+
+mod identity;
+pub use identity::{canonical_smiles, verify_alternative_identity, verify_identity};
 
 mod additive;
 mod amine_oxides;
@@ -82,7 +101,7 @@ mod identity_validation;
 mod ionic_naming;
 mod isotope_naming;
 mod radical_ions;
-pub(super) use radical_ions::recover as recover_radical_ion;
+pub use radical_ions::recover as recover_radical_ion;
 mod locant_elision;
 mod locants;
 mod molecule;
@@ -131,44 +150,56 @@ mod ion_spelling_tests;
 #[cfg(test)]
 mod salt_anion_spelling_tests;
 
-/// The naming profile on the worker wire and in generated-name warnings.
-pub(super) const PROFILE: &str = "openclatura 0.4.3 Rust port";
+/// Engine identifier for callers that pin naming output.
+pub const PROFILE: &str = "openclatura 0.4.3 Rust port";
 
 /// A generated name and how it relates to the preferred IUPAC name.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Name {
+pub struct Name {
+    /// The generated chemical name.
     pub text: String,
+    /// Whether the name is preferred, with a reason when it is not.
     pub status: nazuchem_ir::NameStatus,
+    /// Other generated names, each with its own preference status.
     pub alternatives: Vec<nazuchem_ir::AlternativeName>,
+    /// Locants of unknown stereochemistry omitted from the main name.
     pub omitted_stereo: Vec<String>,
+    /// Number of unknown stereochemical units omitted from the main name.
     pub omitted_units: usize,
+    /// A recovered neutral target for verifying a descriptive radical-ion name.
     #[serde(default)]
     pub verification: Option<Verification>,
 }
 
-/// Descriptive radical-ion names are checked against their recovered neutral.
+/// Recovered neutral target used to verify a descriptive radical-ion name.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Verification {
+pub struct Verification {
+    /// The generated name of the recovered neutral structure.
     pub name: String,
+    /// SMILES of the recovered neutral structure to compare with the parsed name.
     pub smiles: String,
 }
 
-#[cfg(test)]
+/// Generate a name from molecular SMILES using IUPAC isotope notation.
+///
+/// Molecular perception uses the caller's budget. Returns an error when the
+/// input is unsupported, cannot be named, or exceeds the supplied budget.
 // Provenance: fn name_smiles | adapted
 // Source: openclatura | src/openclatura/namer.py::name_smiles
 // Source: openclatura | src/openclatura/engine.py::Namer.name_smiles
-pub(super) fn name_smiles(
-    smiles: &str,
-    budget: &nazuchem_kernel::budget::Budget,
-) -> Result<Name, String> {
+pub fn name_smiles(smiles: &str, budget: &nazuchem_kernel::budget::Budget) -> Result<Name, String> {
     name_smiles_with_style(smiles, nazuchem_ir::IsotopeStyle::Iupac, budget)
 }
 
+/// Generate a name from molecular SMILES using the requested isotope notation.
+///
+/// Molecular perception uses the caller's budget. Returns an error when the
+/// input is unsupported, cannot be named, or exceeds the supplied budget.
 // Provenance: fn name_smiles_with_style | original
 // Source: ReShiki | src/naming/openclatura/mod.rs::name_smiles_with_style
-pub(super) fn name_smiles_with_style(
+pub fn name_smiles_with_style(
     smiles: &str,
     style: nazuchem_ir::IsotopeStyle,
     budget: &nazuchem_kernel::budget::Budget,
@@ -261,7 +292,7 @@ fn name_routes(
     if let Some(name) = unknown_stereo::name_smiles(smiles, style, budget)? {
         return Ok(name);
     }
-    let canonical = super::canonical_smiles(smiles)?;
+    let canonical = canonical_smiles(smiles, budget)?;
     if canonical.contains('.') {
         return species::name_salt(&canonical, style, budget);
     }
@@ -400,7 +431,7 @@ fn name_routes(
 /// Keep the isotope parent on the ordinary engine's existing validation path.
 // Provenance: fn validate_parent | original
 // Source: ReShiki | src/naming/openclatura/mod.rs::validate_parent
-pub(super) fn validate_parent(mol: &molecule::Molecule) -> Result<(), String> {
+pub(crate) fn validate_parent(mol: &molecule::Molecule) -> Result<(), String> {
     ionic_naming::validate_heteroatom_oxo_charge_states(mol)?;
     // Upstream divergence: nitrogen stereocentres and ring stereocentres with a
     // lone pair (for example three single bonds on P, As, S+) read back through OPSIN as
@@ -470,9 +501,12 @@ fn assess_derivation(mol: &molecule::Molecule, derivation: &component_namer::Der
 /// compound locants, counts as a level (P-16.5.4.1.3), and a mark that would
 /// directly follow or precede one of the same kind moves up a level
 /// (P-16.5.4.1.5).
+///
+/// Public so downstream regression harnesses, including ReShiki's, can compare
+/// parentheses-only reference names with the engine's generated spelling.
 // Provenance: fn nest_enclosing_marks | original
 // Source: ReShiki | src/naming/openclatura/mod.rs::nest_enclosing_marks
-pub(super) fn nest_enclosing_marks(name: &str) -> String {
+pub fn nest_enclosing_marks(name: &str) -> String {
     // Per open group: its start, the deepest counted level inside it, and the
     // levels of counted groups that start right after it opens and end right
     // before it closes.
@@ -882,6 +916,9 @@ fn has_nonbonding_pair(atom: &molecule::Atom, bond_order_sum: usize) -> bool {
         - (bond_order_sum + atom.total_h_count + atom.radical_electrons) as i32
         >= 2
 }
+
+#[cfg(test)]
+mod test_support;
 
 #[cfg(test)]
 // Provenance: mod tests | original
@@ -1469,12 +1506,10 @@ mod tests {
                 NameStatus::NotPreferred(NameReason::Multiplicative),
                 "{smiles}"
             );
-            let request = crate::naming::local::parse_request(&name.text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{}",
                 name.text,
             );
@@ -1579,12 +1614,10 @@ mod tests {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
-            let request = crate::naming::local::parse_request(&name.text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{}",
                 name.text
             );
@@ -1663,12 +1696,10 @@ mod tests {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             if expected.ends_with("acetic acid") {
-                let request = crate::naming::local::parse_request(&name.text).unwrap();
-                let reply = crate::naming::worker::respond(&request).unwrap();
-                let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+                let parsed = crate::test_support::parse_strict(&name.text).unwrap();
                 assert_eq!(
-                    crate::naming::canonical_smiles(smiles).unwrap(),
-                    crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                    crate::test_support::canonical_smiles(smiles).unwrap(),
+                    crate::test_support::canonical_smiles(&parsed).unwrap(),
                     "{}",
                     name.text
                 );
@@ -1928,12 +1959,10 @@ mod tests {
             };
             assert_eq!(name.status, status, "{smiles}");
             if expected.ends_with("acetic acid") || expected == "chloroacetonitrile oxide" {
-                let request = crate::naming::local::parse_request(&name.text).unwrap();
-                let reply = crate::naming::worker::respond(&request).unwrap();
-                let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+                let parsed = crate::test_support::parse_strict(&name.text).unwrap();
                 assert_eq!(
-                    crate::naming::canonical_smiles(smiles).unwrap(),
-                    crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                    crate::test_support::canonical_smiles(smiles).unwrap(),
+                    crate::test_support::canonical_smiles(&parsed).unwrap(),
                     "{}",
                     name.text
                 );
@@ -2024,12 +2053,10 @@ mod tests {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
-            let request = crate::naming::local::parse_request(&name.text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{}",
                 name.text
             );
@@ -2100,12 +2127,10 @@ mod tests {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, status, "{smiles}");
-            let request = crate::naming::local::parse_request(&name.text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{}",
                 name.text
             );
@@ -2166,12 +2191,10 @@ mod tests {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, status, "{smiles}");
-            let request = crate::naming::local::parse_request(&name.text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{}",
                 name.text
             );
@@ -2249,12 +2272,10 @@ mod tests {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, status, "{smiles}");
-            let request = crate::naming::local::parse_request(&name.text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{}",
                 name.text
             );
@@ -2289,12 +2310,10 @@ mod tests {
             "3-([1^1,2^1:2^2,3^1:3^2,4^1-quatercyclopropan]-1^2-yl)-2,2'-bi(bicyclo[2.2.0]hexane)"
         );
         assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred);
-        let request = crate::naming::local::parse_request(&name.text).unwrap();
-        let reply = crate::naming::worker::respond(&request).unwrap();
-        let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+        let parsed = crate::test_support::parse_strict(&name.text).unwrap();
         assert_eq!(
-            crate::naming::canonical_smiles(smiles).unwrap(),
-            crate::naming::canonical_smiles(&parsed.smiles).unwrap()
+            crate::test_support::canonical_smiles(smiles).unwrap(),
+            crate::test_support::canonical_smiles(&parsed).unwrap()
         );
     }
 
@@ -2330,10 +2349,8 @@ mod tests {
             "([1^1,2^1:2^4,3^1-terphenyl]-1^4-yl)acetic acid",
             "(4'-cyano[1,1'-biphenyl]-4-yl)acetic acid",
         ] {
-            let request = crate::naming::local::parse_request(expected).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(expected, &reply).unwrap();
-            let name = name_smiles(&parsed.smiles, &Default::default()).unwrap();
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            let name = name_smiles(&parsed, &Default::default()).unwrap();
             assert_eq!(name.text, expected);
             assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred);
         }
@@ -2353,12 +2370,10 @@ mod tests {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, "1,1'-bi(dispiro[2.0.2.1]heptane)", "{smiles}");
             assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
-            let request = crate::naming::local::parse_request(&name.text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{}",
                 name.text
             );
@@ -2378,12 +2393,10 @@ mod tests {
         let name = name_smiles(smiles, &Default::default()).unwrap();
         assert_eq!(name.text, "2,2'-bi(1,4-dioxane)");
         assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred);
-        let request = crate::naming::local::parse_request(&name.text).unwrap();
-        let reply = crate::naming::worker::respond(&request).unwrap();
-        let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+        let parsed = crate::test_support::parse_strict(&name.text).unwrap();
         assert_eq!(
-            crate::naming::canonical_smiles(smiles).unwrap(),
-            crate::naming::canonical_smiles(&parsed.smiles).unwrap()
+            crate::test_support::canonical_smiles(smiles).unwrap(),
+            crate::test_support::canonical_smiles(&parsed).unwrap()
         );
         for expected in [
             "2,2'-bi(1,4-dioxane)",
@@ -2392,18 +2405,14 @@ mod tests {
             "1^2,2^2:2^3,3^2:3^3,4^2:4^3,5^2-quinque(1,4-dioxane)",
             "1^2,2^2:2^3,3^2:3^3,4^2:4^3,5^2:5^3,6^2-sexi(1,4-dioxane)",
         ] {
-            let request = crate::naming::local::parse_request(expected).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(expected, &reply).unwrap();
-            let name = name_smiles(&parsed.smiles, &Default::default()).unwrap();
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            let name = name_smiles(&parsed, &Default::default()).unwrap();
             assert_eq!(name.text, expected);
             assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred);
-            let request = crate::naming::local::parse_request(&name.text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let reparsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+            let reparsed = crate::test_support::parse_strict(&name.text).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
-                crate::naming::canonical_smiles(&reparsed.smiles).unwrap()
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                crate::test_support::canonical_smiles(&reparsed).unwrap()
             );
         }
         for multiplier in ["bi", "ter", "quater", "quinque", "sexi"] {
@@ -2425,12 +2434,10 @@ mod tests {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
-            let request = crate::naming::local::parse_request(&name.text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{}",
                 name.text
             );
@@ -2439,12 +2446,10 @@ mod tests {
         // locant with a hyphen. Both spellings reconstruct the same hydride;
         // generation consistently encloses locanted component names.
         let alternative = "2,2'-bi-1-benzofuran";
-        let request = crate::naming::local::parse_request(alternative).unwrap();
-        let reply = crate::naming::worker::respond(&request).unwrap();
-        let parsed = crate::naming::local::parse_result(alternative, &reply).unwrap();
+        let parsed = crate::test_support::parse_strict(alternative).unwrap();
         assert_eq!(
-            crate::naming::canonical_smiles("c1ccc2c(c1)oc(c2)-c1cc2ccccc2o1").unwrap(),
-            crate::naming::canonical_smiles(&parsed.smiles).unwrap()
+            crate::test_support::canonical_smiles("c1ccc2c(c1)oc(c2)-c1cc2ccccc2o1").unwrap(),
+            crate::test_support::canonical_smiles(&parsed).unwrap()
         );
     }
 
@@ -2480,16 +2485,10 @@ mod tests {
     }
 
     #[test]
+    // Provenance: fn tests::pheno_fusion_components_choose_preferred_parents_and_round_trip | original
+    // Source: ReShiki | src/naming/openclatura/mod.rs::tests::pheno_fusion_components_choose_preferred_parents_and_round_trip
     fn pheno_fusion_components_choose_preferred_parents_and_round_trip() {
         use nazuchem_ir::NameStatus;
-        let inchi = |smiles: &str| {
-            use reshiki_chemistry::inchi::{generator, kernel};
-            let state = reshiki_chemistry::smiles::prepare(smiles).unwrap().state;
-            let input = kernel::Molecule::prepare(&state, None).unwrap();
-            let output = generator::generate_in_process(&input).unwrap();
-            assert!(output.status.is_success(), "{smiles}: {}", output.message);
-            output.inchi
-        };
         for (smiles, expected) in [
             (
                 "c1ccc2c(c1)Nc1cc3cnc4ccccc4c3cc1O2",
@@ -2539,11 +2538,8 @@ mod tests {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
-            let request = crate::naming::local::parse_request(&name.text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
-            crate::naming::verify_identity(smiles, &parsed.smiles).unwrap();
-            assert_eq!(inchi(smiles), inchi(&parsed.smiles), "{expected}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
         }
     }
 
@@ -2737,12 +2733,10 @@ mod tests {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
-            let request = crate::naming::local::parse_request(&name.text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{}",
                 name.text,
             );
@@ -2918,12 +2912,10 @@ mod tests {
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, NameStatus::NotPreferred(reason), "{smiles}");
             if expected.ends_with("acetic acid") || expected.ends_with("formic acid") {
-                let request = crate::naming::local::parse_request(&name.text).unwrap();
-                let reply = crate::naming::worker::respond(&request).unwrap();
-                let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+                let parsed = crate::test_support::parse_strict(&name.text).unwrap();
                 assert_eq!(
-                    crate::naming::canonical_smiles(smiles).unwrap(),
-                    crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                    crate::test_support::canonical_smiles(smiles).unwrap(),
+                    crate::test_support::canonical_smiles(&parsed).unwrap(),
                     "{}",
                     name.text
                 );
@@ -2985,12 +2977,10 @@ mod tests {
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, NameStatus::Unverified(reason), "{smiles}");
             if expected.ends_with("acetic acid") {
-                let request = crate::naming::local::parse_request(&name.text).unwrap();
-                let reply = crate::naming::worker::respond(&request).unwrap();
-                let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+                let parsed = crate::test_support::parse_strict(&name.text).unwrap();
                 assert_eq!(
-                    crate::naming::canonical_smiles(smiles).unwrap(),
-                    crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                    crate::test_support::canonical_smiles(smiles).unwrap(),
+                    crate::test_support::canonical_smiles(&parsed).unwrap(),
                     "{}",
                     name.text
                 );
@@ -3043,12 +3033,10 @@ mod tests {
             name,
             "([1,3]thiazolo[5,4-e][1,3]benzoxazol-7-yl)acetic acid"
         );
-        let request = crate::naming::local::parse_request(&name).unwrap();
-        let reply = crate::naming::worker::respond(&request).unwrap();
-        let parsed = crate::naming::local::parse_result(&name, &reply).unwrap();
+        let parsed = crate::test_support::parse_strict(&name).unwrap();
         assert_eq!(
-            crate::naming::canonical_smiles(smiles).unwrap(),
-            crate::naming::canonical_smiles(&parsed.smiles).unwrap()
+            crate::test_support::canonical_smiles(smiles).unwrap(),
+            crate::test_support::canonical_smiles(&parsed).unwrap()
         );
     }
 

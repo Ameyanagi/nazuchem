@@ -866,7 +866,7 @@ mod tests {
         AssemblyParts, BTreeMap, name_subgraph_with_upstream,
         name_subgraph_without_attachment_stereo, simple_rooted_carbanion,
     };
-    use crate::naming::openclatura::{graph_io::read_smiles, molecule::AtomSet};
+    use crate::{graph_io::read_smiles, molecule::AtomSet};
 
     #[test]
     fn acid_prefix_context_crosses_heteroatoms_and_stays_within_its_branch() {
@@ -897,7 +897,7 @@ mod tests {
         std::thread::Builder::new()
             .stack_size(2 * 1024 * 1024)
             .spawn(|| {
-                use crate::naming::openclatura::name_smiles;
+                use crate::name_smiles;
 
                 assert_eq!(
                     name_smiles(&format!("{}C", "CO".repeat(100)), &Default::default())
@@ -993,7 +993,7 @@ mod tests {
 
     #[test]
     fn disjoint_ring_branches_keep_recursive_parent_and_attachment_names() {
-        use crate::naming::openclatura::name_smiles;
+        use crate::name_smiles;
 
         for (smiles, expected) in [
             ("C1=CC=NC(=C1)C2=CC=CC=N2", "2,2'-bipyridine"),
@@ -1027,7 +1027,7 @@ mod tests {
 
     #[test]
     fn ring_branches_preserve_bond_and_atom_stereochemistry() {
-        use crate::naming::openclatura::name_smiles;
+        use crate::name_smiles;
 
         for (smiles, expected) in [
             (

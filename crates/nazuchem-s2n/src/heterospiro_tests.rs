@@ -331,8 +331,8 @@ fn heterospiro_aromatic_and_kekule_inputs_have_the_same_name_and_status() {
             .find(|case| case.0 == row)
             .unwrap();
         assert_eq!(
-            crate::naming::canonical_smiles(kekule).unwrap(),
-            crate::naming::canonical_smiles(aromatic).unwrap(),
+            crate::test_support::canonical_smiles(kekule).unwrap(),
+            crate::test_support::canonical_smiles(aromatic).unwrap(),
             "{row}: equivalent test inputs"
         );
         let actual = name_smiles(kekule, &Default::default())
@@ -417,7 +417,7 @@ fn assert_names_statuses_and_structures(cases: &[Case]) {
             parsed.message
         );
         let reconstructed = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-        crate::naming::verify_identity(smiles, &reconstructed)
+        crate::test_support::verify_identity(smiles, &reconstructed)
             .unwrap_or_else(|error| panic!("{row}: {error}"));
     }
 }

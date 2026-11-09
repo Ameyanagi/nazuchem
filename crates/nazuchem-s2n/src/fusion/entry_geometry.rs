@@ -647,7 +647,7 @@ mod tests {
     }
     #[test]
     fn deep_pentagon_entry_chains_reach_the_exact_linear_score_bound() {
-        use crate::naming::openclatura::{
+        use crate::{
             fusion::faces::{cycle_edges, select_bounded_face_model, typed_face_model},
             molecule::{Atom, Bond, Molecule},
         };

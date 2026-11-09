@@ -553,7 +553,7 @@ pub fn add_component_n_substituents(
 // Source: ReShiki | src/naming/openclatura/component_modifiers.rs::tests
 mod tests {
     use super::*;
-    use crate::naming::openclatura::graph_io::read_smiles;
+    use crate::graph_io::read_smiles;
 
     #[test]
     fn mixed_diester_collection_requires_two_fully_esterified_acid_sites() {

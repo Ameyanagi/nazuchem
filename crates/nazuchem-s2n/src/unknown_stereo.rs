@@ -87,7 +87,7 @@ pub(super) fn name_smiles(
     }
     // Keep the ordinary size and supported-semantics gate ahead of parsing
     // the internal marker transport, just as in graph_io::read_smiles.
-    let unspecified = crate::naming::canonical_smiles(smiles)?;
+    let unspecified = crate::canonical_smiles(smiles, budget)?;
     let mut normal = super::name_smiles_with_style(&unspecified, style, budget)?;
     let status = normal.status;
     normal.status = NameStatus::NotPreferred(NameReason::UnknownConfiguration);
@@ -239,12 +239,10 @@ mod tests {
                 .iter()
                 .map(|alternative| alternative.name.as_str()),
         ) {
-            let request = crate::naming::local::parse_request(name).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(name, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(name).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(input).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(input).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{name}"
             );
         }
@@ -388,12 +386,10 @@ mod tests {
             );
             for text in std::iter::once(&name.text).chain(name.alternatives.iter().map(|a| &a.name))
             {
-                let request = crate::naming::local::parse_request(text).unwrap();
-                let reply = crate::naming::worker::respond(&request).unwrap();
-                let parsed = crate::naming::local::parse_result(text, &reply).unwrap();
+                let parsed = crate::test_support::parse_strict(text).unwrap();
                 assert_eq!(
-                    crate::naming::canonical_smiles(input).unwrap(),
-                    crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                    crate::test_support::canonical_smiles(input).unwrap(),
+                    crate::test_support::canonical_smiles(&parsed).unwrap(),
                     "{text}"
                 );
             }
@@ -424,12 +420,10 @@ mod tests {
         assert!(explicit.contains("4ξ"), "{explicit}");
         assert!(!explicit.contains('Ξ'), "{explicit}");
         for candidate in [name.text.as_str(), explicit.as_str()] {
-            let request = crate::naming::local::parse_request(candidate).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(candidate, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(candidate).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{candidate}"
             );
         }
@@ -467,12 +461,10 @@ mod tests {
         let explicit = &name.alternatives[0].name;
         assert_eq!(name.text, super::without_unknown_descriptors(explicit));
         for candidate in [name.text.as_str(), explicit.as_str()] {
-            let request = crate::naming::local::parse_request(candidate).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(candidate, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(candidate).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{candidate}"
             );
         }

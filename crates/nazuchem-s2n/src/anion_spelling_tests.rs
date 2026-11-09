@@ -14,7 +14,7 @@ use nazuchem_ir::{NameReason, NameStatus};
 fn name(smiles: &str) -> Result<super::Name, String> {
     // Match the CLI's canonical input boundary without changing numbering.
     name_smiles(
-        &super::super::canonical_smiles(smiles)?,
+        &crate::test_support::canonical_smiles(smiles)?,
         &Default::default(),
     )
 }
@@ -42,7 +42,7 @@ fn assert_name_and_round_trip(
         parsed.message
     );
     let round_trip = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-    crate::naming::verify_identity(smiles, &round_trip).unwrap();
+    crate::test_support::verify_identity(smiles, &round_trip).unwrap();
 }
 
 #[test]

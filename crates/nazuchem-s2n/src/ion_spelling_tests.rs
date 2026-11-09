@@ -263,7 +263,7 @@ fn ion_spelling_matrix() {
         ),
     ] {
         let result = (|| {
-            let canonical = crate::naming::canonical_smiles(smiles)?;
+            let canonical = crate::test_support::canonical_smiles(smiles)?;
             let actual = name_smiles(&canonical, &Default::default())?;
             println!("{row}\t{}\t{:?}", actual.text, actual.status);
             if (actual.text.as_str(), actual.status) != (expected, status) {
@@ -281,7 +281,7 @@ fn ion_spelling_matrix() {
                 .unwrap()
                 .semantic_cxsmiles()
                 .map_err(|e| e.to_string())?;
-            crate::naming::verify_identity(smiles, &reconstructed)
+            crate::test_support::verify_identity(smiles, &reconstructed)
         })();
         if let Err(error) = result {
             failures.push(format!("{row}: {smiles}: {error}"));

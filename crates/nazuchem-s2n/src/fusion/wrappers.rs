@@ -1674,7 +1674,7 @@ mod tests {
     #[test]
     fn bridge_suffix_numbering_precedes_prefixes_and_is_input_order_independent() {
         use super::super::super::name_smiles;
-        use crate::naming::verify_identity;
+        use crate::test_support::verify_identity;
         use nazuchem_ir::{NameReason, NameStatus};
 
         let parser = opsin::Parser::new().unwrap();
@@ -1716,7 +1716,7 @@ mod tests {
     #[test]
     fn bridge_suffix_numbering_preserves_the_parent_bridge_partition() {
         use super::super::super::name_smiles;
-        use crate::naming::verify_identity;
+        use crate::test_support::verify_identity;
         use nazuchem_ir::{NameReason, NameStatus};
 
         let parser = opsin::Parser::new().unwrap();

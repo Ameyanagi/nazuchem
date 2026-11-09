@@ -2532,7 +2532,7 @@ mod tests {
             assert_eq!(parsed.status, opsin::Status::Success, "{}", parsed.message);
             assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
             let reconstructed = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-            crate::naming::verify_identity(smiles, &reconstructed).unwrap();
+            crate::test_support::verify_identity(smiles, &reconstructed).unwrap();
         }
     }
 
@@ -2583,7 +2583,7 @@ mod tests {
             );
             assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
             let reconstructed = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-            crate::naming::verify_identity(smiles, &reconstructed).unwrap();
+            crate::test_support::verify_identity(smiles, &reconstructed).unwrap();
         }
     }
 
@@ -2657,7 +2657,7 @@ mod tests {
                 reference.message
             );
             let reference_smiles = reference.structure.unwrap().semantic_cxsmiles().unwrap();
-            crate::naming::verify_identity(smiles, &reference_smiles).unwrap();
+            crate::test_support::verify_identity(smiles, &reference_smiles).unwrap();
 
             let name = super::super::super::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected);
@@ -2678,7 +2678,7 @@ mod tests {
                     parsed.message
                 );
                 let reconstructed = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-                crate::naming::verify_identity(smiles, &reconstructed)
+                crate::test_support::verify_identity(smiles, &reconstructed)
                     .unwrap_or_else(|e| panic!("{smiles} -> {candidate} -> {reconstructed}: {e}"));
             }
         }
