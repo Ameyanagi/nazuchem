@@ -10,7 +10,7 @@
     "skipLibCheck": false,
     "allowImportingTsExtensions": true
   },
-  "include": ["scripts/**/*.ts", "tests/**/*.ts", "src/**/*.d.ts", ".generated/**/*.ts"],
+  "include": ["bench/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts", "src/**/*.d.ts", ".generated/**/*.ts"],
   "x-nazuchem-provenance": {
     "SPDX-License-Identifier": "MIT OR Apache-2.0",
     "Origin": "original",

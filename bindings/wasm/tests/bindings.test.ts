@@ -41,6 +41,44 @@ test("IR constants match Rust and the checked-in schema byte for byte", async ()
   expect(raw.jsonSchema()).toBe(JSON_SCHEMA);
 });
 
+test("browser default initialization fetches the shared Wasm and runs the naming API", async () => {
+  const sharedWasm = new URL("../dist/nazuchem_bg.wasm", import.meta.url);
+  const fetchedUrls: string[] = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input) => {
+    const url = new URL(input instanceof Request ? input.url : input.toString());
+    fetchedUrls.push(url.href);
+    expect(url.href).toBe(sharedWasm.href);
+    const bytes = await readFile(url);
+    const body = new Uint8Array(bytes.length);
+    body.set(bytes);
+    return new Response(body, { headers: { "Content-Type": "application/wasm" } });
+  }) as typeof fetch;
+  try {
+    const web = await import("../dist/web/index.js");
+    await web.default();
+    expect(fetchedUrls).toEqual([sharedWasm.href]);
+    expect(web.nameToSmiles("ethanol")).toBe("C(C)O");
+    expect(web.nameToMolecule("ethanol").atoms).toHaveLength(3);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("bundler static Wasm imports run both naming directions in a fresh Node process", () => {
+  const entry = new URL("../dist/bundler/index.js", import.meta.url).href;
+  const program = [
+    'import { strict as assert } from "node:assert";',
+    `import { nameToSmiles, smilesToName } from ${JSON.stringify(entry)};`,
+    'assert.equal(nameToSmiles("ethanol"), "C(C)O");',
+    'assert.equal(smilesToName("CCO").text, "ethanol");',
+  ].join("\n");
+  const result = Bun.spawnSync(["node", "--experimental-wasm-modules", "--input-type=module", "-e", program], {
+    stdout: "pipe", stderr: "pipe", timeout: 30_000,
+  });
+  expect(result.exitCode, result.stderr.toString()).toBe(0);
+}, 30_000);
+
 test("parse errors preserve facade variant and message", () => {
   try {
     nameToMolecule("not a chemical name");

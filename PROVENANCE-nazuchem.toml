@@ -7745,8 +7745,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = ".github/workflows/bindings.yml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "95f46cf9320ef79c9e1a6ba5119b05ef47878585c5e8a5c9adff1bede79e41b5"
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Pins the Node runtime used by the real bundler smoke test and benchmark."
+sha256 = "1e98aae9ce545516ea7ad1551dee69fb5671d89b6454c2b29edf8d06a6b8cd96"
 
 [[file]]
 path = "bindings/python/.gitignore"
@@ -7914,8 +7914,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/wasm/README.md", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "2bd09b356afd9a0ab2ecb024e016704f1d0a8dfdfcaeeb05819f00687f01515a"
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Records the complete size/performance variant matrix, benchmark methodology, frozen noise thresholds, selection and validation."
+sha256 = "524f39501a9ba32c2e56c2ea0657cd51d11b3145c343748e2a9135c5a362acde"
 
 [[file]]
 path = "bindings/wasm/bun.lock"
@@ -7934,8 +7934,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/wasm/package.json", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "2dd531d9815becfac74b754ddb39c6d78fd00983083752cc1a5c1f844112ae78"
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Adds the local Bun benchmark command; npm remains private and benchmark files remain outside the package whitelist."
+sha256 = "14af9da2b176002866f543c686dfc244e880e5f1717ba526e0df6e3555cc5e4d"
 
 [[file]]
 path = "bindings/wasm/scripts/build.ts"
@@ -7944,8 +7944,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/wasm/scripts/build.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "db38e4229b4a2eaabded86ed6f1a2d61b7ee74ede92cd0cea690386f229c92f6"
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Reproducible V0-V7 Wasm size experiments, V3 production profile, pinned optimizer checks, stripped metadata, and one shared Wasm plus relocated bundler import module."
+sha256 = "1d8beaf41a15292cf81b0ee5219aa4902264521d83785af43ebbb87bd8e4c65d"
 
 [[file]]
 path = "bindings/wasm/scripts/check-package.ts"
@@ -7954,8 +7954,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/wasm/scripts/check-package.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "43e26fb0ee2563292848703d15ef27eaef541a079bb1e9f32b385751c37fb461"
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Checks the single packed Wasm, its embedded relative JS dependency, all generated loaders, development-source exclusion, and exact notice bytes."
+sha256 = "335f5061b81978472b546ea77ac8cdccf466522613bb258f6995776ad284a0e1"
 
 [[file]]
 path = "bindings/wasm/scripts/check-types.ts"
@@ -8013,8 +8013,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/wasm/tests/bindings.test.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "6df29c882e2aee9f26d427e40bfbdfc0c48920b20a4e73c94f82e8bab95b94f2"
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Adds real browser default initialization and fresh-Node static bundler instantiation coverage for the shared layout."
+sha256 = "499ae75cc5f7477acc25e09c32ec8bd96d9c5a6d1a10708167866aff0ab32e64"
 
 [[file]]
 path = "bindings/wasm/tsconfig.json"
@@ -8023,8 +8023,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/wasm/tsconfig.json", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "588dd58a3d47ac871c171596adc2c79251d4f9d146eb16f27b02ad31da6738da"
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Includes benchmark TypeScript in strict checking."
+sha256 = "b34fe21de5de263bf01830bcdbb996c92ee536a9e4af80f6ff1e54b4e3eb9e77"
 
 [[file]]
 path = "scripts/collect_binding_notices.py"
@@ -8045,3 +8045,37 @@ sources = [
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
 sha256 = "7a00913883ecc761f2f98cbfab2a3109016a8616897352a1b4a0d19cf923fc37"
+
+[[file]]
+path = "bindings/wasm/bench/run.ts"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/bench/run.ts", ref = "npm/wasm size optimization at d0ec553", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Bun orchestrator and real Node cold/steady benchmark, fixed corpus fingerprinting, full API-output checksums, samples, medians/spread and runtime/build comparison."
+sha256 = "5c16f7bb9e99cba62bf2a3777ce56a670eb9dabf697c5c809de7a8007f0a67b1"
+
+[[file]]
+path = "bindings/wasm/bench/corpus.ts"
+origin = "data"
+license = "NOASSERTION"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/bench/corpus.ts", ref = "npm/wasm size optimization at d0ec553", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem/ReShiki regression corpus", path = "tests/fixtures/golden/s2n_n2s.jsonl", ref = "sha256:8731317af36837df5ef47ed7a6455fcef53eb8a291f5bdc14cdde38400b2a540", license = "NOASSERTION" },
+  { project = "Nazuchem/ReShiki regression corpus", path = "tests/fixtures/s2n/bakeoff_corpus.tsv", ref = "sha256:1625f3e4331553e9de6e27117568535066c30f4ed5295bcb3a92210a30dce604", license = "NOASSERTION" },
+  { project = "Nazuchem/ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
+  { project = "Nazuchem/ReShiki regression corpus", path = "tests/fixtures/s2n/openclatura_tests.tsv", ref = "sha256:024ce1b12acd89d621b5318a13b89c536f2be4e768a0a39b5bf9b6a13a9aeacb", license = "MIT AND (MIT OR Apache-2.0)" },
+]
+notes = "Frozen 300-case selection from the pinned golden/s2n regression fixtures. Selection/container code is original MIT OR Apache-2.0; copied fixture values retain their source ancestry and terms, including unresolved PubChem terms. Benchmark-only, excluded from npm packages; no new source-data licence grant is claimed."
+sha256 = "7d0586a02ffceff5b1ff0f120ed9db3b8a26b59c6ef73eb75529f6a17fe35eda"
+
+[[file]]
+path = "bindings/wasm/bench/results.json"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/bench/results.json", ref = "npm/wasm size optimization at d0ec553", license = "MIT OR Apache-2.0" },
+]
+notes = "Locally measured V0-V7 size/performance evidence, complete output checksums and build fingerprints, initial/final sample statistics, fixed acceptance thresholds, selection and validation metadata. Contains hashes and measurements, not copied fixture inputs; excluded from npm packages."
+sha256 = "78bb8718a3f77300d1ed113417968d0057999b45c4734e099101c3637c64227a"

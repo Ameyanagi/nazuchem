@@ -1,0 +1,2271 @@
+{
+  "schema": "nazuchem-wasm-size-experiment-v1",
+  "baseCommit": "d0ec553",
+  "selectedVariant": "V3",
+  "tools": {
+    "rust": "1.99.1",
+    "wasmBindgen": "0.2.128",
+    "binaryen": "133",
+    "binaryenRelease": "https://github.com/WebAssembly/binaryen/releases/tag/version_133",
+    "binaryenMacArm64ArchiveSha256": "ad66da82ac13f163e424b1643f16c6dfcccc98b5966296b43e52d3cab04f84a8",
+    "binaryenLinuxX64ArchiveSha256": "2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489"
+  },
+  "selection": {
+    "rankBy": "total shipped raw Wasm bytes; gzip reported separately",
+    "noiseRule": "Thresholds frozen from initial V0 before optimization: per-metric max(3%, full-range spread / median); compare final V0 and all final variant median batch times",
+    "thresholdPercent": {
+      "cold": 3,
+      "nameToSmiles": 3.8290957396262733,
+      "smilesToName": 3.0838708051825443
+    },
+    "initialMeasurementBeforeOptimization": true,
+    "finalMatrix": "Serial rerun after fixing bundler JS location; Node and Wasm hashes checked unchanged from initial matrix",
+    "notes": "Fresh Node module state; process launch excluded; filesystem cache uncontrolled; complete API output checksums equal in all variants"
+  },
+  "variants": [
+    {
+      "variant": "V0",
+      "recipe": "current release, three copies",
+      "size": {
+        "wasmCopies": 3,
+        "rawBytesPerPayload": 24634099,
+        "gzip9BytesPerPayload": 5720815,
+        "brotli11BytesPerPayload": 3237045,
+        "shippedWasmRawBytes": 73902297,
+        "npmArchiveBytes": 17248423,
+        "npmArchiveSha256": "4e838d54802c32af4a4085952beaf4a4c077508a9d6dde2b1b47188870a588d9",
+        "npmArchiveFiles": 23
+      },
+      "changePercentVsV0": {
+        "cold": 0.0,
+        "nameToSmiles": 0.0,
+        "smilesToName": 0.0
+      },
+      "eligible": true,
+      "failedMetrics": [],
+      "benchmark": {
+        "schema": "nazuchem-wasm-benchmark-v1",
+        "label": "V0",
+        "recordedAt": "2026-11-09T09:41:18.082Z",
+        "dist": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V0/dist",
+        "engine": {
+          "node": "v26.12.1",
+          "v8": "14.6.202.34-node.40",
+          "arch": "arm64",
+          "platform": "darwin"
+        },
+        "host": {
+          "platform": "darwin",
+          "release": "27.0.0",
+          "arch": "arm64",
+          "cpu": "Apple M1"
+        },
+        "orchestrator": {
+          "bun": "1.4.4"
+        },
+        "corpus": {
+          "version": 1,
+          "sha256": "a71ec3cb59ef70a8b4a3f5e4278041ac603687dcef75f53f986cee98aa6c5fa8",
+          "casesPerDirection": 300,
+          "categories": 83
+        },
+        "methodology": {
+          "runs": 7,
+          "warmupPassesPerDirection": 5,
+          "coldFreshProcesses": 7,
+          "steadyFreshProcesses": 1,
+          "coldIncludesProcessStartup": false,
+          "coldIncludesRequireAndFirstEthanolCall": true,
+          "coldFilesystemCache": "uncontrolled; build fingerprinting reads distribution before samples",
+          "steadyIncludesOutputHashing": false,
+          "steadyOrder": "fixed corpus order; alternate direction order between samples"
+        },
+        "checksums": {
+          "cold": "bbff568e1ac206f20508b70b6c2261531f4b96d216b0fe76305687da5fde4e96",
+          "nameToSmiles": "4ed196030a01b8320d00054e93ca32f1cfa3b62e0b71c31e42209107643828c5",
+          "smilesToName": "8421b47e2091a6d2ea8c8028ea8e3cb980c3aaa5a37105904fa09e6fe78084e2"
+        },
+        "metrics": {
+          "cold": {
+            "samplesMs": [
+              299.755625,
+              302.641041,
+              304.74462500000004,
+              300.465792,
+              303.446292,
+              306.967041,
+              305.38566699999996
+            ],
+            "medianMs": 303.446292,
+            "minMs": 299.755625,
+            "maxMs": 306.967041,
+            "spreadMs": 7.211415999999986,
+            "spreadPercent": 2.376504900577261
+          },
+          "nameToSmiles": {
+            "samplesMs": [
+              89.13779199999999,
+              89.11187500000051,
+              87.19720899999993,
+              88.72395799999958,
+              87.16812500000015,
+              87.78612499999963,
+              86.66033399999924
+            ],
+            "medianMs": 87.78612499999963,
+            "minMs": 86.66033399999924,
+            "maxMs": 89.13779199999999,
+            "spreadMs": 2.477458000000752,
+            "spreadPercent": 2.8221521339514215,
+            "casesPerSample": 300
+          },
+          "smilesToName": {
+            "samplesMs": [
+              529.6675,
+              526.4215830000003,
+              530.0608750000001,
+              529.3466250000001,
+              523.5242079999998,
+              520.7797500000006,
+              520.7178749999994
+            ],
+            "medianMs": 526.4215830000003,
+            "minMs": 520.7178749999994,
+            "maxMs": 530.0608750000001,
+            "spreadMs": 9.343000000000757,
+            "spreadPercent": 1.7748132488710577,
+            "casesPerSample": 300
+          }
+        },
+        "files": [
+          {
+            "path": "bundler/index.d.ts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "bundler/index.js",
+            "bytes": 16657,
+            "sha256": "0fca5753168bf6284729d9c96de21818b3285fe62cb229ab473982c661ef8679"
+          },
+          {
+            "path": "bundler/nazuchem_bg.js",
+            "bytes": 8823,
+            "sha256": "f37abeb75bac06406214e4c1d2c5a1c28faff9a43f8c95fd2005aee73898cccf"
+          },
+          {
+            "path": "bundler/nazuchem_bg.wasm",
+            "bytes": 24634099,
+            "sha256": "02932607b31e312a8b48b8192e9c4b232e932d477688c0d9d7978a5d24cbd26e"
+          },
+          {
+            "path": "bundler/nazuchem.js",
+            "bytes": 265,
+            "sha256": "9d1ae35ab30270c72803e7ab633ef75353cecf97c33dc5fb49378567e75cfd76"
+          },
+          {
+            "path": "bundler/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          },
+          {
+            "path": "nazuchem-ir-1.schema.json",
+            "bytes": 13472,
+            "sha256": "fae28a43a8ad6cb31713d6572e805c75b5875176549e3be1093cb689cef0f430"
+          },
+          {
+            "path": "node/index.cjs",
+            "bytes": 16730,
+            "sha256": "cb1223b9958e70c7c8c1346fdfea8215a426eb9d78aa162c0a72f5566cd25613"
+          },
+          {
+            "path": "node/index.d.cts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "node/nazuchem_bg.wasm",
+            "bytes": 24634099,
+            "sha256": "02932607b31e312a8b48b8192e9c4b232e932d477688c0d9d7978a5d24cbd26e"
+          },
+          {
+            "path": "node/nazuchem.js",
+            "bytes": 9584,
+            "sha256": "aadbaf4656f80a71fdc3cd56462498059ccadb7dcb98a80a8b76eeaddb15eb46"
+          },
+          {
+            "path": "node/package.json",
+            "bytes": 20,
+            "sha256": "dbf8353f77358bc12169b7bb7301e1978d5b503e002ee927229a8993672818fc"
+          },
+          {
+            "path": "web/index.d.ts",
+            "bytes": 4699,
+            "sha256": "e02104223133db3e39272cecd8d7b25ff05e4ca90dead09c1a5f9f39e768ee22"
+          },
+          {
+            "path": "web/index.js",
+            "bytes": 16709,
+            "sha256": "40494c5f87e75666c7418b725d351f24794a542aae2597ca30add78e98cf0ecc"
+          },
+          {
+            "path": "web/nazuchem_bg.wasm",
+            "bytes": 24634099,
+            "sha256": "02932607b31e312a8b48b8192e9c4b232e932d477688c0d9d7978a5d24cbd26e"
+          },
+          {
+            "path": "web/nazuchem.js",
+            "bytes": 12755,
+            "sha256": "471f036bb777abb4ce2b93ac21d6bb15feb06f1f7b702b8f1f00fe3749b5669b"
+          },
+          {
+            "path": "web/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          }
+        ]
+      },
+      "initialMetrics": {
+        "cold": {
+          "samplesMs": [
+            300.06125000000003,
+            302.186541,
+            301.52645800000005,
+            299.957625,
+            298.868208,
+            302.63379199999997,
+            301.995292
+          ],
+          "medianMs": 301.52645800000005,
+          "minMs": 298.868208,
+          "maxMs": 302.63379199999997,
+          "spreadMs": 3.76558399999999,
+          "spreadPercent": 1.2488403256473066
+        },
+        "nameToSmiles": {
+          "samplesMs": [
+            88.73870799999986,
+            88.47062500000084,
+            85.74824999999964,
+            88.73800000000028,
+            87.30520799999977,
+            86.4601249999996,
+            85.39570800000001
+          ],
+          "medianMs": 87.30520799999977,
+          "minMs": 85.39570800000001,
+          "maxMs": 88.73870799999986,
+          "spreadMs": 3.342999999999847,
+          "spreadPercent": 3.8290957396262733,
+          "casesPerSample": 300
+        },
+        "smilesToName": {
+          "samplesMs": [
+            522.6358329999998,
+            520.6165000000001,
+            518.956792,
+            529.1177909999997,
+            517.8453339999996,
+            513.1138339999998,
+            518.4480000000003
+          ],
+          "medianMs": 518.956792,
+          "minMs": 513.1138339999998,
+          "maxMs": 529.1177909999997,
+          "spreadMs": 16.0039569999999,
+          "spreadPercent": 3.0838708051825443,
+          "casesPerSample": 300
+        }
+      }
+    },
+    {
+      "variant": "V1",
+      "recipe": "shared Wasm only",
+      "size": {
+        "wasmCopies": 1,
+        "rawBytesPerPayload": 24634099,
+        "gzip9BytesPerPayload": 5720815,
+        "brotli11BytesPerPayload": 3237045,
+        "shippedWasmRawBytes": 24634099,
+        "npmArchiveBytes": 5804530,
+        "npmArchiveSha256": "2a287bf45b262ff938bc72d5b4ce08074dd0e03a08c6865f4b56e5a98a17de64",
+        "npmArchiveFiles": 21
+      },
+      "changePercentVsV0": {
+        "cold": -0.7978897959313391,
+        "nameToSmiles": 0.04665657585467553,
+        "smilesToName": 0.07772610645406797
+      },
+      "eligible": true,
+      "failedMetrics": [],
+      "benchmark": {
+        "schema": "nazuchem-wasm-benchmark-v1",
+        "label": "V1",
+        "recordedAt": "2026-11-09T09:41:28.707Z",
+        "dist": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V1/dist",
+        "engine": {
+          "node": "v26.12.1",
+          "v8": "14.6.202.34-node.40",
+          "arch": "arm64",
+          "platform": "darwin"
+        },
+        "host": {
+          "platform": "darwin",
+          "release": "27.0.0",
+          "arch": "arm64",
+          "cpu": "Apple M1"
+        },
+        "orchestrator": {
+          "bun": "1.4.4"
+        },
+        "corpus": {
+          "version": 1,
+          "sha256": "a71ec3cb59ef70a8b4a3f5e4278041ac603687dcef75f53f986cee98aa6c5fa8",
+          "casesPerDirection": 300,
+          "categories": 83
+        },
+        "methodology": {
+          "runs": 7,
+          "warmupPassesPerDirection": 5,
+          "coldFreshProcesses": 7,
+          "steadyFreshProcesses": 1,
+          "coldIncludesProcessStartup": false,
+          "coldIncludesRequireAndFirstEthanolCall": true,
+          "coldFilesystemCache": "uncontrolled; build fingerprinting reads distribution before samples",
+          "steadyIncludesOutputHashing": false,
+          "steadyOrder": "fixed corpus order; alternate direction order between samples"
+        },
+        "checksums": {
+          "cold": "bbff568e1ac206f20508b70b6c2261531f4b96d216b0fe76305687da5fde4e96",
+          "nameToSmiles": "4ed196030a01b8320d00054e93ca32f1cfa3b62e0b71c31e42209107643828c5",
+          "smilesToName": "8421b47e2091a6d2ea8c8028ea8e3cb980c3aaa5a37105904fa09e6fe78084e2"
+        },
+        "metrics": {
+          "cold": {
+            "samplesMs": [
+              305.30566699999997,
+              301.025125,
+              300.357458,
+              305.712917,
+              299.765417,
+              300.487292,
+              305.668833
+            ],
+            "medianMs": 301.025125,
+            "minMs": 299.765417,
+            "maxMs": 305.712917,
+            "spreadMs": 5.947499999999991,
+            "spreadPercent": 1.9757487020394031
+          },
+          "nameToSmiles": {
+            "samplesMs": [
+              89.33329099999992,
+              89.08904199999961,
+              87.41512499999953,
+              88.7071249999999,
+              87.22466600000007,
+              87.82708300000013,
+              87.15995899999962
+            ],
+            "medianMs": 87.82708300000013,
+            "minMs": 87.15995899999962,
+            "maxMs": 89.33329099999992,
+            "spreadMs": 2.1733320000003005,
+            "spreadPercent": 2.4745578764130163,
+            "casesPerSample": 300
+          },
+          "smilesToName": {
+            "samplesMs": [
+              531.370042,
+              533.0451669999993,
+              526.8307500000001,
+              527.676958,
+              523.9055830000007,
+              521.8137919999999,
+              522.3684170000006
+            ],
+            "medianMs": 526.8307500000001,
+            "minMs": 521.8137919999999,
+            "maxMs": 533.0451669999993,
+            "spreadMs": 11.231374999999389,
+            "spreadPercent": 2.1318753698411466,
+            "casesPerSample": 300
+          }
+        },
+        "files": [
+          {
+            "path": "bundler/index.d.ts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "bundler/index.js",
+            "bytes": 16657,
+            "sha256": "0fca5753168bf6284729d9c96de21818b3285fe62cb229ab473982c661ef8679"
+          },
+          {
+            "path": "bundler/nazuchem.js",
+            "bytes": 268,
+            "sha256": "ca46ca3ec0bc2e0d2aa96db1c9321e2530e0f4982aff6f8e289f3ba119436017"
+          },
+          {
+            "path": "bundler/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          },
+          {
+            "path": "nazuchem_bg.js",
+            "bytes": 8823,
+            "sha256": "f37abeb75bac06406214e4c1d2c5a1c28faff9a43f8c95fd2005aee73898cccf"
+          },
+          {
+            "path": "nazuchem_bg.wasm",
+            "bytes": 24634099,
+            "sha256": "02932607b31e312a8b48b8192e9c4b232e932d477688c0d9d7978a5d24cbd26e"
+          },
+          {
+            "path": "nazuchem-ir-1.schema.json",
+            "bytes": 13472,
+            "sha256": "fae28a43a8ad6cb31713d6572e805c75b5875176549e3be1093cb689cef0f430"
+          },
+          {
+            "path": "node/index.cjs",
+            "bytes": 16730,
+            "sha256": "cb1223b9958e70c7c8c1346fdfea8215a426eb9d78aa162c0a72f5566cd25613"
+          },
+          {
+            "path": "node/index.d.cts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "node/nazuchem.js",
+            "bytes": 9587,
+            "sha256": "7b8d27c7049d7cb6acc9e775277d5422ef9ca13b50ed6caf2ba6a62240564663"
+          },
+          {
+            "path": "node/package.json",
+            "bytes": 20,
+            "sha256": "dbf8353f77358bc12169b7bb7301e1978d5b503e002ee927229a8993672818fc"
+          },
+          {
+            "path": "web/index.d.ts",
+            "bytes": 4699,
+            "sha256": "e02104223133db3e39272cecd8d7b25ff05e4ca90dead09c1a5f9f39e768ee22"
+          },
+          {
+            "path": "web/index.js",
+            "bytes": 16709,
+            "sha256": "40494c5f87e75666c7418b725d351f24794a542aae2597ca30add78e98cf0ecc"
+          },
+          {
+            "path": "web/nazuchem.js",
+            "bytes": 12758,
+            "sha256": "e771116122e7e051fde9d856d9b8e1c94f37e000ff80325585171a2e098856c3"
+          },
+          {
+            "path": "web/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          }
+        ],
+        "comparison": {
+          "baseline": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V0/benchmark.json",
+          "metrics": {
+            "cold": {
+              "medianChangePercent": -0.7978897959313391,
+              "baselineMedianMs": 303.446292,
+              "currentMedianMs": 301.025125
+            },
+            "nameToSmiles": {
+              "medianChangePercent": 0.04665657585467553,
+              "baselineMedianMs": 87.78612499999963,
+              "currentMedianMs": 87.82708300000013
+            },
+            "smilesToName": {
+              "medianChangePercent": 0.07772610645406797,
+              "baselineMedianMs": 526.4215830000003,
+              "currentMedianMs": 526.8307500000001
+            }
+          }
+        }
+      },
+      "initialMetrics": {
+        "cold": {
+          "samplesMs": [
+            299.32833300000004,
+            300.379709,
+            300.519792,
+            301.646291,
+            301.86199999999997,
+            300.156959,
+            300.357083
+          ],
+          "medianMs": 300.379709,
+          "minMs": 299.32833300000004,
+          "maxMs": 301.86199999999997,
+          "spreadMs": 2.533666999999923,
+          "spreadPercent": 0.8434880666323314
+        },
+        "nameToSmiles": {
+          "samplesMs": [
+            89.86766699999998,
+            93.36408399999982,
+            95.84495799999968,
+            88.80891699999938,
+            87.42208400000072,
+            88.06262500000048,
+            86.91958299999988
+          ],
+          "medianMs": 88.80891699999938,
+          "minMs": 86.91958299999988,
+          "maxMs": 95.84495799999968,
+          "spreadMs": 8.925374999999804,
+          "spreadPercent": 10.050088776558175,
+          "casesPerSample": 300
+        },
+        "smilesToName": {
+          "samplesMs": [
+            532.5780419999996,
+            528.4948329999997,
+            596.9701249999998,
+            593.7559160000001,
+            524.0987919999998,
+            529.7451250000004,
+            522.7192919999998
+          ],
+          "medianMs": 529.7451250000004,
+          "minMs": 522.7192919999998,
+          "maxMs": 596.9701249999998,
+          "spreadMs": 74.25083300000006,
+          "spreadPercent": 14.016331533017883,
+          "casesPerSample": 300
+        }
+      }
+    },
+    {
+      "variant": "V2",
+      "recipe": "V1 + strip name/producers",
+      "size": {
+        "wasmCopies": 1,
+        "rawBytesPerPayload": 20346641,
+        "gzip9BytesPerPayload": 5322977,
+        "brotli11BytesPerPayload": 3055049,
+        "shippedWasmRawBytes": 20346641,
+        "npmArchiveBytes": 5407210,
+        "npmArchiveSha256": "c83e307cdcc85acff52e79782b12fc556c4437ca2e12767a51d93f94c6441863",
+        "npmArchiveFiles": 21
+      },
+      "changePercentVsV0": {
+        "cold": 0.13110491394632273,
+        "nameToSmiles": 0.47278769851220037,
+        "smilesToName": 0.12535903186932096
+      },
+      "eligible": true,
+      "failedMetrics": [],
+      "benchmark": {
+        "schema": "nazuchem-wasm-benchmark-v1",
+        "label": "V2",
+        "recordedAt": "2026-11-09T09:41:39.336Z",
+        "dist": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V2/dist",
+        "engine": {
+          "node": "v26.12.1",
+          "v8": "14.6.202.34-node.40",
+          "arch": "arm64",
+          "platform": "darwin"
+        },
+        "host": {
+          "platform": "darwin",
+          "release": "27.0.0",
+          "arch": "arm64",
+          "cpu": "Apple M1"
+        },
+        "orchestrator": {
+          "bun": "1.4.4"
+        },
+        "corpus": {
+          "version": 1,
+          "sha256": "a71ec3cb59ef70a8b4a3f5e4278041ac603687dcef75f53f986cee98aa6c5fa8",
+          "casesPerDirection": 300,
+          "categories": 83
+        },
+        "methodology": {
+          "runs": 7,
+          "warmupPassesPerDirection": 5,
+          "coldFreshProcesses": 7,
+          "steadyFreshProcesses": 1,
+          "coldIncludesProcessStartup": false,
+          "coldIncludesRequireAndFirstEthanolCall": true,
+          "coldFilesystemCache": "uncontrolled; build fingerprinting reads distribution before samples",
+          "steadyIncludesOutputHashing": false,
+          "steadyOrder": "fixed corpus order; alternate direction order between samples"
+        },
+        "checksums": {
+          "cold": "bbff568e1ac206f20508b70b6c2261531f4b96d216b0fe76305687da5fde4e96",
+          "nameToSmiles": "4ed196030a01b8320d00054e93ca32f1cfa3b62e0b71c31e42209107643828c5",
+          "smilesToName": "8421b47e2091a6d2ea8c8028ea8e3cb980c3aaa5a37105904fa09e6fe78084e2"
+        },
+        "metrics": {
+          "cold": {
+            "samplesMs": [
+              303.826791,
+              303.84412499999996,
+              305.33604099999997,
+              302.615542,
+              305.446,
+              304.111125,
+              298.279917
+            ],
+            "medianMs": 303.84412499999996,
+            "minMs": 298.279917,
+            "maxMs": 305.446,
+            "spreadMs": 7.166083000000015,
+            "spreadPercent": 2.3584734442372435
+          },
+          "nameToSmiles": {
+            "samplesMs": [
+              89.28749999999991,
+              89.83979100000033,
+              87.51475000000028,
+              88.81083300000046,
+              87.35054200000013,
+              88.20116700000017,
+              86.86379099999976
+            ],
+            "medianMs": 88.20116700000017,
+            "minMs": 86.86379099999976,
+            "maxMs": 89.83979100000033,
+            "spreadMs": 2.9760000000005675,
+            "spreadPercent": 3.3741050160941315,
+            "casesPerSample": 300
+          },
+          "smilesToName": {
+            "samplesMs": [
+              538.3456250000004,
+              528.1255419999998,
+              528.1062920000004,
+              527.0815000000002,
+              524.7446250000003,
+              521.6705840000004,
+              521.480125
+            ],
+            "medianMs": 527.0815000000002,
+            "minMs": 521.480125,
+            "maxMs": 538.3456250000004,
+            "spreadMs": 16.86550000000034,
+            "spreadPercent": 3.199789785830148,
+            "casesPerSample": 300
+          }
+        },
+        "files": [
+          {
+            "path": "bundler/index.d.ts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "bundler/index.js",
+            "bytes": 16657,
+            "sha256": "0fca5753168bf6284729d9c96de21818b3285fe62cb229ab473982c661ef8679"
+          },
+          {
+            "path": "bundler/nazuchem.js",
+            "bytes": 268,
+            "sha256": "ca46ca3ec0bc2e0d2aa96db1c9321e2530e0f4982aff6f8e289f3ba119436017"
+          },
+          {
+            "path": "bundler/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          },
+          {
+            "path": "nazuchem_bg.js",
+            "bytes": 8823,
+            "sha256": "f37abeb75bac06406214e4c1d2c5a1c28faff9a43f8c95fd2005aee73898cccf"
+          },
+          {
+            "path": "nazuchem_bg.wasm",
+            "bytes": 20346641,
+            "sha256": "feb1eee3e76530fc7ba3a5e6d6d4be750668950405dd42a80f31b641a9e91bf7"
+          },
+          {
+            "path": "nazuchem-ir-1.schema.json",
+            "bytes": 13472,
+            "sha256": "fae28a43a8ad6cb31713d6572e805c75b5875176549e3be1093cb689cef0f430"
+          },
+          {
+            "path": "node/index.cjs",
+            "bytes": 16730,
+            "sha256": "cb1223b9958e70c7c8c1346fdfea8215a426eb9d78aa162c0a72f5566cd25613"
+          },
+          {
+            "path": "node/index.d.cts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "node/nazuchem.js",
+            "bytes": 9587,
+            "sha256": "7b8d27c7049d7cb6acc9e775277d5422ef9ca13b50ed6caf2ba6a62240564663"
+          },
+          {
+            "path": "node/package.json",
+            "bytes": 20,
+            "sha256": "dbf8353f77358bc12169b7bb7301e1978d5b503e002ee927229a8993672818fc"
+          },
+          {
+            "path": "web/index.d.ts",
+            "bytes": 4699,
+            "sha256": "e02104223133db3e39272cecd8d7b25ff05e4ca90dead09c1a5f9f39e768ee22"
+          },
+          {
+            "path": "web/index.js",
+            "bytes": 16709,
+            "sha256": "40494c5f87e75666c7418b725d351f24794a542aae2597ca30add78e98cf0ecc"
+          },
+          {
+            "path": "web/nazuchem.js",
+            "bytes": 12758,
+            "sha256": "e771116122e7e051fde9d856d9b8e1c94f37e000ff80325585171a2e098856c3"
+          },
+          {
+            "path": "web/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          }
+        ],
+        "comparison": {
+          "baseline": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V0/benchmark.json",
+          "metrics": {
+            "cold": {
+              "medianChangePercent": 0.13110491394632273,
+              "baselineMedianMs": 303.446292,
+              "currentMedianMs": 303.84412499999996
+            },
+            "nameToSmiles": {
+              "medianChangePercent": 0.47278769851220037,
+              "baselineMedianMs": 87.78612499999963,
+              "currentMedianMs": 88.20116700000017
+            },
+            "smilesToName": {
+              "medianChangePercent": 0.12535903186932096,
+              "baselineMedianMs": 526.4215830000003,
+              "currentMedianMs": 527.0815000000002
+            }
+          }
+        }
+      },
+      "initialMetrics": {
+        "cold": {
+          "samplesMs": [
+            304.36249999999995,
+            299.259417,
+            302.675291,
+            300.410708,
+            299.509541,
+            299.535208,
+            299.905625
+          ],
+          "medianMs": 299.905625,
+          "minMs": 299.259417,
+          "maxMs": 304.36249999999995,
+          "spreadMs": 5.10308299999997,
+          "spreadPercent": 1.7015629500113476
+        },
+        "nameToSmiles": {
+          "samplesMs": [
+            89.12758299999996,
+            91.63558399999965,
+            87.35070799999994,
+            88.6543329999995,
+            87.14741700000013,
+            86.64395800000057,
+            86.1323339999999
+          ],
+          "medianMs": 87.35070799999994,
+          "minMs": 86.1323339999999,
+          "maxMs": 91.63558399999965,
+          "spreadMs": 5.503249999999753,
+          "spreadPercent": 6.30017789895848,
+          "casesPerSample": 300
+        },
+        "smilesToName": {
+          "samplesMs": [
+            530.2383339999997,
+            523.4458329999998,
+            534.386125,
+            536.9620409999998,
+            529.1090840000006,
+            520.9992499999998,
+            519.665
+          ],
+          "medianMs": 529.1090840000006,
+          "minMs": 519.665,
+          "maxMs": 536.9620409999998,
+          "spreadMs": 17.29704099999981,
+          "spreadPercent": 3.2690878919024167,
+          "casesPerSample": 300
+        }
+      }
+    },
+    {
+      "variant": "V3",
+      "recipe": "V2 + fat LTO / 1 CGU / Rust O3 / abort",
+      "size": {
+        "wasmCopies": 1,
+        "rawBytesPerPayload": 19270586,
+        "gzip9BytesPerPayload": 5149696,
+        "brotli11BytesPerPayload": 3087360,
+        "shippedWasmRawBytes": 19270586,
+        "npmArchiveBytes": 5233387,
+        "npmArchiveSha256": "a8e8e9480318cdc8e9ad5a5d0c0fd74cdb2bd4b92274d9faf3a55d5aa27163a4",
+        "npmArchiveFiles": 21
+      },
+      "changePercentVsV0": {
+        "cold": -0.6178605734948439,
+        "nameToSmiles": -1.0641863961973086,
+        "smilesToName": 1.62185447476213
+      },
+      "eligible": true,
+      "failedMetrics": [],
+      "benchmark": {
+        "schema": "nazuchem-wasm-benchmark-v1",
+        "label": "V3",
+        "recordedAt": "2026-11-09T09:41:50.108Z",
+        "dist": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V3/dist",
+        "engine": {
+          "node": "v26.12.1",
+          "v8": "14.6.202.34-node.40",
+          "arch": "arm64",
+          "platform": "darwin"
+        },
+        "host": {
+          "platform": "darwin",
+          "release": "27.0.0",
+          "arch": "arm64",
+          "cpu": "Apple M1"
+        },
+        "orchestrator": {
+          "bun": "1.4.4"
+        },
+        "corpus": {
+          "version": 1,
+          "sha256": "a71ec3cb59ef70a8b4a3f5e4278041ac603687dcef75f53f986cee98aa6c5fa8",
+          "casesPerDirection": 300,
+          "categories": 83
+        },
+        "methodology": {
+          "runs": 7,
+          "warmupPassesPerDirection": 5,
+          "coldFreshProcesses": 7,
+          "steadyFreshProcesses": 1,
+          "coldIncludesProcessStartup": false,
+          "coldIncludesRequireAndFirstEthanolCall": true,
+          "coldFilesystemCache": "uncontrolled; build fingerprinting reads distribution before samples",
+          "steadyIncludesOutputHashing": false,
+          "steadyOrder": "fixed corpus order; alternate direction order between samples"
+        },
+        "checksums": {
+          "cold": "bbff568e1ac206f20508b70b6c2261531f4b96d216b0fe76305687da5fde4e96",
+          "nameToSmiles": "4ed196030a01b8320d00054e93ca32f1cfa3b62e0b71c31e42209107643828c5",
+          "smilesToName": "8421b47e2091a6d2ea8c8028ea8e3cb980c3aaa5a37105904fa09e6fe78084e2"
+        },
+        "metrics": {
+          "cold": {
+            "samplesMs": [
+              298.122084,
+              298.11575,
+              302.920208,
+              301.571417,
+              305.947334,
+              301.98804199999995,
+              301.187542
+            ],
+            "medianMs": 301.571417,
+            "minMs": 298.11575,
+            "maxMs": 305.947334,
+            "spreadMs": 7.831584000000021,
+            "spreadPercent": 2.596925158858812
+          },
+          "nameToSmiles": {
+            "samplesMs": [
+              88.43845799999963,
+              87.22087499999998,
+              85.98483299999953,
+              87.44841700000052,
+              85.7797499999997,
+              86.85191700000087,
+              85.75212499999998
+            ],
+            "medianMs": 86.85191700000087,
+            "minMs": 85.75212499999998,
+            "maxMs": 88.43845799999963,
+            "spreadMs": 2.6863329999996495,
+            "spreadPercent": 3.0930036927102282,
+            "casesPerSample": 300
+          },
+          "smilesToName": {
+            "samplesMs": [
+              541.0075419999998,
+              538.6437500000002,
+              536.9804590000003,
+              534.8508750000001,
+              534.9593749999995,
+              534.2155000000002,
+              533.5757500000009
+            ],
+            "medianMs": 534.9593749999995,
+            "minMs": 533.5757500000009,
+            "maxMs": 541.0075419999998,
+            "spreadMs": 7.43179199999895,
+            "spreadPercent": 1.3892254902531538,
+            "casesPerSample": 300
+          }
+        },
+        "files": [
+          {
+            "path": "bundler/index.d.ts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "bundler/index.js",
+            "bytes": 16657,
+            "sha256": "0fca5753168bf6284729d9c96de21818b3285fe62cb229ab473982c661ef8679"
+          },
+          {
+            "path": "bundler/nazuchem.js",
+            "bytes": 268,
+            "sha256": "ca46ca3ec0bc2e0d2aa96db1c9321e2530e0f4982aff6f8e289f3ba119436017"
+          },
+          {
+            "path": "bundler/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          },
+          {
+            "path": "nazuchem_bg.js",
+            "bytes": 8823,
+            "sha256": "f37abeb75bac06406214e4c1d2c5a1c28faff9a43f8c95fd2005aee73898cccf"
+          },
+          {
+            "path": "nazuchem_bg.wasm",
+            "bytes": 19270586,
+            "sha256": "6597538303d76e54ba8ede403b8ef8153da596f776a949f992f33c84c2486c4d"
+          },
+          {
+            "path": "nazuchem-ir-1.schema.json",
+            "bytes": 13472,
+            "sha256": "fae28a43a8ad6cb31713d6572e805c75b5875176549e3be1093cb689cef0f430"
+          },
+          {
+            "path": "node/index.cjs",
+            "bytes": 16730,
+            "sha256": "cb1223b9958e70c7c8c1346fdfea8215a426eb9d78aa162c0a72f5566cd25613"
+          },
+          {
+            "path": "node/index.d.cts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "node/nazuchem.js",
+            "bytes": 9587,
+            "sha256": "7b8d27c7049d7cb6acc9e775277d5422ef9ca13b50ed6caf2ba6a62240564663"
+          },
+          {
+            "path": "node/package.json",
+            "bytes": 20,
+            "sha256": "dbf8353f77358bc12169b7bb7301e1978d5b503e002ee927229a8993672818fc"
+          },
+          {
+            "path": "web/index.d.ts",
+            "bytes": 4699,
+            "sha256": "e02104223133db3e39272cecd8d7b25ff05e4ca90dead09c1a5f9f39e768ee22"
+          },
+          {
+            "path": "web/index.js",
+            "bytes": 16709,
+            "sha256": "40494c5f87e75666c7418b725d351f24794a542aae2597ca30add78e98cf0ecc"
+          },
+          {
+            "path": "web/nazuchem.js",
+            "bytes": 12758,
+            "sha256": "e771116122e7e051fde9d856d9b8e1c94f37e000ff80325585171a2e098856c3"
+          },
+          {
+            "path": "web/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          }
+        ],
+        "comparison": {
+          "baseline": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V0/benchmark.json",
+          "metrics": {
+            "cold": {
+              "medianChangePercent": -0.6178605734948439,
+              "baselineMedianMs": 303.446292,
+              "currentMedianMs": 301.571417
+            },
+            "nameToSmiles": {
+              "medianChangePercent": -1.0641863961973086,
+              "baselineMedianMs": 87.78612499999963,
+              "currentMedianMs": 86.85191700000087
+            },
+            "smilesToName": {
+              "medianChangePercent": 1.62185447476213,
+              "baselineMedianMs": 526.4215830000003,
+              "currentMedianMs": 534.9593749999995
+            }
+          }
+        }
+      },
+      "initialMetrics": {
+        "cold": {
+          "samplesMs": [
+            297.074167,
+            297.35691699999995,
+            303.230375,
+            301.703875,
+            298.506667,
+            297.187083,
+            297.02549999999997
+          ],
+          "medianMs": 297.35691699999995,
+          "minMs": 297.02549999999997,
+          "maxMs": 303.230375,
+          "spreadMs": 6.2048750000000155,
+          "spreadPercent": 2.0866758582918776
+        },
+        "nameToSmiles": {
+          "samplesMs": [
+            88.47666700000036,
+            87.08558400000038,
+            85.82791699999962,
+            87.58141700000033,
+            86.03437500000018,
+            86.51658299999963,
+            85.40620899999976
+          ],
+          "medianMs": 86.51658299999963,
+          "minMs": 85.40620899999976,
+          "maxMs": 88.47666700000036,
+          "spreadMs": 3.070458000000599,
+          "spreadPercent": 3.5489820489103368,
+          "casesPerSample": 300
+        },
+        "smilesToName": {
+          "samplesMs": [
+            513.7028339999997,
+            512.0642090000001,
+            510.96741700000075,
+            508.03820799999994,
+            507.6475419999997,
+            507.1072090000007,
+            506.4227920000003
+          ],
+          "medianMs": 508.03820799999994,
+          "minMs": 506.4227920000003,
+          "maxMs": 513.7028339999997,
+          "spreadMs": 7.280041999999412,
+          "spreadPercent": 1.4329713563589714,
+          "casesPerSample": 300
+        }
+      }
+    },
+    {
+      "variant": "V4",
+      "recipe": "V3 + wasm-opt -O3",
+      "size": {
+        "wasmCopies": 1,
+        "rawBytesPerPayload": 18621450,
+        "gzip9BytesPerPayload": 5147532,
+        "brotli11BytesPerPayload": 3163236,
+        "shippedWasmRawBytes": 18621450,
+        "npmArchiveBytes": 5229614,
+        "npmArchiveSha256": "4104c38c6b43fb7b0024345a4cb8911eb1c29b3a6368e616bf84ee70eb6c0aae",
+        "npmArchiveFiles": 21
+      },
+      "changePercentVsV0": {
+        "cold": 3.0588470660896983,
+        "nameToSmiles": -4.583108093676658,
+        "smilesToName": -5.171290820726293
+      },
+      "eligible": false,
+      "failedMetrics": [
+        "cold"
+      ],
+      "benchmark": {
+        "schema": "nazuchem-wasm-benchmark-v1",
+        "label": "V4",
+        "recordedAt": "2026-11-09T09:42:00.968Z",
+        "dist": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V4/dist",
+        "engine": {
+          "node": "v26.12.1",
+          "v8": "14.6.202.34-node.40",
+          "arch": "arm64",
+          "platform": "darwin"
+        },
+        "host": {
+          "platform": "darwin",
+          "release": "27.0.0",
+          "arch": "arm64",
+          "cpu": "Apple M1"
+        },
+        "orchestrator": {
+          "bun": "1.4.4"
+        },
+        "corpus": {
+          "version": 1,
+          "sha256": "a71ec3cb59ef70a8b4a3f5e4278041ac603687dcef75f53f986cee98aa6c5fa8",
+          "casesPerDirection": 300,
+          "categories": 83
+        },
+        "methodology": {
+          "runs": 7,
+          "warmupPassesPerDirection": 5,
+          "coldFreshProcesses": 7,
+          "steadyFreshProcesses": 1,
+          "coldIncludesProcessStartup": false,
+          "coldIncludesRequireAndFirstEthanolCall": true,
+          "coldFilesystemCache": "uncontrolled; build fingerprinting reads distribution before samples",
+          "steadyIncludesOutputHashing": false,
+          "steadyOrder": "fixed corpus order; alternate direction order between samples"
+        },
+        "checksums": {
+          "cold": "bbff568e1ac206f20508b70b6c2261531f4b96d216b0fe76305687da5fde4e96",
+          "nameToSmiles": "4ed196030a01b8320d00054e93ca32f1cfa3b62e0b71c31e42209107643828c5",
+          "smilesToName": "8421b47e2091a6d2ea8c8028ea8e3cb980c3aaa5a37105904fa09e6fe78084e2"
+        },
+        "metrics": {
+          "cold": {
+            "samplesMs": [
+              312.63925,
+              312.72825,
+              314.019458,
+              314.144584,
+              311.08416700000004,
+              311.43145799999996,
+              314.17337499999996
+            ],
+            "medianMs": 312.72825,
+            "minMs": 311.08416700000004,
+            "maxMs": 314.17337499999996,
+            "spreadMs": 3.0892079999999282,
+            "spreadPercent": 0.9878250525815715
+          },
+          "nameToSmiles": {
+            "samplesMs": [
+              84.70424999999977,
+              84.47704200000044,
+              83.08358399999997,
+              84.46970800000054,
+              83.14800000000014,
+              83.76279199999954,
+              82.72045799999978
+            ],
+            "medianMs": 83.76279199999954,
+            "minMs": 82.72045799999978,
+            "maxMs": 84.70424999999977,
+            "spreadMs": 1.983791999999994,
+            "spreadPercent": 2.36834512393045,
+            "casesPerSample": 300
+          },
+          "smilesToName": {
+            "samplesMs": [
+              501.5717909999994,
+              499.3908329999995,
+              499.1491249999999,
+              499.0288330000003,
+              499.19879199999923,
+              506.03412500000013,
+              498.7482090000003
+            ],
+            "medianMs": 499.19879199999923,
+            "minMs": 498.7482090000003,
+            "maxMs": 506.03412500000013,
+            "spreadMs": 7.2859159999998155,
+            "spreadPercent": 1.4595219613431731,
+            "casesPerSample": 300
+          }
+        },
+        "files": [
+          {
+            "path": "bundler/index.d.ts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "bundler/index.js",
+            "bytes": 16657,
+            "sha256": "0fca5753168bf6284729d9c96de21818b3285fe62cb229ab473982c661ef8679"
+          },
+          {
+            "path": "bundler/nazuchem.js",
+            "bytes": 268,
+            "sha256": "ca46ca3ec0bc2e0d2aa96db1c9321e2530e0f4982aff6f8e289f3ba119436017"
+          },
+          {
+            "path": "bundler/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          },
+          {
+            "path": "nazuchem_bg.js",
+            "bytes": 8823,
+            "sha256": "f37abeb75bac06406214e4c1d2c5a1c28faff9a43f8c95fd2005aee73898cccf"
+          },
+          {
+            "path": "nazuchem_bg.wasm",
+            "bytes": 18621450,
+            "sha256": "04af04b79c9bf92956cf3498f723debc1ce531b34998be04d0072076411aecbd"
+          },
+          {
+            "path": "nazuchem-ir-1.schema.json",
+            "bytes": 13472,
+            "sha256": "fae28a43a8ad6cb31713d6572e805c75b5875176549e3be1093cb689cef0f430"
+          },
+          {
+            "path": "node/index.cjs",
+            "bytes": 16730,
+            "sha256": "cb1223b9958e70c7c8c1346fdfea8215a426eb9d78aa162c0a72f5566cd25613"
+          },
+          {
+            "path": "node/index.d.cts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "node/nazuchem.js",
+            "bytes": 9587,
+            "sha256": "7b8d27c7049d7cb6acc9e775277d5422ef9ca13b50ed6caf2ba6a62240564663"
+          },
+          {
+            "path": "node/package.json",
+            "bytes": 20,
+            "sha256": "dbf8353f77358bc12169b7bb7301e1978d5b503e002ee927229a8993672818fc"
+          },
+          {
+            "path": "web/index.d.ts",
+            "bytes": 4699,
+            "sha256": "e02104223133db3e39272cecd8d7b25ff05e4ca90dead09c1a5f9f39e768ee22"
+          },
+          {
+            "path": "web/index.js",
+            "bytes": 16709,
+            "sha256": "40494c5f87e75666c7418b725d351f24794a542aae2597ca30add78e98cf0ecc"
+          },
+          {
+            "path": "web/nazuchem.js",
+            "bytes": 12758,
+            "sha256": "e771116122e7e051fde9d856d9b8e1c94f37e000ff80325585171a2e098856c3"
+          },
+          {
+            "path": "web/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          }
+        ],
+        "comparison": {
+          "baseline": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V0/benchmark.json",
+          "metrics": {
+            "cold": {
+              "medianChangePercent": 3.0588470660896983,
+              "baselineMedianMs": 303.446292,
+              "currentMedianMs": 312.72825
+            },
+            "nameToSmiles": {
+              "medianChangePercent": -4.583108093676658,
+              "baselineMedianMs": 87.78612499999963,
+              "currentMedianMs": 83.76279199999954
+            },
+            "smilesToName": {
+              "medianChangePercent": -5.171290820726293,
+              "baselineMedianMs": 526.4215830000003,
+              "currentMedianMs": 499.19879199999923
+            }
+          }
+        }
+      },
+      "initialMetrics": {
+        "cold": {
+          "samplesMs": [
+            312.94674999999995,
+            314.02212499999996,
+            315.27362500000004,
+            314.110208,
+            313.34475000000003,
+            314.412959,
+            313.89025000000004
+          ],
+          "medianMs": 314.02212499999996,
+          "minMs": 312.94674999999995,
+          "maxMs": 315.27362500000004,
+          "spreadMs": 2.3268750000000864,
+          "spreadPercent": 0.7409907820985819
+        },
+        "nameToSmiles": {
+          "samplesMs": [
+            84.609375,
+            84.41650000000027,
+            83.14570800000001,
+            84.25849999999991,
+            82.98991699999988,
+            83.8809169999995,
+            82.67566600000009
+          ],
+          "medianMs": 83.8809169999995,
+          "minMs": 82.67566600000009,
+          "maxMs": 84.609375,
+          "spreadMs": 1.933708999999908,
+          "spreadPercent": 2.3053026470846993,
+          "casesPerSample": 300
+        },
+        "smilesToName": {
+          "samplesMs": [
+            502.93366700000024,
+            500.6542079999999,
+            500.24362500000007,
+            499.6840830000001,
+            499.29370800000015,
+            499.04533399999946,
+            499.03558299999986
+          ],
+          "medianMs": 499.6840830000001,
+          "minMs": 499.03558299999986,
+          "maxMs": 502.93366700000024,
+          "spreadMs": 3.898084000000381,
+          "spreadPercent": 0.7801096998321598,
+          "casesPerSample": 300
+        }
+      }
+    },
+    {
+      "variant": "V5",
+      "recipe": "V3 + wasm-opt -O4",
+      "size": {
+        "wasmCopies": 1,
+        "rawBytesPerPayload": 18639704,
+        "gzip9BytesPerPayload": 5155284,
+        "brotli11BytesPerPayload": 3173561,
+        "shippedWasmRawBytes": 18639704,
+        "npmArchiveBytes": 5238124,
+        "npmArchiveSha256": "6f5a75b95d3ffcba12cde53bf49c1314d646c606bc71dcbbc0ee3cb316cded8b",
+        "npmArchiveFiles": 21
+      },
+      "changePercentVsV0": {
+        "cold": 3.0383600798786325,
+        "nameToSmiles": -4.383713257647138,
+        "smilesToName": -5.047024069300066
+      },
+      "eligible": false,
+      "failedMetrics": [
+        "cold"
+      ],
+      "benchmark": {
+        "schema": "nazuchem-wasm-benchmark-v1",
+        "label": "V5",
+        "recordedAt": "2026-11-09T09:42:11.788Z",
+        "dist": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V5/dist",
+        "engine": {
+          "node": "v26.12.1",
+          "v8": "14.6.202.34-node.40",
+          "arch": "arm64",
+          "platform": "darwin"
+        },
+        "host": {
+          "platform": "darwin",
+          "release": "27.0.0",
+          "arch": "arm64",
+          "cpu": "Apple M1"
+        },
+        "orchestrator": {
+          "bun": "1.4.4"
+        },
+        "corpus": {
+          "version": 1,
+          "sha256": "a71ec3cb59ef70a8b4a3f5e4278041ac603687dcef75f53f986cee98aa6c5fa8",
+          "casesPerDirection": 300,
+          "categories": 83
+        },
+        "methodology": {
+          "runs": 7,
+          "warmupPassesPerDirection": 5,
+          "coldFreshProcesses": 7,
+          "steadyFreshProcesses": 1,
+          "coldIncludesProcessStartup": false,
+          "coldIncludesRequireAndFirstEthanolCall": true,
+          "coldFilesystemCache": "uncontrolled; build fingerprinting reads distribution before samples",
+          "steadyIncludesOutputHashing": false,
+          "steadyOrder": "fixed corpus order; alternate direction order between samples"
+        },
+        "checksums": {
+          "cold": "bbff568e1ac206f20508b70b6c2261531f4b96d216b0fe76305687da5fde4e96",
+          "nameToSmiles": "4ed196030a01b8320d00054e93ca32f1cfa3b62e0b71c31e42209107643828c5",
+          "smilesToName": "8421b47e2091a6d2ea8c8028ea8e3cb980c3aaa5a37105904fa09e6fe78084e2"
+        },
+        "metrics": {
+          "cold": {
+            "samplesMs": [
+              312.66608299999996,
+              313.59175,
+              312.43070800000004,
+              313.674459,
+              313.449208,
+              312.158917,
+              312.225167
+            ],
+            "medianMs": 312.66608299999996,
+            "minMs": 312.158917,
+            "maxMs": 313.674459,
+            "spreadMs": 1.515542000000039,
+            "spreadPercent": 0.48471583021048026
+          },
+          "nameToSmiles": {
+            "samplesMs": [
+              84.76241699999991,
+              84.93445800000063,
+              83.38033300000006,
+              84.12275000000045,
+              83.14133300000049,
+              83.93783299999996,
+              82.8862079999999
+            ],
+            "medianMs": 83.93783299999996,
+            "minMs": 82.8862079999999,
+            "maxMs": 84.93445800000063,
+            "spreadMs": 2.048250000000735,
+            "spreadPercent": 2.4401988076112664,
+            "casesPerSample": 300
+          },
+          "smilesToName": {
+            "samplesMs": [
+              502.49724999999944,
+              500.0050000000001,
+              499.8529589999998,
+              499.1356659999992,
+              504.03349999999955,
+              499.52679200000057,
+              498.50316699999985
+            ],
+            "medianMs": 499.8529589999998,
+            "minMs": 498.50316699999985,
+            "maxMs": 504.03349999999955,
+            "spreadMs": 5.5303329999997,
+            "spreadPercent": 1.1063919699632512,
+            "casesPerSample": 300
+          }
+        },
+        "files": [
+          {
+            "path": "bundler/index.d.ts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "bundler/index.js",
+            "bytes": 16657,
+            "sha256": "0fca5753168bf6284729d9c96de21818b3285fe62cb229ab473982c661ef8679"
+          },
+          {
+            "path": "bundler/nazuchem.js",
+            "bytes": 268,
+            "sha256": "ca46ca3ec0bc2e0d2aa96db1c9321e2530e0f4982aff6f8e289f3ba119436017"
+          },
+          {
+            "path": "bundler/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          },
+          {
+            "path": "nazuchem_bg.js",
+            "bytes": 8823,
+            "sha256": "f37abeb75bac06406214e4c1d2c5a1c28faff9a43f8c95fd2005aee73898cccf"
+          },
+          {
+            "path": "nazuchem_bg.wasm",
+            "bytes": 18639704,
+            "sha256": "156d474729411fbe1ef4281abfec0c45f036f19f3594dbbb5a8216dc0d9311d3"
+          },
+          {
+            "path": "nazuchem-ir-1.schema.json",
+            "bytes": 13472,
+            "sha256": "fae28a43a8ad6cb31713d6572e805c75b5875176549e3be1093cb689cef0f430"
+          },
+          {
+            "path": "node/index.cjs",
+            "bytes": 16730,
+            "sha256": "cb1223b9958e70c7c8c1346fdfea8215a426eb9d78aa162c0a72f5566cd25613"
+          },
+          {
+            "path": "node/index.d.cts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "node/nazuchem.js",
+            "bytes": 9587,
+            "sha256": "7b8d27c7049d7cb6acc9e775277d5422ef9ca13b50ed6caf2ba6a62240564663"
+          },
+          {
+            "path": "node/package.json",
+            "bytes": 20,
+            "sha256": "dbf8353f77358bc12169b7bb7301e1978d5b503e002ee927229a8993672818fc"
+          },
+          {
+            "path": "web/index.d.ts",
+            "bytes": 4699,
+            "sha256": "e02104223133db3e39272cecd8d7b25ff05e4ca90dead09c1a5f9f39e768ee22"
+          },
+          {
+            "path": "web/index.js",
+            "bytes": 16709,
+            "sha256": "40494c5f87e75666c7418b725d351f24794a542aae2597ca30add78e98cf0ecc"
+          },
+          {
+            "path": "web/nazuchem.js",
+            "bytes": 12758,
+            "sha256": "e771116122e7e051fde9d856d9b8e1c94f37e000ff80325585171a2e098856c3"
+          },
+          {
+            "path": "web/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          }
+        ],
+        "comparison": {
+          "baseline": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V0/benchmark.json",
+          "metrics": {
+            "cold": {
+              "medianChangePercent": 3.0383600798786325,
+              "baselineMedianMs": 303.446292,
+              "currentMedianMs": 312.66608299999996
+            },
+            "nameToSmiles": {
+              "medianChangePercent": -4.383713257647138,
+              "baselineMedianMs": 87.78612499999963,
+              "currentMedianMs": 83.93783299999996
+            },
+            "smilesToName": {
+              "medianChangePercent": -5.047024069300066,
+              "baselineMedianMs": 526.4215830000003,
+              "currentMedianMs": 499.8529589999998
+            }
+          }
+        }
+      },
+      "initialMetrics": {
+        "cold": {
+          "samplesMs": [
+            314.168166,
+            314.254709,
+            314.370792,
+            319.202125,
+            313.70825,
+            314.677667,
+            313.70191600000004
+          ],
+          "medianMs": 314.254709,
+          "minMs": 313.70191600000004,
+          "maxMs": 319.202125,
+          "spreadMs": 5.500208999999984,
+          "spreadPercent": 1.750239166662729
+        },
+        "nameToSmiles": {
+          "samplesMs": [
+            84.55974999999944,
+            84.33129100000042,
+            82.99558400000024,
+            86.74620800000048,
+            83.38437500000055,
+            83.5992499999993,
+            82.60062500000004
+          ],
+          "medianMs": 83.5992499999993,
+          "minMs": 82.60062500000004,
+          "maxMs": 86.74620800000048,
+          "spreadMs": 4.1455830000004426,
+          "spreadPercent": 4.958875827235863,
+          "casesPerSample": 300
+        },
+        "smilesToName": {
+          "samplesMs": [
+            501.93162500000017,
+            499.83566599999995,
+            499.65700000000015,
+            499.4843329999994,
+            499.33445800000027,
+            498.44716700000026,
+            502.3895419999999
+          ],
+          "medianMs": 499.65700000000015,
+          "minMs": 498.44716700000026,
+          "maxMs": 502.3895419999999,
+          "spreadMs": 3.942374999999629,
+          "spreadPercent": 0.7890162651578239,
+          "casesPerSample": 300
+        }
+      }
+    },
+    {
+      "variant": "V6",
+      "recipe": "V3 with Rust s + wasm-opt -Os",
+      "size": {
+        "wasmCopies": 1,
+        "rawBytesPerPayload": 14564831,
+        "gzip9BytesPerPayload": 4148804,
+        "brotli11BytesPerPayload": 2549090,
+        "shippedWasmRawBytes": 14564831,
+        "npmArchiveBytes": 4231301,
+        "npmArchiveSha256": "469c8f9ab1ee8c2f2c39d49e7ecda7f3b69d498cf56c3adf63da8a80abe89e79",
+        "npmArchiveFiles": 21
+      },
+      "changePercentVsV0": {
+        "cold": -52.61197391728221,
+        "nameToSmiles": 12.087331568627647,
+        "smilesToName": 26.54054687571563
+      },
+      "eligible": false,
+      "failedMetrics": [
+        "nameToSmiles",
+        "smilesToName"
+      ],
+      "benchmark": {
+        "schema": "nazuchem-wasm-benchmark-v1",
+        "label": "V6",
+        "recordedAt": "2026-11-09T09:42:22.917Z",
+        "dist": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V6/dist",
+        "engine": {
+          "node": "v26.12.1",
+          "v8": "14.6.202.34-node.40",
+          "arch": "arm64",
+          "platform": "darwin"
+        },
+        "host": {
+          "platform": "darwin",
+          "release": "27.0.0",
+          "arch": "arm64",
+          "cpu": "Apple M1"
+        },
+        "orchestrator": {
+          "bun": "1.4.4"
+        },
+        "corpus": {
+          "version": 1,
+          "sha256": "a71ec3cb59ef70a8b4a3f5e4278041ac603687dcef75f53f986cee98aa6c5fa8",
+          "casesPerDirection": 300,
+          "categories": 83
+        },
+        "methodology": {
+          "runs": 7,
+          "warmupPassesPerDirection": 5,
+          "coldFreshProcesses": 7,
+          "steadyFreshProcesses": 1,
+          "coldIncludesProcessStartup": false,
+          "coldIncludesRequireAndFirstEthanolCall": true,
+          "coldFilesystemCache": "uncontrolled; build fingerprinting reads distribution before samples",
+          "steadyIncludesOutputHashing": false,
+          "steadyOrder": "fixed corpus order; alternate direction order between samples"
+        },
+        "checksums": {
+          "cold": "bbff568e1ac206f20508b70b6c2261531f4b96d216b0fe76305687da5fde4e96",
+          "nameToSmiles": "4ed196030a01b8320d00054e93ca32f1cfa3b62e0b71c31e42209107643828c5",
+          "smilesToName": "8421b47e2091a6d2ea8c8028ea8e3cb980c3aaa5a37105904fa09e6fe78084e2"
+        },
+        "metrics": {
+          "cold": {
+            "samplesMs": [
+              143.914791,
+              145.248875,
+              143.797208,
+              143.406417,
+              143.605208,
+              144.274,
+              143.666667
+            ],
+            "medianMs": 143.797208,
+            "minMs": 143.406417,
+            "maxMs": 145.248875,
+            "spreadMs": 1.8424579999999935,
+            "spreadPercent": 1.2812891332354612
+          },
+          "nameToSmiles": {
+            "samplesMs": [
+              99.49245800000062,
+              99.35870799999975,
+              98.35241700000006,
+              98.76987499999996,
+              97.83845800000017,
+              98.3971249999995,
+              97.6279169999998
+            ],
+            "medianMs": 98.3971249999995,
+            "minMs": 97.6279169999998,
+            "maxMs": 99.49245800000062,
+            "spreadMs": 1.864541000000827,
+            "spreadPercent": 1.8949141044525806,
+            "casesPerSample": 300
+          },
+          "smilesToName": {
+            "samplesMs": [
+              673.1848340000006,
+              667.4460829999998,
+              666.1367499999997,
+              670.595875,
+              665.6525419999998,
+              664.4107089999998,
+              665.0476670000007
+            ],
+            "medianMs": 666.1367499999997,
+            "minMs": 664.4107089999998,
+            "maxMs": 673.1848340000006,
+            "spreadMs": 8.774125000000822,
+            "spreadPercent": 1.317165732111436,
+            "casesPerSample": 300
+          }
+        },
+        "files": [
+          {
+            "path": "bundler/index.d.ts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "bundler/index.js",
+            "bytes": 16657,
+            "sha256": "0fca5753168bf6284729d9c96de21818b3285fe62cb229ab473982c661ef8679"
+          },
+          {
+            "path": "bundler/nazuchem.js",
+            "bytes": 268,
+            "sha256": "ca46ca3ec0bc2e0d2aa96db1c9321e2530e0f4982aff6f8e289f3ba119436017"
+          },
+          {
+            "path": "bundler/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          },
+          {
+            "path": "nazuchem_bg.js",
+            "bytes": 8823,
+            "sha256": "f37abeb75bac06406214e4c1d2c5a1c28faff9a43f8c95fd2005aee73898cccf"
+          },
+          {
+            "path": "nazuchem_bg.wasm",
+            "bytes": 14564831,
+            "sha256": "9acb1b21b35ae38d1255b2460576de339d4d781b2a8c1dc901c4fabd601d0604"
+          },
+          {
+            "path": "nazuchem-ir-1.schema.json",
+            "bytes": 13472,
+            "sha256": "fae28a43a8ad6cb31713d6572e805c75b5875176549e3be1093cb689cef0f430"
+          },
+          {
+            "path": "node/index.cjs",
+            "bytes": 16730,
+            "sha256": "cb1223b9958e70c7c8c1346fdfea8215a426eb9d78aa162c0a72f5566cd25613"
+          },
+          {
+            "path": "node/index.d.cts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "node/nazuchem.js",
+            "bytes": 9587,
+            "sha256": "7b8d27c7049d7cb6acc9e775277d5422ef9ca13b50ed6caf2ba6a62240564663"
+          },
+          {
+            "path": "node/package.json",
+            "bytes": 20,
+            "sha256": "dbf8353f77358bc12169b7bb7301e1978d5b503e002ee927229a8993672818fc"
+          },
+          {
+            "path": "web/index.d.ts",
+            "bytes": 4699,
+            "sha256": "e02104223133db3e39272cecd8d7b25ff05e4ca90dead09c1a5f9f39e768ee22"
+          },
+          {
+            "path": "web/index.js",
+            "bytes": 16709,
+            "sha256": "40494c5f87e75666c7418b725d351f24794a542aae2597ca30add78e98cf0ecc"
+          },
+          {
+            "path": "web/nazuchem.js",
+            "bytes": 12758,
+            "sha256": "e771116122e7e051fde9d856d9b8e1c94f37e000ff80325585171a2e098856c3"
+          },
+          {
+            "path": "web/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          }
+        ],
+        "comparison": {
+          "baseline": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V0/benchmark.json",
+          "metrics": {
+            "cold": {
+              "medianChangePercent": -52.61197391728221,
+              "baselineMedianMs": 303.446292,
+              "currentMedianMs": 143.797208
+            },
+            "nameToSmiles": {
+              "medianChangePercent": 12.087331568627647,
+              "baselineMedianMs": 87.78612499999963,
+              "currentMedianMs": 98.3971249999995
+            },
+            "smilesToName": {
+              "medianChangePercent": 26.54054687571563,
+              "baselineMedianMs": 526.4215830000003,
+              "currentMedianMs": 666.1367499999997
+            }
+          }
+        }
+      },
+      "initialMetrics": {
+        "cold": {
+          "samplesMs": [
+            143.68025,
+            143.466959,
+            143.562875,
+            143.520042,
+            143.552708,
+            143.36445799999998,
+            143.504833
+          ],
+          "medianMs": 143.520042,
+          "minMs": 143.36445799999998,
+          "maxMs": 143.68025,
+          "spreadMs": 0.31579200000001606,
+          "spreadPercent": 0.2200333804250253
+        },
+        "nameToSmiles": {
+          "samplesMs": [
+            99.75916700000016,
+            99.25670900000023,
+            98.38324999999986,
+            99.28841599999942,
+            98.07200000000012,
+            98.70895799999926,
+            97.62929200000144
+          ],
+          "medianMs": 98.70895799999926,
+          "minMs": 97.62929200000144,
+          "maxMs": 99.75916700000016,
+          "spreadMs": 2.1298749999987194,
+          "spreadPercent": 2.1577322293268817,
+          "casesPerSample": 300
+        },
+        "smilesToName": {
+          "samplesMs": [
+            668.2082500000006,
+            673.480708,
+            668.4057910000001,
+            665.904125,
+            664.8174579999995,
+            671.5663330000007,
+            664.1145000000015
+          ],
+          "medianMs": 668.2082500000006,
+          "minMs": 664.1145000000015,
+          "maxMs": 673.480708,
+          "spreadMs": 9.36620799999855,
+          "spreadPercent": 1.4016899671619651,
+          "casesPerSample": 300
+        }
+      }
+    },
+    {
+      "variant": "V7",
+      "recipe": "V3 with Rust z + wasm-opt -Oz",
+      "size": {
+        "wasmCopies": 1,
+        "rawBytesPerPayload": 13352715,
+        "gzip9BytesPerPayload": 3645153,
+        "brotli11BytesPerPayload": 2218378,
+        "shippedWasmRawBytes": 13352715,
+        "npmArchiveBytes": 3728018,
+        "npmArchiveSha256": "e7ad90640040101805420f51c5b3f9678bf016b3b6eb7b87970ff9db5f00030f",
+        "npmArchiveFiles": 21
+      },
+      "changePercentVsV0": {
+        "cold": -32.95057301276895,
+        "nameToSmiles": 54.035399102078706,
+        "smilesToName": 66.10258835075167
+      },
+      "eligible": false,
+      "failedMetrics": [
+        "nameToSmiles",
+        "smilesToName"
+      ],
+      "benchmark": {
+        "schema": "nazuchem-wasm-benchmark-v1",
+        "label": "V7",
+        "recordedAt": "2026-11-09T09:42:37.552Z",
+        "dist": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V7/dist",
+        "engine": {
+          "node": "v26.12.1",
+          "v8": "14.6.202.34-node.40",
+          "arch": "arm64",
+          "platform": "darwin"
+        },
+        "host": {
+          "platform": "darwin",
+          "release": "27.0.0",
+          "arch": "arm64",
+          "cpu": "Apple M1"
+        },
+        "orchestrator": {
+          "bun": "1.4.4"
+        },
+        "corpus": {
+          "version": 1,
+          "sha256": "a71ec3cb59ef70a8b4a3f5e4278041ac603687dcef75f53f986cee98aa6c5fa8",
+          "casesPerDirection": 300,
+          "categories": 83
+        },
+        "methodology": {
+          "runs": 7,
+          "warmupPassesPerDirection": 5,
+          "coldFreshProcesses": 7,
+          "steadyFreshProcesses": 1,
+          "coldIncludesProcessStartup": false,
+          "coldIncludesRequireAndFirstEthanolCall": true,
+          "coldFilesystemCache": "uncontrolled; build fingerprinting reads distribution before samples",
+          "steadyIncludesOutputHashing": false,
+          "steadyOrder": "fixed corpus order; alternate direction order between samples"
+        },
+        "checksums": {
+          "cold": "bbff568e1ac206f20508b70b6c2261531f4b96d216b0fe76305687da5fde4e96",
+          "nameToSmiles": "4ed196030a01b8320d00054e93ca32f1cfa3b62e0b71c31e42209107643828c5",
+          "smilesToName": "8421b47e2091a6d2ea8c8028ea8e3cb980c3aaa5a37105904fa09e6fe78084e2"
+        },
+        "metrics": {
+          "cold": {
+            "samplesMs": [
+              202.903083,
+              203.45899999999997,
+              203.602042,
+              203.61383400000003,
+              202.877625,
+              202.71474999999998,
+              203.999
+            ],
+            "medianMs": 203.45899999999997,
+            "minMs": 202.71474999999998,
+            "maxMs": 203.999,
+            "spreadMs": 1.2842500000000143,
+            "spreadPercent": 0.6312082532598776
+          },
+          "nameToSmiles": {
+            "samplesMs": [
+              136.3940419999999,
+              144.19404199999917,
+              134.8413330000003,
+              135.6200829999998,
+              134.03962500000125,
+              135.22170799999913,
+              134.89691700000003
+            ],
+            "medianMs": 135.22170799999913,
+            "minMs": 134.03962500000125,
+            "maxMs": 144.19404199999917,
+            "spreadMs": 10.15441699999792,
+            "spreadPercent": 7.509457727007845,
+            "casesPerSample": 300
+          },
+          "smilesToName": {
+            "samplesMs": [
+              880.2030000000004,
+              943.6561250000004,
+              873.4661249999999,
+              870.4232089999987,
+              874.399875000001,
+              868.0074170000007,
+              877.5695419999993
+            ],
+            "medianMs": 874.399875000001,
+            "minMs": 868.0074170000007,
+            "maxMs": 943.6561250000004,
+            "spreadMs": 75.64870799999971,
+            "spreadPercent": 8.651500321863567,
+            "casesPerSample": 300
+          }
+        },
+        "files": [
+          {
+            "path": "bundler/index.d.ts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "bundler/index.js",
+            "bytes": 16657,
+            "sha256": "0fca5753168bf6284729d9c96de21818b3285fe62cb229ab473982c661ef8679"
+          },
+          {
+            "path": "bundler/nazuchem.js",
+            "bytes": 268,
+            "sha256": "ca46ca3ec0bc2e0d2aa96db1c9321e2530e0f4982aff6f8e289f3ba119436017"
+          },
+          {
+            "path": "bundler/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          },
+          {
+            "path": "nazuchem_bg.js",
+            "bytes": 8823,
+            "sha256": "f37abeb75bac06406214e4c1d2c5a1c28faff9a43f8c95fd2005aee73898cccf"
+          },
+          {
+            "path": "nazuchem_bg.wasm",
+            "bytes": 13352715,
+            "sha256": "3e2dd0ff3088f854d0b928d832054e349f55e04e6d63a5de3b98a7c239190323"
+          },
+          {
+            "path": "nazuchem-ir-1.schema.json",
+            "bytes": 13472,
+            "sha256": "fae28a43a8ad6cb31713d6572e805c75b5875176549e3be1093cb689cef0f430"
+          },
+          {
+            "path": "node/index.cjs",
+            "bytes": 16730,
+            "sha256": "cb1223b9958e70c7c8c1346fdfea8215a426eb9d78aa162c0a72f5566cd25613"
+          },
+          {
+            "path": "node/index.d.cts",
+            "bytes": 4201,
+            "sha256": "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+          },
+          {
+            "path": "node/nazuchem.js",
+            "bytes": 9587,
+            "sha256": "7b8d27c7049d7cb6acc9e775277d5422ef9ca13b50ed6caf2ba6a62240564663"
+          },
+          {
+            "path": "node/package.json",
+            "bytes": 20,
+            "sha256": "dbf8353f77358bc12169b7bb7301e1978d5b503e002ee927229a8993672818fc"
+          },
+          {
+            "path": "web/index.d.ts",
+            "bytes": 4699,
+            "sha256": "e02104223133db3e39272cecd8d7b25ff05e4ca90dead09c1a5f9f39e768ee22"
+          },
+          {
+            "path": "web/index.js",
+            "bytes": 16709,
+            "sha256": "40494c5f87e75666c7418b725d351f24794a542aae2597ca30add78e98cf0ecc"
+          },
+          {
+            "path": "web/nazuchem.js",
+            "bytes": 12758,
+            "sha256": "e771116122e7e051fde9d856d9b8e1c94f37e000ff80325585171a2e098856c3"
+          },
+          {
+            "path": "web/package.json",
+            "bytes": 18,
+            "sha256": "1239d4d885dcad42201a27ed9324f8f0f760b78700d8db9ced39a511cffe7eae"
+          }
+        ],
+        "comparison": {
+          "baseline": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/size-variants/V0/benchmark.json",
+          "metrics": {
+            "cold": {
+              "medianChangePercent": -32.95057301276895,
+              "baselineMedianMs": 303.446292,
+              "currentMedianMs": 203.45899999999997
+            },
+            "nameToSmiles": {
+              "medianChangePercent": 54.035399102078706,
+              "baselineMedianMs": 87.78612499999963,
+              "currentMedianMs": 135.22170799999913
+            },
+            "smilesToName": {
+              "medianChangePercent": 66.10258835075167,
+              "baselineMedianMs": 526.4215830000003,
+              "currentMedianMs": 874.399875000001
+            }
+          }
+        }
+      },
+      "initialMetrics": {
+        "cold": {
+          "samplesMs": [
+            203.967959,
+            202.99420800000001,
+            203.308625,
+            203.12104200000002,
+            202.204958,
+            203.617334,
+            201.94929100000002
+          ],
+          "medianMs": 203.12104200000002,
+          "minMs": 201.94929100000002,
+          "maxMs": 203.967959,
+          "spreadMs": 2.018667999999991,
+          "spreadPercent": 0.9938251498335613
+        },
+        "nameToSmiles": {
+          "samplesMs": [
+            136.14474999999948,
+            135.93004199999996,
+            134.2676250000004,
+            135.93024999999943,
+            134.4407910000009,
+            134.79108300000007,
+            133.19162499999948
+          ],
+          "medianMs": 134.79108300000007,
+          "minMs": 133.19162499999948,
+          "maxMs": 136.14474999999948,
+          "spreadMs": 2.953125,
+          "spreadPercent": 2.1908904760413552,
+          "casesPerSample": 300
+        },
+        "smilesToName": {
+          "samplesMs": [
+            874.8072499999998,
+            871.4257500000003,
+            876.7140000000009,
+            880.7789169999996,
+            868.2668750000012,
+            871.4154170000002,
+            867.4822079999994
+          ],
+          "medianMs": 871.4257500000003,
+          "minMs": 867.4822079999994,
+          "maxMs": 880.7789169999996,
+          "spreadMs": 13.296709000000192,
+          "spreadPercent": 1.52585679273308,
+          "casesPerSample": 300
+        }
+      }
+    }
+  ],
+  "gates": {
+    "wasmBuild": {
+      "command": "CARGO_TARGET_DIR=/Users/shiranui/dev/nazuchem/target WASM_BINDGEN=/private/tmp/wasm-bindgen-0.2.128-aarch64-apple-darwin/wasm-bindgen bun bindings/wasm/scripts/build.ts",
+      "exitCode": 0,
+      "variant": "V3",
+      "wasmSha256": "6597538303d76e54ba8ede403b8ef8153da596f776a949f992f33c84c2486c4d",
+      "completeDistEqualsBenchmarkedV3": true,
+      "customNameAndProducersSectionsAbsent": true
+    },
+    "bun": {
+      "command": "bun run test",
+      "cwd": "bindings/wasm",
+      "exitCode": 0,
+      "testsPassed": 9,
+      "testsFailed": 0,
+      "assertions": 144,
+      "schemaTypesChecked": 13,
+      "includes": "strict TypeScript + schema/type vocabulary equivalence; Node APIs; real browser default fetch; fresh-Node static bundler imports"
+    },
+    "package": {
+      "command": "bun run check:package",
+      "cwd": "bindings/wasm",
+      "exitCode": 0,
+      "files": 21,
+      "bytes": 5233387,
+      "wasmCopies": 1,
+      "noticeFilesByteIdentical": 4,
+      "allThreeLoadersAndWasmEmbeddedImportResolve": true,
+      "benchExcluded": true,
+      "packedNodeAndBundlerInstantiateAndRunBothDirections": true
+    },
+    "corpusSourceCheck": {
+      "cases": 300,
+      "allGoldenSuccessfulNamesAndExactS2nRowsMatch": true
+    },
+    "native": {
+      "runs": [
+        {
+          "gate": "cargo-test-workspace",
+          "command": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked"
+          ],
+          "exit_code": 0,
+          "duration_seconds": 479.432,
+          "started_utc": "2026-11-09T09:43:12.279362+00:00",
+          "log": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/validation/cargo-test-workspace.log"
+        },
+        {
+          "gate": "cargo-clippy-workspace",
+          "command": [
+            "cargo",
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--locked",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "exit_code": 101,
+          "duration_seconds": 1.218,
+          "started_utc": "2026-11-09T09:51:11.708703+00:00",
+          "log": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/validation/cargo-clippy-workspace.log",
+          "failureReason": "System Python 3.9 is below PyO3 abi3-py310 minimum; no Rust lint diagnostic. Same command passed with explicit uv-managed Python 3.12."
+        },
+        {
+          "gate": "cargo-fmt",
+          "command": [
+            "cargo",
+            "fmt",
+            "--all",
+            "--check"
+          ],
+          "exit_code": 0,
+          "duration_seconds": 1.483,
+          "started_utc": "2026-11-09T09:51:12.927013+00:00",
+          "log": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/validation/cargo-fmt.log"
+        },
+        {
+          "gate": "cargo-clippy-workspace-python312",
+          "command": [
+            "cargo",
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--locked",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "environment": {
+            "CARGO_TARGET_DIR": "/Users/shiranui/dev/nazuchem/target",
+            "PYO3_PYTHON": "/Users/shiranui/.local/share/uv/python/cpython-3.12-macos-aarch64-none/bin/python3.12"
+          },
+          "exit_code": 0,
+          "duration_seconds": 6.05,
+          "started_utc": "2026-11-09T09:51:57.327656+00:00",
+          "log": "/Users/shiranui/dev/nazuchem/bindings/wasm/.generated/validation/cargo-clippy-workspace-python312.log"
+        }
+      ],
+      "suiteResults": 66,
+      "testsPassed": 1250,
+      "testsFailed": 0,
+      "testsIgnored": 2,
+      "ignoredReason": "Existing development-only Python topology/openclatura external-oracle parity files"
+    },
+    "provenance": {
+      "command": "uv run --no-project python scripts/check_provenance.py",
+      "exitCode": 0,
+      "newFilesInLedger": [
+        "bindings/wasm/bench/run.ts",
+        "bindings/wasm/bench/corpus.ts",
+        "bindings/wasm/bench/results.json"
+      ]
+    },
+    "diffWhitespace": {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  },
+  "packageArchiveMethodology": "Real bun pm pack --ignore-scripts for each saved dist, with identical final README, manifest, and notice bytes; all four notices verified byte-for-byte in every archive. Archive size is separate from per-Wasm gzip/Brotli measurements."
+}

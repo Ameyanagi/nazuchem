@@ -26,6 +26,7 @@
   "files": ["dist/", "README.md", "LICENSE-MIT", "LICENSE-APACHE", "NOTICE", "THIRD-PARTY-NOTICES.txt"],
   "scripts": {
     "build": "bun scripts/build.ts",
+    "bench": "bun bench/run.ts",
     "test": "bun scripts/check-types.ts && bun test tests",
     "test:types": "bun scripts/check-types.ts",
     "check:package": "bun scripts/check-package.ts"

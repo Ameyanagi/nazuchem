@@ -58,11 +58,19 @@ jobs:
         with:
           version: '0.12.10'
           python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26.12.1'
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.4'
       - name: Install exact wasm-bindgen CLI
         run: cargo install wasm-bindgen-cli --version 0.2.128 --locked
+      - name: Install pinned Binaryen (wasm-opt)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/binaryen.tar.gz" https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-linux.tar.gz
+          tar -xzf "$RUNNER_TEMP/binaryen.tar.gz" -C "$RUNNER_TEMP"
+          echo "WASM_OPT=$RUNNER_TEMP/binaryen-version_133/bin/wasm-opt" >> "$GITHUB_ENV"
       - name: Install locked JavaScript development tools
         working-directory: bindings/wasm
         run: bun install --frozen-lockfile
