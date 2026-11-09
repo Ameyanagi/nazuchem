@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs | Phase B step 8b
 // Source: openclatura | src/openclatura/namer.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/engine.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/mod.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
@@ -71,6 +72,9 @@
 )]
 
 mod identity;
+mod ir_input;
+#[cfg(test)]
+mod ir_proof_tests;
 pub use identity::{canonical_smiles, verify_alternative_identity, verify_identity};
 
 mod additive;
@@ -204,7 +208,12 @@ pub fn name_smiles_with_style(
     style: nazuchem_ir::IsotopeStyle,
     budget: &nazuchem_kernel::budget::Budget,
 ) -> Result<Name, String> {
-    let mut name = name_routes(smiles, style, budget)?;
+    finish_name(name_routes(smiles, style, budget)?)
+}
+
+// Provenance: fn finish_name | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs::finish_name
+fn finish_name(mut name: Name) -> Result<Name, String> {
     // A radical-ion name is verified through its neutral parent only.
     if name.verification.is_some() {
         return Ok(name);
@@ -233,6 +242,53 @@ pub fn name_smiles_with_style(
         }
     }
     Ok(name)
+}
+
+/// Generate a name directly from a validated IR graph with stable atom indices.
+///
+/// Uses the same chemical admission policy and naming rules as [`name_smiles`].
+/// Unsupported annotations and stereo return an error rather than being lost.
+/// Molecular perception uses the caller's budget.
+// Provenance: fn name_molecule | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs::name_molecule
+pub fn name_molecule(
+    molecule: &nazuchem_ir::Molecule,
+    style: nazuchem_ir::IsotopeStyle,
+    budget: &nazuchem_kernel::budget::Budget,
+) -> Result<Name, String> {
+    let state = ir_input::prepare(molecule, budget)?;
+    let canonical = identity::canonical_state(&state, budget)?;
+    let name = if unknown_stereo::has_unknown(&state) {
+        let normal = name_smiles_with_style(&canonical, style, budget)?;
+        // The legacy unknown route admits its unspecified baseline first, then
+        // requires one connected graph before rendering explicit descriptors.
+        if canonical.contains('.') {
+            return Err("Openclatura requires a single connected molecule".into());
+        }
+        let mol = graph_io::read_state(state, Some(molecule))?;
+        unknown_stereo::name_graph(normal, &mol)?
+    } else if canonical.contains('.') {
+        species::name_salt(&canonical, style, budget)?
+    } else if let Some(name) = species::monatomic_cation(&canonical, false, budget)? {
+        name
+    } else if let Some((neutral, suffix)) = radical_ions::recover_state(&state, &canonical, budget)?
+    {
+        let name = name_smiles_with_style(&neutral, style, budget)?;
+        Name {
+            text: format!("{} {suffix}", name.text),
+            status: nazuchem_ir::NameStatus::NotPreferred(nazuchem_ir::NameReason::RadicalIon),
+            alternatives: vec![],
+            omitted_stereo: vec![],
+            omitted_units: 0,
+            verification: Some(Verification {
+                name: name.text,
+                smiles: neutral,
+            }),
+        }
+    } else {
+        name_graph(graph_io::read_state(state, Some(molecule))?, style)?
+    };
+    finish_name(name)
 }
 
 /// The name with Ra/Sa for M/P in every locanted stereodescriptor group, such
@@ -316,6 +372,15 @@ fn name_routes(
     let mol = graph_io::read_smiles(smiles, budget)?;
     if mol.atoms.values().any(|atom| atom.isotope.is_some()) {
         return isotope_naming::name_smiles(smiles, style, budget);
+    }
+    name_graph(mol, style)
+}
+
+// Provenance: fn name_graph | adapted
+// Source: openclatura | src/openclatura/namer.py::name_component
+fn name_graph(mol: molecule::Molecule, style: nazuchem_ir::IsotopeStyle) -> Result<Name, String> {
+    if mol.atoms.values().any(|atom| atom.isotope.is_some()) {
+        return isotope_naming::name_molecule(&mol, style);
     }
     // Match upstream require_validated_chalcogens before any shortcut can consume Po.
     if mol.atoms.values().any(|atom| atom.symbol == "Po") {

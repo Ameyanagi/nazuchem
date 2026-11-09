@@ -5313,6 +5313,7 @@ path = "crates/nazuchem-s2n/src/graph_io.rs"
 origin = "mixed"
 license = "MIT AND (MIT OR Apache-2.0)"
 sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/graph_io.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0" },
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/graph_io.py", license = "MIT" },
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/small_ring_stereo.py", license = "MIT" },
   { project = "ReShiki", path = "src/naming/openclatura/graph_io.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0" },
@@ -5323,8 +5324,11 @@ sources = [
   { project = "openclatura", path = "tests/unit/test_fusion_numbering.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/roundtrip/test_polycycles.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
 ]
-notes = "Openclatura graph semantics adapted to the local chemistry kernel with additional admission checks."
+notes = "Phase B step 8b adds direct typed-IR admission and shared graph naming; extracted original helper bodies retain their existing ReShiki ancestry. Openclatura graph semantics adapted to the local chemistry kernel with additional admission checks."
 parts = [
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/graph_io.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0", symbol = "fold_ordinary_hydrogens" }], items = ["fn fold_ordinary_hydrogens"], notes = "Naming-only ordinary-H projection uses kernel removal to preserve winding, then restores surviving original IR identities." },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/graph_io.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0", symbol = "read_molecule" }], items = ["fn read_molecule"] },
+  { origin = "adapted", sources = [{ project = "openclatura", path = "src/openclatura/graph_io.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT", symbol = "read_smiles" }], items = ["fn read_state"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/graph_io.py", license = "MIT", symbol = "read_smiles" }], items = ["fn read_smiles"] },
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/graph_io.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "require_supported_ring_blocks" }], items = ["fn require_supported_ring_blocks"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/graph_io.py", license = "MIT", symbol = "_modern_cip_labels" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/graph_io.py", license = "MIT", symbol = "_build_molecule" }], items = ["fn atom_cip"], notes = "Native perception::State property access and vector enumeration are new, but graph_io.py::_modern_cip_labels (35-40) already collects CIP labels into an atom-index-keyed dictionary, and _build_molecule (153) copies that map as accurate_cip. This helper is the native replacement of that collection step; attribution is conservative rather than wholly original." },
@@ -5608,6 +5612,7 @@ path = "crates/nazuchem-s2n/src/lib.rs"
 origin = "mixed"
 license = "MIT AND (MIT OR Apache-2.0)"
 sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/lib.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0" },
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/namer.py", license = "MIT" },
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/engine.py", license = "MIT" },
   { project = "ReShiki", path = "src/naming/openclatura/mod.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0" },
@@ -5649,8 +5654,11 @@ sources = [
   { project = "openclatura", path = "tests/roundtrip/test_p13_fusion.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/roundtrip/test_fused_hydrocarbon_retained.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
 ]
-notes = "Port entry sequence surrounded by local naming routes, assessment, result types and alternatives."
+notes = "Phase B step 8b adds direct typed-IR admission and shared graph naming; extracted original helper bodies retain their existing ReShiki ancestry. Port entry sequence surrounded by local naming routes, assessment, result types and alternatives."
 parts = [
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/lib.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0", symbol = "finish_name" }], items = ["fn finish_name"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/lib.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0", symbol = "name_molecule" }], items = ["fn name_molecule"] },
+  { origin = "adapted", sources = [{ project = "openclatura", path = "src/openclatura/namer.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT", symbol = "name_component" }], items = ["fn name_graph"] },
   { "origin" = "original", "sources" = [{ "project" = "ReShiki", "path" = "src/naming/openclatura/mod.rs", "ref" = "5f559fd482e237307a589dfcb7ea333cee0a6e13", "license" = "MIT OR Apache-2.0", "symbol" = "tests::pheno_fusion_components_choose_preferred_parents_and_round_trip" }], "items" = ["fn tests::pheno_fusion_components_choose_preferred_parents_and_round_trip"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/namer.py", license = "MIT", symbol = "name_smiles" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/engine.py", license = "MIT", symbol = "Namer.name_smiles" }], items = ["fn name_smiles"], notes = "namer.py:2015-2020::name_smiles and engine.py:188-191::Namer.name_smiles are same-name compatibility entrypoints that forward SMILES to a configurable naming API. Rust supplies a local isotope-style default and Budget instead of fusion_mode. Those additions are local; the tiny compatibility-wrapper ancestry is uncertain, so the final integration conservatively attributes the upstream entrypoint contract rather than retaining a wholly original assertion." },
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/mod.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "name_smiles_with_style" }], items = ["fn name_smiles_with_style"] },
@@ -6130,13 +6138,15 @@ path = "crates/nazuchem-s2n/src/radical_ions.rs"
 origin = "mixed"
 license = "MIT AND (MIT OR Apache-2.0)"
 sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/radical_ions.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0" },
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/radical_ions.rs", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/fixtures/diverse_corpus.csv", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/unit/test_analysis.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/integration/test_describer.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
 ]
-notes = "Local bounded neutral-parent recovery for radical-ion descriptive names with identity and stereo preservation checks. Test inputs and expected chemical names include conservatively adapted upstream cases; exact matches do not establish independent ancestry. Production helpers and local test extensions retain their individual ledger decisions."
+notes = "Phase B step 8b adds direct typed-IR admission and shared graph naming; extracted original helper bodies retain their existing ReShiki ancestry. Local bounded neutral-parent recovery for radical-ion descriptive names with identity and stereo preservation checks. Test inputs and expected chemical names include conservatively adapted upstream cases; exact matches do not establish independent ancestry. Production helpers and local test extensions retain their individual ledger decisions."
 parts = [
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/radical_ions.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0", symbol = "recover_state" }], items = ["fn recover_state"] },
   { items = ["fn recover"], origin = "original", sources = [
     { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/radical_ions.rs", license = "MIT OR Apache-2.0", symbol = "recover" },
   ] },
@@ -6874,12 +6884,16 @@ path = "crates/nazuchem-s2n/src/unknown_stereo.rs"
 origin = "mixed"
 license = "MIT AND (MIT OR Apache-2.0)"
 sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/unknown_stereo.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0" },
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/unknown_stereo.rs", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/unit/test_analysis.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/evaluations/test_check_regression.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
 ]
-notes = "Local private atom-map transport and explicit Xi/xi alternative-name handling for unknown stereogenic units. Test inputs and expected chemical names include conservatively adapted upstream cases; exact matches do not establish independent ancestry. Production helpers and local test extensions retain their individual ledger decisions."
+notes = "Phase B step 8b adds direct typed-IR admission and shared graph naming; extracted original helper bodies retain their existing ReShiki ancestry. Local private atom-map transport and explicit Xi/xi alternative-name handling for unknown stereogenic units. Test inputs and expected chemical names include conservatively adapted upstream cases; exact matches do not establish independent ancestry. Production helpers and local test extensions retain their individual ledger decisions."
 parts = [
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/unknown_stereo.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0", symbol = "annotate_native" }], items = ["fn annotate_native"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/unknown_stereo.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0", symbol = "has_unknown" }], items = ["fn has_unknown"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/unknown_stereo.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0", symbol = "name_graph" }], items = ["fn name_graph"] },
   { items = ["fn atom_marker"], origin = "original", sources = [
     { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/unknown_stereo.rs", license = "MIT OR Apache-2.0", symbol = "atom_marker" },
   ] },
@@ -7199,7 +7213,7 @@ sources = [
   { "project" = "Nazuchem/ReShiki", "path" = "crates/nazuchem-s2n/Cargo.toml", "ref" = "Phase A step 4 (local extraction)", "license" = "MIT OR Apache-2.0" },
 ]
 notes = "Phase A step 4 local extraction documentation and package metadata. Established terms do not resolve the retained Blue Book table; publish = false remains in force."
-sha256 = "ba0e8122e16a5e7aea35ff967857719e48c4e5b1ea4b7ae3c81736e75b6b490f"
+sha256 = "a7b8fd61e3ff55bae25067c7e11ce26ca37705c5ed83fa39baf550052a8f4763"
 
 [[file]]
 path = "crates/nazuchem-s2n/LICENSE"
@@ -7392,7 +7406,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/README.md", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained."
-sha256 = "8903224d1f56a1a910f637f7997a88f92ba5b70f61522303840746e293fd474c"
+sha256 = "ed48d8dbe595f63e1ade8f40ec3e102c5113167270f05513c92a4f6dec96318f"
 
 [[file]]
 path = "crates/nazuchem/licenses/centres/LICENSE"
@@ -7559,11 +7573,13 @@ path = "crates/nazuchem/src/lib.rs"
 origin = "mixed"
 license = "MIT OR Apache-2.0"
 sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/src/lib.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem", path = "crates/nazuchem/src/lib.rs", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/src/lib.rs", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained."
+notes = "Phase B step 8b adds direct typed-IR admission and shared graph naming; extracted original helper bodies retain their existing ReShiki ancestry. Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained."
 parts = [
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem/src/lib.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0", symbol = "molecule_to_name" }], items = ["fn molecule_to_name"] },
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem/src/lib.rs", ref = "Phase B step 8a", license = "MIT OR Apache-2.0", symbol = "name_to_molecule" }], items = ["fn name_to_molecule"] },
   { origin = "original", sources = [{ project = "Nazuchem/ReShiki", path = "crates/nazuchem/src/lib.rs", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0", symbol = "Error" }], items = ["impl Error"], members = { "impl Error" = ["fn Error::kind"] } },
   { origin = "original", sources = [{ project = "Nazuchem/ReShiki", path = "crates/nazuchem/src/lib.rs", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0", symbol = "<Error as std::fmt::Display>" }], items = ["impl <Error as std::fmt::Display>"], members = { "impl <Error as std::fmt::Display>" = ["fn <Error as std::fmt::Display>::fmt"] } },
@@ -7683,9 +7699,10 @@ path = "crates/nazuchem/tests/ir.rs"
 origin = "original"
 license = "MIT OR Apache-2.0"
 sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/tests/ir.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem", path = "crates/nazuchem/tests/ir.rs", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Phase B step 8a implementation, documentation, schema or regression gate."
+notes = "Original IR facade gates for independent engine features, direct naming, isotope style, strict admission errors and JSON name/structure composition in Phase B steps 8a and 8b."
 
 [[file]]
 path = "crates/nazuchem-n2s/tests/support/ir_stereo.rs"
@@ -7695,3 +7712,21 @@ sources = [
   { project = "Nazuchem", path = "crates/nazuchem-n2s/tests/support/ir_stereo.rs", ref = "Phase B step 8a", license = "MIT" },
 ]
 notes = "Independent source identity and kernel reparse stereo audits for IR v1."
+
+[[file]]
+path = "crates/nazuchem-s2n/src/ir_input.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/ir_input.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0" },
+]
+notes = "Original typed-IR adapter, admission checks and regression proof for Phase B step 8b; test corpora retain their separately recorded fixture provenance."
+
+[[file]]
+path = "crates/nazuchem-s2n/src/ir_proof_tests.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/ir_proof_tests.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0" },
+]
+notes = "Original typed-IR adapter, admission checks and regression proof for Phase B step 8b; test corpora retain their separately recorded fixture provenance."

@@ -374,6 +374,11 @@ pub(super) fn name_smiles(
     budget: &nazuchem_kernel::budget::Budget,
 ) -> Result<Name, String> {
     let source = graph_io::read_smiles(smiles, budget)?;
+    name_molecule(&source, style)
+}
+
+/// Name the already admitted graph without serializing its atom identities.
+pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Name, String> {
     if source
         .atoms
         .values()
@@ -383,7 +388,7 @@ pub(super) fn name_smiles(
             "openclatura: combined isotope and radical nomenclature is not supported".into(),
         );
     }
-    let (parent, sites) = stripped_parent(&source)?;
+    let (parent, sites) = stripped_parent(source)?;
     if sites.is_empty() {
         return Err("openclatura: isotope naming requires an isotope".into());
     }
@@ -393,7 +398,7 @@ pub(super) fn name_smiles(
     super::validate_parent(&parent)?;
     parent.mark_isotope_parent();
     let atoms = parent.atoms.keys().copied().collect();
-    let base = component_namer::name_component_with_atom_locants(&parent, &atoms, Some(&source))?;
+    let base = component_namer::name_component_with_atom_locants(&parent, &atoms, Some(source))?;
     let locants = &base.locants;
     super::assess_derivation(&parent, &base.derivation);
     let symmetry = lowest_equivalent_map(&parent, &sites, locants)?;

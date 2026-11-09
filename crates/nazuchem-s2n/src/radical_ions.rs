@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/radical_ions.rs | Phase B step 8b
 // Source: ReShiki | src/naming/openclatura/radical_ions.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Copyright (c) 2026 lamalab-org
 // Source: openclatura | tests/fixtures/diverse_corpus.csv | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -41,6 +42,17 @@ pub fn recover(
     let prepared = smiles::prepare(smiles, budget).map_err(|error| error.to_string())?;
     let source = nazuchem_kernel::identity::apply_axis_markers(&prepared.state, budget)
         .map_err(|_| UNSUPPORTED)?;
+    recover_state(&source, &canonical, budget)
+}
+
+/// Recovery from an admitted graph, retaining the source's localized bonds.
+// Provenance: fn recover_state | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/radical_ions.rs::recover_state
+pub(super) fn recover_state(
+    source: &State,
+    canonical: &str,
+    budget: &nazuchem_kernel::budget::Budget,
+) -> Result<Option<(String, &'static str)>, String> {
     let radicals: Vec<_> = source
         .graph
         .atoms
@@ -112,7 +124,7 @@ pub fn recover(
         bond.order = 2;
     }
 
-    let neutral = closed_shell_parent(&source, &graph, budget).ok_or(UNSUPPORTED)?;
+    let neutral = closed_shell_parent(source, &graph, budget).ok_or(UNSUPPORTED)?;
     let suffix = if charge > 0 {
         "radical cation"
     } else {

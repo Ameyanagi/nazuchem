@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/unknown_stereo.rs | Phase B step 8b
 // Source: ReShiki | src/naming/openclatura/unknown_stereo.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Copyright (c) 2026 lamalab-org
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -41,7 +42,13 @@ pub(super) fn annotate(state: &perception::State, mol: &mut Molecule) -> Result<
         .map(|atom| atom.map_number)
         .collect();
     for (idx, &map) in maps.iter().enumerate() {
-        if !atom_marker(map) {
+        if !atom_marker(map)
+            && !state
+                .properties
+                .atoms
+                .get(idx)
+                .is_some_and(|atom| atom.unknown)
+        {
             continue;
         }
         let pseudo = nazuchem_kernel::stereo::is_pseudoasymmetric(state, idx);
@@ -54,7 +61,13 @@ pub(super) fn annotate(state: &perception::State, mol: &mut Molecule) -> Result<
     }
     let mut used = vec![false; maps.len()];
     for bond in mol.bonds.values_mut() {
-        if bond.order == 2 && bond_marker(maps[bond.u]) && bond_marker(maps[bond.v]) {
+        if (bond.order == 2 && bond_marker(maps[bond.u]) && bond_marker(maps[bond.v]))
+            || state
+                .metadata
+                .bonds
+                .get(bond.idx - 1)
+                .is_some_and(|meta| meta.unknown_stereo || meta.stereo == 1)
+        {
             bond.stereo = Some("Ξ".into());
             used[bond.u] = true;
             used[bond.v] = true;
@@ -68,6 +81,17 @@ pub(super) fn annotate(state: &perception::State, mol: &mut Molecule) -> Result<
         return Err("openclatura: incomplete unknown double-bond marker".into());
     }
     Ok(())
+}
+
+/// Typed stereo does not assign meaning to the legacy private atom-map range.
+// Provenance: fn annotate_native | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/unknown_stereo.rs::annotate_native
+pub(super) fn annotate_native(state: &perception::State, mol: &mut Molecule) -> Result<(), String> {
+    let mut native = state.clone();
+    for atom in &mut native.metadata.atoms {
+        atom.map_number = 0;
+    }
+    annotate(&native, mol)
 }
 
 /// An early hook in the ordinary entry point. Ordinary atom maps have no
@@ -88,10 +112,29 @@ pub(super) fn name_smiles(
     // Keep the ordinary size and supported-semantics gate ahead of parsing
     // the internal marker transport, just as in graph_io::read_smiles.
     let unspecified = crate::canonical_smiles(smiles, budget)?;
-    let mut normal = super::name_smiles_with_style(&unspecified, style, budget)?;
+    let normal = super::name_smiles_with_style(&unspecified, style, budget)?;
+    let mol = graph_io::read_smiles(smiles, budget)?;
+    name_graph(normal, &mol).map(Some)
+}
+
+/// Whether typed input contains an explicitly unknown stereo unit.
+// Provenance: fn has_unknown | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/unknown_stereo.rs::has_unknown
+pub(super) fn has_unknown(state: &perception::State) -> bool {
+    state.properties.atoms.iter().any(|atom| atom.unknown)
+        || state
+            .metadata
+            .bonds
+            .iter()
+            .any(|bond| bond.unknown_stereo || bond.stereo == 1)
+}
+
+/// Apply the existing omission and explicit-alternative policy to a typed graph.
+// Provenance: fn name_graph | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/unknown_stereo.rs::name_graph
+pub(super) fn name_graph(mut normal: Name, mol: &Molecule) -> Result<Name, String> {
     let status = normal.status;
     normal.status = NameStatus::NotPreferred(NameReason::UnknownConfiguration);
-    let mol = graph_io::read_smiles(smiles, budget)?;
     // The explicit route may use a different name family (e.g. an oxide
     // zwitterion under P-62.5); preserve any departures it records.
     mol.set_name_status(status);
@@ -135,12 +178,12 @@ pub(super) fn name_smiles(
                     && super::nest_enclosing_marks(&without_unknown_descriptors(raw))
                         == normal.text)
     };
-    let Some(explicit_raw) = graph_io::get_connected_components(&mol)
+    let Some(explicit_raw) = graph_io::get_connected_components(mol)
         .first()
-        .and_then(|component| super::component_namer::name_component(&mol, component).ok())
+        .and_then(|component| super::component_namer::name_component(mol, component).ok())
         .filter(|raw| one_per_unit(raw))
     else {
-        return Ok(Some(normal));
+        return Ok(normal);
     };
     // Unknown descriptors participate in numbering tie-breaks. Omit them from
     // this same numbered name so the warning locants always identify the
@@ -154,7 +197,7 @@ pub(super) fn name_smiles(
             status: mol.name_status(),
         },
     );
-    Ok(Some(normal))
+    Ok(normal)
 }
 
 // Provenance: fn without_unknown_descriptors | original

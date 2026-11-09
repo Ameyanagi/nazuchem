@@ -220,6 +220,7 @@ dependencies = [
 name = "nazuchem-s2n"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "nazuchem-ir",
  "nazuchem-kernel",
  "nazuchem-n2s",

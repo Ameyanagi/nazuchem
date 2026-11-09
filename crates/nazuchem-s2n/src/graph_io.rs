@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs | Phase B step 8b
 // Source: openclatura | src/openclatura/graph_io.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/small_ring_stereo.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/graph_io.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
@@ -40,8 +41,35 @@ pub fn read_smiles(
         return Err("Openclatura requires a single connected molecule".into());
     }
     let prepared = smiles::prepare(text, budget).map_err(|error| error.to_string())?;
-    let mut state = nazuchem_kernel::identity::apply_axis_markers(&prepared.state, budget)
+    let state = nazuchem_kernel::identity::apply_axis_markers(&prepared.state, budget)
         .map_err(|_| "openclatura: invalid biaryl axis markers".to_owned())?;
+    read_state(state, None)
+}
+
+/// Read IR directly without changing its atom or bond indices.
+// Provenance: fn read_molecule | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs::read_molecule
+#[cfg(test)]
+pub(crate) fn read_molecule(
+    molecule: &nazuchem_ir::Molecule,
+    budget: &nazuchem_kernel::budget::Budget,
+) -> Result<Molecule, String> {
+    let state = super::ir_input::prepare(molecule, budget)?;
+    let canonical = super::identity::canonical_state(&state, budget)?;
+    if canonical.contains('.') {
+        return Err("Openclatura requires a single connected molecule".into());
+    }
+    read_state(state, Some(molecule))
+}
+
+/// Shared graph construction keeps the aromatic snapshot and naming decisions
+/// identical for both input formats.
+// Provenance: fn read_state | adapted
+// Source: openclatura | src/openclatura/graph_io.py::read_smiles
+pub(crate) fn read_state(
+    mut state: perception::State,
+    input: Option<&nazuchem_ir::Molecule>,
+) -> Result<Molecule, String> {
     // Upstream divergence: aromatic atom endpoints cannot identify localized
     // inter-ring bonds; retain bond aromaticity for the final fusion pi audit.
     let aromatic_bonds: Vec<_> = state.graph.bonds.iter().map(|b| b.aromatic).collect();
@@ -93,7 +121,7 @@ pub fn read_smiles(
     let legacy = perception::perceive(
         &state,
         perception::Options {
-            clean: true,
+            clean: input.is_none(),
             force: true,
             flag_possible: true,
         },
@@ -118,10 +146,17 @@ pub fn read_smiles(
     mol.accurate_cip = accurate.as_ref().map_or_else(BTreeMap::new, atom_cip);
 
     for (idx, atom) in legacy.graph.atoms.iter().enumerate() {
-        let (is_aromatic, explicit_h_count, total_h_count) = atom_metadata
+        let (is_aromatic, mut explicit_h_count, total_h_count) = atom_metadata
             .get(idx)
             .copied()
             .ok_or("Missing naming atom metadata")?;
+        if let Some(atom) = input.and_then(|input| input.atoms.get(idx)) {
+            explicit_h_count = if atom.hydrogens_stated {
+                usize::from(atom.hydrogens)
+            } else {
+                0
+            };
+        }
         // The full pass also labels ring r/s centres that legacy CIP leaves
         // unlabelled. Use the same descriptors that the canvas displays.
         let mut stereo = mol
@@ -206,11 +241,89 @@ pub fn read_smiles(
             in_small_ring,
         })?;
     }
-    super::unknown_stereo::annotate(&legacy, &mut mol)?;
+    if input.is_some() {
+        super::unknown_stereo::annotate_native(&legacy, &mut mol)?;
+        mol = fold_ordinary_hydrogens(&legacy, mol)?;
+    } else {
+        super::unknown_stereo::annotate(&legacy, &mut mol)?;
+    }
     require_supported_ring_blocks(&mol)?;
     super::identity_validation::validate_input(&mol)?;
     super::identity_validation::validate_mancude_duplicate_ranking(&mol)?;
     Ok(mol)
+}
+
+/// Match the ordinary-H projection of SMILES import while retaining original
+/// IR atom and bond IDs in the naming graph (including sparse surviving IDs).
+/// CIP is assigned before projection; native H removal adjusts raw winding.
+// Provenance: fn fold_ordinary_hydrogens | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs::fold_ordinary_hydrogens
+fn fold_ordinary_hydrogens(
+    state: &perception::State,
+    source: Molecule,
+) -> Result<Molecule, String> {
+    use nazuchem_kernel::hydrogens;
+    if !state
+        .graph
+        .atoms
+        .iter()
+        .any(|atom| atom.atomic_number == 1 && atom.isotope == 0)
+    {
+        return Ok(source);
+    }
+    let removed = hydrogens::remove(&hydrogens::Input {
+        graph: state.graph.clone(),
+        metadata: state.metadata.clone(),
+        directions: state.directions.clone(),
+        unknown_atoms: state
+            .properties
+            .atoms
+            .iter()
+            .map(|atom| atom.unknown)
+            .collect(),
+        annotations: hydrogens::Annotations::default(),
+    })
+    .map_err(|error| error.to_string())?;
+    if removed.kept_atoms.len() == source.atoms.len() {
+        return Ok(source);
+    }
+    let valences = removed.graph.valences()?;
+    let mut projected = Molecule::new();
+    for (index, &original) in removed.kept_atoms.iter().enumerate() {
+        let mut atom = source.atoms[&original].clone();
+        atom.total_h_count = usize::from(removed.graph.atoms[index].explicit_hydrogens)
+            + valences[index].implicit_hydrogens as usize;
+        atom.raw_stereo = match removed.metadata.atoms[index].chiral_tag {
+            1 => Some("CW".into()),
+            2 => Some("CCW".into()),
+            _ => None,
+        };
+        projected.add_atom(atom)?;
+    }
+    for &original in &removed.kept_bonds {
+        projected.add_bond(source.bonds[&(original + 1)].clone())?;
+    }
+    projected.legacy_cip = source
+        .legacy_cip
+        .into_iter()
+        .filter(|(id, _)| projected.atoms.contains_key(id))
+        .collect();
+    projected.accurate_cip = source
+        .accurate_cip
+        .into_iter()
+        .filter(|(id, _)| projected.atoms.contains_key(id))
+        .collect();
+    projected.stereogenic_atoms = source
+        .stereogenic_atoms
+        .into_iter()
+        .filter(|id| projected.atoms.contains_key(id))
+        .collect();
+    projected.stereogenic_bonds = source
+        .stereogenic_bonds
+        .into_iter()
+        .filter(|id| projected.bonds.contains_key(id))
+        .collect();
+    Ok(projected)
 }
 
 /// Input checks that do not depend on the selected nomenclature system.
