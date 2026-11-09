@@ -6,20 +6,8 @@ notes, the wheels and the npm package. All versions are currently **0.1.0**.
 Releases accept only numeric **X.Y.Z** versions and matching **vX.Y.Z** tags; prerelease
 and build-metadata suffixes are not supported.
 
-## Owner gates
-
-Resolve and record the three pending decisions before publishing:
-
-- Native sort-policy provenance (`linux_sort.rs` / `sort_common.rs`).
-- IUPAC Blue Book-derived table source/licensing permission.
-- Source terms for the test-only PubChem-derived corpus.
-
-The existing `NOASSERTION` records remain unresolved until the owner decides;
-established licence expressions do not grant rights for that material. After
-recording those decisions and any required provenance changes, remove
-`publish = false` from the **five library** manifests. Keep it on
-`nazuchem-python` and `nazuchem-wasm`: those crates never go to crates.io.
-The `verify` job refuses all registry uploads while a library gate remains.
+`nazuchem-python` and `nazuchem-wasm` keep `publish = false`; they ship only to PyPI and npm, never
+to crates.io.
 
 ## One-time setup
 
@@ -76,9 +64,8 @@ use the job's automatic `GITHUB_TOKEN` with `contents: write`.
    manifest, builds/tests the Rust workspace, packages all five libraries in a
    scratch copy, runs the existing bindings matrix and notice checks, and
    validates wheel metadata. Inspect the retained workflow artifacts. It skips
-   registry uploads and GitHub Release creation. A branch rehearsal works while
-   the five library publish gates remain.
-3. After the owner gates and setup above are complete, merge the reviewed
+   registry uploads and GitHub Release creation.
+3. After the setup above is complete, merge the reviewed
    release commit and push its tag, e.g. `git tag v0.1.0` then
    `git push origin v0.1.0`. Strict `vX.Y.Z` tags must match every manifest
    version. Approve the three protected environment jobs. A manual run with
@@ -110,9 +97,8 @@ install/build/pack; only upload uses npm because current
 [`bun publish`](https://bun.sh/docs/pm/cli/publish) cannot generate provenance
 and npm trusted publishing is not supported there yet.
 
-Scratch Rust packaging changes only the five library publish flags in the
-temporary copy and uses Cargo's multi-package mode to resolve unpublished
-dependencies. Its `rust-crates-preflight` artifact is for rehearsal; the GitHub
+Scratch Rust packaging uses Cargo's multi-package mode to resolve unpublished
+dependencies in a temporary copy. Its `rust-crates-preflight` artifact is for rehearsal; the GitHub
 Release attaches only the wheels and the npm package. Preflight
 uses `--no-verify` because Cargo 1.99.1 archive verification
 hits the existing temporary-registry checksum failure

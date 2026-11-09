@@ -2,10 +2,8 @@
 name = "nazuchem-kernel"
 version.workspace = true
 edition.workspace = true
-publish = false
 # Unit tests under src/ embed these fixtures.
 exclude = ["tests/**", "!tests/fixtures/", "!tests/fixtures/**"]
-# Publication remains disabled while repository provenance work is incomplete.
 license = "(MIT OR Apache-2.0) AND BSD-3-Clause AND BSD-2-Clause"
 description = "Internal molecular perception kernel for nazuchem, adapted from RDKit and centres"
 repository.workspace = true

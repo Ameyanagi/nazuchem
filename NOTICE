@@ -44,9 +44,15 @@ incorporated into this repository. Historical source pins remain unchanged.
 
 Equal-key sorts use Rust's stable sort; no C++ standard library code is included.
 
-Owner decisions are still required for s2n data/bluebook/p25_retained.tsv
-reuse permission and the test-only PubChem-derived
-tests/fixtures/s2n/bakeoff_corpus.tsv source terms. The ledger
-retains NOASSERTION for these materials. Established package expressions
-and the local dual-license grant do not resolve those rights. The corpus is
-excluded from packages, and publish = false remains in force for all crates.
+crates/nazuchem-s2n/src/data/bluebook/p25_retained.tsv lists the retained
+heterocycle names of IUPAC Nomenclature of Organic Chemistry: Recommendations
+and Preferred Names 2013, P-25.2.1 Table 2.8, transcribed from
+https://iupac.qmul.ac.uk/BlueBook/P2.html; IUPAC holds copyright in the
+Recommendations. The names are included as factual data with this attribution;
+this package's licences do not cover the file, and no licence is asserted for it
+(SPDX NOASSERTION).
+
+tests/fixtures/s2n/bakeoff_corpus.tsv is a test fixture kept only in the source
+repository and absent from every published package. It contains PubChem compound
+IDs and the IUPAC names PubChem lists for them
+(https://pubchem.ncbi.nlm.nih.gov); no licence is asserted for it.

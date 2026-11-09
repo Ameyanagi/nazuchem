@@ -14,7 +14,7 @@ the extraction. That inventory predates removal of the six sort module files
 and three sort fingerprint fixtures. The remaining ring-order fixture retains
 its original bytes and recorded provenance.
 
-Owner decision 2026-11-10, **Rust stable sort**: ordering uses Rust standard
+Sort policy: ordering uses Rust standard
 library stable sort calls. Equal keys preserve input order. Reproducing the
 per-OS C++ standard libraries' equal-key permutations is no longer a target.
 The native sort reproductions, shared helpers and C++ fingerprints were removed;
@@ -35,8 +35,7 @@ contributions. Historical ReShiki paths in copied notices identify the source
 repository.
 
 The manifest combines these established terms as
-`(MIT OR Apache-2.0) AND BSD-3-Clause AND BSD-2-Clause`. Repository
-provenance work remains incomplete, and `publish = false` remains in force.
+`(MIT OR Apache-2.0) AND BSD-3-Clause AND BSD-2-Clause`.
 `PROVENANCE-nazuchem.toml` at the repository root records per-file ancestry,
 local function boundaries and the unresolved facts; the crate's `NOTICE`
 explains its incorporated scope.

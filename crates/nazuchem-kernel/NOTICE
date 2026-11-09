@@ -36,4 +36,3 @@ kernel file is classified as a CPython adaptation by that ledger.
 
 The package expression is (MIT OR Apache-2.0) AND BSD-3-Clause AND
 BSD-2-Clause. Historical source pins for retained files are unchanged.
-Repository provenance work remains incomplete; publish = false is retained.

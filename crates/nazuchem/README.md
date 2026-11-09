@@ -116,8 +116,11 @@ included in `licenses/`; `LICENSE-MIT` and `LICENSE-APACHE` cover local code.
 Sorts with equal keys keep their input order (Rust's stable sort); nazuchem
 does not reproduce C++ standard-library tie order.
 
-The dependencies' IUPAC Blue Book table reuse permission remains unresolved.
-That table retains `NOASSERTION` in the repository-root `PROVENANCE-nazuchem.toml`;
-the established package expression does not grant rights for that material.
-`publish = false` remains in force.
+`nazuchem-s2n`'s `src/data/bluebook/p25_retained.tsv` lists the retained heterocycle
+names of IUPAC Nomenclature of Organic Chemistry: Recommendations and Preferred
+Names 2013, P-25.2.1 Table 2.8, transcribed from
+<https://iupac.qmul.ac.uk/BlueBook/P2.html>; IUPAC holds copyright in the
+Recommendations. The names are included as factual data with this attribution;
+this package's licences do not cover the file, and no licence is asserted for it
+(SPDX NOASSERTION).
 The crate's `NOTICE` and copied dependency notices describe the exact scope.
