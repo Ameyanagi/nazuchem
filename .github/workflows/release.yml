@@ -148,7 +148,7 @@ jobs:
           # Check each exact version so a failed-job retry can resume partial publication.
           version="${RELEASE_TAG#v}"
           for crate in nazuchem-ir nazuchem-kernel nazuchem-n2s nazuchem-s2n nazuchem; do
-            if curl -sf "https://index.crates.io/${crate:0:2}/${crate:2:2}/$crate" | grep -qF "\"vers\":\"$version\""; then
+            if curl -sf "https://index.crates.io/${crate:0:2}/${crate:2:2}/$crate" | grep -F "\"vers\":\"$version\"" >/dev/null; then
               echo "$crate $version is already published; skipping"
             else
               cargo publish -p "$crate" --locked
