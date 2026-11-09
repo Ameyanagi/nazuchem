@@ -33,7 +33,14 @@ jobs:
       - name: Install locked Python development tools
         run: uv sync --project bindings/python --locked --no-install-project
       - name: Test native Python error handling
-        run: uv run --project bindings/python --no-sync cargo test -p nazuchem-python --lib --locked
+        shell: bash
+        # The test binary links libpython; put uv's interpreter libraries on the loader path.
+        run: |
+          libdir="$(uv run --project bindings/python --no-sync python -c 'import sys, sysconfig; print(sysconfig.get_config_var("LIBDIR") or sys.base_prefix)')"
+          export LD_LIBRARY_PATH="$libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          export DYLD_LIBRARY_PATH="$libdir${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+          export PATH="$(uv run --project bindings/python --no-sync python -c 'import sys; print(sys.base_prefix)'):$PATH"
+          uv run --project bindings/python --no-sync cargo test -p nazuchem-python --lib --locked
       - name: Build wheel and compare packaged licence bytes
         run: uv run --project bindings/python --no-sync python bindings/python/scripts/build_wheel.py --release
       - name: Test the built wheel

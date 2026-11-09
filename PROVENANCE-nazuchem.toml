@@ -7746,7 +7746,7 @@ sources = [
   { project = "Nazuchem", path = ".github/workflows/bindings.yml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Pins the Node runtime used by the real bundler smoke test and benchmark."
-sha256 = "5e8d85546bac9592dbe3023e6415ccab811f4a56504417e7b89ef364ba8b173f"
+sha256 = "cbeb4b0e9f587b4db377722b3a2a1ae1c04726ffde99e060263c7e2212caf3e7"
 
 [[file]]
 path = "bindings/python/.gitignore"
