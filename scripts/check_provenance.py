@@ -1,6 +1,6 @@
 """Check the standalone naming ledger without rewriting sources or recorded hashes.
 
-Coverage includes every committable file in the five library crates and the
+Coverage includes every committable file in the library crates, bindings and the
 required root-level regression fixtures. Repository scaffolding is outside this
 inventory; any additional paths recorded in the ledger are still validated.
 Rust files carry exact opening SPDX/Origin/Source headers. Every function in a
@@ -30,6 +30,7 @@ REQUIRED_ROOTS = (
     "crates/nazuchem-n2s",
     "crates/nazuchem-s2n",
     "crates/nazuchem",
+    "bindings",
 )
 REQUIRED_FIXTURES = (
     "tests/fixtures/golden/s2n_n2s.jsonl",

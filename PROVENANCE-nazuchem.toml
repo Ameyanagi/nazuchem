@@ -1,4 +1,4 @@
-# Provenance for the standalone nazuchem library crates and regression fixtures.
+# Provenance for the standalone nazuchem library crates, bindings and regression fixtures.
 # Extracted from ReShiki after Phase A step 5; repository scaffolding is out of scope.
 # Historical source paths and unresolved source/licensing decisions remain unchanged.
 # Source audit: 2026-11-09; owner decisions and source-pin gaps remain explicit below.
@@ -7737,3 +7737,311 @@ sources = [
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/ir_proof_tests.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original typed-IR corpus proof for Phase B step 8b; test corpora retain their separately recorded fixture provenance. Adds structurally selected ordinary-H variants, independent n2s radical variants, per-call SMILES fallback/probe accounting and measured debug runtime with bounded shards; no golden fixtures are changed."
+
+[[file]]
+path = ".github/workflows/bindings.yml"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = ".github/workflows/bindings.yml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "95f46cf9320ef79c9e1a6ba5119b05ef47878585c5e8a5c9adff1bede79e41b5"
+
+[[file]]
+path = "bindings/python/.gitignore"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/.gitignore", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "956b5ddfefa505ceb94d33aa456805041580d9e20af443524bb92973873f8ec3"
+
+[[file]]
+path = "bindings/python/Cargo.toml"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/Cargo.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "e90992098e8a5bf0383d371953474fc3b5ded4ea7ef5071fd7d92bdf5f5f19c5"
+
+[[file]]
+path = "bindings/python/README.md"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/README.md", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "55ba414bae0b6a9a1e6d4b2040ae6370a4cb32f36c77842c5569664e33360fa3"
+
+[[file]]
+path = "bindings/python/pyproject.toml"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/pyproject.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "0433c3e6c191847e47e3af246e59ca943941098891a864a287d66631fb19eda1"
+
+[[file]]
+path = "bindings/python/python/nazuchem/__init__.py"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/python/nazuchem/__init__.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "974ae31875515f69924bc5d61a2f7b86429b919d00c5898c5078bc70ec14af47"
+
+[[file]]
+path = "bindings/python/python/nazuchem/__init__.pyi"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/python/nazuchem/__init__.pyi", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "b142af8eaead69fe92f0c9c835442213080b405a79f42e6d3e62c904a5e232d7"
+
+[[file]]
+path = "bindings/python/python/nazuchem/_native.pyi"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/python/nazuchem/_native.pyi", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "7c49f4291254cd26e66e1660d7d0b35d221da2baac0dcd9a7125d84e8c2111ac"
+
+[[file]]
+path = "bindings/python/python/nazuchem/py.typed"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/python/nazuchem/py.typed", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "c030757fd1b5d237a3e5450d30bb11415ff0d276381815888ab1f8cca673457c"
+
+[[file]]
+path = "bindings/python/scripts/build_wheel.py"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/scripts/build_wheel.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "e53c7307d3c38d3ab92eefe53944556c733f52cca539243418e206bafbc2b2aa"
+
+[[file]]
+path = "bindings/python/scripts/check_wheel_notices.py"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/scripts/check_wheel_notices.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "ca45f42b89ac84d16c3e06800ae808977b2d0ca379838fe7e59157aa98cc2c78"
+
+[[file]]
+path = "bindings/python/src/lib.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/src/lib.rs", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+
+[[file]]
+path = "bindings/python/tests/test_api.py"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/tests/test_api.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "5efe7d5b289c9638a3a1e3296d2c2471e8b1166cfc6d50d3a3f033d6fb763d01"
+
+[[file]]
+path = "bindings/python/tests/test_wheel_notices.py"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/tests/test_wheel_notices.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "709d00274196377d156c1490f21eb8a5824d96200742aa73d59b4f93c5d82f02"
+
+[[file]]
+path = "bindings/python/uv.lock"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/uv.lock", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "547885a9289a02f79f1905decfe0cc32c40a5101920454fa3cc32dee7246ed1b"
+
+[[file]]
+path = "bindings/wasm/.gitignore"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/.gitignore", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "6d44f3dd5397a6d72a17fa950e5c8d74f6cda6f564a9ca439fea24d607ff42b0"
+
+[[file]]
+path = "bindings/wasm/Cargo.toml"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/Cargo.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "9115989cccfd4dcfee8d9f13cb1b9fc37a9ba98923d56ce203727e4ae27fe154"
+
+[[file]]
+path = "bindings/wasm/README.md"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/README.md", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "2bd09b356afd9a0ab2ecb024e016704f1d0a8dfdfcaeeb05819f00687f01515a"
+
+[[file]]
+path = "bindings/wasm/bun.lock"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/bun.lock", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "0abb45ef73369829ae6a6a003fabc592a70e41471a07a2cc3718ecda43e1d1ca"
+
+[[file]]
+path = "bindings/wasm/package.json"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/package.json", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "2dd531d9815becfac74b754ddb39c6d78fd00983083752cc1a5c1f844112ae78"
+
+[[file]]
+path = "bindings/wasm/scripts/build.ts"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/scripts/build.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "db38e4229b4a2eaabded86ed6f1a2d61b7ee74ede92cd0cea690386f229c92f6"
+
+[[file]]
+path = "bindings/wasm/scripts/check-package.ts"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/scripts/check-package.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "43e26fb0ee2563292848703d15ef27eaef541a079bb1e9f32b385751c37fb461"
+
+[[file]]
+path = "bindings/wasm/scripts/check-types.ts"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/scripts/check-types.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "a67f57157c10ebd2c1b461b91d9cf5029de7fc5920af186a24f801ccbccebad6"
+
+[[file]]
+path = "bindings/wasm/src/index.d.ts"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/src/index.d.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "bd938dd6f50fe85c6e3eb279c7cad7b46a549c20988d4f202bc21b94d3bd7d6b"
+
+[[file]]
+path = "bindings/wasm/src/lib.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/src/lib.rs", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+
+[[file]]
+path = "bindings/wasm/src/web.d.ts"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/src/web.d.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "501861060ec1bcf61ac5eff76fa2be2d0c285a3c946bcf01bb30374923094a50"
+
+[[file]]
+path = "bindings/wasm/src/wrapper.js"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/src/wrapper.js", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "4fb0bcf0284fb423c119b51a9162b1dbe1b3fd728c94c2f0de3da92b6f4a0226"
+
+[[file]]
+path = "bindings/wasm/tests/bindings.test.ts"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/tests/bindings.test.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "6df29c882e2aee9f26d427e40bfbdfc0c48920b20a4e73c94f82e8bab95b94f2"
+
+[[file]]
+path = "bindings/wasm/tsconfig.json"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/tsconfig.json", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "588dd58a3d47ac871c171596adc2c79251d4f9d146eb16f27b02ad31da6738da"
+
+[[file]]
+path = "scripts/collect_binding_notices.py"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "scripts/collect_binding_notices.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "73fc219188c6a8d0ae93202ed40f297f1bd390487982a1a815cb1a006a30f334"
+
+[[file]]
+path = "tests/test_binding_notices.py"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "tests/test_binding_notices.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "7a00913883ecc761f2f98cbfab2a3109016a8616897352a1b4a0d19cf923fc37"

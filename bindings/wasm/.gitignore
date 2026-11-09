@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Origin: original
+# Source: Nazuchem | bindings/wasm/.gitignore | Phase B step 9
+/node_modules/
+/dist/
+/.generated/
+/*.tgz
+/LICENSE-MIT
+/LICENSE-APACHE
+/NOTICE
+/THIRD-PARTY-NOTICES.txt

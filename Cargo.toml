@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "bindings/python",
+    "bindings/wasm",
     "crates/nazuchem",
     "crates/nazuchem-ir",
     "crates/nazuchem-kernel",

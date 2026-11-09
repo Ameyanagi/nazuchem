@@ -149,8 +149,25 @@ class ProvenanceTests(unittest.TestCase):
         # These are the production constants imported before the miniature-tree
         # patches in setUp; extracting the library must not require ReShiki.
         self.assertIn("tests/fixtures/golden/s2n_n2s.jsonl", REQUIRED_FIXTURES)
-        self.assertTrue(all(path.startswith("crates/nazuchem") for path in REQUIRED_ROOTS))
+        self.assertIn("bindings", REQUIRED_ROOTS)
+        self.assertTrue(
+            all(path.startswith("crates/nazuchem") or path == "bindings" for path in REQUIRED_ROOTS)
+        )
         self.assertTrue(all(path.startswith("tests/fixtures/") for path in REQUIRED_FIXTURES))
+
+    def test_binding_sources_stubs_scripts_and_notices_require_entries(self):
+        with patch("scripts.check_provenance.REQUIRED_ROOTS", ("naming", "bindings")):
+            self.add_file("bindings/python/Cargo.toml", "[package]\n")
+            for path in (
+                "bindings/python/python/nazuchem/__init__.pyi",
+                "bindings/wasm/scripts/build.ts",
+                "bindings/wasm/NOTICE",
+            ):
+                target = self.root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("new file", encoding="utf-8", newline="\n")
+                self.assertIn(f"{path}: missing ledger entry", self.check())
+                target.unlink()
 
     def test_missing_ledger_path_fails(self):
         (self.root / "fixtures/corpus.tsv").unlink()

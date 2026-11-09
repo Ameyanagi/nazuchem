@@ -351,6 +351,19 @@ still run. Standard labels/groups/position variation/SRU layers are compared
 separately under the writer identity map. The original golden gate and fixtures
 remain unchanged. See `crates/nazuchem-ir/docs/cxsmiles.md` for export limits.
 
+Step 9 adds unpublished `bindings/python` (PyO3 abi3-py310, maturin/uv) and
+`bindings/wasm` (wasm-bindgen, bun; bundler/web/node). Both expose the four facade
+operations, complete naming metadata, IR v1 JSON objects and schema constants.
+Their builds collect target-specific Cargo dependency licences/notices, and CI
+checks the actual wheel/npm archive contents. All Rust crates retain
+`publish = false`; the npm package is private and no publishing workflow is added.
+
+Step 10 size baseline: Rust 1.99.1, wasm-bindgen 0.2.128, default n2s+s2n features,
+release build without wasm-opt: **24,634,099 bytes raw; 5,720,815 bytes gzip
+(level 9, Bun 1.4.4 `node:zlib`)** for each target's Wasm payload. This includes
+both naming engines and their embedded resources. The npm package ships all three targets; these numbers
+measure one Wasm binary, not the combined package archive.
+
 Risks: step 4 is the hardest (openclatura uses `crate::naming` in 112 places plus `super::super` paths; only about 32 are the status/reason enums, the rest are `canonical_smiles`, `IsotopeStyle` and test calls into the worker). The two chemistry copies can drift; mirror fixes deliberately. The npm package carries ~5.7 MB of OPSIN resources; features allow n2s-only or s2n-only builds.
 
 ## 8. Name

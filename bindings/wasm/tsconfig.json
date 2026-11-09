@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "types": ["bun"],
+    "skipLibCheck": false,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["scripts/**/*.ts", "tests/**/*.ts", "src/**/*.d.ts", ".generated/**/*.ts"],
+  "x-nazuchem-provenance": {
+    "SPDX-License-Identifier": "MIT OR Apache-2.0",
+    "Origin": "original",
+    "Source": "Nazuchem | bindings/wasm/tsconfig.json | Phase B step 9"
+  }
+}

@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Origin: original
+# Source: Nazuchem | .github/workflows/bindings.yml | Phase B step 9
+name: Bindings
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
+
+jobs:
+  python:
+    name: Python wheel (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.12.10'
+          python-version: '3.12'
+      - name: Install locked Python development tools
+        run: uv sync --project bindings/python --locked --no-install-project
+      - name: Build wheel and compare packaged licence bytes
+        run: uv run --project bindings/python --no-sync python bindings/python/scripts/build_wheel.py --release
+      - name: Test the built wheel
+        shell: bash
+        run: uv run --no-project --python 3.12 --with bindings/python/dist/*.whl --with pytest --with jsonschema python -m pytest bindings/python/tests
+      - name: Lint and type check Python
+        working-directory: bindings/python
+        run: |
+          uv run --no-sync ruff check . ../../scripts/collect_binding_notices.py ../../tests/test_binding_notices.py
+          uv run --no-sync ruff format --check . ../../scripts/collect_binding_notices.py ../../tests/test_binding_notices.py
+          uv run --no-sync ty check
+      - name: Type check shared notice collector
+        run: uv run --project bindings/python --no-sync ty check scripts/collect_binding_notices.py tests/test_binding_notices.py
+
+  wasm:
+    name: npm / WebAssembly
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Install pinned Rust toolchain and wasm target
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup target add wasm32-unknown-unknown --toolchain 1.99.1
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.12.10'
+          python-version: '3.12'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.4'
+      - name: Install exact wasm-bindgen CLI
+        run: cargo install wasm-bindgen-cli --version 0.2.128 --locked
+      - name: Install locked JavaScript development tools
+        working-directory: bindings/wasm
+        run: bun install --frozen-lockfile
+      - name: Build bundler, web and node packages
+        working-directory: bindings/wasm
+        run: bun run build
+      - name: Check declarations against the schema and test node build
+        working-directory: bindings/wasm
+        run: bun run test
+      - name: Verify packaged licence and notice files
+        working-directory: bindings/wasm
+        run: bun run check:package
+
+  notices:
+    name: Notice collector regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.12.10'
+          python-version: '3.12'
+      - run: uv run --no-project python -m unittest tests.test_binding_notices

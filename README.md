@@ -2,7 +2,7 @@
 
 Rust library for IUPAC-style chemical name ↔ structure conversion. It accepts
 names and molecular SMILES through string APIs and exposes a versioned structure
-IR for name-to-structure results. Python and npm/WASM bindings are planned.
+IR for name-to-structure results, with Python and JavaScript/WebAssembly bindings.
 
 Extracted from [ReShiki](https://github.com/Ameyanagi/ReShiki), a molecular
 drawing app. The name-to-structure engine is a Rust port of OPSIN by Daniel Lowe
@@ -37,6 +37,69 @@ assessment, alternatives and omitted stereochemistry.
 | [`nazuchem-kernel`](crates/nazuchem-kernel) | Internal molecular perception and canonical identity |
 | [`nazuchem-n2s`](crates/nazuchem-n2s) | OPSIN name-to-structure port |
 | [`nazuchem-s2n`](crates/nazuchem-s2n) | Extended openclatura structure-to-name port |
+| [`nazuchem-python`](bindings/python) | Python 3.10+ abi3 extension and typed Python API |
+| [`nazuchem-wasm`](bindings/wasm) | JavaScript package with bundler, web and node builds |
+
+## Python
+
+The `nazuchem` distribution is pre-release and unpublished. Build and test it
+locally with uv and maturin; see [the binding instructions](bindings/python/README.md).
+
+```python
+import nazuchem
+
+smiles = nazuchem.name_to_smiles("ethanol")
+name = nazuchem.smiles_to_name(smiles)
+assert name.text == "ethanol"
+
+molecule = nazuchem.name_to_molecule("(2R)-butan-2-ol")
+assert nazuchem.molecule_to_name(molecule).text == "(2R)-butan-2-ol"
+```
+
+`Name` is a frozen dataclass with `text`, `status`, `reason`, `alternatives`,
+`omitted_stereo`, `omitted_units`, and `verification`. Its collections are tuples;
+alternatives and verification are frozen dataclasses too. `name_to_molecule`
+returns a plain IR dictionary, and `molecule_to_name` accepts that dictionary or
+its JSON string. `IR_VERSION` is an integer, `JSON_SCHEMA` is a JSON string, and
+`NazuchemError.kind` identifies the Rust error stage (`Init`, `Parse`, `Warning`,
+`Serialize`, or `Naming`). The package carries stubs and `py.typed`.
+
+## JavaScript
+
+The `nazuchem` npm package is pre-release, private and unpublished. Build it with
+bun; see [the package instructions](bindings/wasm/README.md). The default export
+path selects node in Node.js and the bundler build otherwise; `nazuchem/node`
+and `nazuchem/web` select a target explicitly.
+
+```typescript
+import { nameToSmiles, smilesToName, nameToMolecule, moleculeToName } from "nazuchem";
+
+console.log(smilesToName(nameToSmiles("ethanol")).text); // ethanol
+const molecule = nameToMolecule("(2R)-butan-2-ol");
+console.log(moleculeToName(molecule).text); // (2R)-butan-2-ol
+```
+
+For direct browser use, initialize the web build before calling the functions:
+
+```typescript
+import init, { nameToMolecule } from "nazuchem/web";
+
+await init();
+const molecule = nameToMolecule("ethanol");
+```
+
+JavaScript returns plain `Name` and IR objects, accepts an IR object or JSON
+string in `moleculeToName`, and throws `NazuchemError` with the same `kind` values
+as Python. Naming results use the same field names and status/reason vocabulary
+as Python. Both constants and hand-written TypeScript declarations are included;
+CI checks the IR declarations against the Rust JSON schema.
+
+Both packages include `LICENSE-MIT`, `LICENSE-APACHE`, `NOTICE`, and generated
+`THIRD-PARTY-NOTICES.txt`. The shared collector follows normal and build Cargo
+dependencies for the selected Rust target and includes complete crate-local
+licences and notices, including embedded engine/kernel terms. Wheel checks
+compare the packaged bytes with freshly generated files; the npm package check
+inspects a real bun-produced archive. Publishing remains disabled until step 11.
 
 ## Scope and limits
 
@@ -84,11 +147,13 @@ Use the pinned Rust toolchain and checked lockfile:
 
 ```sh
 export CARGO_TARGET_DIR="$PWD/target"
+# On hosts whose default Python is older than 3.10:
+export PYO3_PYTHON="$(uv python find 3.12)"
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked --offline -- -D warnings
 cargo test --workspace --locked --offline
-python3 scripts/check_provenance.py
-python3 -m unittest tests.test_check_provenance
+uv run --no-project python scripts/check_provenance.py
+uv run --no-project python -m unittest tests.test_check_provenance tests.test_binding_notices
 ```
 
 The golden gate reads `bakeoff_corpus.tsv`, `openclatura_tests.tsv` and
