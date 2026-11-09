@@ -2,7 +2,9 @@
 
 The release workflow publishes the five Rust libraries, the `nazuchem` PyPI
 wheels, the unscoped `nazuchem` npm package, and a GitHub Release with generated
-notes and the actual published packages. All versions are currently **0.1.0**.
+notes, the wheels and the npm package. All versions are currently **0.1.0**.
+Releases accept only numeric **X.Y.Z** versions and matching **vX.Y.Z** tags; prerelease
+and build-metadata suffixes are not supported.
 
 ## Owner gates
 
@@ -17,7 +19,7 @@ established licence expressions do not grant rights for that material. After
 recording those decisions and any required provenance changes, remove
 `publish = false` from the **five library** manifests. Keep it on
 `nazuchem-python` and `nazuchem-wasm`: those crates never go to crates.io.
-The first release job refuses all registry uploads while a library gate remains.
+The `verify` job refuses all registry uploads while a library gate remains.
 
 ## One-time setup
 
@@ -52,9 +54,7 @@ public GitHub repository for npm provenance.
   environment secret **`NPM_BOOTSTRAP_TOKEN`**. After publication configure
   [trusted publishing](https://docs.npmjs.com/trusted-publishers/) for package
   **`nazuchem`**: GitHub owner **`Ameyanagi`**, repository **`nazuchem`**,
-  workflow **`release.yml`**, environment **`npm`**. Explicitly allow direct
-  `npm publish` rather than only staged publishing. Configure near the next
-  release: a new publisher expires unless used successfully within two days.
+  workflow **`release.yml`**, environment **`npm`**.
   Delete the bootstrap secret and revoke its token. OIDC needs npm ≥11.5.1 and
   Node ≥22.14.0; the workflow's pinned Node includes a suitable npm. The package
   repository URL must match this repository. npm generates provenance for the
@@ -66,7 +66,7 @@ use the job's automatic `GITHUB_TOKEN` with `contents: write`.
 
 ## Release procedure
 
-1. Bump `[workspace.package].version`, the versions on inter-crate dependencies,
+1. Bump `[workspace.package].version`, versions in `[workspace.dependencies]`,
    `bindings/python/pyproject.toml`, `bindings/python/uv.lock`, and
    `bindings/wasm/package.json` together. Refresh `Cargo.lock` as needed. Review
    package metadata and the provenance ledger; update hashes only for edited
@@ -80,9 +80,9 @@ use the job's automatic `GITHUB_TOKEN` with `contents: write`.
    the five library publish gates remain.
 3. After the owner gates and setup above are complete, merge the reviewed
    release commit and push its tag, e.g. `git tag v0.1.0` then
-   `git push origin v0.1.0`. Tags must match every manifest version. Approve the
-   three protected environment jobs. A manual run with `dry_run=false` is also
-   allowed, but only when selecting the matching tag.
+   `git push origin v0.1.0`. Strict `vX.Y.Z` tags must match every manifest
+   version. Approve the three protected environment jobs. A manual run with
+   `dry_run=false` is also allowed, but only when selecting the matching tag.
 4. Verify all five crates, PyPI wheels/attestations, npm package/provenance, and
    the GitHub Release. Remove/revoke bootstrap credentials and configure the
    trusted publishers as described above.
@@ -91,14 +91,17 @@ All build and package checks finish before the first registry upload. The
 workflow does not require a prior main-CI result for the commit. Cargo already
 [waits for index availability](https://doc.rust-lang.org/cargo/commands/cargo-publish.html#description)
 after each publication, so dependent crates need no sleeps. A timeout may follow
-a successful upload: inspect registry state before retrying. Registry uploads
-are not atomic; on partial failure, resume only the failed jobs after checking
-what was uploaded. Do not move a published tag or reuse a published version.
+a successful upload. On partial crates.io failure, inspect what was uploaded,
+then use **Re-run failed jobs** in the same workflow run. The crates.io job
+checks each exact version in the sparse index and skips versions already
+published. Do not move a published tag or reuse a published
+version.
 
 ## Build choices
 
-`release.yml` calls `bindings.yml`, preserving its Ubuntu/macOS/Windows abi3
-wheel matrix and wheel-only scope (no sdist). Linux uses Maturin's
+`release.yml` calls `bindings.yml`, building abi3 wheels for Linux x86_64,
+macOS arm64, and Windows x64, with wheel-only scope (no sdist). Intel macOS and
+Linux aarch64 wheels are not built. Linux uses Maturin's
 [Zig/manylinux support](https://www.maturin.rs/distribution.html#use-zig) to build
 PyPI-compatible `manylinux_2_28` wheels; other platforms enforce `pypi`
 compatibility. The npm artifact is the exact Bun-packed, tested V4 package,
@@ -110,9 +113,9 @@ and npm trusted publishing is not supported there yet.
 Scratch Rust packaging changes only the five library publish flags in the
 temporary copy and uses Cargo's multi-package mode to resolve unpublished
 dependencies. Its `rust-crates-preflight` artifact is for rehearsal; the GitHub
-Release attaches the archives produced by actual `cargo publish`. Preflight
+Release attaches only the wheels and the npm package. Preflight
 uses `--no-verify` because Cargo 1.99.1 archive verification
 hits the existing temporary-registry checksum failure
 ([cargo#14396](https://github.com/rust-lang/cargo/issues/14396)). The original
-workspace is compiled/tested separately; actual `cargo publish` keeps Cargo's
-default archive verification once dependencies are on crates.io.
+workspace is compiled/tested separately. Per-crate `cargo publish` verification
+against crates.io is first exercised on the real tag run.

@@ -75,13 +75,12 @@ jobs:
         with:
           version: '0.12.10'
           python-version: '3.12'
-      - name: Check metadata, formatting, lint and workspace tests
+      - name: Check formatting, lint and workspace tests
         shell: bash
         run: |
           export PYO3_PYTHON="$(uv python find 3.12)"
           libdir="$("$PYO3_PYTHON" -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))')"
           export LD_LIBRARY_PATH="$libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-          cargo metadata --format-version 1 --locked > "$RUNNER_TEMP/cargo-metadata.json"
           cargo fmt --all --check
           cargo clippy --workspace --all-targets --locked -- -D warnings
           cargo test --workspace --locked
@@ -142,19 +141,19 @@ jobs:
       - name: Publish in dependency order
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_BOOTSTRAP_TOKEN || steps.auth.outputs.token }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
         shell: bash
         run: |
           # Cargo waits for each uploaded version to appear in the index by default.
-          # No sleeps; a timeout may follow a successful upload, so inspect before retrying.
+          # Check each exact version so a failed-job retry can resume partial publication.
+          version="${RELEASE_TAG#v}"
           for crate in nazuchem-ir nazuchem-kernel nazuchem-n2s nazuchem-s2n nazuchem; do
-            cargo publish -p "$crate" --locked
+            if curl -sf "https://index.crates.io/${crate:0:2}/${crate:2:2}/$crate" | grep -qF "\"vers\":\"$version\""; then
+              echo "$crate $version is already published; skipping"
+            else
+              cargo publish -p "$crate" --locked
+            fi
           done
-      - name: Retain the actual published Rust archives
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: rust-crates
-          path: target/package/*.crate
-          if-no-files-found: error
 
   publish-pypi:
     name: Publish PyPI with attestations
@@ -184,7 +183,6 @@ jobs:
       name: npm
       url: https://www.npmjs.com/package/nazuchem
     permissions:
-      contents: read
       id-token: write
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -220,10 +218,6 @@ jobs:
         with:
           name: npm-package
           path: artifacts/npm
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: rust-crates
-          path: artifacts/rust
       - name: Release the tag with generated notes and all packages
         env:
           GH_TOKEN: ${{ github.token }}

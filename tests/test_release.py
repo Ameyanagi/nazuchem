@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 
 import tomllib
 
-from scripts.check_release import BINDINGS, LIBRARIES, ROOT, check
+from scripts.check_release import LIBRARIES, ROOT, check
 
 VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
 TAG = f"v{VERSION}"
@@ -41,8 +41,13 @@ class ReleaseGateTests(unittest.TestCase):
             path = self.root / "crates" / name / "Cargo.toml"
             path.write_text(path.read_text().replace("publish = false", "publish = true"))
 
-    def test_branch_rehearsal_accepts_existing_gates(self):
-        self.admit()
+    def test_versions_require_three_ascii_numeric_parts(self):
+        path = self.root / "Cargo.toml"
+        original = path.read_text()
+        for version in ("1.2", "1.2.3-rc.1", "1.2.3+build", "١.٢.٣"):
+            path.write_text(original.replace(f'version = "{VERSION}"', f'version = "{version}"'))
+            with self.subTest(version), self.assertRaisesRegex(ValueError, "invalid release"):
+                self.admit()
 
     def test_tag_mismatch_is_rejected_even_in_rehearsal(self):
         with self.assertRaisesRegex(ValueError, "tag .* differs"):
@@ -68,26 +73,20 @@ class ReleaseGateTests(unittest.TestCase):
                 self.admit(tag=TAG)
             path.write_text(original)
 
-    def test_uploads_require_owner_gate_removal(self):
-        with self.assertRaisesRegex(ValueError, "owner decisions"):
-            self.admit(dry_run=False, tag=TAG)
-
-    def test_uploads_require_a_tag(self):
+    def test_uploads_require_a_tag_and_every_library_gate_removed(self):
         self.release_gates()
         with self.assertRaisesRegex(ValueError, "uploads require"):
             self.admit(dry_run=False)
-
-    def test_bindings_must_stay_unpublished(self):
-        self.release_gates()
-        for directory, name in zip(("python", "wasm"), BINDINGS, strict=True):
-            path = self.root / "bindings" / directory / "Cargo.toml"
+        for name in LIBRARIES:
+            path = self.root / "crates" / name / "Cargo.toml"
             original = path.read_text()
-            path.write_text(original.replace("publish = false", "publish = true"))
-            with self.subTest(binding=name), self.assertRaisesRegex(ValueError, "binding crates"):
+            path.write_text(original.replace("publish = true", "publish = false"))
+            with self.subTest(library=name), self.assertRaisesRegex(ValueError, "owner decisions"):
                 self.admit(dry_run=False, tag=TAG)
             path.write_text(original)
 
-    def test_ready_tag_emits_publish_outputs(self):
+    def test_rehearsal_and_ready_tag_succeed(self):
+        self.admit()
         self.release_gates()
         output = self.root / "output"
         check(self.root, dry_run=False, tag=TAG, output=output)

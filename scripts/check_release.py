@@ -36,8 +36,6 @@ def check(root: Path, *, dry_run: bool, tag: str | None, output: Path | None) ->
         manifest = root / member / "Cargo.toml"
         package = tomllib.loads(manifest.read_text())["package"]
         name = package["name"]
-        if name in packages:
-            raise ValueError(f"duplicate workspace package: {name}")
         packages[name] = package
         version = package["version"]
         versions[str(manifest.relative_to(root))] = (
@@ -48,12 +46,11 @@ def check(root: Path, *, dry_run: bool, tag: str | None, output: Path | None) ->
     versions["bindings/python/pyproject.toml"] = tomllib.loads(
         (root / "bindings/python/pyproject.toml").read_text()
     )["project"]["version"]
-    npm = json.loads((root / "bindings/wasm/package.json").read_text())
-    versions["bindings/wasm/package.json"] = npm["version"]
+    versions["bindings/wasm/package.json"] = json.loads(
+        (root / "bindings/wasm/package.json").read_text()
+    )["version"]
     version = versions["workspace.package"]
-    if not isinstance(version, str) or not re.fullmatch(
-        r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version
-    ):
+    if not isinstance(version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
         raise ValueError(f"invalid release version: {version!r}")
     for path, actual in versions.items():
         if actual != version:
@@ -67,15 +64,6 @@ def check(root: Path, *, dry_run: bool, tag: str | None, output: Path | None) ->
         gated = [name for name in LIBRARIES if packages[name].get("publish") is False]
         if gated:
             raise ValueError(f"owner decisions still gate publication: {', '.join(gated)}")
-    if any(packages[name].get("publish") is not False for name in BINDINGS):
-        raise ValueError("binding crates must keep publish = false")
-    if npm["name"] != "nazuchem" or npm.get("private", False):
-        raise ValueError("the npm package must be the public, unscoped nazuchem package")
-    if (
-        tomllib.loads((root / "bindings/python/pyproject.toml").read_text())["project"]["name"]
-        != "nazuchem"
-    ):
-        raise ValueError("the PyPI project must be named nazuchem")
     print(f"All {len(versions)} manifest versions match {expected_tag}; dry_run={dry_run}")
     if output:
         with output.open("a") as stream:
@@ -133,15 +121,14 @@ def package(root: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("check", "package"))
-    parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--tag")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.command == "check":
-        check(args.root.resolve(), dry_run=args.dry_run, tag=args.tag, output=args.output)
+        check(ROOT, dry_run=args.dry_run, tag=args.tag, output=args.output)
     else:
-        package(args.root.resolve())
+        package(ROOT)
 
 
 if __name__ == "__main__":

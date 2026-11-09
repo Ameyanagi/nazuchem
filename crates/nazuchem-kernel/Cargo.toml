@@ -3,6 +3,8 @@ name = "nazuchem-kernel"
 version.workspace = true
 edition.workspace = true
 publish = false
+# Unit tests under src/ embed these fixtures.
+exclude = ["tests/**", "!tests/fixtures/", "!tests/fixtures/**"]
 # Established terms; native_order/{linux_sort,sort_common}.rs remain NOASSERTION
 # pending the owner's sort-policy decision. This crate is not publishable yet.
 license = "(MIT OR Apache-2.0) AND BSD-3-Clause AND BSD-2-Clause AND (Apache-2.0 WITH LLVM-exception)"

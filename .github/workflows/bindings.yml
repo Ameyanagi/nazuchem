@@ -53,7 +53,7 @@ jobs:
         shell: bash
         # Preserve the existing wheel-only distribution scope; no source distribution is built.
         run: |
-          if [[ "${{ runner.os }}" == "Linux" ]]; then
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
             uv run --project bindings/python --no-sync python bindings/python/scripts/build_wheel.py --release --zig --compatibility manylinux_2_28
           else
             uv run --project bindings/python --no-sync python bindings/python/scripts/build_wheel.py --release --compatibility pypi

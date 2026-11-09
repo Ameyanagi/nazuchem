@@ -3,6 +3,7 @@ name = "nazuchem-s2n"
 version.workspace = true
 edition.workspace = true
 publish = false
+exclude = ["tests/"]
 # Established terms; Blue Book-derived tables remain NOASSERTION pending the
 # owner's source/licensing decision. This crate is not publishable yet.
 license = "MIT AND (MIT OR Apache-2.0) AND Python-2.0"
@@ -15,11 +16,11 @@ documentation = "https://docs.rs/nazuchem-s2n"
 readme = "README.md"
 
 [dependencies]
-nazuchem-ir = { path = "../nazuchem-ir", version = "0.1.0" }
-nazuchem-kernel = { path = "../nazuchem-kernel", version = "0.1.0" }
+nazuchem-ir = { workspace = true }
+nazuchem-kernel = { workspace = true }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 
 [dev-dependencies]
-nazuchem-n2s = { path = "../nazuchem-n2s", version = "0.1.0" }
+nazuchem-n2s = { path = "../nazuchem-n2s" }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }

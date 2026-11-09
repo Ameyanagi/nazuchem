@@ -3,6 +3,7 @@ name = "nazuchem"
 version.workspace = true
 edition.workspace = true
 publish = false
+exclude = ["tests/"]
 # Release gate: publication awaits the owner's release and provenance decisions.
 # Established terms from the facade and its engines/kernel. The dependencies'
 # unresolved sort-policy and Blue Book provenance remains pending; see NOTICE.
@@ -21,10 +22,10 @@ n2s = ["dep:nazuchem-n2s"]
 s2n = ["dep:nazuchem-s2n"]
 
 [dependencies]
-nazuchem-ir = { path = "../nazuchem-ir", version = "0.1.0" }
-nazuchem-kernel = { path = "../nazuchem-kernel", version = "0.1.0" }
-nazuchem-n2s = { path = "../nazuchem-n2s", version = "0.1.0", optional = true }
-nazuchem-s2n = { path = "../nazuchem-s2n", version = "0.1.0", optional = true }
+nazuchem-ir = { workspace = true }
+nazuchem-kernel = { workspace = true }
+nazuchem-n2s = { workspace = true, optional = true }
+nazuchem-s2n = { workspace = true, optional = true }
 
 [dev-dependencies]
 serde_json = "1"

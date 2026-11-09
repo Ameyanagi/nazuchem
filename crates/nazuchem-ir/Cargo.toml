@@ -3,6 +3,7 @@ name = "nazuchem-ir"
 version.workspace = true
 edition.workspace = true
 publish = false
+exclude = ["tests/"]
 # Release gate: publication awaits the owner's release and provenance decisions.
 license = "MIT OR Apache-2.0"
 description = "Shared naming vocabulary and versioned molecular structure IR for nazuchem"
