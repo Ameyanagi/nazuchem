@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "bindings/python",
+    "bindings/wasm",
     "crates/nazuchem",
     "crates/nazuchem-ir",
     "crates/nazuchem-kernel",
@@ -7,3 +9,11 @@ members = [
     "crates/nazuchem-s2n",
 ]
 resolver = "2"
+
+# Explicitly selected by the Wasm package builder; native/Python release is unchanged.
+[profile.wasm-release]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+panic = "abort"

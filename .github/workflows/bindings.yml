@@ -1,0 +1,111 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Origin: original
+# Source: Nazuchem | .github/workflows/bindings.yml
+name: Bindings
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
+
+jobs:
+  python:
+    name: Python wheel (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.12.10'
+          python-version: '3.12'
+      - name: Install locked Python development tools
+        run: uv sync --project bindings/python --locked --no-install-project
+      - name: Test native Python error handling
+        shell: bash
+        # The test binary links libpython; put uv's interpreter libraries on the loader path.
+        run: |
+          libdir="$(uv run --project bindings/python --no-sync python -c 'import sys, sysconfig; print(sysconfig.get_config_var("LIBDIR") or sys.base_prefix)')"
+          export LD_LIBRARY_PATH="$libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          export DYLD_LIBRARY_PATH="$libdir${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+          export PATH="$(uv run --project bindings/python --no-sync python -c 'import sys; print(sys.base_prefix)'):$PATH"
+          uv run --project bindings/python --no-sync cargo test -p nazuchem-python --lib --locked
+      - name: Build wheel and compare packaged licence bytes
+        run: uv run --project bindings/python --no-sync python bindings/python/scripts/build_wheel.py --release
+      - name: Test the built wheel
+        shell: bash
+        run: uv run --no-project --python 3.12 --with bindings/python/dist/*.whl --with pytest --with jsonschema python -m pytest bindings/python/tests
+      - name: Lint and type check Python
+        working-directory: bindings/python
+        run: |
+          uv run --no-sync ruff check . ../../scripts/collect_binding_notices.py ../../tests/test_binding_notices.py
+          uv run --no-sync ruff format --check . ../../scripts/collect_binding_notices.py ../../tests/test_binding_notices.py
+          uv run --no-sync ty check
+      - name: Type check shared notice collector
+        run: uv run --project bindings/python --no-sync ty check scripts/collect_binding_notices.py tests/test_binding_notices.py
+
+  wasm:
+    name: npm / WebAssembly
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Install pinned Rust toolchain and wasm target
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup target add wasm32-unknown-unknown --toolchain 1.99.1
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.12.10'
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26.12.1'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.4'
+      - name: Install exact wasm-bindgen CLI
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/wasm-bindgen.tar.gz" https://github.com/wasm-bindgen/wasm-bindgen/releases/download/0.2.128/wasm-bindgen-0.2.128-x86_64-unknown-linux-musl.tar.gz
+          printf '%s  %s\n' b51f0208fdff83515a787bd8ab9ac5865ed84dabb66d0c709957bb59793c645f "$RUNNER_TEMP/wasm-bindgen.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/wasm-bindgen.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/wasm-bindgen-0.2.128-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+      - name: Install pinned Binaryen (wasm-opt)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/binaryen.tar.gz" https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-linux.tar.gz
+          printf '%s  %s\n' 2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489 "$RUNNER_TEMP/binaryen.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/binaryen.tar.gz" -C "$RUNNER_TEMP"
+          echo "WASM_OPT=$RUNNER_TEMP/binaryen-version_133/bin/wasm-opt" >> "$GITHUB_ENV"
+      - name: Install locked JavaScript development tools
+        working-directory: bindings/wasm
+        run: bun install --frozen-lockfile
+      - name: Build bundler, web and node packages
+        working-directory: bindings/wasm
+        run: bun run build
+      - name: Check declarations against the schema and test node build
+        working-directory: bindings/wasm
+        run: bun run test
+      - name: Test the packed tarball and verify licence and notice bytes
+        working-directory: bindings/wasm
+        run: bun run check:package
+
+  notices:
+    name: Notice collector regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.12.10'
+          python-version: '3.12'
+      - run: uv run --no-project python -m unittest tests.test_binding_notices

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Origin: port
+// Origin: adapted
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/WordRulesOmittedSpaceCorrector.java | 42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/WordRulesOmittedSpaceCorrector.java | b91b610af5ab07560fedb20730d7aef46bb2bca0
 // Copyright Daniel Lowe and OPSIN contributors; MIT (see LICENSE).
 // Copyright 2017 Daniel Lowe
+// Changes: Preserve signed integer count ranges and check multiplied valency arithmetic.
 
 //! Post-component omitted-space correction from `WordRulesOmittedSpaceCorrector`.
 //! OPSIN 2.9.0, b91b610af5ab07560fedb20730d7aef46bb2bca0.
@@ -150,12 +151,15 @@ fn correct_divalent(
 }
 
 fn multiplier(arena: &Arena, element: NodeId) -> Result<usize, ParsingError> {
+    // Changes: Keep user-derived counts within the source signed-int range.
     arena[element]
         .attribute("multiplier")
         .map_or(Ok(1), |value| {
             value
-                .parse()
-                .map_err(|_| error(format!("OPSIN bug: Invalid multiplier {value}")))
+                .parse::<i32>()
+                .ok()
+                .and_then(|value| usize::try_from(value).ok())
+                .ok_or_else(|| error(format!("OPSIN bug: Invalid multiplier {value}")))
         })
 }
 
@@ -272,14 +276,27 @@ fn insufficient_hydrogens(
     root_multiplier: usize,
     context: &impl OmittedSpaceContext,
 ) -> Result<bool, ParsingError> {
-    let mut hydrogens = (root.substitutable_hydrogen_environments.len() * root_multiplier) as i64;
+    // Changes: Reject multiplication/subtraction overflow instead of allowing
+    // a large multiplier to change the omitted-space decision through wrapping.
+    let overflow = || error("Omitted-space multiplier arithmetic overflow");
+    let mut hydrogens = root
+        .substitutable_hydrogen_environments
+        .len()
+        .checked_mul(root_multiplier)
+        .and_then(|count| i64::try_from(count).ok())
+        .ok_or_else(overflow)?;
     for &sub in subs.iter().skip(1) {
-        hydrogens -=
-            total_out_valency(&facts(arena, sub, context)?) * multiplier(arena, sub)? as i64;
+        let count = i64::try_from(multiplier(arena, sub)?).map_err(|_| overflow())?;
+        let valency = total_out_valency(&facts(arena, sub, context)?)
+            .checked_mul(count)
+            .ok_or_else(overflow)?;
+        hydrogens = hydrogens.checked_sub(valency).ok_or_else(overflow)?;
     }
-    let required =
-        total_out_valency(&facts(arena, subs[0], context)?) * multiplier(arena, subs[0])? as i64;
-    Ok(hydrogens >= 0 && hydrogens - required < 0)
+    let count = i64::try_from(multiplier(arena, subs[0])?).map_err(|_| overflow())?;
+    let required = total_out_valency(&facts(arena, subs[0], context)?)
+        .checked_mul(count)
+        .ok_or_else(overflow)?;
+    Ok(hydrogens >= 0 && hydrogens < required)
 }
 
 fn ester_preferred(
@@ -374,6 +391,7 @@ fn transform_single(
     substituent: NodeId,
     context: &mut impl OmittedSpaceContext,
 ) -> Result<(), ParsingError> {
+    // Changes: Validate the source integer range before multiplier-driven cloning.
     arena[rule].set_attribute("wordRule", "ester");
     strip_final_hyphen(arena, substituent);
     arena.detach(substituent);
@@ -382,10 +400,12 @@ fn transform_single(
     arena.add_child(word, substituent);
     arena.insert_child(rule, word, 0);
     if let Some(attribute) = arena[substituent].remove_attribute("multiplier") {
-        let multiplier: usize = attribute
+        let multiplier = attribute
             .value
-            .parse()
-            .map_err(|_| error("OPSIN bug: Invalid ester substituent multiplier"))?;
+            .parse::<i32>()
+            .ok()
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or_else(|| error("OPSIN bug: Invalid ester substituent multiplier"))?;
         for _ in 1..multiplier {
             let clone = context.clone_element(arena, word)?;
             arena.insert_after(word, clone);

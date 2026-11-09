@@ -21,6 +21,7 @@
 // Copyright Daniel Lowe and OPSIN contributors; distributed under the MIT
 // Copyright 2017 Daniel Lowe
 // Changes: Rust ownership, arena/container and error-handling adaptation; integrated native changes are documented in PORTING.md.
+// Changes: Check fragment-copy prime counts before allocating generated locants.
 
 //! OPSIN's construction graph, rather than a sanitized molecule graph.
 //!
@@ -710,6 +711,10 @@ impl Graph {
         original: FragmentId,
         primes_to_add: u32,
     ) -> Result<FragmentId, GraphError> {
+        // Changes: Bound and fallibly allocate numeric prime expansions, including
+        // public callers supplying u32::MAX, before adding copied graph objects.
+        let prime_suffix = crate::component_generator::checked_repeat("'", primes_to_add as usize)
+            .map_err(|e| GraphError(e.to_string()))?;
         let source = self.fragment(original).clone();
         let destination = self.add_fragment(source.fragment_type.clone());
         self.fragment_mut(destination).sub_type = source.sub_type.clone();
@@ -739,10 +744,14 @@ impl Graph {
                     {
                         highest += 1;
                     }
-                    format!(
-                        "{stem}{}",
-                        "'".repeat((highest + 1) * primes_to_add as usize + current)
-                    )
+                    let count = highest
+                        .checked_add(1)
+                        .and_then(|count| count.checked_mul(primes_to_add as usize))
+                        .and_then(|count| count.checked_add(current))
+                        .ok_or_else(|| GraphError("Fragment prime count overflow".into()))?;
+                    let suffix = crate::component_generator::checked_repeat("'", count)
+                        .map_err(|e| GraphError(e.to_string()))?;
+                    format!("{stem}{suffix}")
                 };
                 self.add_locant(new_id, labelled);
             }
@@ -801,8 +810,7 @@ impl Graph {
             self.set_out_atom_locant(
                 destination,
                 index,
-                out.locant
-                    .map(|locant| format!("{locant}{}", "'".repeat(primes_to_add as usize))),
+                out.locant.map(|locant| format!("{locant}{prime_suffix}")),
             );
         }
         self.fragment_mut(destination).functional_atoms = source
@@ -898,6 +906,8 @@ impl Graph {
     }
 
     fn make_hydrogens_explicit_inner(&mut self, fragment: FragmentId) -> Result<(), GraphError> {
+        // Changes: Validate numeric valency expansions before adding explicit
+        // hydrogens; use 32 bytes as a conservative per-atom allocation lower bound.
         let atoms = self.fragment(fragment).atoms.clone();
         for atom in atoms {
             if self.atom(atom).spare_valency {
@@ -907,13 +917,18 @@ impl Graph {
             }
             let count = crate::fragment_tools::calculate_substitutable_hydrogen_atoms(self, atom);
             let compact_count = self.atom(atom).explicit_hydrogens;
+            let hydrogen_count = (count as u32)
+                .checked_add(compact_count)
+                .ok_or_else(|| GraphError("Hydrogen count overflow".into()))?;
+            crate::component_generator::checked_expansion_len(32, hydrogen_count as usize)
+                .map_err(|e| GraphError(e.to_string()))?;
             self.atom_mut(atom).explicit_hydrogens = 0;
-            for _ in 0..count as u32 + compact_count {
+            for _ in 0..hydrogen_count {
                 let hydrogen = self.add_atom(fragment, Element::H);
                 self.add_bond(atom, hydrogen, 1)?;
             }
             if let Some(parity) = self.atom(atom).parity.clone() {
-                if count as u32 + compact_count > 1
+                if hydrogen_count > 1
                     || !crate::stereo_analyser::is_possibly_stereogenic(self, atom)
                 {
                     // FragmentManager.makeHydrogensExplicit: deoxy processing
@@ -987,5 +1002,51 @@ impl Graph {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod numeric_expansion_tests {
+    use super::*;
+
+    #[test]
+    fn numeric_expansion_rejects_extreme_copy_and_hydrogen_counts_without_mutation() {
+        let mut graph = Graph::default();
+        let fragment = graph.add_fragment("");
+        let atom = graph.add_atom(fragment, Element::C);
+        graph.add_locant(atom, "1");
+        let before = graph.clone();
+        assert!(graph.copy_and_relabel_fragment(fragment, u32::MAX).is_err());
+        assert_eq!(graph, before);
+
+        graph.atom_mut(atom).lambda_convention_valency = Some(i32::MAX);
+        let before = graph.clone();
+        assert!(graph.make_hydrogens_explicit(fragment).is_err());
+        assert_eq!(graph, before);
+
+        graph.atom_mut(atom).lambda_convention_valency = Some(1);
+        graph.atom_mut(atom).explicit_hydrogens = u32::MAX;
+        let before = graph.clone();
+        assert!(graph.make_hydrogens_explicit(fragment).is_err());
+        assert_eq!(graph, before);
+    }
+
+    #[test]
+    fn numeric_expansion_rejects_unknown_valency_substitution_counts() {
+        let mut graph = Graph::default();
+        let fragment = graph.add_fragment("");
+        let atom = graph.add_atom(fragment, Element::U);
+        assert!(
+            crate::fragment_tools::find_n_atoms_for_substitution(
+                &graph,
+                &[atom],
+                None,
+                i32::MAX as usize,
+                1,
+                true,
+                false,
+            )
+            .is_err()
+        );
     }
 }

@@ -1,4 +1,4 @@
-# Provenance for the standalone nazuchem library crates and regression fixtures.
+# Provenance for the standalone nazuchem library crates, bindings and regression fixtures.
 # Extracted from ReShiki after Phase A step 5; repository scaffolding is out of scope.
 # Historical source paths and unresolved source/licensing decisions remain unchanged.
 # Source audit: 2026-11-09; owner decisions and source-pin gaps remain explicit below.
@@ -1238,7 +1238,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "f55cb49fd009b0357e53069744655ef42eea6b5b2cd6b77fae5f9f7e5a7b1931"
+sha256 = "efcb6dfc508fc058bed2b9ac6b9c5deb6d2030ebfd98dca16944f043c86a8766"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/ExportComponents.java.txt"
@@ -1991,17 +1991,17 @@ sources = [
   { project = "ReShiki", ref = "0f54ffbd7a22f4f2d8975e2de8238774fb47152d", path = "crates/opsin/src/component_generator.rs", license = "MIT" },
   { project = "ReShiki", ref = "85a6e78dddda974214203edbfde720e88596d70f", path = "crates/opsin/src/component_generator.rs", license = "MIT" },
 ]
-notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Complete original function exceptions, where present, are identified in parts; integrated native branch/field changes are documented in evidence. Current opening comments do not fully mark the distinction."
+notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Complete original function exceptions, where present, are identified in parts; integrated native branch/field changes are documented in evidence. Current opening comments do not fully mark the distinction. Name-derived counts retain signed integer bounds; checked arithmetic, parent/fragment validation, and bounded fallible expansions are documented by the adapted source Changes markers."
 
 [[file]]
 path = "crates/nazuchem-n2s/src/component_processor.rs"
-origin = "port"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/ComponentProcessor.java", license = "MIT" },
   { project = "OPSIN", ref = "b91b610af5ab07560fedb20730d7aef46bb2bca0", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/ComponentProcessor.java", license = "MIT" },
 ]
-notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable."
+notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Name-derived counts retain signed integer bounds; checked arithmetic, parent/fragment validation, and bounded fallible expansions are documented by the adapted source Changes markers."
 
 [[file]]
 path = "crates/nazuchem-n2s/src/component_processor_brackets.rs"
@@ -2022,17 +2022,17 @@ sources = [
   { project = "OPSIN", ref = "b91b610af5ab07560fedb20730d7aef46bb2bca0", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/ComponentProcessor.java", license = "MIT" },
   { project = "ReShiki", ref = "d9b9bafe8f8c9d3d24b6233c14682d63b58269b2", path = "crates/opsin/src/component_processor_carbohydrates.rs", license = "MIT" },
 ]
-notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Complete original function exceptions, where present, are identified in parts; integrated native branch/field changes are documented in evidence. Current opening comments do not fully mark the distinction."
+notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Complete original function exceptions, where present, are identified in parts; integrated native branch/field changes are documented in evidence. Current opening comments do not fully mark the distinction. Name-derived counts retain signed integer bounds; checked arithmetic, parent/fragment validation, and bounded fallible expansions are documented by the adapted source Changes markers."
 
 [[file]]
 path = "crates/nazuchem-n2s/src/component_processor_rings.rs"
-origin = "port"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/ComponentProcessor.java", license = "MIT" },
   { project = "OPSIN", ref = "b91b610af5ab07560fedb20730d7aef46bb2bca0", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/ComponentProcessor.java", license = "MIT" },
 ]
-notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable."
+notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Name-derived counts retain signed integer bounds; checked arithmetic, parent/fragment validation, and bounded fallible expansions are documented by the adapted source Changes markers."
 
 [[file]]
 path = "crates/nazuchem-n2s/src/cycle_detector.rs"
@@ -2056,7 +2056,7 @@ notes = "OPSIN algorithm/model port with Rust ownership, arena/container and err
 
 [[file]]
 path = "crates/nazuchem-n2s/src/fragment_tools.rs"
-origin = "port"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/FragmentTools.java", license = "MIT" },
@@ -2064,7 +2064,7 @@ sources = [
   { project = "OPSIN", ref = "b91b610af5ab07560fedb20730d7aef46bb2bca0", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/FragmentTools.java", license = "MIT" },
   { project = "OPSIN", ref = "b91b610af5ab07560fedb20730d7aef46bb2bca0", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/OpsinTools.java", license = "MIT" },
 ]
-notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable."
+notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Name-derived counts retain signed integer bounds; checked arithmetic, parent/fragment validation, and bounded fallible expansions are documented by the adapted source Changes markers."
 
 [[file]]
 path = "crates/nazuchem-n2s/src/frontend.rs"
@@ -2137,7 +2137,7 @@ sources = [
   { project = "ReShiki", ref = "2df788dc456793c687b934afd6d4b317e3c73ef8", path = "crates/opsin/src/graph.rs", license = "MIT" },
   { project = "ReShiki", ref = "1e2ada3e92b99b1487058f5a4031799d41c27645", path = "crates/opsin/src/graph.rs", license = "MIT" },
 ]
-notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Complete original function exceptions, where present, are identified in parts; integrated native branch/field changes are documented in evidence. Current opening comments do not fully mark the distinction."
+notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Complete original function exceptions, where present, are identified in parts; integrated native branch/field changes are documented in evidence. Current opening comments do not fully mark the distinction. Name-derived counts retain signed integer bounds; checked arithmetic, parent/fragment validation, and bounded fallible expansions are documented by the adapted source Changes markers."
 
 [[file]]
 path = "crates/nazuchem-n2s/src/isotope_specification_parser.rs"
@@ -2452,17 +2452,17 @@ sources = [
   { project = "OPSIN", ref = "b91b610af5ab07560fedb20730d7aef46bb2bca0", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/StructureBuilder.java", license = "MIT" },
   { project = "ReShiki", ref = "89f30ab6d32736a8beccf3bab9c355c68f178f00", path = "crates/opsin/src/structure_builder.rs", license = "MIT" },
 ]
-notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Complete original function exceptions, where present, are identified in parts; integrated native branch/field changes are documented in evidence. Current opening comments do not fully mark the distinction."
+notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Complete original function exceptions, where present, are identified in parts; integrated native branch/field changes are documented in evidence. Current opening comments do not fully mark the distinction. Name-derived counts retain signed integer bounds; checked arithmetic, parent/fragment validation, and bounded fallible expansions are documented by the adapted source Changes markers."
 
 [[file]]
 path = "crates/nazuchem-n2s/src/structure_building_methods.rs"
-origin = "port"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/StructureBuildingMethods.java", license = "MIT" },
   { project = "OPSIN", ref = "b91b610af5ab07560fedb20730d7aef46bb2bca0", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/StructureBuildingMethods.java", license = "MIT" },
 ]
-notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable."
+notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Name-derived counts retain signed integer bounds; checked arithmetic, parent/fragment validation, and bounded fallible expansions are documented by the adapted source Changes markers."
 
 [[file]]
 path = "crates/nazuchem-n2s/src/suffix_applier.rs"
@@ -2546,13 +2546,13 @@ notes = "OPSIN algorithm/model port with Rust ownership, arena/container and err
 
 [[file]]
 path = "crates/nazuchem-n2s/src/word_rules_omitted_space.rs"
-origin = "port"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/WordRulesOmittedSpaceCorrector.java", license = "MIT" },
   { project = "OPSIN", ref = "b91b610af5ab07560fedb20730d7aef46bb2bca0", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/WordRulesOmittedSpaceCorrector.java", license = "MIT" },
 ]
-notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable."
+notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. Name-derived counts retain signed integer bounds; checked arithmetic, parent/fragment validation, and bounded fallible expansions are documented by the adapted source Changes markers."
 
 [[file]]
 path = "crates/nazuchem-n2s/src/xml_declarations.rs"
@@ -7143,7 +7143,7 @@ sources = [
   { project = "Nazuchem", path = "crates/nazuchem-ir/src/lib.rs", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
   { project = "ReShiki", path = "src/naming.rs", ref = "8e09fa7f89e47d8465772eabf2ef7f2ea491af3a", license = "MIT OR Apache-2.0" },
 ]
-notes = "Exact shared vocabulary extraction, except public severity visibility. git log --follow and introduction diffs establish local NameStatus/NameReason in 001003b2444f8cec530b7f2b06f193d7b9c9b92c, AlternativeName in 0d10886c93f6f7aa673f4179739143986d392a01, IsotopeStyle in 381ac4164154afecf04bb4a89d8eef32eeb52190, and severity in 4cb6255557d7a904ec64cbf77377e3559fe6e0f5. Serde attributes, variant/field order and wire text are preserved."
+notes = "Exact shared vocabulary extraction, except public severity visibility. git log --follow and introduction diffs establish local NameStatus/NameReason in 001003b2444f8cec530b7f2b06f193d7b9c9b92c, AlternativeName in 0d10886c93f6f7aa673f4179739143986d392a01, IsotopeStyle in 381ac4164154afecf04bb4a89d8eef32eeb52190, and severity in 4cb6255557d7a904ec64cbf77377e3559fe6e0f5. Serde attributes, variant/field order and wire text are preserved. NAME_REASONS exposes the serialized vocabulary to binding declaration checks."
 
 [[file]]
 path = "crates/nazuchem-ir/Cargo.toml"
@@ -7737,3 +7737,311 @@ sources = [
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/ir_proof_tests.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original typed-IR corpus proof for Phase B step 8b; test corpora retain their separately recorded fixture provenance. Adds structurally selected ordinary-H variants, independent n2s radical variants, per-call SMILES fallback/probe accounting and measured debug runtime with bounded shards; no golden fixtures are changed."
+
+[[file]]
+path = ".github/workflows/bindings.yml"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = ".github/workflows/bindings.yml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Pins the Node runtime used by the real bundler smoke test and benchmark."
+sha256 = "cbeb4b0e9f587b4db377722b3a2a1ae1c04726ffde99e060263c7e2212caf3e7"
+
+[[file]]
+path = "bindings/python/.gitignore"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/.gitignore", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "956b5ddfefa505ceb94d33aa456805041580d9e20af443524bb92973873f8ec3"
+
+[[file]]
+path = "bindings/python/Cargo.toml"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/Cargo.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "c921d649f220a4de03ff7aeb1113c5c4366bee1ed762dae5fa776a8ab34b48fe"
+
+[[file]]
+path = "bindings/python/README.md"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/README.md", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "20224320fe19ca9ff93abfe0e6aeb3971e6be5c4b4ae138654b60f9e204b92b0"
+
+[[file]]
+path = "bindings/python/pyproject.toml"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/pyproject.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "0433c3e6c191847e47e3af246e59ca943941098891a864a287d66631fb19eda1"
+
+[[file]]
+path = "bindings/python/python/nazuchem/__init__.py"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/python/nazuchem/__init__.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "e275ceef9dfa6f3ca4f26a4f4b30436f74e5d386b1fc40a83730edde6f41afe3"
+
+[[file]]
+path = "bindings/python/python/nazuchem/_native.pyi"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/python/nazuchem/_native.pyi", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "7d29c65aa323a9d58de55924b37645a65d58c72b53f76834ad64a6034b9e863d"
+
+[[file]]
+path = "bindings/python/python/nazuchem/py.typed"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/python/nazuchem/py.typed", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "c030757fd1b5d237a3e5450d30bb11415ff0d276381815888ab1f8cca673457c"
+
+[[file]]
+path = "bindings/python/scripts/build_wheel.py"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/scripts/build_wheel.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "7419e48bf33a65cadd2e310b2130364050d62e17627d36cb2a3fb52c787d3f30"
+
+[[file]]
+path = "bindings/python/src/lib.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/src/lib.rs", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+
+[[file]]
+path = "bindings/python/tests/test_api.py"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/tests/test_api.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "45bfff2ed849a0e4d9d35b632112471a378bdaeebf0c4dd5be127ae1da274a20"
+
+[[file]]
+path = "bindings/python/tests/test_wheel_notices.py"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/tests/test_wheel_notices.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "d04b01cd80dd8e87585a49e52cd9a263ada5d7d7c1fbf3c8c84bb72c963b2cfa"
+
+[[file]]
+path = "bindings/python/uv.lock"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/python/uv.lock", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "547885a9289a02f79f1905decfe0cc32c40a5101920454fa3cc32dee7246ed1b"
+
+[[file]]
+path = "bindings/wasm/.gitignore"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/.gitignore", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "6d44f3dd5397a6d72a17fa950e5c8d74f6cda6f564a9ca439fea24d607ff42b0"
+
+[[file]]
+path = "bindings/wasm/Cargo.toml"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/Cargo.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "9115989cccfd4dcfee8d9f13cb1b9fc37a9ba98923d56ce203727e4ae27fe154"
+
+[[file]]
+path = "bindings/wasm/README.md"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/README.md", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Records the complete size/performance variant matrix, benchmark methodology, frozen noise thresholds, selection and validation."
+sha256 = "405315d235ef11c37963687fe8d0f9d47b5bac80040ddead868a8d4d1c26a2ca"
+
+[[file]]
+path = "bindings/wasm/bun.lock"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/bun.lock", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "0abb45ef73369829ae6a6a003fabc592a70e41471a07a2cc3718ecda43e1d1ca"
+
+[[file]]
+path = "bindings/wasm/package.json"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/package.json", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Adds the local Bun benchmark command; npm remains private and benchmark files remain outside the package whitelist."
+sha256 = "98144546ebfe6bd16edcd99c0e984d91b32d3ad93cdeff4535040626ba6ccfd4"
+
+[[file]]
+path = "bindings/wasm/scripts/build.ts"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/scripts/build.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Reproducible V0-V7 Wasm size experiments, V3 production profile, pinned optimizer checks, stripped metadata, and one shared Wasm plus relocated bundler import module."
+sha256 = "b0d49e43aa449ffd4c4d2c2861d89ff51025dec69404ea1e620f9b36f016cf68"
+
+[[file]]
+path = "bindings/wasm/scripts/check-package.ts"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/scripts/check-package.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Checks the single packed Wasm, its embedded relative JS dependency, all generated loaders, development-source exclusion, and exact notice bytes."
+sha256 = "a68cd317ab4b2d0dd94e98f864cc1d547432752fa16d96c6c9937fdba66d22ee"
+
+[[file]]
+path = "bindings/wasm/scripts/check-types.ts"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/scripts/check-types.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "e4194c6b34e107061d7e8205fb28e25124a9bb1ad50db9411d52d10e401d7edd"
+
+[[file]]
+path = "bindings/wasm/src/index.d.ts"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/src/index.d.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "2bab3ddec608663f367d06275a687ea34ffaac087fbae2f2847a030e78aeb838"
+
+[[file]]
+path = "bindings/wasm/src/lib.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/src/lib.rs", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+
+[[file]]
+path = "bindings/wasm/src/web.d.ts"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/src/web.d.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "501861060ec1bcf61ac5eff76fa2be2d0c285a3c946bcf01bb30374923094a50"
+
+[[file]]
+path = "bindings/wasm/src/wrapper.js"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/src/wrapper.js", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "e937f371bcd7a29e0548361495bba93fb36eb9417f74c96f02396c4c53d63ce0"
+
+[[file]]
+path = "bindings/wasm/tests/bindings.test.ts"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/tests/bindings.test.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Adds real browser default initialization and fresh-Node static bundler instantiation coverage for the shared layout."
+sha256 = "6848bbdb88ba1cee74eca83cee0a3ee9bdd312bcbfe48fac1c427f867ae94e15"
+
+[[file]]
+path = "bindings/wasm/tsconfig.json"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "bindings/wasm/tsconfig.json", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Strictly checks package scripts, runtime tests, schema-equivalence types, and bare-package consumers."
+sha256 = "588dd58a3d47ac871c171596adc2c79251d4f9d146eb16f27b02ad31da6738da"
+
+[[file]]
+path = "scripts/collect_binding_notices.py"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "scripts/collect_binding_notices.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "73fc219188c6a8d0ae93202ed40f297f1bd390487982a1a815cb1a006a30f334"
+
+[[file]]
+path = "tests/test_binding_notices.py"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "tests/test_binding_notices.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
+]
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
+sha256 = "7a00913883ecc761f2f98cbfab2a3109016a8616897352a1b4a0d19cf923fc37"
+
+
+[[file]]
+path = "crates/nazuchem-ir/examples/name_reasons.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-ir/examples/name_reasons.rs", ref = "binding vocabulary checks", license = "MIT OR Apache-2.0" },
+]
+notes = "Serialize the exported Rust naming-reason vocabulary for declaration equivalence checks without parsing source text."
+
+[[file]]
+path = "docs/wasm-size.md"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "docs/wasm-size.md", ref = "Wasm size experiment", license = "MIT OR Apache-2.0" },
+]
+notes = "Historical benchmark method and measurement tables moved from the binding README; full experiment sources and samples remain at the wasm-size-experiment tag."
+sha256 = "338ad6da53feeb76ddc734a6420f3bc507b089e7effa1ad228c4ef0200912b61"

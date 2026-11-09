@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Origin: port
+// Origin: adapted
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/ComponentProcessor.java | 42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/ComponentProcessor.java | b91b610af5ab07560fedb20730d7aef46bb2bca0
 // Copyright Daniel Lowe and OPSIN contributors; MIT (see LICENSE).
 // Copyright 2017 Daniel Lowe
+// Changes: Validate parsed integer ranges and relative atom offsets before construction.
 
 //! Structure-aware component processing from OPSIN 2.9.0.
 //! Source: `ComponentProcessor.java`, commit b91b610af5ab07560fedb20730d7aef46bb2bca0.
@@ -30,9 +31,12 @@ fn frag(arena: &Arena, node: NodeId) -> Result<FragmentId> {
         .ok_or_else(|| error(format!("No fragment associated with {}", arena.value(node))))
 }
 fn parse_num(value: &str) -> Result<usize> {
+    // Changes: Preserve upstream Integer.parseInt range instead of accepting usize-sized counts.
     value
-        .parse()
-        .map_err(|_| error(format!("Expected integer, found: {value}")))
+        .parse::<i32>()
+        .ok()
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| error(format!("Expected nonnegative integer, found: {value}")))
 }
 fn attr(arena: &Arena, node: NodeId, name: &str) -> String {
     arena[node].attribute(name).unwrap_or("").into()
@@ -48,11 +52,17 @@ fn first_atom(state: &BuildState, fragment: FragmentId) -> Result<AtomId> {
         .ok_or_else(|| error("Empty fragment"))
 }
 fn relative_atom(state: &BuildState, fragment: FragmentId, relative: &str) -> Result<AtomId> {
+    // Changes: Reject relative IDs that overflow the graph's arena index.
     let offset = parse_num(relative)?
         .checked_sub(1)
         .ok_or_else(|| error("Atom IDs start at one"))?;
     let first = first_atom(state, fragment)?;
-    let atom = AtomId(first.0 + offset);
+    let atom = AtomId(
+        first
+            .0
+            .checked_add(offset)
+            .ok_or_else(|| error(format!("No atom with relative ID {relative}")))?,
+    );
     if state
         .fragment_manager
         .graph
@@ -2941,8 +2951,11 @@ impl ComponentProcessor<'_> {
                         _ => {}
                     }
                 }
-                if valency
-                    == parse_num(arena[multiplier].attribute(VALUE_ATR).unwrap_or(""))? as i32
+                // Changes: Compare without narrowing an untrusted multiplier to i32.
+                if usize::try_from(valency).ok()
+                    == Some(parse_num(
+                        arena[multiplier].attribute(VALUE_ATR).unwrap_or(""),
+                    )?)
                 {
                     return Ok(true);
                 }
@@ -2997,6 +3010,7 @@ impl ComponentProcessor<'_> {
         Ok(count)
     }
     pub fn handle_multi_radicals(&mut self, arena: &mut Arena, sub_or_root: NodeId) -> Result<()> {
+        // Changes: Check the generated chain length and allocate fallibly before repeating SMILES.
         let group = arena
             .first_child_named(sub_or_root, GROUP_EL)
             .ok_or_else(|| error("No group in multiradical component"))?;
@@ -3020,7 +3034,9 @@ impl ComponentProcessor<'_> {
                     "telluro" => "[TeH?]",
                     _ => return Err(error("unexpected group value")),
                 };
-                arena[group].set_attribute(VALUE_ATR, smiles_atom.repeat(count));
+                let smiles = crate::component_generator::checked_repeat(smiles_atom, count)
+                    .map_err(|e| error(e.to_string()))?;
+                arena[group].set_attribute(VALUE_ATR, smiles);
                 arena[group].set_attribute(OUTIDS_ATR, format!("1,{count}"));
                 let value = format!("{}{group_value}", arena.value(multiplier));
                 arena[group].set_value(value);

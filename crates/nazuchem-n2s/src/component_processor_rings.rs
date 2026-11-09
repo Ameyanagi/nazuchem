@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Origin: port
+// Origin: adapted
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/ComponentProcessor.java | 42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/ComponentProcessor.java | b91b610af5ab07560fedb20730d7aef46bb2bca0
 // Copyright Daniel Lowe and OPSIN contributors; MIT (see LICENSE).
 // Copyright 2017 Daniel Lowe
+// Changes: Validate integer ranges and ring assembly indices before expanding locant strings.
 
 //! Ring-family passes from OPSIN `ComponentProcessor.java` (2826–3924).
 //!
@@ -66,9 +67,12 @@ fn fragment(arena: &Arena, node: NodeId) -> Result<FragmentId> {
         .ok_or_else(|| error(format!("No fragment associated with {}", arena.value(node))))
 }
 fn number(value: &str) -> Result<usize> {
+    // Changes: Keep parsed counts within upstream's nonnegative signed-int range.
     value
-        .parse()
-        .map_err(|_| error(format!("Expected integer, found: {value}")))
+        .parse::<i32>()
+        .ok()
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| error(format!("Expected nonnegative integer, found: {value}")))
 }
 fn locanted_atom(state: &BuildState, fragment: FragmentId, locant: &str) -> Result<AtomId> {
     state
@@ -385,7 +389,12 @@ pub fn process_ring_assemblies(
     sub_or_root: NodeId,
 ) -> Result<()> {
     for multiplier in arena.children_named(sub_or_root, RINGASSEMBLYMULTIPLIER_EL) {
+        // Changes: Ring assemblies require at least two components; pass their
+        // actual count to superscript conversion before allocating prime suffixes.
         let count = number(arena[multiplier].attribute(VALUE_ATR).unwrap_or(""))?;
+        if count < 2 {
+            return Err(error("Ring assembly multiplier must be at least two"));
+        }
         let mut joining_locants: Vec<[String; 2]> = Vec::new();
         let potential_locant = arena.previous_sibling(multiplier);
         let group = next_named(arena, multiplier, GROUP_EL)
@@ -408,8 +417,12 @@ pub fn process_ring_assemblies(
                 arena.detach(locant);
             } else {
                 let text = arena.value(locant);
+                // Keep the upstream locant-count diagnostic for small invalid
+                // assemblies while bounding expansion by the input's component count.
+                let referenced_components = text.split([':', ';']).count().saturating_add(1);
                 let text = convert_superscript_ring_assembly_locants(
                     text.strip_suffix('-').unwrap_or(&text),
+                    count.max(referenced_components),
                 )?;
                 let per_ring: Vec<_> = text.split([':', ';']).collect();
                 if per_ring.len() != count.saturating_sub(1) {
@@ -568,7 +581,9 @@ pub fn process_ring_assemblies(
 }
 
 /// Converts `ring^locant` assembly connections into their primed form.
-fn convert_superscript_ring_assembly_locants(locant_text: &str) -> Result<String> {
+fn convert_superscript_ring_assembly_locants(locant_text: &str, count: usize) -> Result<String> {
+    // Changes: An index can reference only a component of this assembly, so
+    // reject large numeric locants before expanding them into repeated primes.
     if !locant_text.contains('^') {
         return Ok(locant_text.into());
     }
@@ -578,12 +593,18 @@ fn convert_superscript_ring_assembly_locants(locant_text: &str) -> Result<String
     let mut end = 0;
     for captures in SUPERSCRIPT_RING_LOCANT.captures_iter(locant_text) {
         let matched = captures.get(0).unwrap();
-        let ring: i32 = captures[1]
-            .parse()
-            .map_err(|_| error(format!("For input string: \"{}\"", &captures[1])))?;
+        let ring = captures[1]
+            .parse::<i32>()
+            .map_err(|_| error(format!("For input string: \"{}\"", &captures[1])))?
+            as usize;
+        if ring == 0 || ring > count {
+            return Err(error(format!(
+                "Ring assembly index {ring} exceeds component count {count}"
+            )));
+        }
         converted.push_str(&locant_text[end..matched.start()]);
         converted.push_str(&captures[2]);
-        converted.push_str(&"'".repeat((ring - 1) as usize));
+        converted.push_str(&"'".repeat(ring - 1));
         end = matched.end();
     }
     converted.push_str(&locant_text[end..]);
@@ -1430,4 +1451,24 @@ fn highest_numeric_locant(state: &BuildState, ring: FragmentId) -> usize {
         next += 1;
     }
     next - 1
+}
+
+#[cfg(test)]
+mod numeric_expansion_tests {
+    use super::*;
+
+    #[test]
+    fn numeric_expansion_validates_ring_superscripts_before_repeating_primes() {
+        assert_eq!(
+            convert_superscript_ring_assembly_locants("1^1,2^4", 2).unwrap(),
+            "1,4'"
+        );
+        for value in [
+            "2147483647^1,2^1",
+            "4294967295^1,2^1",
+            "18446744073709551615^1,2^1",
+        ] {
+            assert!(convert_superscript_ring_assembly_locants(value, 2).is_err());
+        }
+    }
 }
