@@ -7915,7 +7915,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/wasm/README.md", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Records the complete size/performance variant matrix, benchmark methodology, frozen noise thresholds, selection and validation."
-sha256 = "524f39501a9ba32c2e56c2ea0657cd51d11b3145c343748e2a9135c5a362acde"
+sha256 = "50ae18b5c220e8a51565f595d331107299adcbe40840ed8de869f271b237514e"
 
 [[file]]
 path = "bindings/wasm/bun.lock"
@@ -7945,7 +7945,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/wasm/scripts/build.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Reproducible V0-V7 Wasm size experiments, V3 production profile, pinned optimizer checks, stripped metadata, and one shared Wasm plus relocated bundler import module."
-sha256 = "1d8beaf41a15292cf81b0ee5219aa4902264521d83785af43ebbb87bd8e4c65d"
+sha256 = "c8449022748a0b766bfdd1cff59c1352480ad6417941c2c04900b60f93f1607e"
 
 [[file]]
 path = "bindings/wasm/scripts/check-package.ts"
