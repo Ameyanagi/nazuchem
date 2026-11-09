@@ -369,7 +369,7 @@ mod tests {
         let reconstructed = structure
             .semantic_cxsmiles()
             .map_err(|error| error.to_string())?;
-        crate::naming::verify_identity(smiles, &reconstructed)
+        crate::test_support::verify_identity(smiles, &reconstructed)
     }
 
     #[test]

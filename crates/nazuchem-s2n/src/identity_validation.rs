@@ -205,7 +205,7 @@ pub fn validate_mancude_duplicate_ranking(mol: &Molecule) -> Result<(), String> 
 
 #[cfg(test)]
 mod tests {
-    use crate::naming::openclatura::name_smiles;
+    use crate::name_smiles;
 
     #[test]
     // Provenance: fn tests::public_entry_declines_kekule_dependent_cip_ranks | original

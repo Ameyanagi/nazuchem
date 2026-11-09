@@ -10,7 +10,7 @@
 // Local contributions: MIT OR Apache-2.0; see NOTICE and PROVENANCE-nazuchem.toml.
 
 use super::*;
-use crate::naming::{openclatura::graph_io, verify_identity};
+use crate::{graph_io, test_support::verify_identity};
 use nazuchem_ir::{NameReason, NameStatus};
 
 const PARA: &str = "C1Cc2ccc(cc2)CCc2ccc1cc2";
@@ -35,23 +35,6 @@ fn round_trip(smiles: &str, name: &str) -> Result<(), String> {
         .semantic_cxsmiles()
         .map_err(|e| e.to_string())?;
     verify_identity(smiles, &actual)
-}
-
-// Provenance: fn fixture_smiles | original
-// Source: ReShiki | src/naming/openclatura/phane/tests.rs::fixture_smiles
-fn fixture_smiles(name: &str) -> Result<String, String> {
-    let inchi = include_str!("../../../../crates/opsin/tests/fixtures/upstream-inchi/phanes.txt")
-        .lines()
-        .filter_map(|line| line.split_once('\t'))
-        .find(|(fixture, _)| *fixture == name)
-        .ok_or("Missing upstream phane fixture")?
-        .1;
-    let imported = reshiki_chemistry::inchi::generator::read_in_process(inchi)
-        .map_err(|error| error.to_string())?;
-    let state = imported.state.ok_or(imported.message)?;
-    reshiki_chemistry::smiles::write::write(&state, Default::default())
-        .map(|output| output.text)
-        .map_err(|error| error.to_string())
 }
 
 #[test]
@@ -97,7 +80,7 @@ fn cyclic_phane_names_reconstruct_exactly() -> Result<(), String> {
         );
         round_trip(smiles, expected)?;
         // Input order and aromatic/Kekule spelling cannot change the result.
-        let canonical = crate::naming::canonical_smiles(smiles)?;
+        let canonical = crate::test_support::canonical_smiles(smiles)?;
         assert_eq!(
             name(&graph_io::read_smiles(&canonical, &Default::default())?).as_deref(),
             Some(expected)
@@ -165,28 +148,6 @@ fn failed_ordinary_name_falls_back_to_unverified_phane() -> Result<(), String> {
     assert_eq!(named.status, NameStatus::Unverified(NameReason::Phane));
     assert!(named.alternatives.is_empty());
     round_trip(PARA, &named.text)
-}
-
-#[test]
-// Provenance: fn names_independent_upstream_inchi_graphs | mixed
-// Source: ReShiki | src/naming/openclatura/phane/tests.rs::names_independent_upstream_inchi_graphs
-fn names_independent_upstream_inchi_graphs() -> Result<(), String> {
-    let seven = "1(1,3),4(1,4)-dibenzenacycloheptaphane";
-    verify_identity("C1CCc2cccc(c2)CCc2ccc1cc2", &fixture_smiles(seven)?)?;
-    for expected in [
-        seven,
-        "1,3,5,7(1,3)-tetrabenzenacyclooctaphane",
-        "5-oxa-2-thia-1,7(1,3)-dibenzenacyclododecaphane",
-        "2,5-diaza-1,4(1,4)-dibenzenacyclohexaphane",
-    ] {
-        let smiles = fixture_smiles(expected)?;
-        assert_eq!(
-            name(&graph_io::read_smiles(&smiles, &Default::default())?).as_deref(),
-            Some(expected)
-        );
-        round_trip(&smiles, expected)?;
-    }
-    Ok(())
 }
 
 #[test]

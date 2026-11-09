@@ -1312,7 +1312,7 @@ mod tests {
                     parsed.warnings
                 );
                 let reconstructed = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-                crate::naming::verify_identity(smiles, &reconstructed)
+                crate::test_support::verify_identity(smiles, &reconstructed)
                     .unwrap_or_else(|error| panic!("{smiles} -> {candidate}: {error}"));
             }
         }
@@ -1362,7 +1362,7 @@ mod tests {
         ] {
             for input in [
                 smiles.to_owned(),
-                crate::naming::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
             ] {
                 let name = super::super::name_smiles(&input, &Default::default()).unwrap();
                 assert_eq!(name.text, expected, "{smiles} via {input}");

@@ -364,7 +364,7 @@ fn verify(smiles: &str, name: &str) -> Result<(), String> {
         )
     })?;
     let reconstructed = structure.semantic_cxsmiles().map_err(|e| e.to_string())?;
-    crate::naming::verify_identity(smiles, &reconstructed)
+    crate::test_support::verify_identity(smiles, &reconstructed)
         .map_err(|_| "openclatura: isotope descriptor does not exactly reconstruct the labelled structure and stereochemistry".into())
 }
 

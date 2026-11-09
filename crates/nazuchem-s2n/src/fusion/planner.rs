@@ -1031,8 +1031,7 @@ mod tests {
             let plan = plan_fusion_parent(&mol, &atoms).unwrap().unwrap();
             assert!(plan.audit.confirmed(), "{:?}", plan.audit);
             assert_eq!(plan.numbering.selected_layout.kind, LayoutKind::Intrinsic);
-            let name =
-                crate::naming::openclatura::name_smiles(smiles, &Default::default()).unwrap();
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected);
             assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred);
             let parsed = opsin::Parser::new()
@@ -1041,7 +1040,7 @@ mod tests {
             assert_eq!(parsed.status, opsin::Status::Success, "{}", parsed.message);
             assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
             let round_trip = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-            crate::naming::verify_identity(smiles, &round_trip).unwrap();
+            crate::test_support::verify_identity(smiles, &round_trip).unwrap();
         }
     }
 

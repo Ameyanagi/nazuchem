@@ -2981,7 +2981,7 @@ mod tests {
     // Test provenance: upstream inputs/expected names with local assertions and extensions;
     // exact matches are conservatively adapted; independent ancestry is not established.
     fn cyclic_heteroatom_oxo_and_hydroxy_groups_use_senior_suffixes() {
-        use crate::naming::verify_identity;
+        use crate::test_support::verify_identity;
         use nazuchem_ir::NameStatus;
 
         let parser = opsin::Parser::new().unwrap();

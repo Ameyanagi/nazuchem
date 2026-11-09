@@ -1853,9 +1853,7 @@ fn charge_normalized_chalcogenido(mol: &Molecule, center: Option<usize>, ligand:
 // Source: ReShiki | src/naming/openclatura/heteroatom_subgraphs.rs::tests
 mod tests {
     use super::central_oxo;
-    use crate::naming::openclatura::{
-        graph_io::read_smiles, molecule::AtomSet, namer::name_subgraph_with_upstream,
-    };
+    use crate::{graph_io::read_smiles, molecule::AtomSet, namer::name_subgraph_with_upstream};
     use nazuchem_ir::{NameReason, NameStatus};
 
     #[test]
@@ -1925,8 +1923,7 @@ mod tests {
             );
             assert_eq!(mol.name_status(), status, "{smiles}");
         }
-        let name =
-            crate::naming::openclatura::name_smiles("C[N+](C)(C)CC(=O)[O-]", &Default::default())?;
+        let name = crate::name_smiles("C[N+](C)(C)CC(=O)[O-]", &Default::default())?;
         assert_eq!(name.text, "(trimethylammonio)acetate");
         assert_eq!(
             name.status,
@@ -1968,7 +1965,7 @@ mod tests {
             name_subgraph_with_upstream(&carbon_amide, 1, &AtomSet::from([0]), Some(0)).is_err()
         );
         assert_eq!(
-            crate::naming::openclatura::name_smiles(
+            crate::name_smiles(
                 "CCC(C1=NOC2=C1C(=C(C=C2)Br)OC)ONS(=O)(=O)C3=CC=CC=C3",
                 &Default::default()
             )?

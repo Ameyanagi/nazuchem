@@ -647,7 +647,7 @@ mod tests {
             ),
         ] {
             // Exercise the same canonical input boundary as the CLI.
-            let canonical = crate::naming::canonical_smiles(smiles).unwrap();
+            let canonical = crate::test_support::canonical_smiles(smiles).unwrap();
             assert_eq!(
                 name_smiles(&canonical, &Default::default()).unwrap().text,
                 expected,
@@ -689,12 +689,10 @@ mod tests {
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
-            let request = crate::naming::local::parse_request(&name.text).unwrap();
-            let reply = crate::naming::worker::respond(&request).unwrap();
-            let parsed = crate::naming::local::parse_result(&name.text, &reply).unwrap();
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             assert_eq!(
-                crate::naming::canonical_smiles(smiles).unwrap(),
-                crate::naming::canonical_smiles(&parsed.smiles).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed.smiles).unwrap(),
                 "{}",
                 name.text
             );

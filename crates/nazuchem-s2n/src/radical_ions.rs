@@ -31,13 +31,13 @@ const UNSUPPORTED: &str =
 /// `None` leaves ordinary ions and neutral radicals to their own naming paths.
 // Provenance: fn recover | original
 // Source: ReShiki | src/naming/openclatura/radical_ions.rs::recover
-pub(in crate::naming) fn recover(
+pub fn recover(
     smiles: &str,
     budget: &nazuchem_kernel::budget::Budget,
 ) -> Result<Option<(String, &'static str)>, String> {
     // Check the unmodified input before native preparation can clean stereo.
     // This also proves the ordinary SMILES retains the original radical state.
-    let canonical = super::super::canonical_smiles(smiles)?;
+    let canonical = crate::canonical_smiles(smiles, budget)?;
     let prepared = smiles::prepare(smiles, budget).map_err(|error| error.to_string())?;
     let source = nazuchem_kernel::identity::apply_axis_markers(&prepared.state, budget)
         .map_err(|_| UNSUPPORTED)?;
@@ -187,7 +187,7 @@ fn closed_shell_parent(
     {
         return None;
     }
-    super::super::canonical_smiles(&text).ok()
+    crate::canonical_smiles(&text, budget).ok()
 }
 
 #[cfg(test)]
@@ -202,7 +202,7 @@ mod tests {
         let (neutral, suffix) = recover(input, &Default::default()).unwrap().unwrap();
         assert_eq!(suffix, "radical cation");
         let expected = input.replace("[N+]", "N");
-        crate::naming::verify_identity(&expected, &neutral).unwrap();
+        crate::test_support::verify_identity(&expected, &neutral).unwrap();
         let prepared = smiles::prepare(&neutral, &Default::default()).unwrap();
         let decoded =
             nazuchem_kernel::identity::apply_axis_markers(&prepared.state, &Default::default())
@@ -248,7 +248,7 @@ mod tests {
             assert_eq!(actual_suffix, suffix, "{ion}");
             assert_eq!(
                 neutral,
-                crate::naming::canonical_smiles(expected).unwrap(),
+                crate::test_support::canonical_smiles(expected).unwrap(),
                 "{ion}"
             );
         }
@@ -272,7 +272,7 @@ mod tests {
             assert_eq!(actual_suffix, suffix, "{ion}");
             assert_eq!(
                 neutral,
-                crate::naming::canonical_smiles(expected).unwrap(),
+                crate::test_support::canonical_smiles(expected).unwrap(),
                 "{ion}"
             );
         }
@@ -299,7 +299,7 @@ mod tests {
                 name.text
             );
             let parsed_smiles = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
-            crate::naming::verify_identity(&neutral, &parsed_smiles).unwrap();
+            crate::test_support::verify_identity(&neutral, &parsed_smiles).unwrap();
         }
     }
 
@@ -328,43 +328,5 @@ mod tests {
                 "{ordinary}"
             );
         }
-    }
-
-    #[test]
-    // Provenance: fn tests::drawn_localized_benzene_radical_cation_recovers_benzene | adapted
-    // Source: ReShiki | src/naming/openclatura/radical_ions.rs::tests::drawn_localized_benzene_radical_cation_recovers_benzene
-    // Source: openclatura | tests/integration/test_describer.py::test_describe_handles_benzene_without_functional_group
-    // Test provenance: upstream inputs/expected names with local assertions and extensions;
-    // exact matches are conservatively adapted; independent ancestry is not established.
-    fn drawn_localized_benzene_radical_cation_recovers_benzene() {
-        use crate::document::{Document, Point};
-        let mut document = Document::default();
-        let atoms: Vec<_> = (0..6)
-            .map(|index| {
-                let angle = std::f32::consts::TAU * index as f32 / 6.0;
-                document.add_atom("C", Point::new(angle.cos() * 28.0, angle.sin() * 28.0))
-            })
-            .collect();
-        // Cation and radical on adjacent atoms, their shared pi bond broken.
-        for (index, order) in [1, 1, 2, 1, 2, 1].into_iter().enumerate() {
-            document.add_bond(atoms[index], atoms[(index + 1) % 6], order, "plain");
-        }
-        document.atoms[0].charge = 1;
-        document.atoms[1].radical_electrons = 1;
-        let identity = crate::naming::document_identity(&document).unwrap();
-        let (neutral, suffix) = recover(&identity.smiles, &Default::default())
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            neutral,
-            crate::naming::canonical_smiles("c1ccccc1").unwrap()
-        );
-        assert_eq!(suffix, "radical cation");
-        // The same-atom form over-fills a Kekulé carbon and is refused by
-        // preparation, before naming.
-        document.bonds[0].order = 2;
-        document.atoms[1].radical_electrons = 0;
-        document.atoms[0].radical_electrons = 1;
-        assert!(crate::naming::document_identity(&document).is_err());
     }
 }

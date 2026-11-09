@@ -300,7 +300,7 @@ fn anion_parent_choice_matrix() {
             NameStatus::Unverified(NameReason::AnionParent),
         ),
     ] {
-        let result = crate::naming::canonical_smiles(smiles)
+        let result = crate::test_support::canonical_smiles(smiles)
             .and_then(|canonical| super::name_smiles(&canonical, &Default::default()));
         let actual = match result {
             Ok(actual) => actual,
@@ -327,14 +327,14 @@ fn anion_parent_choice_matrix() {
                 continue;
             }
         };
-        if let Err(error) = crate::naming::verify_identity(smiles, &round_trip) {
+        if let Err(error) = crate::test_support::verify_identity(smiles, &round_trip) {
             failures.push(format!("{row}: {} -> {round_trip}: {error}", actual.text));
         }
     }
     // Nonroot chain carbanions remain unsupported: decline before assembly
     // can miscite the charged atom as the substituent's free valence.
     let smiles = "[O-]C(=O)c1cc(C(=O)[O-])ccc1CC[CH2-]";
-    let result = crate::naming::canonical_smiles(smiles)
+    let result = crate::test_support::canonical_smiles(smiles)
         .and_then(|canonical| super::name_smiles(&canonical, &Default::default()));
     match result {
         Err(error)
