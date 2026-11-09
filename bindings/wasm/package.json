@@ -1,8 +1,13 @@
 {
   "name": "nazuchem",
   "version": "0.1.0",
-  "private": true,
   "description": "npm/WebAssembly bindings for nazuchem chemical naming",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ameyanagi/nazuchem.git",
+    "directory": "bindings/wasm"
+  },
+  "homepage": "https://github.com/Ameyanagi/nazuchem",
   "license": "(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND Python-2.0",
   "type": "module",
   "main": "./dist/node/index.cjs",

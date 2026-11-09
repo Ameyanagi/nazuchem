@@ -1,11 +1,19 @@
 [package]
 name = "nazuchem-kernel"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 publish = false
+# Unit tests under src/ embed these fixtures.
+exclude = ["tests/**", "!tests/fixtures/", "!tests/fixtures/**"]
 # Publication remains disabled while repository provenance work is incomplete.
 license = "(MIT OR Apache-2.0) AND BSD-3-Clause AND BSD-2-Clause"
 description = "Internal molecular perception kernel for nazuchem, adapted from RDKit and centres"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/nazuchem-kernel"
+readme = "README.md"
 
 [dependencies]
 serde = { version = "1", features = ["derive", "rc"] }

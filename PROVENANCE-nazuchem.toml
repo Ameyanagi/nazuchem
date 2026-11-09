@@ -19,7 +19,7 @@ sources = [
   { project = "Nazuchem/ReShiki", ref = "777cdd3f98dfb955e165b17e352d3ce6da768b0c", path = "crates/nazuchem-kernel/Cargo.toml", license = "MIT OR Apache-2.0" },
 ]
 notes = "Kernel metadata declares the retained incorporated licences after owner decision 2026-11-10, Rust stable sort; the removed C++ sorts were the only incorporated LLVM libc++/Microsoft STL uses, so their LLVM-exception term is removed. publish = false remains in force."
-sha256 = "71a73d92a60d2e15e5ac2a322c5ab7d527ea1ca21f30a50cc53ddc024b945e29"
+sha256 = "c16da9b9d36a9f088524a4445306a3244b109ced7d708a6bd6138a13556d2852"
 
 [[file]]
 path = "crates/nazuchem-kernel/LICENSE"
@@ -1073,7 +1073,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/Cargo.toml", license = "MIT" },
 ]
 notes = "Original Rust crate package/dependency metadata. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "cb875de78e90febc1e25a96756acca82469b9fd3b3b032b06f9d16d863e28def"
+sha256 = "70024e1f17e398326e96dff42e5b22d615411d19d1b83de9ea354217142db401"
 
 [[file]]
 path = "crates/nazuchem-n2s/LICENSE"
@@ -7028,7 +7028,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem-ir/Cargo.toml", ref = "098298a396d6d2b51edeebd62dd66cd9c5871b48", license = "MIT OR Apache-2.0" },
 ]
 notes = "New Phase A step 3 shared-vocabulary crate metadata and source-history attribution; no structure IR or engine implementation."
-sha256 = "f4a148c9f29ab96078431ba7066f8aea9087b8d113e32f5c72caac7a93e8eeff"
+sha256 = "b49950bef9a7f9f4f5505656539c80b4d75af6ddd90a4dfa0adb409410a5177e"
 
 [[file]]
 path = "crates/nazuchem-ir/NOTICE"
@@ -7095,7 +7095,7 @@ sources = [
   { "project" = "Nazuchem/ReShiki", "path" = "crates/nazuchem-s2n/Cargo.toml", "ref" = "Phase A step 4 (local extraction)", "license" = "MIT OR Apache-2.0" },
 ]
 notes = "Phase A step 4 local extraction documentation and package metadata. Established terms do not resolve the retained Blue Book table; publish = false remains in force."
-sha256 = "a7b8fd61e3ff55bae25067c7e11ce26ca37705c5ed83fa39baf550052a8f4763"
+sha256 = "7d4d0326857936bf9ce9b8d560daa7c1a93259fc96b0426569224fbc38567be4"
 
 [[file]]
 path = "crates/nazuchem-s2n/LICENSE"
@@ -7238,7 +7238,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/Cargo.toml", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Standalone facade tests add serde_json as a development dependency. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
-sha256 = "af72aaeb39f88c0c9991c26fc2254595ce791ee6acbe8497b2562e524a252c7b"
+sha256 = "c6bc9d6fa9eb7970c59062a65f63a25f05cca75f0962878abeada6bbc1262d1a"
 
 [[file]]
 path = "crates/nazuchem/LICENSE"
@@ -7591,7 +7591,7 @@ sources = [
   { project = "Nazuchem", path = ".github/workflows/bindings.yml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Pins the Node runtime used by the real bundler smoke test and benchmark."
-sha256 = "cbeb4b0e9f587b4db377722b3a2a1ae1c04726ffde99e060263c7e2212caf3e7"
+sha256 = "7c82221f4ae332fc7d142cf7e418ad66a86b6aa858f297a5fcf35278ebfc5529"
 
 [[file]]
 path = "bindings/python/.gitignore"
@@ -7611,7 +7611,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/python/Cargo.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
-sha256 = "1a469b640d1a3797dae9d43f4bbb1b679aeee1e1f8b4b0c666510b07b7ffe83e"
+sha256 = "2561fda2de42a8688a34fbf471b160fd664ccb63585fb948c289b0efe29a0947"
 
 [[file]]
 path = "bindings/python/README.md"
@@ -7671,7 +7671,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/python/scripts/build_wheel.py", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "7419e48bf33a65cadd2e310b2130364050d62e17627d36cb2a3fb52c787d3f30"
+sha256 = "6e455da50d2dde955c41eae149877f80df7d12b9d2500f3147b996753fd65814"
 
 [[file]]
 path = "bindings/python/src/lib.rs"
@@ -7730,7 +7730,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/wasm/Cargo.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
-sha256 = "69cac4a7430ca34857b750c283bac699edd8cf9196b79b58e39c32d6f35d8ffa"
+sha256 = "c25506dddfd9d92a3f279b8267a50a243d84de41803173d1f497d00a9d79c1d3"
 
 [[file]]
 path = "bindings/wasm/README.md"
@@ -7760,7 +7760,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/wasm/package.json", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Adds the local Bun benchmark command; npm remains private and benchmark files remain outside the package whitelist. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
-sha256 = "5cca5f60a62b15c12d64e0cb2a95a94aee4ea196243b29bc3ac3012d5b4bc7f7"
+sha256 = "fc75221796a01517acfcd0f9b45244a964d8ede740bb04647e1c9ac80c51133b"
 
 [[file]]
 path = "bindings/wasm/scripts/build.ts"
