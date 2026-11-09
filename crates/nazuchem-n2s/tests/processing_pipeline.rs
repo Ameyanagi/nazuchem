@@ -7,13 +7,15 @@
 
 //! Java-free integration of pinned resources, ComponentGenerator and ordered
 //! ComponentProcessor. Assertions inspect construction identities and metadata.
-use opsin::build_state::BuildState;
-use opsin::component_generator::{ComponentGenerationContext, process_components as generate};
-use opsin::component_processor::process_components as process;
-use opsin::graph::{Element, FragmentId};
-use opsin::parse_tree::ParseTree;
-use opsin::suffix_rules::SuffixRules;
-use opsin::{ParseOptions, Parser};
+use nazuchem_n2s::build_state::BuildState;
+use nazuchem_n2s::component_generator::{
+    ComponentGenerationContext, process_components as generate,
+};
+use nazuchem_n2s::component_processor::process_components as process;
+use nazuchem_n2s::graph::{Element, FragmentId};
+use nazuchem_n2s::parse_tree::ParseTree;
+use nazuchem_n2s::suffix_rules::SuffixRules;
+use nazuchem_n2s::{ParseOptions, Parser};
 
 fn processed(name: &str) -> (ParseTree, BuildState, FragmentId) {
     let parser = Parser::new().unwrap();

@@ -7,7 +7,7 @@
 //! Exercise the pinned resource dialect, rather than a hand-picked subset of
 //! generic SMILES. This is frozen OPSIN main XML in the crate, never a runtime
 //! upstream checkout or network resource.
-use opsin::{graph::Graph, smiles::build_fragment};
+use nazuchem_n2s::{graph::Graph, smiles::build_fragment};
 
 #[test]
 fn build_every_literal_group_resource() {

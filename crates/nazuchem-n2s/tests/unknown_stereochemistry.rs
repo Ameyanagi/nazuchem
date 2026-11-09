@@ -2,7 +2,7 @@
 // Origin: original
 // Source: ReShiki | crates/opsin/tests/unknown_stereochemistry.rs | bfce35014e5c5a0062ea26a3381a883c5acc829d
 
-use opsin::{ParseOptions, Parser, Status, WarningKind};
+use nazuchem_n2s::{ParseOptions, Parser, Status, WarningKind};
 
 fn canonical(smiles: &str) -> String {
     let imported = nazuchem_kernel::smiles::read(smiles, &Default::default()).unwrap();
@@ -11,7 +11,7 @@ fn canonical(smiles: &str) -> String {
         .text
 }
 
-fn parsed(parser: &Parser, name: &str) -> opsin::Structure {
+fn parsed(parser: &Parser, name: &str) -> nazuchem_n2s::Structure {
     let result = parser.parse(name, &ParseOptions::strict());
     assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
     result.structure.unwrap()
@@ -104,7 +104,7 @@ fn coupled_lowercase_rs_controls_keep_their_distinct_configurations() {
             let parity = structure.graph.atom(atom).parity.as_ref().unwrap();
             assert_eq!(
                 parity.stereo_group.kind,
-                opsin::graph::StereoGroupType::Absolute,
+                nazuchem_n2s::graph::StereoGroupType::Absolute,
                 "{name}"
             );
         }
@@ -139,7 +139,7 @@ fn xi_case_survives_tokenization_in_both_directions() {
         "(2Xi,3xI)-3-chlorobutan-2-ol",
         "(2XI,3xi)-3-chlorobutan-2-ol",
     ] {
-        let normalized = opsin::preprocess::preprocess(name).unwrap();
+        let normalized = nazuchem_n2s::preprocess::preprocess(name).unwrap();
         for result in [
             parser.tokenize(&normalized, false).unwrap(),
             parser.tokenize_reverse(&normalized, false).unwrap(),
@@ -221,7 +221,7 @@ fn locanted_xi_reserves_its_centre_before_global_stereochemistry() {
                 .unwrap()
                 .stereo_group
                 .kind,
-            opsin::graph::StereoGroupType::Racemic,
+            nazuchem_n2s::graph::StereoGroupType::Racemic,
             "{name}"
         );
     }

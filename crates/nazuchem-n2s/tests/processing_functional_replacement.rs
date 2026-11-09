@@ -7,14 +7,14 @@
 // Changes: Rust graph/tree construction and regression harness around source-derived cases/assertions; local regressions retained.
 
 //! Cases grounded in FunctionalReplacement.java and the pinned infixes.xml.
-use opsin::ParseOptions;
-use opsin::build_state::BuildState;
-use opsin::functional_replacement::{
+use nazuchem_n2s::ParseOptions;
+use nazuchem_n2s::build_state::BuildState;
+use nazuchem_n2s::functional_replacement::{
     process_infix_functional_replacement_nomenclature as infix,
     process_prefix_functional_replacement_nomenclature as prefix,
 };
-use opsin::graph::{AtomId, Element};
-use opsin::parse_tree::Arena;
+use nazuchem_n2s::graph::{AtomId, Element};
+use nazuchem_n2s::parse_tree::Arena;
 
 fn acid_suffix(
     smiles: &str,
@@ -22,8 +22,8 @@ fn acid_suffix(
 ) -> (
     BuildState,
     Arena,
-    opsin::parse_tree::NodeId,
-    opsin::graph::FragmentId,
+    nazuchem_n2s::parse_tree::NodeId,
+    nazuchem_n2s::graph::FragmentId,
 ) {
     let mut state = BuildState::new(ParseOptions::default());
     let fragment = state
@@ -276,10 +276,10 @@ fn prefix_case(
 ) -> (
     BuildState,
     Arena,
-    opsin::parse_tree::NodeId,
-    opsin::parse_tree::NodeId,
-    opsin::parse_tree::NodeId,
-    opsin::graph::FragmentId,
+    nazuchem_n2s::parse_tree::NodeId,
+    nazuchem_n2s::parse_tree::NodeId,
+    nazuchem_n2s::parse_tree::NodeId,
+    nazuchem_n2s::graph::FragmentId,
 ) {
     let mut state = BuildState::new(ParseOptions::default());
     let mut arena = Arena::default();
@@ -422,9 +422,9 @@ fn acid_class_case(
 ) -> (
     BuildState,
     Arena,
-    opsin::parse_tree::NodeId,
-    opsin::parse_tree::NodeId,
-    opsin::graph::FragmentId,
+    nazuchem_n2s::parse_tree::NodeId,
+    nazuchem_n2s::parse_tree::NodeId,
+    nazuchem_n2s::graph::FragmentId,
 ) {
     let mut state = BuildState::new(ParseOptions::default());
     let mut arena = Arena::default();
@@ -478,7 +478,7 @@ fn acid_class_case(
 fn acid_class_amide_changes_all_requested_functional_oxygens_to_nitrogen() {
     let (mut state, mut arena, root, word, f) =
         acid_class_case("OC(=O)C(=O)O", &[0, 5], "amide", "N", 2, false);
-    opsin::functional_replacement::process_acid_replacing_functional_class_nomenclature(
+    nazuchem_n2s::functional_replacement::process_acid_replacing_functional_class_nomenclature(
         &mut state, &mut arena, root, word,
     )
     .unwrap();
@@ -491,7 +491,7 @@ fn acid_class_amide_changes_all_requested_functional_oxygens_to_nitrogen() {
 fn full_word_amide_neutralises_replacement_and_preserves_interfragment_connection() {
     let (mut state, mut arena, root, word, f) =
         acid_class_case("CC(=O)O", &[3], "amide", "[NH2-]", 1, true);
-    opsin::functional_replacement::process_acid_replacing_functional_class_nomenclature(
+    nazuchem_n2s::functional_replacement::process_acid_replacing_functional_class_nomenclature(
         &mut state, &mut arena, root, word,
     )
     .unwrap();
@@ -510,7 +510,7 @@ fn full_word_amide_neutralises_replacement_and_preserves_interfragment_connectio
 fn acid_class_dihydrazide_copies_replacement_before_incorporation() {
     let (mut state, mut arena, root, word, f) =
         acid_class_case("OC(=O)C(=O)O", &[0, 5], "hydrazide", "NN", 2, false);
-    opsin::functional_replacement::process_acid_replacing_functional_class_nomenclature(
+    nazuchem_n2s::functional_replacement::process_acid_replacing_functional_class_nomenclature(
         &mut state, &mut arena, root, word,
     )
     .unwrap();

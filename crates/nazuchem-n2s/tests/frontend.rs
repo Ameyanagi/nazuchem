@@ -7,7 +7,7 @@
 // Changes: Rust graph/tree construction and regression harness around source-derived cases/assertions; local regressions retained.
 
 //! Java-free cases derived from pinned OPSIN ParserTest and tree contracts.
-use opsin::{
+use nazuchem_n2s::{
     ParseOptions, Parser,
     frontend::process_stoichiometry_indication,
     graph::FragmentId,

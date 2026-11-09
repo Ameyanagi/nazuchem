@@ -9,14 +9,16 @@
 // Native graph regressions for the ComponentProcessor/FusedRingBuilder phane
 // changes in upstream commit 42e87ac6. No live upstream runtime is required.
 
-use opsin::build_state::BuildState;
-use opsin::component_processor::ComponentProcessor;
-use opsin::component_processor_rings::{process_fused_ring_bridges, process_ring_assemblies};
-use opsin::fused_ring_builder::process_fused_rings;
-use opsin::graph::{AtomId, FragmentId};
-use opsin::parse_tree::{Arena, NodeId};
-use opsin::suffix_rules::SuffixRules;
-use opsin::{ParseOptions, ParsingError};
+use nazuchem_n2s::build_state::BuildState;
+use nazuchem_n2s::component_processor::ComponentProcessor;
+use nazuchem_n2s::component_processor_rings::{
+    process_fused_ring_bridges, process_ring_assemblies,
+};
+use nazuchem_n2s::fused_ring_builder::process_fused_rings;
+use nazuchem_n2s::graph::{AtomId, FragmentId};
+use nazuchem_n2s::parse_tree::{Arena, NodeId};
+use nazuchem_n2s::suffix_rules::SuffixRules;
+use nazuchem_n2s::{ParseOptions, ParsingError};
 
 fn setup() -> (BuildState, Arena, NodeId) {
     let state = BuildState::new(ParseOptions::default());

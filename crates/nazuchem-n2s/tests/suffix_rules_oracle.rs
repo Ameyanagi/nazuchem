@@ -6,7 +6,7 @@
 // Copyright 2017 Daniel Lowe
 
 //! Complete suffix applicability selection and ordered metadata from pinned OPSIN.
-use opsin::suffix_rules::SuffixRules;
+use nazuchem_n2s::suffix_rules::SuffixRules;
 use serde_json::{Value, json};
 
 #[test]

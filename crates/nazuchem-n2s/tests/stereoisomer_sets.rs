@@ -5,7 +5,7 @@
 use std::collections::BTreeSet;
 
 use nazuchem_kernel::smiles::stereoisomers;
-use opsin::{ParseOptions, Parser, Status};
+use nazuchem_n2s::{ParseOptions, Parser, Status};
 
 // These independent representatives were checked with RDKit CIP assignments
 // and conformers before being used as expectations.

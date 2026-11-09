@@ -7,7 +7,7 @@
 // Changes: Rust graph/tree construction and regression harness around source-derived cases/assertions; local regressions retained.
 
 //! Upstream NameToStructureTest additions and complete-result regressions.
-use opsin::{ParseOptions, Parser, Status};
+use nazuchem_n2s::{ParseOptions, Parser, Status};
 
 #[test]
 fn unicode_superscript_bridge_locants_round_trip_to_the_ascii_structure() {

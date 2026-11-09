@@ -10,11 +10,11 @@
 // These assert graph topology and locant behavior independently of final
 // serialization or the completeness of the full name-conversion pipeline.
 
-use opsin::ParseOptions;
-use opsin::build_state::BuildState;
-use opsin::component_processor_rings::{assign_element_symbol_locants, process_hw};
-use opsin::graph::{AtomId, Element, FragmentId};
-use opsin::parse_tree::{Arena, NodeId};
+use nazuchem_n2s::ParseOptions;
+use nazuchem_n2s::build_state::BuildState;
+use nazuchem_n2s::component_processor_rings::{assign_element_symbol_locants, process_hw};
+use nazuchem_n2s::graph::{AtomId, Element, FragmentId};
+use nazuchem_n2s::parse_tree::{Arena, NodeId};
 
 type HwDefaultCase<'a> = (&'a str, &'a [(&'a str, &'a str)], &'a [Element]);
 

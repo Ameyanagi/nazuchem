@@ -7,7 +7,7 @@
 // Changes: Rust graph/tree construction and regression harness around source-derived cases/assertions; local regressions retained.
 
 //! Source-grounded FragmentManager tests and cross-fragment mutation invariants.
-use opsin::{
+use nazuchem_n2s::{
     ParseOptions,
     build_state::BuildState,
     fragment_manager::FragmentManager,
@@ -116,10 +116,10 @@ fn incorporation_reclassifies_connections_and_retains_source_views() {
 fn group(
     state: &mut BuildState,
     arena: &mut Arena,
-    parent: opsin::parse_tree::NodeId,
+    parent: nazuchem_n2s::parse_tree::NodeId,
     smiles: &str,
     value: &str,
-) -> opsin::parse_tree::NodeId {
+) -> nazuchem_n2s::parse_tree::NodeId {
     let group = arena.token("group", value);
     arena[group].add_attribute("type", "standardGroup");
     arena[group].add_attribute("labels", "numeric");

@@ -9,9 +9,9 @@
 //! This gate starts from supplied upstream trees, independently of native
 //! frontend behavior. Test execution and fixture decompression are Rust only.
 use flate2::read::GzDecoder;
-use opsin::ParseOptions;
-use opsin::component_generator::{ComponentGenerationContext, process_components};
-use opsin::parse_tree::{Arena, NodeId, ParseTree};
+use nazuchem_n2s::ParseOptions;
+use nazuchem_n2s::component_generator::{ComponentGenerationContext, process_components};
+use nazuchem_n2s::parse_tree::{Arena, NodeId, ParseTree};
 use serde_json::{Value, json};
 use std::io::{BufRead, BufReader};
 

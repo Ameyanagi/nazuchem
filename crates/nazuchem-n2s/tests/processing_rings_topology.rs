@@ -9,15 +9,15 @@
 // for ComponentProcessor.java, OPSIN 2.9.0 b91b610af5ab07560fedb20730d7aef46bb2bca0.
 // Uses only Rust graph construction and the ported processing phases.
 
-use opsin::build_state::BuildState;
-use opsin::component_processor_rings::{
+use nazuchem_n2s::build_state::BuildState;
+use nazuchem_n2s::component_processor_rings::{
     determine_elements_to_resolve_into_ring_assembly, process_fused_ring_bridges,
     process_poly_cyclic_spiro_nomenclature, process_ring_assemblies, resolve_features_onto_group,
 };
-use opsin::graph::{AtomId, Element, FragmentId};
-use opsin::parse_tree::{Arena, NodeId};
-use opsin::suffix_rules::SuffixRules;
-use opsin::{ParseOptions, ParsingError};
+use nazuchem_n2s::graph::{AtomId, Element, FragmentId};
+use nazuchem_n2s::parse_tree::{Arena, NodeId};
+use nazuchem_n2s::suffix_rules::SuffixRules;
+use nazuchem_n2s::{ParseOptions, ParsingError};
 
 fn setup() -> (BuildState, Arena, NodeId) {
     let state = BuildState::new(ParseOptions::default());

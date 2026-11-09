@@ -6,8 +6,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use nazuchem_kernel::smiles;
-use opsin::graph::StereoGroupType;
-use opsin::{ParseOptions, Parser, Status, Structure, WarningKind};
+use nazuchem_n2s::graph::StereoGroupType;
+use nazuchem_n2s::{ParseOptions, Parser, Status, Structure, WarningKind};
 
 fn parse(name: &str) -> Structure {
     let result = Parser::new().unwrap().parse(name, &ParseOptions::strict());

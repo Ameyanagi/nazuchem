@@ -1,7 +1,7 @@
-# OPSIN Rust migration
+# nazuchem-n2s
 
-This independent crate ports the algorithms and resources of OPSIN main (3.0-SNAPSHOT),
-commit `42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91`, into native Rust.
+A Rust port of OPSIN by Daniel Lowe (MIT). This independent crate ports the
+algorithms and resources of OPSIN main (3.0-SNAPSHOT), commit `42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91`, into native Rust.
 It has no Java, JAR, subprocess, Python, network service, or ReShiki dependency
 at build time or runtime. The original MIT license is included in `LICENSE`.
 
@@ -14,7 +14,7 @@ CXSMILES and ordered graph/stereo metadata. See
 [the source/module ledger and acceptance gates](PORTING.md).
 
 ```rust
-use opsin::{Parser, ParseOptions, Status};
+use nazuchem_n2s::{Parser, ParseOptions, Status};
 
 let parser = Parser::new()?;
 let result = parser.parse("ethanol", &ParseOptions::strict());
@@ -24,7 +24,7 @@ if result.status == Status::Success {
 ```
 
 `Parser::new()` uses an unbounded chemistry budget. Hosts can pass their own
-limits and memory reservation hook to `Parser::with_budget(opsin::Budget)`;
+limits and memory reservation hook to `Parser::with_budget(nazuchem_n2s::Budget)`;
 the parser forwards it to chemistry perception during structure construction.
 The library does not detect machine capabilities or access a process-wide
 reservation pool. The compatibility tests use the unbounded default; ReShiki

@@ -7,7 +7,7 @@
 // Changes: Rust graph/tree construction and regression harness around source-derived cases/assertions; local regressions retained.
 
 //! Cases copied from pinned OPSIN CASToolsTest (MIT Daniel Lowe).
-use opsin::Parser;
+use nazuchem_n2s::Parser;
 
 #[test]
 fn all_upstream_cas_uninversion_examples() {

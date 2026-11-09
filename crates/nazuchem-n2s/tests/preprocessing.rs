@@ -7,7 +7,7 @@
 // Copyright 2017 Daniel Lowe
 // Changes: Rust graph/tree construction and regression harness around source-derived cases/assertions; local regressions retained.
 
-use opsin::preprocess::preprocess;
+use nazuchem_n2s::preprocess::preprocess;
 
 #[test]
 fn upstream_preprocessor_cases() {

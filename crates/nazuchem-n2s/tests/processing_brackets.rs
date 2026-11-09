@@ -8,7 +8,7 @@
 // OPSIN 2.9.0 ComponentProcessor implicit-bracket phase fixtures.
 // Tree outcomes follow source lines4191–4650 and the cited examples there.
 // No Java, remote service, or chemistry fallback is used by these tests.
-use opsin::{
+use nazuchem_n2s::{
     ParseOptions,
     build_state::BuildState,
     component_processor_brackets::implicitly_bracket_to_previous_substituent_if_appropriate,

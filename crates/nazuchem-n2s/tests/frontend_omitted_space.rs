@@ -7,7 +7,7 @@
 
 //! Post-component fixtures exercise OPSIN's omitted-space decisions separately
 //! from fragment construction. No graph facts are inferred from name text.
-use opsin::{
+use nazuchem_n2s::{
     ParsingError,
     graph::{Element, FragmentId},
     parse_tree::{Arena, NodeId, ParseTree},

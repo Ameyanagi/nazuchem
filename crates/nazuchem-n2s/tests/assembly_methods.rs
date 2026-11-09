@@ -7,7 +7,7 @@
 // Changes: Rust graph/tree construction and regression harness around source-derived cases/assertions; local regressions retained.
 
 //! Java-free phase tests for the pinned StructureBuildingMethods port.
-use opsin::{
+use nazuchem_n2s::{
     ParseOptions,
     build_results::BuildResults,
     build_state::BuildState,
@@ -265,7 +265,7 @@ fn locanted_unsaturation_and_isotope_are_applied_before_unlocanted_radicals() {
     arena[isotope].set_attribute("type", "iupac");
     arena.add_child(root, isotope);
     // Exact resource type, rather than depending on a handwritten grammar alias.
-    arena[isotope].set_attribute("type", opsin::xml_declarations::IUPACSYSTEM_TYPE_VAL);
+    arena[isotope].set_attribute("type", nazuchem_n2s::xml_declarations::IUPACSYSTEM_TYPE_VAL);
     structure_building_methods::resolve_locanted_features(&mut state, &mut arena, root).unwrap();
     let atoms = state.graph().fragment(fragment).atoms.clone();
     assert_eq!(state.graph().atom(atoms[0]).isotope, Some(13));
@@ -524,7 +524,7 @@ fn deoxy_replacement_preserves_stereochemical_reference_as_hydrogen() {
     assert!(
         parity
             .atom_refs
-            .contains(&Some(opsin::graph::StereoReference::DeoxyHydrogen))
+            .contains(&Some(nazuchem_n2s::graph::StereoReference::DeoxyHydrogen))
     );
     assert_eq!(state.graph().atom(centre).element, Element::C);
 }
@@ -668,7 +668,7 @@ fn clone_primes_canonical_stereo_chemistry_node_before_late_assignment() {
     let mut state = state();
     let word = arena.grouping("word");
     let sub = scope(&mut arena, word, "substituent");
-    let stereo = arena.token(opsin::xml_declarations::STEREOCHEMISTRY_EL, "R");
+    let stereo = arena.token(nazuchem_n2s::xml_declarations::STEREOCHEMISTRY_EL, "R");
     arena[stereo].set_attribute("locant", "2");
     arena.add_child(sub, stereo);
     group(&mut arena, &mut state, sub, "substituent", "-CC", "1/2");
@@ -678,7 +678,7 @@ fn clone_primes_canonical_stereo_chemistry_node_before_late_assignment() {
     }
     .clone_element(sub, 2)
     .unwrap();
-    let cloned = arena.descendants_named(copy, opsin::xml_declarations::STEREOCHEMISTRY_EL);
+    let cloned = arena.descendants_named(copy, nazuchem_n2s::xml_declarations::STEREOCHEMISTRY_EL);
     assert_eq!(cloned.len(), 1);
     assert_eq!(arena[cloned[0]].attribute("locant"), Some("2''"));
     assert_eq!(arena[stereo].attribute("locant"), Some("2"));

@@ -6,7 +6,7 @@
 // Copyright 2017 Daniel Lowe
 
 //! Pinned FusedRingBuilder XML and graph snapshots, with Java-free execution.
-use opsin::{
+use nazuchem_n2s::{
     ParseOptions, build_state::BuildState, fused_ring_builder::process_fused_rings,
     parse_tree::Arena,
 };

@@ -7,7 +7,7 @@
 // Changes: Rust graph/tree construction and regression harness around source-derived cases/assertions; local regressions retained.
 
 // Source-grounded OPSIN IsotopeSpecificationParser and suffix isotope fixtures.
-use opsin::{
+use nazuchem_n2s::{
     ParseOptions,
     build_state::BuildState,
     graph::{AtomId, Element},
@@ -61,7 +61,7 @@ fn apply(
     arena: &mut Arena,
     group: NodeId,
     suffix: NodeId,
-) -> Result<(), opsin::ParsingError> {
+) -> Result<(), nazuchem_n2s::ParsingError> {
     SuffixApplier::new(state, &SuffixRules::new().unwrap()).resolve_suffixes(
         arena,
         group,

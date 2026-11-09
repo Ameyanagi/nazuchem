@@ -14,7 +14,7 @@
 //! First 14 cases are name-built upstream graphs; final 7 are source resource
 //! graphs after aromatic conversion and makeHydrogensExplicit. No name parser,
 //! Java, network, or SMILES roundtrip is used by these Rust comparisons.
-use opsin::{
+use nazuchem_n2s::{
     graph::{AtomId, BondId, Element, Graph},
     stereo_analyser,
 };
@@ -25,7 +25,7 @@ fn integers(s: &str) -> Vec<usize> {
         s.split(',').map(|x| x.parse().unwrap()).collect()
     }
 }
-fn result_indices(result: Result<Vec<AtomId>, opsin::cip::CipOrderingError>) -> String {
+fn result_indices(result: Result<Vec<AtomId>, nazuchem_n2s::cip::CipOrderingError>) -> String {
     match result {
         Ok(atoms) => atoms
             .iter()

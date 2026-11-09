@@ -2,7 +2,7 @@
 // Origin: original
 // Source: ReShiki | crates/opsin/tests/support/structure_snapshots.rs | 0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9
 
-use opsin::{
+use nazuchem_n2s::{
     Structure,
     graph::{AtomId, BondStereoValue, StereoGroupType, StereoReference},
 };

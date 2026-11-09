@@ -10,11 +10,11 @@
 // OPSIN 2.9.0 b91b610af5ab07560fedb20730d7aef46bb2bca0. Resource SMILES and
 // labels are copied from carbohydrates.xml. No Java or network is required.
 
-use opsin::ParseOptions;
-use opsin::build_state::BuildState;
-use opsin::component_processor_carbohydrates::*;
-use opsin::graph::{AtomId, Element, FragmentId, Graph, StereoReference};
-use opsin::parse_tree::{Arena, NodeId};
+use nazuchem_n2s::ParseOptions;
+use nazuchem_n2s::build_state::BuildState;
+use nazuchem_n2s::component_processor_carbohydrates::*;
+use nazuchem_n2s::graph::{AtomId, Element, FragmentId, Graph, StereoReference};
+use nazuchem_n2s::parse_tree::{Arena, NodeId};
 
 const GLUCOSE: &str = "O=C[C@H](O)[C@@H](O)[C@H](O)[C@H](O)CO";
 const HEXOSE_LABELS: &str = "/1/2//3//4//5//6/";
@@ -592,7 +592,7 @@ fn di_suffix_removal_updates_manager_registry_for_an_auxiliary_terminal_oxygen()
     let final_fragment = state.graph().fragment(unified);
     assert!(!final_fragment.atoms.contains(&oxygen));
     assert!(!final_fragment.bonds.contains(&old_bond));
-    opsin::stereo_analyser::analyse(state.graph(), unified).unwrap();
+    nazuchem_n2s::stereo_analyser::analyse(state.graph(), unified).unwrap();
 }
 
 #[test]
@@ -882,7 +882,7 @@ fn anomer_assignment_joins_the_reference_stereo_group() {
         .as_mut()
         .unwrap()
         .stereo_group
-        .kind = opsin::graph::StereoGroupType::Racemic;
+        .kind = nazuchem_n2s::graph::StereoGroupType::Racemic;
     token_before(&mut arena, group, "locant", "alpha");
     token_after(&mut arena, root, "carbohydrateRingSize", "6");
     process_carbohydrates(&mut state, &mut arena, root).unwrap();
@@ -894,8 +894,8 @@ fn anomer_assignment_joins_the_reference_stereo_group() {
             .as_ref()
             .unwrap()
             .stereo_group,
-        opsin::graph::StereoGroup {
-            kind: opsin::graph::StereoGroupType::Racemic,
+        nazuchem_n2s::graph::StereoGroup {
+            kind: nazuchem_n2s::graph::StereoGroupType::Racemic,
             number: 1,
         }
     );

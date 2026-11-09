@@ -2,7 +2,7 @@
 // Origin: original
 // Source: ReShiki | crates/opsin/tests/chemistry_budget.rs | 777cdd3f98dfb955e165b17e352d3ce6da768b0c
 
-use opsin::{Budget, ParseOptions, Parser, Status};
+use nazuchem_n2s::{Budget, ParseOptions, Parser, Status};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
