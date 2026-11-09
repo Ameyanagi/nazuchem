@@ -66,6 +66,60 @@ fn written_axis(name: &str, expected: &str, locant: &str) -> (String, Vec<Option
     let stereo = bond.axial_stereo.as_ref().unwrap();
     assert_eq!(stereo.descriptor, expected, "{name}");
     assert_eq!(axis.clockwise, stereo.clockwise, "{name}");
+
+    // Exercise the graph contract for every corpus hand and every Ra/Sa
+    // alias, in addition to checking the legacy out-of-band Axis projection.
+    let (molecule, source_atoms) = structure.to_ir_with_atom_mapping().unwrap();
+    let (ir_bond, ir_refs, ir_winding) = molecule
+        .stereo
+        .iter()
+        .find_map(|entry| {
+            if let nazuchem_ir::Stereo::Atropisomer {
+                bond,
+                refs,
+                winding,
+            } = entry
+            {
+                Some((*bond, *refs, *winding))
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert!(
+        matches!(
+            molecule.to_cxsmiles(),
+            Err(nazuchem_ir::CxsmilesError::StereoNotExpressible)
+        ),
+        "{name}"
+    );
+    eprintln!("atropisomer IR: {name}: direct_atropisomer=1; StereoNotExpressible=1");
+    let ir_axis = &molecule.bonds[ir_bond as usize];
+    assert_eq!(
+        ir_axis.atoms.map(|index| source_atoms[index as usize]),
+        [bond.from, bond.to],
+        "{name}"
+    );
+    for (reference, source) in [(ir_refs[0], stereo.refs[0]), (ir_refs[2], stereo.refs[1])] {
+        let nazuchem_ir::Ref::Atom(reference) = reference else {
+            panic!("{name}: missing IR axis reference")
+        };
+        assert_eq!(source_atoms[reference as usize], source, "{name}");
+    }
+    assert_eq!(
+        ir_winding,
+        if stereo.clockwise {
+            nazuchem_ir::AxialWinding::Clockwise
+        } else {
+            nazuchem_ir::AxialWinding::Anticlockwise
+        },
+        "{name}"
+    );
+    assert_eq!(
+        nazuchem_ir::Molecule::from_json(&molecule.to_json().unwrap()).unwrap(),
+        molecule,
+        "{name}"
+    );
     for (end, partner, reference) in [
         (bond.from, bond.to, stereo.refs[0]),
         (bond.to, bond.from, stereo.refs[1]),

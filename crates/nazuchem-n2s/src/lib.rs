@@ -42,6 +42,7 @@ pub mod functional_replacement;
 pub mod fused_ring_builder;
 pub mod fused_ring_numberer;
 pub mod graph;
+mod ir;
 pub mod isotope_specification_parser;
 mod modern_cip;
 pub mod parse_rules;
@@ -70,6 +71,7 @@ pub use api::{
     InitializationError, ParseOptions, ParseResult, ParseWarning, ParsingError, SerializationError,
     Status, WarningKind,
 };
+pub use ir::IrError;
 pub use nazuchem_kernel::budget::Budget;
 use std::sync::{Arc, OnceLock};
 

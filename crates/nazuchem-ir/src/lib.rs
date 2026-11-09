@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Origin: original
 // Source: ReShiki | src/naming.rs | 8e09fa7f89e47d8465772eabf2ef7f2ea491af3a
+// Source: Nazuchem | crates/nazuchem-ir/src/lib.rs | Phase B step 8a
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Extract shared naming vocabulary without changing its representation;
 // expose NameStatus::severity to preserve assessment ordering across crates.
 
-//! Shared naming vocabulary extracted from original ReShiki code.
-//!
-//! Phase A preserves the existing naming wire representation. The structure IR
-//! is deferred to Phase B.
+//! Shared naming vocabulary and the versioned structure intermediate representation.
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
+
+mod molecule;
+pub use molecule::*;
+mod cxsmiles;
+pub use cxsmiles::CxsmilesError;
 
 /// Notation used for isotopically substituted structures.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,6 +29,7 @@ pub enum IsotopeStyle {
 /// This is independent of the later OPSIN structure reconstruction check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "status", content = "reason", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum NameStatus {
     Preferred,
     NotPreferred(NameReason),
@@ -64,6 +68,7 @@ impl NameStatus {
 /// The naming rule family responsible for a preference assessment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum NameReason {
     SulfonylPrefix,
     AminoPrefix,

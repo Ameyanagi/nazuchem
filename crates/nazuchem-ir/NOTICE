@@ -13,5 +13,8 @@ Git history records the introduction of NameStatus and NameReason in
 these declarations and their messages; the extraction preserves the pinned
 source's complete current definitions.
 
-This crate contains shared vocabulary only. The naming engines' ported
+Phase B step 8a adds original Nazuchem structure IR v1 types, structural
+validation, versioned JSON and its schema, and the CXSMILES exporter under
+MIT OR Apache-2.0. The exporter implements the documented notation; it does
+not include the OPSIN writer implementation. The naming engines' ported
 algorithms and chemistry kernel are outside this crate.

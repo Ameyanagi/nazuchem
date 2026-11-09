@@ -38,6 +38,19 @@ hydrogen/parity references, and enhanced stereo groups needed by OPSIN.
 Semantic CXSMILES uses upstream mask 13: enhanced stereo, polymers, and atom
 labels; it omits cosmetic atom values such as naming locants.
 
+`Structure::to_ir()` returns validated IR v1 with stable atom identities, all
+locants, principal-parent membership and supported stereo. Its versioned JSON
+is lossless. Zero charge, zero radical electrons and false `hydrogens_stated`
+are omitted on write and restored on read. IR v1 freezes at the first published
+release; until then it may change without a version bump. `Eq` compares the
+ordered structure and annotations, not stereochemical equivalence.
+Atropisomer winding is reference-relative `Clockwise`, `Anticlockwise` or
+`Unknown` (JSON `"clockwise"`, `"anticlockwise"`, `"unknown"`); allene axial
+chirality is not representable in v1. IR CXSMILES export returns
+`nazuchem_ir::CxsmilesError::StereoNotExpressible` when notation would lose or
+introduce stereo, including atropisomers and some partially specified polyenes
+or cumulenes. See the [IR export documentation](../nazuchem-ir/docs/cxsmiles.md).
+
 `Parser::parse_word`, `parse_word_reverse`, `tokenize`, and `tokenize_reverse`
 expose the actual upstream annotation and word-splitting algorithms. Their input
 must already be ASCII-normalized with `preprocess::preprocess`, as in OPSIN's
