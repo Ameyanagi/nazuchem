@@ -2,7 +2,7 @@
 // Origin: original
 // Source: ReShiki | crates/chemistry/src/rings/tests.rs | be63a799aa03a83dc6ec74bb294f4d42b89298d3
 
-// Copied from crates/chemistry/src/rings/tests.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: use the crate-local byte-preserved ring fixture
+// Copied from crates/chemistry/src/rings/tests.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: use the crate-local byte-preserved ring fixture; test the 2026-11-10 Rust stable sort owner decision.
 use super::*;
 use crate::graph::{Atom, Bond};
 type TestResult = anyhow::Result<()>;
@@ -44,6 +44,44 @@ fn assert_cycles(graph: &Graph, rings: &Rings) {
             );
         }
     }
+}
+
+#[test]
+fn equal_size_rings_keep_discovery_order() -> TestResult {
+    let mut next_atom = 0;
+    let mut edges = Vec::new();
+    let mut rings = Vec::new();
+    for i in 0..64 {
+        let size = 3 + i % 2;
+        let ring = (next_atom..next_atom + size).collect::<Ring>();
+        edges.extend(
+            ring.iter()
+                .copied()
+                .zip(ring.iter().copied().cycle().skip(1)),
+        );
+        next_atom += size;
+        rings.push(ring);
+    }
+    let expected = [3, 4]
+        .into_iter()
+        .flat_map(|size| rings.iter().filter(move |ring| ring.len() == size).cloned())
+        .collect::<Vec<_>>();
+    let top = Topology::new(&graph(next_atom, &edges)).map_err(anyhow::Error::msg)?;
+    let mut state = State {
+        active: Vec::new(),
+        degrees: Vec::new(),
+        ring_atoms: Vec::new(),
+        ring_bonds: Vec::new(),
+        seen: BTreeSet::new(),
+        extras: Vec::new(),
+        budget: Budget::default(),
+    };
+    state
+        .remove_extra(&top, &mut rings)
+        .map_err(anyhow::Error::msg)?;
+    assert_eq!(rings, expected);
+    assert!(state.extras.is_empty());
+    Ok(())
 }
 
 #[test]

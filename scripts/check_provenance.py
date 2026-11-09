@@ -13,7 +13,6 @@ and their comments; it does not interpret bodies or attempt to infer upstream an
 
 import argparse
 import hashlib
-import json
 import re
 import subprocess
 import sys
@@ -61,19 +60,6 @@ RAW_LITERAL = re.compile(r'(?:br|cr|r)(#*)"')
 CHAR_LITERAL = re.compile(r"'(?:\\(?:[^\n]|u\{[^}]*\})|[^'\\\n])'")
 ORIGINS = {"original", "port", "copy", "adapted", "mixed", "data"}
 MODULE_SCOPE_SYMBOL = "module scope (mapping uncertain)"
-# These owner-deferred files are the only legacy-format exceptions. Pin both
-# source bytes and canonical ledger contents so the exception cannot spread or
-# silently accommodate changes to unresolved provenance.
-FROZEN_PENDING = {
-    "crates/nazuchem-kernel/src/native_order/linux_sort.rs": (
-        "cf814c15f7111d5473a0b8add9683c1a9ca49229eb4ed62e28c210ae099e43c0",
-        "f1bebe4cd078021f1ae6408364931aaa31e41aa251ba88b8b23d850770cf2611",
-    ),
-    "crates/nazuchem-kernel/src/native_order/sort_common.rs": (
-        "98660b6f23fb85316695b08855f646523208ef0bd625603e951c3c89e0fbf909",
-        "77f13e9de2d20a465ebb4b6c041babccfaa38d44d6b002f3522c167556c36146",
-    ),
-}
 
 
 @dataclass(frozen=True)
@@ -454,23 +440,7 @@ def check_region_members(
     return errors
 
 
-def ledger_entry_digest(entry: dict) -> str:
-    canonical = json.dumps(entry, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
 def check_rust(path: str, text: str, entry: dict) -> list[str]:
-    if frozen := FROZEN_PENDING.get(path):
-        errors = []
-        if hashlib.sha256(text.encode("utf-8")).hexdigest() != frozen[0]:
-            errors.append(f"{path}: frozen pending provenance source snapshot changed")
-        try:
-            digest = ledger_entry_digest(entry)
-        except (TypeError, ValueError):
-            digest = None
-        if digest != frozen[1]:
-            errors.append(f"{path}: frozen pending provenance ledger entry changed")
-        return errors
     errors = []
     code = mask_rust(text)
     first_code = re.search(r"\S", code)

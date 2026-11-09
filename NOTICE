@@ -27,27 +27,26 @@ OPSIN generation pins and the unresolved CPython patch revision. Complete
 terms, notices and CPython license history are in that crate's
 licenses/openclatura/, licenses/opsin/ and licenses/cpython/.
 
-Molecular perception: nazuchem-kernel adapts RDKit under BSD-3-Clause,
-SiMolecule centres under BSD-2-Clause, and LLVM libc++/Microsoft STL under
-Apache-2.0 WITH LLVM-exception. crates/nazuchem-kernel/NOTICE records exact
+Molecular perception: nazuchem-kernel adapts RDKit under BSD-3-Clause and
+SiMolecule centres under BSD-2-Clause. crates/nazuchem-kernel/NOTICE records exact
 revisions and incorporated scope. Complete terms and copyright notices are
-in that crate's licenses/rdkit/, licenses/centres/ and licenses/stdlib/.
+in that crate's licenses/rdkit/ and licenses/centres/.
 Shared naming vocabulary in nazuchem-ir is original ReShiki code under
 MIT OR Apache-2.0; its NOTICE records the source history.
 
 The facade's established package expression is:
-(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND
-(Apache-2.0 WITH LLVM-exception) AND Python-2.0.
+(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND Python-2.0.
 Each crate ships its applicable license texts and scope notice, and the
 facade's licenses/ tree includes the complete engine/kernel terms. Copied
 notices retain historical ReShiki paths and broader source inventories;
 PROVENANCE-nazuchem.toml and the crate scope notices identify the subset
 incorporated into this repository. Historical source pins remain unchanged.
 
-Owner decisions are still required for kernel native_order/linux_sort.rs
-and sort_common.rs source/licensing allocation, s2n
-data/bluebook/p25_retained.tsv reuse permission, and the test-only
-PubChem-derived tests/fixtures/s2n/bakeoff_corpus.tsv source terms. The ledger
+Equal-key sorts use Rust's stable sort; no C++ standard library code is included.
+
+Owner decisions are still required for s2n data/bluebook/p25_retained.tsv
+reuse permission and the test-only PubChem-derived
+tests/fixtures/s2n/bakeoff_corpus.tsv source terms. The ledger
 retains NOASSERTION for these materials. Established package expressions
 and the local dual-license grant do not resolve those rights. The corpus is
 excluded from packages, and publish = false remains in force for all crates.

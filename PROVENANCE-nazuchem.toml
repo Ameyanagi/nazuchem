@@ -1,8 +1,15 @@
 # Provenance for the standalone nazuchem library crates, bindings and regression fixtures.
 # Extracted from ReShiki after Phase A step 5; repository scaffolding is out of scope.
-# Historical source paths and unresolved source/licensing decisions remain unchanged.
+# Historical source paths for retained files remain unchanged; unresolved decisions remain explicit.
 # Source audit: 2026-11-09; owner decisions and source-pin gaps remain explicit below.
 # NOASSERTION is not a licence grant. Test-only fixtures are excluded from packages.
+
+# Owner decision 2026-11-10, "Rust stable sort": remove all six native_order module files,
+# the three C++ sort fingerprint fixtures and their active ledger entries. Use Rust standard
+# library stable sort calls; no Rust standard library implementation is copied. Source and
+# licence-use audit found no retained LLVM libc++/Microsoft STL adaptations, so the six
+# corresponding stdlib notice/text copies and the LLVM-exception package term are removed.
+# Remaining owner decisions, source-pin gaps, publish = false and npm private status persist.
 
 [[file]]
 path = "crates/nazuchem-kernel/Cargo.toml"
@@ -11,8 +18,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", ref = "777cdd3f98dfb955e165b17e352d3ce6da768b0c", path = "crates/nazuchem-kernel/Cargo.toml", license = "MIT OR Apache-2.0" },
 ]
-notes = "Kernel metadata declares all established incorporated licences; two sort-policy files remain pending owner decisions and publish = false remains in force."
-sha256 = "ff1b7595ee92aacf6cb6d8479082fd22e9b570bed6144013433440740640c279"
+notes = "Kernel metadata declares the retained incorporated licences after owner decision 2026-11-10, Rust stable sort; the removed C++ sorts were the only incorporated LLVM libc++/Microsoft STL uses, so their LLVM-exception term is removed. publish = false remains in force."
+sha256 = "c16da9b9d36a9f088524a4445306a3244b109ced7d708a6bd6138a13556d2852"
 
 [[file]]
 path = "crates/nazuchem-kernel/LICENSE"
@@ -51,8 +58,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "ReShiki/nazuchem", path = "crates/nazuchem-kernel/NOTICE", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0" },
 ]
-notes = "Phase A step 2 crate-local attribution and unresolved sort-policy notice. Phase A step 3 adds the pure identity, axis-marker and pseudoasymmetric-classifier scope with original ReShiki source pins. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "d34223c39be5e4c4e3d016a92c6c1de8e2aa277cf32dae53f18e4c0d3d4b53a9"
+notes = "Phase A step 2 crate-local attribution. Phase A step 3 adds the pure identity, axis-marker and pseudoasymmetric-classifier scope with original ReShiki source pins. Standalone packaging updates local path and scope wording; source pins and upstream attribution for retained files are unchanged. Owner decision 2026-11-10, Rust stable sort: per-OS C++ sorts, shared helpers and sort fingerprints are removed; no Rust standard library implementation is copied. The removed code was the only incorporated LLVM libc++/Microsoft STL use, so its notices, licence texts and LLVM-exception term are removed. publish = false is retained."
+sha256 = "f4a0ff70760d88a5ed20ac70b3072bbd90a2f638618cf9b47eb045b43a047940"
 
 [[file]]
 path = "crates/nazuchem-kernel/README.md"
@@ -61,8 +68,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "crates/nazuchem-kernel/README.md", license = "MIT OR Apache-2.0" },
 ]
-notes = "Extraction documentation records copied source, RDKit, centres and LLVM/Microsoft adaptations, crate-local notices and remaining sort-policy decisions. Phase A step 3 adds the pure identity, axis-marker and pseudoasymmetric-classifier scope with original ReShiki source pins. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "02b030fa0409b486cf97a08d43a67bc319c9a697282013a3976dc2c5267d0be0"
+notes = "Extraction documentation records copied source, RDKit and centres attribution, crate-local notices and the original extraction inventory. Phase A step 3 adds the pure identity, axis-marker and pseudoasymmetric-classifier scope with original ReShiki source pins. Standalone packaging updates local path and scope wording; source pins and upstream attribution for retained files are unchanged. Owner decision 2026-11-10, Rust stable sort: documents stable input-order ties and removal of the native C++ sorts, helpers, fingerprints and their sole-use LLVM libc++/Microsoft STL terms; no Rust standard library implementation is copied. publish = false is retained."
+sha256 = "861efc47d6f8c048d203fe95a538b525025c44396285e15fa316e64a9015aa65"
 
 [[file]]
 path = "crates/nazuchem-kernel/licenses/centres/LICENSE"
@@ -103,36 +110,6 @@ sources = [
 ]
 notes = "Crate-local complete licence text/notice copied from repository root; local NOTICE records the exact incorporated scope."
 sha256 = "cfd653d345f0a028867f57ea6178180114e4d5df81b453150445a3d01de15fab"
-
-[[file]]
-path = "crates/nazuchem-kernel/licenses/stdlib/NOTICE"
-origin = "copy"
-license = "Apache-2.0 WITH LLVM-exception"
-sources = [
-  { project = "LLVM libc++ / Microsoft STL", path = "licenses/stdlib/NOTICE", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "Apache-2.0 WITH LLVM-exception" },
-]
-notes = "Crate-local complete licence text/notice copied from repository root; local NOTICE records the exact incorporated scope."
-sha256 = "5eaa80d3b0b2265e65cd041c04bdaa6167fbaee92c294c789efad7ad2a968e2d"
-
-[[file]]
-path = "crates/nazuchem-kernel/licenses/stdlib/llvm-LICENSE"
-origin = "copy"
-license = "Apache-2.0 WITH LLVM-exception"
-sources = [
-  { project = "LLVM libc++ / Microsoft STL", path = "licenses/stdlib/llvm-LICENSE", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "Apache-2.0 WITH LLVM-exception" },
-]
-notes = "Crate-local complete licence text/notice copied from repository root; local NOTICE records the exact incorporated scope."
-sha256 = "3340babe8ac7bc6ae294d93aa01c310a250d43d5b760e5c12954882d4e5c83c7"
-
-[[file]]
-path = "crates/nazuchem-kernel/licenses/stdlib/msvc-LICENSE"
-origin = "copy"
-license = "Apache-2.0 WITH LLVM-exception"
-sources = [
-  { project = "LLVM libc++ / Microsoft STL", path = "licenses/stdlib/msvc-LICENSE", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "Apache-2.0 WITH LLVM-exception" },
-]
-notes = "Crate-local complete licence text/notice copied from repository root; local NOTICE records the exact incorporated scope."
-sha256 = "7c68a47568bd633f7a71ee5e2038660a2cc62ce8a5405999e2b69fab3f37469c"
 
 [[file]]
 path = "crates/nazuchem-kernel/src/aromaticity.rs"
@@ -306,76 +283,7 @@ sources = [
   { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/lib.rs", license = "MIT OR Apache-2.0" },
   { project = "RDKit", ref = "0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985", path = "Code/GraphMol/atomic_data.cpp", license = "BSD-3-Clause" },
 ]
-notes = "ReShiki kernel module and AtomFacts declarations retain the Element record layout used by the RDKit-derived atomic tables in atomic_data.rs, which are re-exported here. Conservatively attributed as adapted for that retained data model; mass/formula calculation operations were removed during extraction."
-
-[[file]]
-path = "crates/nazuchem-kernel/src/native_order.rs"
-origin = "original"
-license = "MIT OR Apache-2.0"
-sources = [
-  { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/native_order.rs", license = "MIT OR Apache-2.0" },
-]
-notes = "ReShiki checked platform-dispatch wrapper around separately attributed comparison-sort policies."
-
-[[file]]
-path = "crates/nazuchem-kernel/src/native_order/apple_sort.rs"
-origin = "adapted"
-license = "Apache-2.0 WITH LLVM-exception"
-sources = [
-  { project = "LLVM libc++", ref = "llvmorg-20.1.8 / Apple MacOSX26.2 SDK", path = "libcxx/include/__algorithm/sort.h", license = "Apache-2.0 WITH LLVM-exception" },
-  { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/native_order/apple_sort.rs", license = "Apache-2.0 WITH LLVM-exception" },
-]
-notes = "LLVM libc++ sort adaptation with integer keys, checked indexing and an explicit range stack."
-
-[[file]]
-path = "crates/nazuchem-kernel/src/native_order/linux_sort.rs"
-origin = "adapted"
-license = "NOASSERTION"
-sources = [
-  { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/native_order/linux_sort.rs", license = "NOASSERTION" },
-]
-notes = "Pending owner decision: sort-policy source/licensing allocation. Linux-reference sort-policy reproduction lacks an underlying origin/license statement; clean-room versus libstdc++ adaptation remains unresolved. Unresolved: History proves local introduction, but neither the header nor licenses/stdlib/NOTICE establishes whether source was consulted or independently reproduced from observations."
-
-[[file]]
-path = "crates/nazuchem-kernel/src/native_order/sort_common.rs"
-origin = "mixed"
-license = "NOASSERTION"
-sources = [
-  { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/native_order/sort_common.rs", license = "NOASSERTION" },
-  { project = "Microsoft STL", ref = "vs-2022-17.13 / MSVC 14.43.34808", path = "stl/inc/__msvc_heap_algorithms.hpp", license = "Apache-2.0 WITH LLVM-exception" },
-  { project = "LLVM libc++", ref = "llvmorg-20.1.8 / Apple MacOSX26.2 SDK", path = "libcxx/include/__algorithm/make_heap.h", license = "Apache-2.0 WITH LLVM-exception" },
-  { project = "LLVM libc++", ref = "llvmorg-20.1.8 / Apple MacOSX26.2 SDK", path = "libcxx/include/__algorithm/pop_heap.h", license = "Apache-2.0 WITH LLVM-exception" },
-  { project = "LLVM libc++", ref = "llvmorg-20.1.8 / Apple MacOSX26.2 SDK", path = "libcxx/include/__algorithm/push_heap.h", license = "Apache-2.0 WITH LLVM-exception" },
-  { project = "LLVM libc++", ref = "llvmorg-20.1.8 / Apple MacOSX26.2 SDK", path = "libcxx/include/__algorithm/sort_heap.h", license = "Apache-2.0 WITH LLVM-exception" },
-]
-notes = "Pending owner decision: sort-policy source/licensing allocation. Shared checked sort helpers retain known libc++/MSVC attribution; the complete source/licensing allocation remains unresolved. Unresolved: Known LLVM/MSVC policies and generic storage helpers are interleaved; exact source/independent-origin allocation for adjust/heap is not documented, so no complete license expression is asserted."
-parts = [
-  { items = ["fn key", "fn swap"], origin = "original", sources = [
-    { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/native_order/sort_common.rs", license = "MIT OR Apache-2.0" },
-  ] },
-  { items = ["fn insert", "fn adjust", "fn heap"], origin = "adapted", sources = [
-    { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/native_order/sort_common.rs", license = "NOASSERTION" },
-  ] },
-]
-
-[[file]]
-path = "crates/nazuchem-kernel/src/native_order/sort_tests.rs"
-origin = "original"
-license = "MIT OR Apache-2.0"
-sources = [
-  { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/native_order/sort_tests.rs", license = "MIT OR Apache-2.0" },
-]
-notes = "ReShiki unit-test harness for native_order/sort_tests invariants and regressions, copied with the documented extraction changes."
-
-[[file]]
-path = "crates/nazuchem-kernel/src/native_order/windows_sort.rs"
-origin = "adapted"
-license = "Apache-2.0 WITH LLVM-exception"
-sources = [
-  { project = "Microsoft STL", ref = "vs-2022-17.13 / MSVC 14.43.34808", path = "stl/inc/algorithm", license = "Apache-2.0 WITH LLVM-exception" },
-  { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/native_order/windows_sort.rs", license = "Apache-2.0 WITH LLVM-exception" },
-]
-notes = "Microsoft STL algorithm adaptation with integer keys, checked indexing and an explicit range stack."
+notes = "ReShiki kernel module and AtomFacts declarations retain the Element record layout used by the RDKit-derived atomic tables in atomic_data.rs, which are re-exported here. Conservatively attributed as adapted for that retained data model; mass/formula calculation operations were removed during extraction. Owner decision 2026-11-10, Rust stable sort: remove the native_order module declaration; retained source identities and licence are unchanged."
 
 [[file]]
 path = "crates/nazuchem-kernel/src/normalize.rs"
@@ -477,7 +385,7 @@ sources = [
   { project = "RDKit", ref = "0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985", path = "Code/GraphMol/FindRings.cpp", license = "BSD-3-Clause" },
   { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/rings.rs", license = "BSD-3-Clause" },
 ]
-notes = "RDKit molecular-perception adaptation retained through the chemistry-to-kernel copy."
+notes = "RDKit molecular-perception adaptation retained through the chemistry-to-kernel copy. Owner decision 2026-11-10, Rust stable sort: replace the native C++ size-ordering policy with a Rust standard library stable sort call, preserving input order for equal ring sizes."
 
 [[file]]
 path = "crates/nazuchem-kernel/src/rings/search.rs"
@@ -496,7 +404,7 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/rings/tests.rs", license = "MIT OR Apache-2.0" },
 ]
-notes = "ReShiki unit-test harness for rings invariants and regressions, copied with the documented extraction changes."
+notes = "ReShiki unit-test harness for rings invariants and regressions, copied with the documented extraction changes. Owner decision 2026-11-10, Rust stable sort: adds an original regression using 64 rings with interleaved sizes to check ascending order and stable equal-size ordering; the inherited test harness source pin is retained."
 
 [[file]]
 path = "crates/nazuchem-kernel/src/sanitize.rs"
@@ -647,7 +555,7 @@ sources = [
   { project = "RDKit", ref = "0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985", path = "Code/GraphMol/SmilesParse/SmilesWrite.cpp", license = "BSD-3-Clause" },
   { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/smiles/traversal.rs", license = "BSD-3-Clause" },
 ]
-notes = "RDKit molecular-perception adaptation retained through the chemistry-to-kernel copy."
+notes = "RDKit molecular-perception adaptation retained through the chemistry-to-kernel copy. Owner decision 2026-11-10, Rust stable sort: replace native C++ neighbor ordering with a Rust standard library stable sort call, preserving input order for equal keys."
 
 [[file]]
 path = "crates/nazuchem-kernel/src/smiles/write.rs"
@@ -797,7 +705,7 @@ sources = [
   { project = "RDKit", ref = "0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985", path = "Code/GraphMol/CIPLabeler/CIPLabeler.cpp", license = "BSD-3-Clause" },
   { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "crates/chemistry/src/stereo/cip/label.rs", license = "BSD-3-Clause" },
 ]
-notes = "RDKit molecular-perception adaptation retained through the chemistry-to-kernel copy."
+notes = "RDKit molecular-perception adaptation retained through the chemistry-to-kernel copy. Owner decision 2026-11-10, Rust stable sort: replace native C++ CIP index ordering with a Rust standard library stable sort call, preserving input order for equal keys."
 
 [[file]]
 path = "crates/nazuchem-kernel/src/stereo/cip/mancude.rs"
@@ -1156,39 +1064,6 @@ sources = [
 ]
 notes = "Synthetic dummy-atom ring-order regression graph copied byte-for-byte; its selection/generation procedure is not recorded. Unresolved: Local addition supports ReShiki-generated regression data, but no capture manifest or generator records the exact selection seed/procedure."
 sha256 = "f811fbfbc384bca5aa1549995a71321769d33ef4c3d5ed9080a123132e8c98c9"
-
-[[file]]
-path = "crates/nazuchem-kernel/tests/fixtures/smiles-sort-linux.json"
-origin = "data"
-license = "MIT OR Apache-2.0"
-sources = [
-  { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "tests/fixtures/smiles-sort-linux.json", license = "MIT OR Apache-2.0" },
-  { project = "ReShiki", ref = "82bdc0126d717e779b83f2bf13d507ef74ba7ae2", path = "tests/smiles_sort_reference.cpp", license = "MIT OR Apache-2.0" },
-]
-notes = "Generated native comparison-sort/heap fingerprints for libstdc++ 20260625, copied byte-for-byte from ReShiki fixtures."
-sha256 = "57bc7a550d07b9d6605f45e2043cda4e547a121266e191430b1e2f414edc3a0c"
-
-[[file]]
-path = "crates/nazuchem-kernel/tests/fixtures/smiles-sort-macos.json"
-origin = "data"
-license = "MIT OR Apache-2.0"
-sources = [
-  { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "tests/fixtures/smiles-sort-macos.json", license = "MIT OR Apache-2.0" },
-  { project = "ReShiki", ref = "82bdc0126d717e779b83f2bf13d507ef74ba7ae2", path = "tests/smiles_sort_reference.cpp", license = "MIT OR Apache-2.0" },
-]
-notes = "Generated native comparison-sort/heap fingerprints for libc++ 200100, copied byte-for-byte from ReShiki fixtures."
-sha256 = "573d8424545151aec196810a768aa635fc5362fea8023a02087530a3f7711c3b"
-
-[[file]]
-path = "crates/nazuchem-kernel/tests/fixtures/smiles-sort-windows.json"
-origin = "data"
-license = "MIT OR Apache-2.0"
-sources = [
-  { project = "ReShiki", ref = "be63a799aa03a83dc6ec74bb294f4d42b89298d3", path = "tests/fixtures/smiles-sort-windows.json", license = "MIT OR Apache-2.0" },
-  { project = "ReShiki", ref = "82bdc0126d717e779b83f2bf13d507ef74ba7ae2", path = "tests/smiles_sort_reference.cpp", license = "MIT OR Apache-2.0" },
-]
-notes = "Generated native comparison-sort/heap fingerprints for MSVC STL 143, copied byte-for-byte from ReShiki fixtures."
-sha256 = "6979a268cb6ff5913acff5e5c96b4055f76af86c9416a232f3c85712b9eb1aa2"
 
 [[file]]
 path = "crates/nazuchem-n2s/Cargo.toml"
@@ -7362,8 +7237,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/Cargo.toml", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Standalone facade tests add serde_json as a development dependency."
-sha256 = "79577769c2a53ad846c1fe12f6e96619bd54a80575c7ea50c231af492e5b5c1d"
+notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Standalone facade tests add serde_json as a development dependency. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
+sha256 = "c6bc9d6fa9eb7970c59062a65f63a25f05cca75f0962878abeada6bbc1262d1a"
 
 [[file]]
 path = "crates/nazuchem/LICENSE"
@@ -7402,8 +7277,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/NOTICE", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "e480ff5cee568842beb2508239caaf8f9503eb9ae1cdf6aeb668c1ecef7eeb9a"
+notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
+sha256 = "81ab9a2692d2d740b977b120ee03fb402699d9970b869eaae1c199dd2f43ab93"
 
 [[file]]
 path = "crates/nazuchem/README.md"
@@ -7412,8 +7287,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/README.md", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained."
-sha256 = "ed48d8dbe595f63e1ade8f40ec3e102c5113167270f05513c92a4f6dec96318f"
+notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
+sha256 = "400445d262a067657fac703c709c286742c19b175d8a8fbd6a246e2de4c08f28"
 
 [[file]]
 path = "crates/nazuchem/licenses/centres/LICENSE"
@@ -7472,8 +7347,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem-kernel/NOTICE", ref = "b2e00834cb43f347e2376efde308d57242c44397", license = "MIT OR Apache-2.0" },
 ]
-notes = "Complete license or notice inherited from crates/nazuchem-kernel/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "d34223c39be5e4c4e3d016a92c6c1de8e2aa277cf32dae53f18e4c0d3d4b53a9"
+notes = "Complete license or notice inherited from crates/nazuchem-kernel/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained. Owner decision 2026-11-10, Rust stable sort: synchronized with the current kernel scope notice after removal of the per-OS C++ sorts, helpers, fingerprints and sole-use LLVM libc++/Microsoft STL terms. The recorded historical source pin is retained."
+sha256 = "f4a0ff70760d88a5ed20ac70b3072bbd90a2f638618cf9b47eb045b43a047940"
 
 [[file]]
 path = "crates/nazuchem/licenses/nazuchem-s2n/NOTICE"
@@ -7546,36 +7421,6 @@ notes = "Complete license or notice copied byte-for-byte from crates/nazuchem-ke
 sha256 = "cfd653d345f0a028867f57ea6178180114e4d5df81b453150445a3d01de15fab"
 
 [[file]]
-path = "crates/nazuchem/licenses/stdlib/NOTICE"
-origin = "copy"
-license = "Apache-2.0 WITH LLVM-exception"
-sources = [
-  { project = "LLVM libc++ / Microsoft STL", path = "crates/nazuchem-kernel/licenses/stdlib/NOTICE", ref = "b2e00834cb43f347e2376efde308d57242c44397", license = "Apache-2.0 WITH LLVM-exception" },
-]
-notes = "Complete license or notice copied byte-for-byte from crates/nazuchem-kernel/licenses/stdlib/NOTICE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance."
-sha256 = "5eaa80d3b0b2265e65cd041c04bdaa6167fbaee92c294c789efad7ad2a968e2d"
-
-[[file]]
-path = "crates/nazuchem/licenses/stdlib/llvm-LICENSE"
-origin = "copy"
-license = "Apache-2.0 WITH LLVM-exception"
-sources = [
-  { project = "LLVM libc++ / Microsoft STL", path = "crates/nazuchem-kernel/licenses/stdlib/llvm-LICENSE", ref = "b2e00834cb43f347e2376efde308d57242c44397", license = "Apache-2.0 WITH LLVM-exception" },
-]
-notes = "Complete license or notice copied byte-for-byte from crates/nazuchem-kernel/licenses/stdlib/llvm-LICENSE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance."
-sha256 = "3340babe8ac7bc6ae294d93aa01c310a250d43d5b760e5c12954882d4e5c83c7"
-
-[[file]]
-path = "crates/nazuchem/licenses/stdlib/msvc-LICENSE"
-origin = "copy"
-license = "Apache-2.0 WITH LLVM-exception"
-sources = [
-  { project = "LLVM libc++ / Microsoft STL", path = "crates/nazuchem-kernel/licenses/stdlib/msvc-LICENSE", ref = "b2e00834cb43f347e2376efde308d57242c44397", license = "Apache-2.0 WITH LLVM-exception" },
-]
-notes = "Complete license or notice copied byte-for-byte from crates/nazuchem-kernel/licenses/stdlib/msvc-LICENSE at the recorded ReShiki commit. Facade NOTICE and dependency scope notices qualify historical paths, incorporated scope and unresolved provenance."
-sha256 = "7c68a47568bd633f7a71ee5e2038660a2cc62ce8a5405999e2b69fab3f37469c"
-
-[[file]]
 path = "crates/nazuchem/src/lib.rs"
 origin = "mixed"
 license = "MIT OR Apache-2.0"
@@ -7584,7 +7429,7 @@ sources = [
   { project = "Nazuchem", path = "crates/nazuchem/src/lib.rs", ref = "Phase B step 8a", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/src/lib.rs", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
-notes = "Phase B step 8b adds direct typed-IR admission and shared graph naming; extracted original helper bodies retain their existing ReShiki ancestry. Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved sort-policy and Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained."
+notes = "Phase B step 8b adds direct typed-IR admission and shared graph naming; extracted original helper bodies retain their existing ReShiki ancestry. Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; unresolved Blue Book provenance remains NOASSERTION in dependency records, with publish = false retained."
 parts = [
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem/src/lib.rs", ref = "Phase B step 8b", license = "MIT OR Apache-2.0", symbol = "molecule_to_name" }], items = ["fn molecule_to_name"] },
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem/src/lib.rs", ref = "Phase B step 8a", license = "MIT OR Apache-2.0", symbol = "name_to_molecule" }], items = ["fn name_to_molecule"] },
@@ -7765,8 +7610,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/python/Cargo.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "5ba42f487b29bacee045e8bbce71efedc4d843403005adcd2071304fba3608aa"
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
+sha256 = "2561fda2de42a8688a34fbf471b160fd664ccb63585fb948c289b0efe29a0947"
 
 [[file]]
 path = "bindings/python/README.md"
@@ -7785,8 +7630,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/python/pyproject.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "0433c3e6c191847e47e3af246e59ca943941098891a864a287d66631fb19eda1"
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
+sha256 = "baf587a2e38f4147c7f0af7590ee34f6355f05b9b6c105862eb3b69d1e2b7fba"
 
 [[file]]
 path = "bindings/python/python/nazuchem/__init__.py"
@@ -7884,8 +7729,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/wasm/Cargo.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "da758294ec6d916f6fb681b84b64e6ebedfe5399a8e05e7c65932e6707a0d635"
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
+sha256 = "c25506dddfd9d92a3f279b8267a50a243d84de41803173d1f497d00a9d79c1d3"
 
 [[file]]
 path = "bindings/wasm/README.md"
@@ -7914,8 +7759,8 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "bindings/wasm/package.json", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Adds the local Bun benchmark command; npm remains private and benchmark files remain outside the package whitelist."
-sha256 = "eb0bac23ebec8b73e548ea3f28bd0132cafbe28bb251021858ec2844302ff5a0"
+notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Adds the local Bun benchmark command; npm remains private and benchmark files remain outside the package whitelist. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
+sha256 = "fc75221796a01517acfcd0f9b45244a964d8ede740bb04647e1c9ac80c51133b"
 
 [[file]]
 path = "bindings/wasm/scripts/build.ts"

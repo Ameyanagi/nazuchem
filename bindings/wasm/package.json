@@ -8,7 +8,7 @@
     "directory": "bindings/wasm"
   },
   "homepage": "https://github.com/Ameyanagi/nazuchem",
-  "license": "(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND (Apache-2.0 WITH LLVM-exception) AND Python-2.0",
+  "license": "(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND Python-2.0",
   "type": "module",
   "main": "./dist/node/index.cjs",
   "module": "./dist/bundler/index.js",

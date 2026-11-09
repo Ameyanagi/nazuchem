@@ -2,14 +2,23 @@
 
 Internal molecular perception kernel for nazuchem. The standalone library copies
 the transitive chemistry modules used by OPSIN and openclatura from ReShiki at
-`be63a799aa03a83dc6ec74bb294f4d42b89298d3`, preserving the existing algorithms,
-platform sort policies, attribution comments, and relevant unit tests.
+`be63a799aa03a83dc6ec74bb294f4d42b89298d3`, retaining the algorithms,
+attribution comments, and relevant unit tests except for the sorting change
+described below.
 
-The module inventory records 88 copied Rust module files and 27,886 copied
-source lines, plus the required `AtomFacts`, `Element`, atomic table exports,
-module declarations, and crate attributes from the original root. The unused
+The initial extraction inventory recorded 88 copied Rust module files and
+27,886 copied source lines, plus the required `AtomFacts`, `Element`, atomic
+table exports, module declarations, and crate attributes from the original root. The unused
 generated-wedging module and the host allocation-measurement test stay outside
-the extraction. Four existing JSON test fixtures are copied without changes.
+the extraction. That inventory predates removal of the six sort module files
+and three sort fingerprint fixtures. The remaining ring-order fixture retains
+its original bytes and recorded provenance.
+
+Owner decision 2026-11-10, **Rust stable sort**: ordering uses Rust standard
+library stable sort calls. Equal keys preserve input order. Reproducing the
+per-OS C++ standard libraries' equal-key permutations is no longer a target.
+The native sort reproductions, shared helpers and C++ fingerprints were removed;
+no Rust standard library implementation was copied.
 
 It also includes ReShiki's pure canonical identity, private M/P axis
 marker codec, and pseudoasymmetric-centre classifier. These operate on kernel
@@ -19,21 +28,18 @@ outside this library. ReShiki's integration parity tests are maintained there.
 
 Molecular perception is adapted from RDKit under BSD-3-Clause. Extended
 tetrahedral CIP code is adapted from SiMolecule centres under BSD-2-Clause.
-Apple and Windows sorting policies adapt LLVM libc++ and Microsoft STL under
-Apache-2.0 WITH LLVM-exception. Original ReShiki/nazuchem code uses
-MIT OR Apache-2.0. Complete applicable third-party texts and notices travel
-with this crate in `licenses/rdkit/`, `licenses/centres/` and `licenses/stdlib/`;
-`LICENSE-MIT` and `LICENSE-APACHE` cover the local contributions. Historical
-ReShiki paths in copied notices identify the source repository.
+Original ReShiki/nazuchem code uses MIT OR Apache-2.0. Complete applicable
+third-party texts and notices travel with this crate in `licenses/rdkit/`
+and `licenses/centres/`; `LICENSE-MIT` and `LICENSE-APACHE` cover the local
+contributions. Historical ReShiki paths in copied notices identify the source
+repository.
 
 The manifest combines these established terms as
-`(MIT OR Apache-2.0) AND BSD-3-Clause AND BSD-2-Clause AND (Apache-2.0 WITH LLVM-exception)`.
-This expression does not resolve the source/licensing allocation of
-`native_order/linux_sort.rs` and `native_order/sort_common.rs`: their ledger
-licences remain `NOASSERTION`, pending the owner's sort-policy decision.
-`publish = false` remains in force. `PROVENANCE-nazuchem.toml` at the repository
-root records per-file ancestry, local function boundaries and the unresolved
-facts; the crate's `NOTICE` explains its incorporated scope.
+`(MIT OR Apache-2.0) AND BSD-3-Clause AND BSD-2-Clause`. Repository
+provenance work remains incomplete, and `publish = false` remains in force.
+`PROVENANCE-nazuchem.toml` at the repository root records per-file ancestry,
+local function boundaries and the unresolved facts; the crate's `NOTICE`
+explains its incorporated scope.
 
 `budget::Budget` is explicit at entry points that perform aromaticity
 perception, including SMILES import, sanitization, and stereo axis validation.

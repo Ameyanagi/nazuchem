@@ -3,11 +3,11 @@
 // Source: RDKit | Code/GraphMol/CIPLabeler/CIPLabeler.cpp | 0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985
 // Source: ReShiki | crates/chemistry/src/stereo/cip/label.rs | be63a799aa03a83dc6ec74bb294f4d42b89298d3
 // Copyright (C) 2020 Schrödinger, LLC. BSD-3-Clause; see licenses/rdkit/.
-// Changes: Rust adaptation; the internal chemistry-to-kernel copy and any extraction changes remain recorded below.
+// Changes: Rust adaptation; Rust stable sort (2026-11-10 owner decision), retaining the CIP candidate limit.
 
 //! Atomic full CIP labeling adapted from RDKit CIPLabeler.cpp (2026.03.6).
 //! Copyright (C) 2020 Schrödinger, LLC. BSD-3-Clause; see licenses/rdkit/.
-// Copied unchanged from crates/chemistry/src/stereo/cip/label.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3
+// Copied from crates/chemistry/src/stereo/cip/label.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: use Rust stable sort on every platform.
 use super::{
     Error, Molecule, at, at_mut,
     configuration::{Configuration, PrimaryLabel, Target},
@@ -15,7 +15,7 @@ use super::{
     invalid,
     rules::{Iterations, Rules},
 };
-use crate::{native_order, stereo::perception::State};
+use crate::stereo::perception::State;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -127,7 +127,6 @@ fn auxiliary<'a>(
     iterations: &mut Iterations,
 ) -> Result<(), Error> {
     let mut candidates = Vec::new();
-    let mut keys = Vec::new();
     for (index, configuration) in configurations.iter().enumerate() {
         if index == center {
             continue;
@@ -159,18 +158,14 @@ fn auxiliary<'a>(
                 }
                 let distance = graph.node(low)?.distance;
                 candidates.push((low, index, distance));
-                keys.push(distance.checked_neg().ok_or(Error::Limit)?);
             }
         }
     }
-    let order = native_order::indices(&keys).map_err(|e| match e {
-        native_order::Error::Limit => Error::Limit,
-        e => invalid(e.to_string()),
-    })?;
+    // Visit farther nodes first; equal-depth candidates retain input order.
+    candidates.sort_by_key(|&(_, _, distance)| std::cmp::Reverse(distance));
     let mut queue = BTreeMap::new();
     let mut previous = i32::MAX;
-    for index in order {
-        let &(node, configuration, distance) = at(&candidates, index)?;
+    for (node, configuration, distance) in candidates {
         if distance < previous {
             for (node, label) in std::mem::take(&mut queue) {
                 graph.set_node_aux(node, label)?;

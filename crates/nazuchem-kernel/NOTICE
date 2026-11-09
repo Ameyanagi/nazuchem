@@ -27,20 +27,13 @@ adapted in src/stereo/cip/configuration/extended_tetrahedral.rs.
 Copyright (c) 2020 John Mayfield. Complete BSD-2-Clause terms and attribution
 are in licenses/centres/LICENSE and licenses/centres/NOTICE.
 
-LLVM libc++ llvmorg-20.1.8 __algorithm/sort.h and heap primitives, as read
-from the Apple MacOSX26.2 SDK, and Microsoft STL VS 2022 17.13 / MSVC
-14.43.34808 algorithm header are adapted in src/native_order/apple_sort.rs
-and src/native_order/windows_sort.rs. Part of the LLVM Project;
-Copyright (c) Microsoft Corporation. Complete Apache-2.0 WITH LLVM-exception
-texts and the existing attribution are in licenses/stdlib/.
+Equal-key sorts use Rust's stable sort; no C++ standard library code is included.
 
 New ReShiki/nazuchem code is MIT OR Apache-2.0; see LICENSE-MIT and
 LICENSE-APACHE. Source headers and the repository-root PROVENANCE-nazuchem.toml
 distinguish inherited algorithms from the named local contributions. No
 kernel file is classified as a CPython adaptation by that ledger.
 
-Pending owner decision: src/native_order/linux_sort.rs and
-src/native_order/sort_common.rs retain NOASSERTION for their unresolved
-sort-policy source/licensing allocation. Known LLVM/Microsoft ancestry in
-sort_common.rs is preserved. The package expression records established
-terms only, not a grant for unresolved material; publish = false is retained.
+The package expression is (MIT OR Apache-2.0) AND BSD-3-Clause AND
+BSD-2-Clause. Historical source pins for retained files are unchanged.
+Repository provenance work remains incomplete; publish = false is retained.

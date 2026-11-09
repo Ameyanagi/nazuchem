@@ -3,7 +3,7 @@
 // Source: RDKit | Code/GraphMol/FindRings.cpp | 0e0d85f4ca34aeae15dfc0f7cf5503bdb0a8e985
 // Source: ReShiki | crates/chemistry/src/rings.rs | be63a799aa03a83dc6ec74bb294f4d42b89298d3
 // Copyright (C) 2003-2021 Greg Landrum and other RDKit contributors.
-// Changes: Rust adaptation; allow unused copied shared-work helper.
+// Changes: Rust adaptation; allow unused copied shared-work helper; Rust stable sort (2026-11-10 owner decision), retaining ring budgets.
 
 //! Symmetric SSSR ring perception adapted from RDKit FindRings.cpp (2026.03.6).
 //! Copyright (C) 2003-2021 Greg Landrum and other RDKit contributors.
@@ -11,7 +11,7 @@
 //!
 //! Preserve pruning, duplicate recovery and symmetry rules; replace recursive
 //! walks and unchecked indexing with bounded, fallible operations.
-// Copied from crates/chemistry/src/rings.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: allow unused copied shared-work helper
+// Copied from crates/chemistry/src/rings.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: allow unused copied shared-work helper; use Rust stable sort on every platform.
 mod search;
 #[cfg(test)]
 mod tests;
@@ -359,22 +359,13 @@ impl State {
     }
 
     fn remove_extra(&mut self, top: &Topology, rings: &mut Vec<Ring>) -> Result<(), String> {
-        let keys = rings
-            .iter()
-            .map(|r| i32::try_from(r.len()).map_err(|_| "Ring size limit exceeded".to_string()))
-            .collect::<Result<Vec<_>, _>>()?;
         self.budget.spend(
             rings
                 .len()
                 .saturating_mul(1 + rings.len().checked_ilog2().unwrap_or(0) as usize),
         )?;
-        let order = super::native_order::indices(&keys).map_err(|e| e.to_string())?;
-        let mut original = std::mem::take(rings);
-        for i in order {
-            rings.push(std::mem::take(
-                original.get_mut(i).ok_or("Missing sorted ring")?,
-            ));
-        }
+        // Equal-size rings retain their discovery order on every platform.
+        rings.sort_by_key(Vec::len);
         let bonds = rings
             .iter()
             .map(|r| top.bonds(r).map(|v| v.into_iter().collect::<HashSet<_>>()))

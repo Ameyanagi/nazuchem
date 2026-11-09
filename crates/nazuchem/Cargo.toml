@@ -6,8 +6,8 @@ publish = false
 exclude = ["tests/"]
 # Release gate: publication awaits the owner's release and provenance decisions.
 # Established terms from the facade and its engines/kernel. The dependencies'
-# unresolved sort-policy and Blue Book provenance remains pending; see NOTICE.
-license = "(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND (Apache-2.0 WITH LLVM-exception) AND Python-2.0"
+# Blue Book provenance remains pending; see NOTICE.
+license = "(MIT OR Apache-2.0) AND MIT AND BSD-3-Clause AND BSD-2-Clause AND Python-2.0"
 description = "Chemical naming with a Rust port of OPSIN and an extended openclatura 0.4.3 port"
 readme = "README.md"
 repository.workspace = true
