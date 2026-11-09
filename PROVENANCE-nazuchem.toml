@@ -7146,7 +7146,7 @@ sources = [
   { "project" = "Nazuchem/ReShiki", "path" = "crates/nazuchem-s2n/README.md", "ref" = "Phase A step 4 (local extraction)", "license" = "MIT OR Apache-2.0" },
 ]
 notes = "Phase A step 4 local extraction documentation and package metadata. Owner decision 2026-11-10 retains the Blue Book factual table outside the MIT/Apache-2.0 grant, with ledger licence NOASSERTION. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "8a47a547c7a46f0703c6b843feae376d20cdc7301824f37ad8a8d5917d056540"
+sha256 = "fce4a4f95064d65d3b23bb050ac3402f9dc4de37416bd86e2439ce93883b14cd"
 
 [[file]]
 path = "crates/nazuchem-s2n/licenses/cpython/LICENSE"
@@ -7289,7 +7289,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/README.md", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; the retained Blue Book factual table is excluded from the MIT/Apache-2.0 grant, with NOASSERTION in dependency records (owner decision 2026-11-10). Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
-sha256 = "3dafe21cbc9e2b8c03231e2b7932891a3ed67a3c56e778ad3f2b3b3104476367"
+sha256 = "4ba60ecdb725e54001de0a30776407d60b79543eed07a53a8c858341a4e32b5a"
 
 [[file]]
 path = "crates/nazuchem/licenses/centres/LICENSE"
