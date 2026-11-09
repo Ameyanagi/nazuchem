@@ -9,7 +9,7 @@
 // Frozen parser acceptance examples transcribed from pinned OPSIN 2.9.0
 // SMILESFragmentBuilderTest.java, b91b610af5ab07560fedb20730d7aef46bb2bca0 (MIT).
 // Graph-state assertions live in graph_construction.rs.
-use opsin::{graph::Graph, smiles::build_fragment};
+use nazuchem_n2s::{graph::Graph, smiles::build_fragment};
 
 #[test]
 fn upstream_resource_parser_acceptance_examples() {

@@ -11,7 +11,7 @@
 //! Source-level foundations from OPSIN 2.9.0, MIT Daniel Lowe/contributors.
 //! Pinned source b91b610af5ab07560fedb20730d7aef46bb2bca0: CycleDetectorTest,
 //! FragmentTest, FragmentManager.copyAndRelabelFragment, and StereochemistryTest.
-use opsin::{
+use nazuchem_n2s::{
     ambiguity, cycle_detector, fragment_tools as tools,
     graph::{AtomId, BondId, Element, FragmentId, Graph, StereoReference},
     smiles::build_fragment,
@@ -486,11 +486,14 @@ fn shared_phane_locant_patterns_preserve_the_source_match_boundaries() {
         ("1(2)[3]", "1", "2"),
     ] {
         assert_eq!(
-            opsin::tree_tools::split_compound_locant(locant),
+            nazuchem_n2s::tree_tools::split_compound_locant(locant),
             Some((base.to_string(), compound))
         );
     }
-    assert_eq!(opsin::tree_tools::split_compound_locant("1(2^^3)"), None);
+    assert_eq!(
+        nazuchem_n2s::tree_tools::split_compound_locant("1(2^^3)"),
+        None
+    );
 
     let (mut graph, fragment) = build("NCC", "", "none");
     let atoms = graph.fragment(fragment).atoms.clone();

@@ -10,7 +10,7 @@
 // Changes: Rust graph/tree construction and regression harness around source-derived cases/assertions; local regressions retained.
 
 //! All active examples from pinned FusedRingNumbererTest (MIT Daniel Lowe).
-use opsin::{ParseOptions, Parser, Status, fused_ring_numberer, graph::Graph, smiles};
+use nazuchem_n2s::{ParseOptions, Parser, Status, fused_ring_numberer, graph::Graph, smiles};
 use serde_json::{Value, json};
 
 #[test]

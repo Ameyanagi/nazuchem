@@ -7,9 +7,9 @@
 
 //! Full ordered ComponentGenerator fixtures derived from the pinned upstream
 //! transformations, with no external executable or backend.
-use opsin::component_generator::{ComponentGenerationContext, process_components};
-use opsin::parse_tree::{Arena, NodeId, ParseTree};
-use opsin::xml_declarations::*;
+use nazuchem_n2s::component_generator::{ComponentGenerationContext, process_components};
+use nazuchem_n2s::parse_tree::{Arena, NodeId, ParseTree};
+use nazuchem_n2s::xml_declarations::*;
 
 fn token(a: &mut Arena, p: NodeId, name: &str, value: &str, attrs: &[(&str, &str)]) -> NodeId {
     let n = a.token(name, value);

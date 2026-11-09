@@ -9,7 +9,7 @@
 //! Frozen Parser + SortParses output from the pinned upstream implementation.
 //! Test execution, decompression and parsing are entirely native Rust.
 use flate2::read::GzDecoder;
-use opsin::{ParseOptions, Parser, parse_tree::sort_parses};
+use nazuchem_n2s::{ParseOptions, Parser, parse_tree::sort_parses};
 use serde_json::{Value, json};
 use std::io::{BufRead, BufReader};
 
@@ -29,7 +29,7 @@ fn complete_parser_and_parse_ranking_match_pinned_opsin() {
             ..Default::default()
         };
         let mut actual = expected.clone();
-        actual["normalized"] = json!(opsin::preprocess::preprocess(input).unwrap());
+        actual["normalized"] = json!(nazuchem_n2s::preprocess::preprocess(input).unwrap());
         match parser.parse_trees(input, &options) {
             Ok(mut trees) => {
                 actual["error"] = Value::Null;

@@ -7,7 +7,7 @@
 
 //! Frozen complete-result differential gate; no live Java or network oracle.
 use flate2::read::GzDecoder;
-use opsin::{ParseOptions, Parser, Status};
+use nazuchem_n2s::{ParseOptions, Parser, Status};
 use serde_json::{Value, json};
 use std::io::Write;
 use std::{

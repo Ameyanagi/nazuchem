@@ -12,7 +12,7 @@
 //! 627ee5da4af551f9c4d1d766f545eb7cf519a344776e0bb677247a47abac0252.
 //! 2,160 combinations of valency preservation, bond order, out-valency,
 //! preferred/default atom, and required multiplicity. No Java in Rust tests.
-use opsin::{
+use nazuchem_n2s::{
     ambiguity, fragment_tools,
     graph::{AtomId, Graph},
     smiles::build_fragment,

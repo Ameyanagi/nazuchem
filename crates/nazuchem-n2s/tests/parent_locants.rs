@@ -4,7 +4,7 @@
 
 use std::collections::BTreeSet;
 
-use opsin::{
+use nazuchem_n2s::{
     ParseOptions, Parser, Status, Structure,
     graph::{AtomId, Element, Graph},
     smiles,

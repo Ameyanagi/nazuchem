@@ -9,12 +9,12 @@
 
 //! Native fixtures transcribed from OPSIN 2.9.0 ComponentProcessorTest.java.
 //! Copyright Daniel Lowe and OPSIN contributors; MIT.
-use opsin::ParseOptions;
-use opsin::build_state::BuildState;
-use opsin::component_processor::ComponentProcessor;
-use opsin::graph::{AtomId, Element, StereoGroupType};
-use opsin::parse_tree::{Arena, NodeId};
-use opsin::suffix_rules::SuffixRules;
+use nazuchem_n2s::ParseOptions;
+use nazuchem_n2s::build_state::BuildState;
+use nazuchem_n2s::component_processor::ComponentProcessor;
+use nazuchem_n2s::graph::{AtomId, Element, StereoGroupType};
+use nazuchem_n2s::parse_tree::{Arena, NodeId};
+use nazuchem_n2s::suffix_rules::SuffixRules;
 
 fn group(arena: &mut Arena, parent: NodeId, kind: &str, subtype: &str) -> NodeId {
     let group = arena.token("group", "");

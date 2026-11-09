@@ -9,12 +9,12 @@
 // Port of ComponentProcessorTest carbohydrate D/L cases plus exact source
 // branches from ComponentProcessor.java 1364–1439, pinned OPSIN 2.9.0.
 
-use opsin::ParseOptions;
-use opsin::build_state::BuildState;
-use opsin::component_processor::ComponentProcessor;
-use opsin::graph::{AtomId, StereoGroup, StereoGroupType};
-use opsin::parse_tree::{Arena, NodeId};
-use opsin::suffix_rules::SuffixRules;
+use nazuchem_n2s::ParseOptions;
+use nazuchem_n2s::build_state::BuildState;
+use nazuchem_n2s::component_processor::ComponentProcessor;
+use nazuchem_n2s::graph::{AtomId, StereoGroup, StereoGroupType};
+use nazuchem_n2s::parse_tree::{Arena, NodeId};
+use nazuchem_n2s::suffix_rules::SuffixRules;
 
 fn fixture(smiles: &str) -> (BuildState, Arena, NodeId) {
     let mut state = BuildState::new(ParseOptions::default());

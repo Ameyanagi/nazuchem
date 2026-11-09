@@ -31,5 +31,5 @@ fn resources_match_manifest_and_fingerprint() {
     }
     let fingerprint = format!("{:x}", fingerprint.finalize());
     assert_eq!(manifest["resource_fingerprint"]["sha256"], fingerprint);
-    assert_eq!(opsin::RESOURCE_FINGERPRINT, fingerprint);
+    assert_eq!(nazuchem_n2s::RESOURCE_FINGERPRINT, fingerprint);
 }

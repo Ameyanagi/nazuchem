@@ -8,7 +8,7 @@
 
 //! Exact pinned configuration behavior across all five flags and their interactions.
 use flate2::read::GzDecoder;
-use opsin::{ParseOptions, Parser, Status};
+use nazuchem_n2s::{ParseOptions, Parser, Status};
 use serde_json::{Value, json};
 use std::io::{BufRead, BufReader};
 #[path = "support/structure_snapshots.rs"]

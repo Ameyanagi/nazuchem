@@ -9,7 +9,7 @@
 // Changes: Rust graph/tree construction and regression harness around source-derived cases/assertions; local regressions retained.
 
 //! Upstream ChalcogenAcidLocantTest: acidic hydrogens must stay on the specified elements.
-use opsin::{ParseOptions, Parser, Status, graph::Element};
+use nazuchem_n2s::{ParseOptions, Parser, Status, graph::Element};
 
 #[test]
 fn terminal_chalcogens_match_acid_locants() {

@@ -8,19 +8,19 @@
 
 //! Graph-stage tests derived from OPSIN StereochemistryHandler and the
 //! StereochemistryTest fixtures. No external executable is used.
-use opsin::build_state::BuildState;
-use opsin::graph::{
+use nazuchem_n2s::build_state::BuildState;
+use nazuchem_n2s::graph::{
     AtomId, AtomParity, BondStereoValue, FragmentId, StereoGroupType, StereoReference,
 };
-use opsin::parse_tree::{Arena, NodeId};
-use opsin::stereo_analyser::analyse;
-use opsin::stereochemistry_handler::{
+use nazuchem_n2s::parse_tree::{Arena, NodeId};
+use nazuchem_n2s::stereo_analyser::analyse;
+use nazuchem_n2s::stereochemistry_handler::{
     StereochemistryError, StereochemistryHandler, apply_stereo_chemistry_to_stereo_centre,
     check_equivalency_of_atom_refs_and_parity, cis_trans_unambiguous_on_bond,
     swaps_required_to_sort,
 };
-use opsin::xml_declarations::*;
-use opsin::{ParseOptions, Parser, Status, WarningKind};
+use nazuchem_n2s::xml_declarations::*;
+use nazuchem_n2s::{ParseOptions, Parser, Status, WarningKind};
 
 fn token(a: &mut Arena, p: NodeId, name: &str, value: &str, attrs: &[(&str, &str)]) -> NodeId {
     let n = a.token(name, value);
@@ -54,7 +54,7 @@ fn fixture(smiles: &str) -> (BuildState, Arena, NodeId, NodeId, FragmentId) {
         .unwrap();
     a[group].fragment = Some(f);
     state.fragment_manager.make_hydrogens_explicit().unwrap();
-    opsin::cycle_detector::assign_cycle_membership(state.graph_mut(), f);
+    nazuchem_n2s::cycle_detector::assign_cycle_membership(state.graph_mut(), f);
     (state, a, root, group, f)
 }
 fn apply(

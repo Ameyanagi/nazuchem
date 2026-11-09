@@ -12,12 +12,12 @@
 //! Source-derived regression cases from OPSIN 2.9.0
 //! ComponentGeneration_ProcesslocantsTest, StereochemistryTest,
 //! AmbiguitiesAndIrregularitiesTest and MiscTest (MIT).
-use opsin::WarningKind;
-use opsin::component_generator::{
+use nazuchem_n2s::WarningKind;
+use nazuchem_n2s::component_generator::{
     ComponentGenerationContext, ComponentGenerator, normalise_binary_brackets,
 };
-use opsin::parse_tree::{Arena, NodeId};
-use opsin::xml_declarations::*;
+use nazuchem_n2s::parse_tree::{Arena, NodeId};
+use nazuchem_n2s::xml_declarations::*;
 
 fn token(a: &mut Arena, p: NodeId, name: &str, value: &str, attrs: &[(&str, &str)]) -> NodeId {
     let n = a.token(name, value);

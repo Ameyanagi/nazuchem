@@ -12,7 +12,7 @@
 //! fixture SHA256 identities are recorded in provenance/manifest.json.
 //! Captured with package-local SMILESFragmentBuilder.build(value,type,labels),
 //! then FragmentTools.convertSpareValenciesToDoubleBonds. Tests invoke no Java.
-use opsin::{
+use nazuchem_n2s::{
     fragment_tools,
     graph::{FragmentId, Graph},
     smiles::build_fragment,

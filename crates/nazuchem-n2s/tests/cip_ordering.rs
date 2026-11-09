@@ -11,9 +11,9 @@
 //! commit b91b610af5ab07560fedb20730d7aef46bb2bca0 (MIT).
 //! Upstream atom IDs start at one; this crate's arena indices start at zero.
 
-use opsin::cip::{CipOrderingError, CipSequenceRules};
-use opsin::graph::{AtomId, Element, Graph};
-use opsin::smiles::build_fragment;
+use nazuchem_n2s::cip::{CipOrderingError, CipSequenceRules};
+use nazuchem_n2s::graph::{AtomId, Element, Graph};
+use nazuchem_n2s::smiles::build_fragment;
 use std::cmp::Ordering;
 
 #[derive(Debug, Clone, Copy)]
@@ -405,7 +405,8 @@ fn pyrrolide_resonance_forms_preserve_drawn_ordering() {
 fn fused_indenide_preserves_drawn_kekule_ordering() {
     let mut graph = Graph::default();
     let fragment = build_fragment(&mut graph, "C[C@H](O)[C-]1C=Cc2ccccc21", "", "").unwrap();
-    opsin::fragment_tools::convert_spare_valencies_to_double_bonds(&mut graph, fragment).unwrap();
+    nazuchem_n2s::fragment_tools::convert_spare_valencies_to_double_bonds(&mut graph, fragment)
+        .unwrap();
     graph.make_hydrogens_explicit(fragment).unwrap();
     check(&graph, 2, &[El(Element::H), Id(1), Id(4), El(Element::O)]);
 }
@@ -544,7 +545,8 @@ fn ineligible_fused_indenide_disables_component_resonance_averaging() {
     let mut graph = Graph::default();
     let fragment =
         build_fragment(&mut graph, "O[C@H]([C-]1C=CC=C1)[C-]1C=Cc2ccccc21", "", "").unwrap();
-    opsin::fragment_tools::convert_spare_valencies_to_double_bonds(&mut graph, fragment).unwrap();
+    nazuchem_n2s::fragment_tools::convert_spare_valencies_to_double_bonds(&mut graph, fragment)
+        .unwrap();
     graph.make_hydrogens_explicit(fragment).unwrap();
     // origin/main's drawn-bond ordering: both attachment atoms expose [C, C].
     // In the next sphere, the fused aromatic carbon has two actual C neighbours

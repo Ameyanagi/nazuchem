@@ -10,12 +10,12 @@
 // the embedded suffix rules at commit b91b610af5ab07560fedb20730d7aef46bb2bca0.
 // These tests require no Java installation or network.
 
-use opsin::ParseOptions;
-use opsin::build_state::BuildState;
-use opsin::graph::{AtomId, Element, FragmentId};
-use opsin::parse_tree::{Arena, NodeId};
-use opsin::suffix_applier::SuffixApplier;
-use opsin::suffix_rules::SuffixRules;
+use nazuchem_n2s::ParseOptions;
+use nazuchem_n2s::build_state::BuildState;
+use nazuchem_n2s::graph::{AtomId, Element, FragmentId};
+use nazuchem_n2s::parse_tree::{Arena, NodeId};
+use nazuchem_n2s::suffix_applier::SuffixApplier;
+use nazuchem_n2s::suffix_rules::SuffixRules;
 
 fn parent(
     smiles: &str,
@@ -64,7 +64,7 @@ fn resolve(
     arena: &mut Arena,
     group: NodeId,
     suffixes: &[NodeId],
-) -> Result<(), opsin::ParsingError> {
+) -> Result<(), nazuchem_n2s::ParsingError> {
     let rules = SuffixRules::new().unwrap();
     SuffixApplier::new(state, &rules).resolve_suffixes(arena, group, suffixes)
 }

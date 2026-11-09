@@ -9,7 +9,7 @@
 // Copyright 2017 Daniel Lowe
 
 //! Frozen development oracle output, not a runtime Java dependency.
-use opsin::{Parser, parse_rules::ParseTokens};
+use nazuchem_n2s::{Parser, parse_rules::ParseTokens};
 use serde_json::{Value, json};
 
 fn alternatives(tokens: &[ParseTokens]) -> Value {
@@ -34,7 +34,8 @@ fn native_annotation_and_tokenization_match_pinned_opsin() {
         let input = expected["input"].as_str().unwrap();
         let mode = expected["mode"].as_str().unwrap();
         let mut actual = json!({ "input": input, "mode": mode });
-        let normalized = opsin::preprocess::preprocess(input).expect("corpus names preprocess");
+        let normalized =
+            nazuchem_n2s::preprocess::preprocess(input).expect("corpus names preprocess");
         actual["normalized"] = json!(normalized);
         if mode.starts_with("parse") {
             let result = if mode == "parse" {

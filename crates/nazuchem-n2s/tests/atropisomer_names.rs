@@ -2,7 +2,7 @@
 // Origin: original
 // Source: ReShiki | crates/opsin/tests/atropisomer_names.rs | 2df788dc456793c687b934afd6d4b317e3c73ef8
 
-use opsin::{
+use nazuchem_n2s::{
     Axis, ParseOptions, Parser, Status, Structure,
     graph::{AxialStereo, Graph},
     smiles,

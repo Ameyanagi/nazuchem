@@ -201,15 +201,15 @@
     "native_compatibility_status": "all 640 complete records exact; all five flags crossed in all 32 combinations"
   },
   "native_crate_acceptance": {
-    "command": "cargo test -p opsin --all-targets --offline -j4",
+    "command": "cargo test -p nazuchem-n2s --all-targets --offline -j4",
     "passed_test_functions": 371,
     "integration_targets": 42,
     "failed": 0,
     "ignored": 0,
     "runtime_java_required": false,
-    "strict_lint_command": "cargo clippy -p opsin --all-targets --offline -- -D warnings",
+    "strict_lint_command": "cargo clippy -p nazuchem-n2s --all-targets --offline -- -D warnings",
     "strict_clippy": "pass",
-    "format_command": "cargo fmt -p opsin -- --check",
+    "format_command": "cargo fmt -p nazuchem-n2s -- --check",
     "format_check": "pass",
     "unit_test_functions": 17
   },

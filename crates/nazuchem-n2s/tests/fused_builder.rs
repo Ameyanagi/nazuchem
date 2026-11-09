@@ -6,7 +6,7 @@
 // Changes: Rust graph/tree construction and regression harness around source-derived cases/assertions; local regressions retained.
 
 //! Direct stage fixtures for the pinned FusedRingBuilder branches (MIT OPSIN).
-use opsin::{
+use nazuchem_n2s::{
     ParseOptions,
     build_state::BuildState,
     fused_ring_builder::process_fused_rings,

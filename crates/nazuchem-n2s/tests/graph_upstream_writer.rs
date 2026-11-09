@@ -9,7 +9,7 @@
 // Frozen examples transcribed from OPSIN 2.9.0 SMILESWriterTest.java.
 // Upstream commit b91b610af5ab07560fedb20730d7aef46bb2bca0, MIT.
 // No Java executable or external oracle is used by these tests.
-use opsin::{
+use nazuchem_n2s::{
     ParseOptions, Parser, Status,
     graph::{AtomId, Graph},
     smiles::{build_fragment, write_semantic_cxsmiles},

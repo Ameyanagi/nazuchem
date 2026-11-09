@@ -15,7 +15,7 @@
 // Copyright 2017 Daniel Lowe
 // Changes: Rust ownership, arena/container and error-handling adaptation; integrated native changes are documented in PORTING.md. Original function boundaries are marked below.
 
-//! Native Rust migration of OPSIN main, commit 42e87ac6.
+//! nazuchem-n2s: a Rust port of OPSIN by Daniel Lowe (MIT), main commit 42e87ac6.
 //!
 //! The embedded resources and annotation algorithm are ported from the pinned
 //! upstream source. The migration ledger records which structure-building

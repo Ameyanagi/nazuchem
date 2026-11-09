@@ -63,13 +63,13 @@ edge names crossed with all 32 combinations of the five upstream flags. Those
 fixtures cover radical wildcard attachment labels, polymer semantics, acid
 omission, unsupported stereo warnings/failures, and detailed failure analysis.
 
-The final Java-free `cargo test -p opsin --all-targets --offline -j4` run passes
+The final Java-free `cargo test -p nazuchem-n2s --all-targets --offline -j4` run passes
 all 371 test functions across 42 integration targets plus library tests, with no failed or ignored
 tests. This includes the complete result gates and the intermediate oracles.
-Strict `cargo clippy -p opsin --all-targets --offline -- -D warnings` also
+Strict `cargo clippy -p nazuchem-n2s --all-targets --offline -- -D warnings` also
 passes. The reviewed lint changes preserve ordered traversal and the owned
 snapshots required while parse-tree child lists are mutated.
-`cargo fmt -p opsin -- --check` passes as well.
+`cargo fmt -p nazuchem-n2s -- --check` passes as well.
 
 Application worker integration, release-artifact dependency/runtime checks and
 the repository's broader required checks are maintained by the application

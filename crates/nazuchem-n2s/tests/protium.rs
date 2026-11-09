@@ -2,7 +2,7 @@
 // Origin: original
 // Source: ReShiki | crates/opsin/tests/protium.rs | 2fb808b58e5f572709ea335de644e6f5df406852
 
-use opsin::{
+use nazuchem_n2s::{
     ParseOptions, Parser, Status, WarningKind,
     graph::{Element, Graph},
     smiles::{build_fragment, write_semantic_cxsmiles},

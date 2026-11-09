@@ -10,13 +10,13 @@
 // OPSIN 2.9.0 construction fixtures, source commit
 // b91b610af5ab07560fedb20730d7aef46bb2bca0. Expected parity and valency
 // values are transcribed from SMILESFragmentBuilderTest.java (MIT).
-use opsin::graph::{
+use nazuchem_n2s::graph::{
     AtomId, BondStereoValue, Element, Graph, StereoGroup, StereoGroupType, StereoReference,
 };
-use opsin::smiles::{build_fragment, write_semantic_cxsmiles};
-use opsin::valence;
+use nazuchem_n2s::smiles::{build_fragment, write_semantic_cxsmiles};
+use nazuchem_n2s::valence;
 
-fn build(smiles: &str, labels: &str) -> (Graph, opsin::graph::FragmentId) {
+fn build(smiles: &str, labels: &str) -> (Graph, nazuchem_n2s::graph::FragmentId) {
     let mut graph = Graph::default();
     let fragment = build_fragment(&mut graph, smiles, "test", labels).unwrap();
     (graph, fragment)
