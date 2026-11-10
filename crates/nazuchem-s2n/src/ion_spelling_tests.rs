@@ -295,6 +295,24 @@ fn ion_spelling_matrix() {
             NameStatus::Preferred,
         ),
         (
+            "#31 octahydroisoquinolinium",
+            "C1=CC2C[NH2+]CCC2CC1",
+            "1,2,3,4,4a,5,6,8a-octahydroisoquinolin-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#31 two protonated ring N",
+            "[NH2+]1CCc2cc3c(cc2C1)C[NH2+]CC3",
+            "1,2,3,4,6,7,8,9-octahydropyrido[4,3-g]isoquinoline-2,8-diium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#30 substituted isoindolinium",
+            "Clc1ccc2C[NH+](C)Cc2c1",
+            "5-chloro-2-methyl-2,3-dihydro-1H-isoindol-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
             "control nitrobenzene",
             "[O-][N+](=O)c1ccccc1",
             "nitrobenzene",
