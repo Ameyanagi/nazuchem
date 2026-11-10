@@ -843,9 +843,9 @@ impl Assembly<'_> {
                 )
             })
             .collect();
-        let indicated_cited = hydrogens
-            .iter()
-            .any(|&id| self.arena[id].name != "hydro" && self.attr(id, "locant").is_some());
+        let indicated_cited = hydrogens.iter().any(|&id| {
+            self.arena[id].name == "indicatedHydrogen" && self.attr(id, "locant").is_some()
+        });
         for hydrogen in hydrogens {
             if let Some(locant) = self.attr(hydrogen, "locant") {
                 let atom = self.atom_by_locant(fragment, &locant)?;

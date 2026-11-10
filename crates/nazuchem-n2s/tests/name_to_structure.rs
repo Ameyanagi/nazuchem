@@ -75,6 +75,8 @@ fn cited_indicated_hydrogen_rejects_hydro_prefixes_that_strand_an_atom() {
         "3a,4,7,7a-tetrahydro-2H-isoindole",
         "3a,4,7,7a-tetrahydro-2H-isoindol-2-ium",
         "4,5-dihydro-2H-imidazole",
+        // P-73.1.1.2: adding hydrons does not supply the missing hydro prefixes.
+        "4,5-dihydro-2H-imidazole-1,3-diium",
         "4,6-dihydro-1H-indene",
         "hexahydro-1H,6H-pyrrolo[3,4-b]pyridine",
         // The spiro junction replaces the cited atom.
@@ -100,6 +102,9 @@ fn cited_indicated_hydrogen_rejects_hydro_prefixes_that_strand_an_atom() {
         ("1,3-dihydro-2H-isoindole", "C1NCC2=CC=CC=C12"),
         ("octahydro-1H-pyrrolo[3,4-b]pyridine", "N1C2C(CCC1)CNC2"),
         ("pyrimidine-2,4(1H,3H)-dione", "N1C(NC(C=C1)=O)=O"),
+        // P-14.7.2: added hydrogen is not the parent's indicated hydrogen.
+        ("4,5-dihydroimidazol-2(3H)-one", "N1C(NCC1)=O"),
+        ("4,5-dihydro-1H-imidazol-2(3H)-one", "N1C(NCC1)=O"),
         // Indicated hydrogen cited in one spiro component only.
         (
             "spiro[1,3-dihydroisoindole-1,2'-2,3-dihydro-1H-indene]",
