@@ -42,7 +42,10 @@ public GitHub repository for npm provenance.
   environment secret **`NPM_BOOTSTRAP_TOKEN`**. After publication configure
   [trusted publishing](https://docs.npmjs.com/trusted-publishers/) for package
   **`nazuchem`**: GitHub owner **`Ameyanagi`**, repository **`nazuchem`**,
-  workflow **`release.yml`**, environment **`npm`**.
+  workflow **`release.yml`**, environment **`npm`**, and enable **Allow npm
+  publish** (new configurations allow only staged publishing). A new
+  configuration [expires](https://docs.npmjs.com/trusted-publishers/#trusted-publisher-configuration-expiry)
+  unless used within two days, so create it just before the next release.
   Delete the bootstrap secret and revoke its token. OIDC needs npm ≥11.5.1 and
   Node ≥22.14.0; the workflow's pinned Node includes a suitable npm. The package
   repository URL must match this repository. npm generates provenance for the
