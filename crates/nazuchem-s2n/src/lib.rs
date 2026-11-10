@@ -1211,7 +1211,7 @@ mod tests {
             ("CC(=O)OC(C)=O", "acetic anhydride", NameStatus::Preferred),
             (
                 "CC(=O)OC(=O)CCC(=O)OC(C)=O",
-                "4-(acetyloxy)-4-oxobutanoic acetic anhydride",
+                "acetic 4-(acetyloxy)-4-oxobutanoic anhydride",
                 NameStatus::Unverified(NameReason::UnauditedPath),
             ),
             (
@@ -1480,6 +1480,69 @@ mod tests {
                 .unwrap_or_else(|error| panic!("{smiles}: {error}"));
             assert_eq!(name.text, expected_name, "{smiles}");
             assert_eq!(name.status, expected_status, "{smiles}: {}", name.text);
+        }
+    }
+
+    #[test]
+    fn mixed_anhydride_acids_follow_alphanumerical_order() {
+        // P-65.7.2: the acids are cited in alphanumerical order (P-14.5).
+        for (smiles, expected) in [
+            // P-14.5: enclosing marks take no part ('phenoxy' before 'phenyls').
+            (
+                "O=C(OC(=O)c1ccc(Sc2ccccc2)cc1)c1ccc(Oc2ccccc2)cc1",
+                "4-phenoxybenzoic 4-(phenylsulfanyl)benzoic anhydride",
+            ),
+            (
+                "CC(=O)OC(=O)c1ccc(Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
+                "acetic 4-[4-(4-phenoxyphenoxy)phenoxy]benzoic anhydride",
+            ),
+            // P-14.5.4: equal letters; lowest locants at the first point of
+            // difference, in order of citation.
+            (
+                "O=C(OC(=O)CCCCCCCCC(Cl)C)C(Cl)CCCCCCCCC",
+                "2-chloroundecanoic 10-chloroundecanoic anhydride",
+            ),
+            (
+                "O=C(OC(=O)C(Cl)C(Br)C)C(Br)C(Cl)C",
+                "2-bromo-3-chlorobutanoic 3-bromo-2-chlorobutanoic anhydride",
+            ),
+            // P-14.5: the 'a' of the compound locant 4a is no Roman letter;
+            // P-14.5.4: 4 is lower than 4a.
+            (
+                "BrC1C(CC(C2CCCCC12)C(=O)OC(=O)C1C(CCC2(CCCCC12)Br)Cl)Cl",
+                "4-bromo-3-chlorodecahydronaphthalene-1-carboxylic 4a-bromo-2-chlorodecahydronaphthalene-1-carboxylic anhydride",
+            ),
+            // P-14.5.3: fusion letters are italic and count only after the
+            // Roman letters ('carbot' before 'carbox').
+            (
+                "BrC1=CC=C2C(=N1)C=C(O2)C(=O)OC(=S)C2=C(C=1C=NC=CC1O2)Br",
+                "3-bromofuro[3,2-c]pyridine-2-carbothioic 5-bromofuro[3,2-b]pyridine-2-carboxylic anhydride",
+            ),
+            // P-14.5: the indicated hydrogen 1H is a locant ('iodo' before 'pyrrole').
+            (
+                "ICC(=O)OC(=O)c1ccc[nH]1",
+                "iodoacetic 1H-pyrrole-2-carboxylic anhydride",
+            ),
+            // P-14.5.1, P-14.5.3: tert is italic ('butyl' before 'chloro').
+            (
+                "CC(C)(C)c1ccc(cc1)C(=O)OC(=O)c1ccc(Cl)cc1",
+                "4-(tert-butyl)benzoic 4-chlorobenzoic anhydride",
+            ),
+            // P-14.5: stereodescriptors take no part ('bromob' before 'bromoc').
+            (
+                "O=C(OC(=O)c1c(Br)cc([C@H](Br)Cl)cc1)c1cc(Br)c([C@H](F)Cl)cc1",
+                "2-bromo-4-[(S)-bromochloromethyl]benzoic 3-bromo-4-[(R)-chlorofluoromethyl]benzoic anhydride",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default())
+                .unwrap_or_else(|error| panic!("{smiles}: {error}"));
+            assert_eq!(name.text, expected, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
         }
     }
 

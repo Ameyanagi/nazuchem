@@ -3446,7 +3446,69 @@ pub(super) fn try_name_anhydride_component(
                     halves[0].1 = format!("{}-{}", mol.atoms[&path[1]].symbol, halves[0].1);
                     halves[1].1 = format!("{}-{}", mol.atoms[&path[2]].symbol, halves[1].1);
                 }
-                halves.sort_by(|a, b| a.0.cmp(&b.0));
+                // P-65.7.2 cites the acids in alphabetical order, the
+                // alphanumerical order of P-14.5: nonitalic Roman letters first,
+                // then italic letters (P-14.5.3), then the locants in order of
+                // citation, lowest at the first point of difference (P-14.5.4).
+                // Enclosing marks, locants with their letters (4a, 1H, N,
+                // 1lambda^4) and stereodescriptors such as (S) or (1r,4r) give no
+                // Roman letters; fusion letters and words such as tert are italic.
+                let order_key = |name: &str| {
+                    const ITALIC_WORDS: [&str; 10] = [
+                        "tert", "sec", "cis", "trans", "endo", "exo", "syn", "anti", "as", "asym",
+                    ];
+                    let chars: Vec<char> = name.chars().collect();
+                    let (mut roman, mut italic, mut locants) =
+                        (String::new(), String::new(), Vec::new());
+                    let mut i = 0;
+                    while i < chars.len() {
+                        let c = chars[i];
+                        let run = |from: usize, f: fn(&char) -> bool| {
+                            from + chars[from..].iter().take_while(|c| f(c)).count()
+                        };
+                        if c == '(' {
+                            // A descriptor such as (S), (2E) or (1r,4r) has no
+                            // hyphen and no word of two or more letters.
+                            let end = chars[i..]
+                                .iter()
+                                .position(|&c| c == ')')
+                                .map_or(chars.len(), |n| i + n);
+                            let inner = &chars[i + 1..end];
+                            let descriptor = !inner.contains(&'-')
+                                && !inner
+                                    .windows(2)
+                                    .any(|w| w.iter().all(char::is_ascii_lowercase));
+                            i = if descriptor { end + 1 } else { i + 1 };
+                        } else if c.is_ascii_digit() {
+                            let digits = run(i, char::is_ascii_digit);
+                            let number: u32 =
+                                chars[i..digits].iter().collect::<String>().parse().unwrap();
+                            // Letters written onto a locant: 4a, 1H, 3aH, 1lambda.
+                            let letters = run(digits, char::is_ascii_alphabetic);
+                            let letter = match chars[digits..letters] {
+                                [l] | [l, 'A'..='Z', ..] if l.is_ascii_lowercase() => Some(l),
+                                _ => None,
+                            };
+                            i = run(letters, |c| *c == '\'');
+                            locants.push((number, letter, i - letters));
+                        } else if c.is_ascii_alphabetic() {
+                            let end = run(i, char::is_ascii_alphabetic);
+                            let word: String = chars[i..end].iter().collect();
+                            if word.len() == 1 && c.is_ascii_lowercase()
+                                || ITALIC_WORDS.contains(&word.as_str())
+                            {
+                                italic.push_str(&word);
+                            } else if !word.contains(|c: char| c.is_ascii_uppercase()) {
+                                roman.push_str(&word);
+                            }
+                            i = end;
+                        } else {
+                            i += 1;
+                        }
+                    }
+                    (roman, italic, locants)
+                };
+                halves.sort_by_cached_key(|half| order_key(&half.0));
                 format!("{} {} {class}", halves[0].1, halves[1].1)
             };
             Ok(Some(StructuralParentName {
@@ -4187,7 +4249,7 @@ mod tests {
             ("CC(=O)OC(C)=O", "acetic anhydride", true),
             (
                 "CC(=O)OC(=O)CCC(=O)OC(C)=O",
-                "4-(acetyloxy)-4-oxobutanoic acetic anhydride",
+                "acetic 4-(acetyloxy)-4-oxobutanoic anhydride",
                 false,
             ),
         ] {
