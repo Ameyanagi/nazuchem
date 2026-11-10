@@ -102,6 +102,11 @@ fn chalcogen_peroxy_names_keep_their_element_order() {
         ("S-cyclohexyl O-methyl thioperoxide", "COSC1CCCCC1"),
         ("Se-ethyl S-methyl selenothioperoxide", "CS[Se]CC"),
         ("dimethyl selenoperoxide", "CO[Se]C"),
+        // A single leading locant still belongs to its substituent.
+        (
+            "acetic S-methylcysteine anhydride",
+            "CSC[C@H](N)C(=O)OC(C)=O",
+        ),
     ] {
         let result = parser.parse(name, &ParseOptions::strict());
         assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
@@ -115,6 +120,9 @@ fn chalcogen_peroxy_names_keep_their_element_order() {
         "S-acetic S-propanoic thioperoxyanhydride",
         "S-ethyl S-methyl thioperoxide",
         "O-ethyl O-methyl ether",
+        // Without locants the bridge could face either way.
+        "acetic propanoic thioperoxyanhydride",
+        "ethyl methyl thioperoxide",
     ] {
         let result = parser.parse(name, &ParseOptions::strict());
         assert_eq!(result.status, Status::Failure, "{name}");

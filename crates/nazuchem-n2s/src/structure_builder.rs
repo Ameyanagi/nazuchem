@@ -404,6 +404,9 @@ impl Builder<'_> {
         Ok(())
     }
     fn build_divalent_functional_group(&mut self, words: &[NodeId]) -> Result<()> {
+        // "dimethyl" arrives here as two identical words.
+        let two_substituents = words.len() == 3
+            && self.assembly.arena.value(words[0]) != self.assembly.arena.value(words[1]);
         let mut words = words.to_vec();
         let first = *words
             .first()
@@ -471,19 +474,20 @@ impl Builder<'_> {
             let outgoing = self.assembly.graph_mut().remove_out_atom(linker, 0).atom;
             // P-63.3.2: a substituent's chalcogen locant names the bridge atom
             // it bonds to ("Se-ethyl S-methyl selenothioperoxide").
+            // Two different substituents on a mixed bridge need them.
             let (mut to_outgoing, mut to_centre) = (a, b);
-            if locants != [None, None] {
-                let symbol =
-                    |atom| Some(self.assembly.graph().atom(atom).element.symbol().to_owned());
-                let (start, end) = (symbol(centre), symbol(outgoing));
-                if start == end {
-                    return Err(error("Unsupported or invalid divalent functional group"));
+            let symbol = |atom| Some(self.assembly.graph().atom(atom).element.symbol().to_owned());
+            let (start, end) = (symbol(centre), symbol(outgoing));
+            if locants == [None, None] {
+                if start != end && two_substituents {
+                    return Err(error(
+                        "Element locants are needed to place two substituents on the bridge",
+                    ));
                 }
-                if locants == [start.clone(), end.clone()] {
-                    std::mem::swap(&mut to_outgoing, &mut to_centre);
-                } else if locants != [end, start] {
-                    return Err(error("Locants do not match the divalent functional group"));
-                }
+            } else if start != end && locants == [start.clone(), end.clone()] {
+                std::mem::swap(&mut to_outgoing, &mut to_centre);
+            } else if start == end || locants != [end, start] {
+                return Err(error("Locants do not match the divalent functional group"));
             }
             self.assembly
                 .state
@@ -1214,26 +1218,27 @@ impl Builder<'_> {
                     return Err(error("Invalid anhydride description"));
                 }
                 // P-65.7.4: an acid's chalcogen locant names the bridge atom
-                // bonded to it; the bridge's first atom bonds to `one`.
-                if acid_locants != [None, None] {
-                    let symbols: Vec<_> = smiles
-                        .char_indices()
-                        .filter(|(_, c)| c.is_ascii_uppercase())
-                        .map(|(i, _)| {
-                            let lower =
-                                smiles[i + 1..].starts_with(|c: char| c.is_ascii_lowercase());
-                            smiles[i..i + 1 + usize::from(lower)].to_owned()
-                        })
-                        .collect();
-                    let (first, last) = (symbols.first().cloned(), symbols.last().cloned());
-                    if first == last {
-                        return Err(error("Unsupported or invalid anhydride"));
+                // bonded to it; the bridge's first atom bonds to `one`. Two
+                // different acids on a mixed bridge need them.
+                let symbols: Vec<_> = smiles
+                    .char_indices()
+                    .filter(|(_, c)| c.is_ascii_uppercase())
+                    .map(|(i, _)| {
+                        let lower = smiles[i + 1..].starts_with(|c: char| c.is_ascii_lowercase());
+                        smiles[i..i + 1 + usize::from(lower)].to_owned()
+                    })
+                    .collect();
+                let (first, last) = (symbols.first().cloned(), symbols.last().cloned());
+                if acid_locants == [None, None] {
+                    if first != last {
+                        return Err(error(
+                            "Element locants are needed to place two acids on the bridge",
+                        ));
                     }
-                    if acid_locants == [last.clone(), first.clone()] {
-                        std::mem::swap(&mut one, &mut two);
-                    } else if acid_locants != [first, last] {
-                        return Err(error("Anhydride locants do not match its bridge"));
-                    }
+                } else if first != last && acid_locants == [last.clone(), first.clone()] {
+                    std::mem::swap(&mut one, &mut two);
+                } else if first == last || acid_locants != [first, last] {
+                    return Err(error("Anhydride locants do not match its bridge"));
                 }
                 self.link_anhydride_results(&smiles, &mut one, &mut two)?;
             }

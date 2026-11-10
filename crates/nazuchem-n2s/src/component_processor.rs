@@ -3682,21 +3682,32 @@ impl ComponentProcessor<'_> {
                 continue;
             }
             // P-65.7.4 and P-63.3.2: in "S-acetic O-propanoic thioperoxyanhydride"
-            // and "Se-ethyl S-methyl selenothioperoxide" the chalcogen locant
-            // before each word names the bridge atom bonded to it; the
-            // structure builder reads it from the word.
+            // and "Se-ethyl S-methyl selenothioperoxide" two different chalcogen
+            // locants before the two words name the bridge atom bonded to
+            // each; the structure builder reads them from the words. A single
+            // one, as in "acetic S-methylcysteine anhydride", stays put.
+            let rule_words = arena.children_named(rule, WORD_EL);
             if matches!(
                 self.state.current_word_rule.as_deref(),
                 Some("anhydride" | "divalentFunctionalGroup")
-            ) && arena.children_named(rule, WORD_EL).len() == 3
-                && let Some(&first) = arena[word].children.first()
-                && let Some(&locant) = arena[first].children.first()
-                && arena[locant].name == LOCANT_EL
-                && matches!(arena.value(locant).as_str(), "O" | "S" | "Se" | "Te")
+            ) && rule_words.len() == 3
             {
-                let value = arena.value(locant);
-                arena[word].set_attribute(LOCANT_ATR, &value);
-                arena.detach(locant);
+                let leading = |w: NodeId| {
+                    let first = *arena[w].children.first()?;
+                    let locant = *arena[first].children.first()?;
+                    (arena[locant].name == LOCANT_EL
+                        && matches!(arena.value(locant).as_str(), "O" | "S" | "Se" | "Te"))
+                    .then_some(locant)
+                };
+                if let (Some(a), Some(b)) = (leading(rule_words[0]), leading(rule_words[1]))
+                    && arena.value(a) != arena.value(b)
+                {
+                    for (w, locant) in [(rule_words[0], a), (rule_words[1], b)] {
+                        let value = arena.value(locant);
+                        arena[w].set_attribute(LOCANT_ATR, &value);
+                        arena.detach(locant);
+                    }
+                }
             }
             let roots = arena.descendants_named(word, ROOT_EL);
             if roots.len() > 1 {

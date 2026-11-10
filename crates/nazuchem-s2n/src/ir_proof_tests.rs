@@ -1111,7 +1111,7 @@ fn every_n2s_golden_structure_retains_complete_name_results() {
     }
     finish("n2s generated-name golden", &counts, differences, started);
     assert_eq!(records, 1650);
-    assert_n2s_coverage(&counts, (1650, 1609, 0, 41));
+    assert_n2s_coverage(&counts, (1650, 1640, 0, 10));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
         (1608, 1)
