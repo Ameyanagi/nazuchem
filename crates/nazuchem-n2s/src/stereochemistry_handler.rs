@@ -1044,6 +1044,7 @@ impl<'a> StereochemistryHandler<'a> {
                         self.deferred_stereo_centres
                             .push((atom, value.into(), kind));
                         self.not_explicitly_defined_stereo_centre_map.remove(&atom);
+                        self.unknown_stereo_reservations.remove(&atom);
                         return Ok(true);
                     }
                     other => other?,
@@ -1147,7 +1148,6 @@ impl<'a> StereochemistryHandler<'a> {
             if failed.is_empty() {
                 for ((atom, _, kind), _) in accepted {
                     self.set_stereo_group(atom, kind, 1);
-                    self.unknown_stereo_reservations.remove(&atom);
                 }
                 return Ok(());
             }

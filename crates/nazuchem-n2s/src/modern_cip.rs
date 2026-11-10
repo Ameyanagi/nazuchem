@@ -432,6 +432,20 @@ mod tests {
                 .unwrap();
             assert!(structure.graph.atom(atom).parity.is_none(), "{locant}");
         }
+
+        // A repeated descriptor on a reserved ξ centre is not deferred twice,
+        // so the failed C3 is left undefined.
+        let warning = parser.parse(
+            "(2R,3Ξ,3R,3R,4S)-2,3,4-trihydroxypentanedioic acid",
+            &options,
+        );
+        assert_eq!(warning.status, Status::Warning, "{}", warning.message);
+        let structure = warning.structure.unwrap();
+        let atom = structure
+            .graph
+            .atom_by_locant(structure.fragment, "3")
+            .unwrap();
+        assert!(structure.graph.atom(atom).parity.is_none());
     }
 
     #[test]
