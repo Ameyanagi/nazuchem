@@ -913,7 +913,23 @@ fn compare_structure(
         eprintln!("IR naming proof record {}: {label}", counts.records);
     }
     let ir = match structure.to_ir() {
-        Ok(ir) => ir,
+        // Issue #36: IR states ξ as unknown configuration (P-91.2.1.2.1),
+        // which SMILES cannot express. Compare the rest with the baseline.
+        Ok(mut ir) => {
+            ir.stereo.retain(|stereo| {
+                !matches!(
+                    stereo,
+                    nazuchem_ir::Stereo::Tetrahedral {
+                        winding: nazuchem_ir::Winding::Unknown,
+                        ..
+                    } | nazuchem_ir::Stereo::DoubleBond {
+                        relation: nazuchem_ir::Relation::Unknown,
+                        ..
+                    }
+                )
+            });
+            ir
+        }
         Err(error) => {
             counts.ir_unavailable += 1;
             difference(
