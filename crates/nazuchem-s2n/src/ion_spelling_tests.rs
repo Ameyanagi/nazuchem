@@ -255,6 +255,45 @@ fn ion_spelling_matrix() {
             "(phenylammonio)acetate",
             NameStatus::Unverified(NameReason::CationPrefix),
         ),
+        // P-73.1.1.2: a hydron added to a ring N keeps the neutral parent's
+        // indicated and hydro hydrogen; P-31.2.2: indicated H takes the
+        // lowest locant (2,3-dihydro-1H-isoindole, P-31.2.3.3.1).
+        (
+            "#30 N-methylisoindolinium",
+            "C[NH+]1Cc2ccccc2C1",
+            "2-methyl-2,3-dihydro-1H-isoindol-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#30 isoindolinium",
+            "[NH2+]1Cc2ccccc2C1",
+            "2,3-dihydro-1H-isoindol-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#31 tetrahydropyrazinobenzimidazolium",
+            "C[NH+]1CCN2C(=NC3=CC=CC=C32)C1",
+            "2-methyl-1,2,3,4-tetrahydropyrazino[1,2-a][1,3]benzimidazol-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#31 hexahydroisoindolium",
+            "C1C=CCC2C1C[NH2+]C2",
+            "2,3,3a,4,7,7a-hexahydro-1H-isoindol-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#31 hexahydroisoindolium chloride",
+            "C1C=CCC2C1C[NH2+]C2.[Cl-]",
+            "2,3,3a,4,7,7a-hexahydro-1H-isoindol-2-ium chloride",
+            NameStatus::Unverified(NameReason::UnauditedPath),
+        ),
+        (
+            "#31 N-methyltetrahydroisoquinolinium",
+            "C[NH+]1CCc2ccccc2C1",
+            "2-methyl-1,2,3,4-tetrahydroisoquinolin-2-ium",
+            NameStatus::Preferred,
+        ),
         (
             "control nitrobenzene",
             "[O-][N+](=O)c1ccccc1",
