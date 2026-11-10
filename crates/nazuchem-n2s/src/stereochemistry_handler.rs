@@ -1126,31 +1126,40 @@ impl<'a> StereochemistryHandler<'a> {
                     .replace(AtomParity::new(atom_references(references), 1)),
             );
         }
-        // Flip each centre to its descriptor, then check all of them together.
-        let mut labels = HashMap::new();
-        for index in 0..=deferred.len() {
-            labels = crate::modern_cip::atom_labels(self.graph())?;
-            if let Some((atom, expected, _)) = deferred.get(index)
-                && matches!(labels.get(atom).map(String::as_str), Some("R" | "S"))
+        // Flip each centre that full CIP labels with the other descriptor.
+        for (atom, expected, _) in &deferred {
+            let labels = crate::modern_cip::atom_labels(self.graph())?;
+            if matches!(labels.get(atom).map(String::as_str), Some("R" | "S"))
                 && labels[atom] != *expected
             {
                 let parity = self.state.graph_mut().atom_mut(*atom).parity.as_mut();
                 parity.unwrap().parity *= -1;
             }
         }
-        for ((atom, expected, kind), original) in deferred.into_iter().zip(originals) {
-            if labels.get(&atom) == Some(&expected) {
-                self.set_stereo_group(atom, kind, 1);
-                self.unknown_stereo_reservations.remove(&atom);
-            } else {
+        // Check all centres together. Rolling back a failed centre can change
+        // the labels of the others, so check those again.
+        let mut pending: Vec<_> = deferred.into_iter().zip(originals).collect();
+        loop {
+            let labels = crate::modern_cip::atom_labels(self.graph())?;
+            let (accepted, failed): (Vec<_>, Vec<_>) = pending
+                .into_iter()
+                .partition(|((atom, expected, _), _)| labels.get(atom) == Some(expected));
+            if failed.is_empty() {
+                for ((atom, _, kind), _) in accepted {
+                    self.set_stereo_group(atom, kind, 1);
+                    self.unknown_stereo_reservations.remove(&atom);
+                }
+                return Ok(());
+            }
+            for ((atom, ..), original) in failed {
                 self.state.graph_mut().atom_mut(atom).parity = original;
                 let centre = self.atom_stereo_centre_map[&atom];
                 self.not_explicitly_defined_stereo_centre_map
                     .insert(atom, centre);
                 self.warning_or_error(Err(CipOrderingError::UnresolvedTie.into()))?;
             }
+            pending = accepted;
         }
-        Ok(())
     }
     fn assign_axial_stereo(&mut self, id: NodeId) -> Result {
         let value = self.attr(id, VALUE_ATR);

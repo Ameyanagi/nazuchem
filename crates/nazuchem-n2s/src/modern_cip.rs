@@ -415,6 +415,23 @@ mod tests {
             warning.structure.unwrap().semantic_cxsmiles().unwrap(),
             ribitol.structure.unwrap().semantic_cxsmiles().unwrap()
         );
+
+        // C3 and C5 are pseudoasymmetric (enantiomorphic 1-hydroxyethyl
+        // ligands), so 3R and 5S fail. C4 is then ranked only by the C3/C5
+        // configurations that were rolled back, so it must fail as well.
+        let warning = parser.parse(
+            "(2R,3R,4R,5S,6R)-3,5-bis[(1S)-1-hydroxyethyl]heptane-2,3,4,5,6-pentol",
+            &options,
+        );
+        assert_eq!(warning.status, Status::Warning, "{}", warning.message);
+        let structure = warning.structure.unwrap();
+        for locant in ["3", "4", "5"] {
+            let atom = structure
+                .graph
+                .atom_by_locant(structure.fragment, locant)
+                .unwrap();
+            assert!(structure.graph.atom(atom).parity.is_none(), "{locant}");
+        }
     }
 
     #[test]
