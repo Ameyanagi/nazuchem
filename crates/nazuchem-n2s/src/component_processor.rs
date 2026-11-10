@@ -3684,8 +3684,9 @@ impl ComponentProcessor<'_> {
             // P-65.7.4 and P-63.3.2: in "S-acetic O-propanoic thioperoxyanhydride"
             // and "Se-ethyl S-methyl selenothioperoxide" two different chalcogen
             // locants before the two words name the mixed-bridge atom bonded
-            // to each; the structure builder reads them from the words. Other
-            // leading locants, as in "acetic S-methylcysteine anhydride",
+            // to each; the structure builder reads them from the words.
+            // Without them two written words could face the bridge either way.
+            // Other leading locants, as in "acetic S-methylcysteine anhydride",
             // stay with their substituents.
             let rule_words = arena.children_named(rule, WORD_EL);
             if matches!(
@@ -3702,6 +3703,7 @@ impl ComponentProcessor<'_> {
                             "SO" | "[Se|2]O" | "[Te|2]O" | "[Se|2]S" | "[Te|2]S" | "[Se|2][Te|2]"
                         )
                     })
+                && arena[rule_words[0]].attribute(LOCANT_ATR).is_none()
             {
                 let leading = |w: NodeId| {
                     let first = *arena[w].children.first()?;
@@ -3710,14 +3712,18 @@ impl ComponentProcessor<'_> {
                         && matches!(arena.value(locant).as_str(), "O" | "S" | "Se" | "Te"))
                     .then_some(locant)
                 };
-                if let (Some(a), Some(b)) = (leading(rule_words[0]), leading(rule_words[1]))
-                    && arena.value(a) != arena.value(b)
-                {
-                    for (w, locant) in [(rule_words[0], a), (rule_words[1], b)] {
-                        let value = arena.value(locant);
-                        arena[w].set_attribute(LOCANT_ATR, &value);
-                        arena.detach(locant);
-                    }
+                let (Some(a), Some(b)) = (leading(rule_words[0]), leading(rule_words[1])) else {
+                    return Err(error(
+                        "Element locants are needed to place two words on a mixed chalcogen bridge",
+                    ));
+                };
+                if arena.value(a) == arena.value(b) {
+                    return Err(error("Mixed chalcogen bridge locants must differ"));
+                }
+                for (w, locant) in [(rule_words[0], a), (rule_words[1], b)] {
+                    let value = arena.value(locant);
+                    arena[w].set_attribute(LOCANT_ATR, &value);
+                    arena.detach(locant);
                 }
             }
             let roots = arena.descendants_named(word, ROOT_EL);

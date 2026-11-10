@@ -99,6 +99,7 @@ fn chalcogen_peroxy_names_keep_their_element_order() {
         ),
         // P-63.3.2, method (2).
         ("O-ethyl S-methyl thioperoxide", "CSOCC"),
+        ("S-ethyl O-methyl thioperoxide", "COSCC"),
         ("S-cyclohexyl O-methyl thioperoxide", "COSC1CCCCC1"),
         ("Se-ethyl S-methyl selenothioperoxide", "CS[Se]CC"),
         ("dimethyl selenoperoxide", "CO[Se]C"),
@@ -129,7 +130,10 @@ fn chalcogen_peroxy_names_keep_their_element_order() {
         // Without locants the bridge could face either way.
         "acetic propanoic thioperoxyanhydride",
         "ethyl methyl thioperoxide",
+        "propan-1-yl propan-2-yl thioperoxide",
+        "acetic S-methylcysteine thioperoxyanhydride",
         "2-methylbutanedioic thioperoxyanhydride",
+        "propane-1,2-diyl thioperoxide",
     ] {
         let result = parser.parse(name, &ParseOptions::strict());
         assert_eq!(result.status, Status::Failure, "{name}");
