@@ -259,6 +259,8 @@ pub struct StereochemistryHandler<'a> {
     pub not_explicitly_defined_stereo_bond_map: BTreeMap<BondId, StereoBond>,
     pseudo_stereo_centres: Vec<(AtomId, String)>,
     preassigned_pseudo_stereo_centres: Vec<(AtomId, String)>,
+    deferred_full_cip_centres: Vec<(AtomId, String)>,
+    replaced_parities: Vec<(AtomId, Option<AtomParity>)>,
     cage_stereo_groups: BTreeMap<AtomId, CageStereochemistry>,
     unknown_stereo_centres: Vec<UnknownStereoCentre>,
     unknown_stereo_reservations: BTreeSet<AtomId>,
@@ -311,6 +313,8 @@ impl<'a> StereochemistryHandler<'a> {
             not_explicitly_defined_stereo_bond_map: bonds.clone(),
             pseudo_stereo_centres: Vec::new(),
             preassigned_pseudo_stereo_centres: Vec::new(),
+            deferred_full_cip_centres: Vec::new(),
+            replaced_parities: Vec::new(),
             cage_stereo_groups: BTreeMap::new(),
             unknown_stereo_centres: Vec::new(),
             unknown_stereo_reservations: BTreeSet::new(),
@@ -480,14 +484,20 @@ impl<'a> StereochemistryHandler<'a> {
         // Enantiomorphic ligand priorities depend on the true R/S centres and,
         // for achiral ring pairs, on the other lowercase descriptor. Seed all
         // lowercase centres before resolving any of them with full CIP.
+        for (atom, value) in std::mem::take(&mut self.deferred_full_cip_centres) {
+            let result = self.seed_full_cip_centre(atom, &value).map(drop);
+            self.warning_or_error(result)?
+        }
         for id in pseudo {
             let result = self.match_stereochemistry(id);
             self.warning_or_error(result)?
         }
         let result = self.resolve_pseudo_stereo_centres();
         if result.is_err() {
-            for (atom, _) in &self.pseudo_stereo_centres {
-                self.state.graph_mut().atom_mut(*atom).parity = None;
+            // Restore what the provisional parities replaced, such as a
+            // configuration inherited from a carbohydrate stem.
+            for (atom, parity) in std::mem::take(&mut self.replaced_parities) {
+                self.state.graph_mut().atom_mut(atom).parity = parity;
             }
         }
         self.warning_or_error(result)?;
@@ -998,53 +1008,24 @@ impl<'a> StereochemistryHandler<'a> {
                 .find(available)
         };
         if let Some(atom) = atom {
-            // Ligands that differ only in the configuration of other
-            // stereogenic units tie under OPSIN's constitutional rules; the
-            // stereodescriptors rank them (rules 4 and 5, P-92.5 and P-92.6),
-            // so these R/S centres are resolved with full CIP after the rest.
-            let full_cip = pseudo
-                || match apply_stereo_chemistry_to_stereo_centre(
-                    self.state.graph_mut(),
-                    self.atom_stereo_centre_map[&atom],
-                    value,
-                ) {
-                    Err(e) if e == CipOrderingError::UnresolvedTie.into() => true,
-                    other => {
-                        other?;
-                        false
-                    }
-                };
-            if full_cip {
-                // Cage descriptors may already have fixed this centre. Check
-                // its label after all lowercase centres are seeded, preserving
-                // the existing parity even if the descriptor contradicts it.
-                if self
-                    .cage_stereo_groups
-                    .values()
-                    .any(|cage| cage.parities.contains_key(&atom))
-                {
-                    self.preassigned_pseudo_stereo_centres
-                        .push((atom, value.into()));
+            if pseudo {
+                if !self.seed_full_cip_centre(atom, value)? {
                     return Ok(true);
                 }
-                let mut neighbours = self.graph().neighbours(atom);
-                if neighbours.len() == 3 {
-                    neighbours.push(atom);
+            } else if let Err(e) = apply_stereo_chemistry_to_stereo_centre(
+                self.state.graph_mut(),
+                self.atom_stereo_centre_map[&atom],
+                value,
+            ) {
+                // Ligands that differ only in the configuration of other
+                // stereogenic units tie under OPSIN's constitutional rules;
+                // the stereodescriptors rank them (rules 4 and 5, P-92.5 and
+                // P-92.6). Resolve such R/S centres with full CIP, seeded
+                // after cage descriptors like the lowercase ones.
+                if e != CipOrderingError::UnresolvedTie.into() {
+                    return Err(e);
                 }
-                let references: [AtomId; 4] = neighbours.try_into().map_err(|_| {
-                    StereochemistryError::StructureBuilding(
-                        "Only tetrahedral chirality is currently supported".into(),
-                    )
-                })?;
-                self.state.graph_mut().atom_mut(atom).parity =
-                    Some(AtomParity::new(atom_references(references), 1));
-                self.atom_stereo_centre_map
-                    .entry(atom)
-                    .or_insert(StereoCentre {
-                        atom,
-                        true_stereo_centre: false,
-                    });
-                self.pseudo_stereo_centres.push((atom, value.into()));
+                self.deferred_full_cip_centres.push((atom, value.into()));
             }
             self.set_stereo_group(atom, kind, 1);
             self.not_explicitly_defined_stereo_centre_map.remove(&atom);
@@ -1053,6 +1034,46 @@ impl<'a> StereochemistryHandler<'a> {
         } else {
             Ok(false)
         }
+    }
+    /// Seed a provisional parity for full-CIP resolution. Returns false when
+    /// a cage descriptor already fixed the centre, so only its label is checked.
+    fn seed_full_cip_centre(&mut self, atom: AtomId, value: &str) -> Result<bool> {
+        // Cage descriptors may already have fixed this centre. Check its
+        // label after all lowercase centres are seeded, preserving the
+        // existing parity even if the descriptor contradicts it.
+        if self
+            .cage_stereo_groups
+            .values()
+            .any(|cage| cage.parities.contains_key(&atom))
+        {
+            self.preassigned_pseudo_stereo_centres
+                .push((atom, value.into()));
+            return Ok(false);
+        }
+        let mut neighbours = self.graph().neighbours(atom);
+        if neighbours.len() == 3 {
+            neighbours.push(atom);
+        }
+        let references: [AtomId; 4] = neighbours.try_into().map_err(|_| {
+            StereochemistryError::StructureBuilding(
+                "Only tetrahedral chirality is currently supported".into(),
+            )
+        })?;
+        let replaced = self
+            .state
+            .graph_mut()
+            .atom_mut(atom)
+            .parity
+            .replace(AtomParity::new(atom_references(references), 1));
+        self.replaced_parities.push((atom, replaced));
+        self.atom_stereo_centre_map
+            .entry(atom)
+            .or_insert(StereoCentre {
+                atom,
+                true_stereo_centre: false,
+            });
+        self.pseudo_stereo_centres.push((atom, value.into()));
+        Ok(true)
     }
     // Provenance: fn StereochemistryHandler::resolve_pseudo_stereo_centres | original
     // Source: ReShiki | crates/opsin/src/stereochemistry_handler.rs::StereochemistryHandler::resolve_pseudo_stereo_centres
@@ -1068,20 +1089,28 @@ impl<'a> StereochemistryHandler<'a> {
             let parity = handler.state.graph_mut().atom_mut(atom).parity.as_mut();
             parity.unwrap().parity *= -1;
         };
-        for index in 0..count {
-            let (atom, expected) = &self.pseudo_stereo_centres[index];
-            let mirror = match expected.as_str() {
-                "R" => "S",
-                "S" => "R",
-                "r" => "s",
-                _ => "r",
-            };
-            let labels = crate::modern_cip::atom_labels(self.graph())?;
-            if labels.get(atom).map(String::as_str) == Some(mirror) {
-                flip(self, index);
+        // Flipping mirrored labels settles centres whose labels depend only
+        // on others that are already settled.
+        for _ in 0..count {
+            let mut flipped = false;
+            for index in 0..count {
+                let (atom, expected) = &self.pseudo_stereo_centres[index];
+                let mirror = match expected.as_str() {
+                    "R" => "S",
+                    "S" => "R",
+                    "r" => "s",
+                    _ => "r",
+                };
+                let labels = crate::modern_cip::atom_labels(self.graph())?;
+                if labels.get(atom).map(String::as_str) == Some(mirror) {
+                    flip(self, index);
+                    flipped = true;
+                }
+            }
+            if !flipped {
+                break;
             }
         }
-        // One pass settles labels that depend only on centres before them.
         // An inositol's ring carbons each depend on the others, so then try
         // every parity combination, flipping one centre per step (Gray code).
         // Each step is a full CIP run, so the search is limited to 2^8 steps.

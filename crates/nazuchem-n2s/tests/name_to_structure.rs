@@ -157,6 +157,25 @@ fn centres_ranked_by_other_stereodescriptors_are_assigned() {
         &ParseOptions::strict(),
     );
     assert_eq!(result.status, Status::Failure, "{result:?}");
+    // C3 is ranked by C2 and C4 and is also fixed by its endo descriptor
+    // (P-93.5.2.2.1); only the label that agrees with endo is accepted.
+    let endo = |c3: &str| format!("(1S,2R,3{c3},4R,5R)-bicyclo[3.2.1]octane-2,3-endo,4-triol");
+    let result = parser.parse(&endo("S"), &ParseOptions::strict());
+    assert_eq!(result.status, Status::Success, "{}", result.message);
+    let result = parser.parse(&endo("R"), &ParseOptions::strict());
+    assert_eq!(result.status, Status::Failure, "{result:?}");
+    // In warning mode a failed centre keeps the configuration it had.
+    let options = ParseOptions {
+        warn_rather_than_fail_on_uninterpretable_stereochemistry: true,
+        ..ParseOptions::strict()
+    };
+    let warning = parser.parse("(3R)-ribitol", &options);
+    assert_eq!(warning.status, Status::Warning, "{}", warning.message);
+    let ribitol = parser.parse("ribitol", &ParseOptions::strict());
+    assert_eq!(
+        warning.structure.unwrap().semantic_cxsmiles().unwrap(),
+        ribitol.structure.unwrap().semantic_cxsmiles().unwrap()
+    );
     // Bridgeheads with three equal ring branches are not stereogenic.
     for name in ["(1R,4S)-bicyclo[2.2.2]octane", "(1Xi)-bicyclo[2.2.2]octane"] {
         let result = parser.parse(name, &ParseOptions::strict());
