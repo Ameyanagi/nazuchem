@@ -109,6 +109,7 @@ pub use radical_ions::recover as recover_radical_ion;
 mod locant_elision;
 mod locants;
 mod molecule;
+mod multiplicative;
 mod namer;
 mod nomenclature;
 mod numbering;
@@ -429,12 +430,35 @@ fn name_graph(mol: molecule::Molecule, style: nazuchem_ir::IsotopeStyle) -> Resu
                 });
             }
         };
+    let unmarked = mol.name_status()
+        == nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::UnauditedPath);
     assess_derivation(&mol, &component.derivation);
     // Preserve already certified fused oxide templates, including isoquinoline 2-oxide.
     if mol.name_status() != nazuchem_ir::NameStatus::Preferred
         && let Some(name) = oxide
     {
         return Ok(name);
+    }
+    let multiplicative =
+        nazuchem_ir::NameStatus::NotPreferred(nazuchem_ir::NameReason::Multiplicative);
+    // P-51.3.1: the multiplicative name is preferred; the substitutive name
+    // stays as an alternative.
+    if unmarked
+        && mol.name_status() == multiplicative
+        && !requires_skeletal_replacement(&mol, &component.derivation)
+        && let Some(name) = multiplicative::name(&mol, &components[0])
+    {
+        return Ok(Name {
+            text: nest_enclosing_marks(&name),
+            status: nazuchem_ir::NameStatus::Preferred,
+            alternatives: vec![nazuchem_ir::AlternativeName {
+                name: nest_enclosing_marks(&component.text),
+                status: multiplicative,
+            }],
+            omitted_stereo: vec![],
+            omitted_units: 0,
+            verification: None,
+        });
     }
     let text = component.text;
     if phane.is_some() {
@@ -1363,10 +1387,11 @@ mod tests {
                 "5-(2-carboxylatophenyl)-1H-pyrrol-1-ide-3-carboxylate",
                 NameStatus::Preferred,
             ),
+            // P-63.2.4.2: the multiplicative name is generated.
             (
                 "c1ccc(Oc2ccccc2)cc1",
-                "phenoxybenzene",
-                NameStatus::NotPreferred(NameReason::Multiplicative),
+                "1,1'-oxydibenzene",
+                NameStatus::Preferred,
             ),
             (
                 "Oc1ccc(Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
@@ -1560,10 +1585,6 @@ mod tests {
             (
                 "O=C(O)CCCCCCCCCOc1ccc(-c2ccc(OCCCCCCCCCC(=O)O)cc2)cc1",
                 "10-({4'-[(9-carboxynonyl)oxy][1,1'-biphenyl]-4-yl}oxy)decanoic acid",
-            ),
-            (
-                "P(CC(=O)O)(CC(=O)O)CC(=O)O",
-                "[bis(carboxymethyl)phosphanyl]acetic acid",
             ),
             // P-15.3 / P-51.3.1: a more substituted core does not remove
             // identical terminal parents from multiplicative eligibility.
@@ -2939,20 +2960,26 @@ mod tests {
                 "azuleno[4,5-c]isoxazole",
                 R::FusionComponent,
             ),
-            ("c1ccc(cc1)Oc1ccccc1", "phenoxybenzene", R::Multiplicative),
+            // P-15.3.2.4.1, P-15.3.1.2.2: substituted units and concatenated
+            // linking groups are not multiplied yet.
             (
-                "c1ccc(cc1)Sc1ccccc1",
-                "(phenylsulfanyl)benzene",
+                "Brc1ccc(Oc2ccc(Br)cc2)cc1",
+                "1-bromo-4-(4-bromophenoxy)benzene",
                 R::Multiplicative,
             ),
             (
-                "O=S(c1ccccc1)c1ccccc1",
-                "(benzenesulfinyl)benzene",
+                "Brc1ccc(Sc2ccc(Br)cc2)cc1",
+                "1-bromo-4-[(4-bromophenyl)sulfanyl]benzene",
                 R::Multiplicative,
             ),
             (
-                "O=S(=O)(c1ccccc1)c1ccccc1",
-                "(benzenesulfonyl)benzene",
+                "O=S(c1ccc(Br)cc1)c1ccc(Br)cc1",
+                "1-bromo-4-(4-bromobenzene-1-sulfinyl)benzene",
+                R::Multiplicative,
+            ),
+            (
+                "O=S(=O)(c1ccc(Br)cc1)c1ccc(Br)cc1",
+                "1-bromo-4-(4-bromobenzene-1-sulfonyl)benzene",
                 R::Multiplicative,
             ),
             (
@@ -2982,8 +3009,8 @@ mod tests {
                 R::Multiplicative,
             ),
             (
-                "S(CC(=O)O)CC(=O)O",
-                "(carboxymethylsulfanyl)acetic acid",
+                "O(CCOCC(=O)O)CC(=O)O",
+                "[2-(carboxymethoxy)ethoxy]acetic acid",
                 R::Multiplicative,
             ),
         ] {

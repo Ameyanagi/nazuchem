@@ -7576,6 +7576,15 @@ sources = [
 notes = "Original typed-IR adapter, admission checks and regression proof for Phase B step 8b; test corpora retain their separately recorded fixture provenance."
 
 [[file]]
+path = "crates/nazuchem-s2n/src/multiplicative.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/multiplicative.rs", ref = "issue #4", license = "MIT OR Apache-2.0" },
+]
+notes = "Original multiplicative preferred names (P-15.3, P-51.3.1) for identical units on one single-atom linking group, built on the attributed component namer by calls, with regression tests written from Blue Book examples."
+
+[[file]]
 path = "crates/nazuchem-s2n/src/ir_proof_tests.rs"
 origin = "original"
 license = "MIT OR Apache-2.0"
