@@ -28,7 +28,8 @@ pub(crate) fn parse(
     // Changes: An enclosed multi-word adduct component, as in
     // (sodium acetate)—water (1/3), is one component of the ratio (Blue Book
     // P-14.8.1). Each component is repeated by its ratio instead, so the
-    // ions of the salt are still balanced by its own name.
+    // ions of the salt are still balanced by its own name. Charges are
+    // balanced over the whole name, so only one salt, cited once, is read.
     fn enclosed(piece: &str) -> Option<&str> {
         piece
             .strip_prefix(['(', '[', '{'])
@@ -52,9 +53,17 @@ pub(crate) fn parse(
         && given.len() == pieces.len()
         && pieces.iter().any(|piece| enclosed(piece).is_some())
     {
-        if given.iter().any(|&ratio| ratio > 100) {
+        let salts = pieces
+            .iter()
+            .zip(given)
+            .filter(|(piece, _)| enclosed(piece).is_some());
+        if salts.clone().count() > 1
+            || salts.clone().any(|(_, &ratio)| ratio != 1)
+            || given.iter().any(|&ratio| ratio > 100)
+        {
             return Err(ParsingError(
-                "Component ratios above 100 are unsupported with an enclosed component".into(),
+                "Only one enclosed component with ratio 1, and ratios up to 100, are supported"
+                    .into(),
             ));
         }
         let components: Vec<_> = pieces

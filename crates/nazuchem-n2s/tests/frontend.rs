@@ -67,10 +67,6 @@ fn enclosed_salt_is_one_adduct_component() {
             "ammonium sulfate dihydrate",
         ),
         (
-            "(calcium chloride)\u{2014}water (2/1)",
-            "calcium chloride; calcium chloride; water",
-        ),
-        (
             "{piperazin-1-ium benzoate}\u{2014}ethyl acetate\u{2014}dichloromethane (1/1/1)",
             "piperazin-1-ium benzoate; ethyl acetate; dichloromethane",
         ),
@@ -99,6 +95,17 @@ fn enclosed_salt_is_one_adduct_component() {
             .count(),
         2
     );
+    // Charges are balanced over the whole name, so a repeated salt or a
+    // second salt is not read.
+    for name in [
+        "(calcium chloride)\u{2014}water (2/1)",
+        "(calcium chloride)\u{2014}(sodium acetate)\u{2014}water (1/1/1)",
+    ] {
+        assert!(
+            parser.parse_trees(name, &ParseOptions::default()).is_err(),
+            "{name}"
+        );
+    }
     // The ratio still counts unenclosed words.
     assert!(
         parser

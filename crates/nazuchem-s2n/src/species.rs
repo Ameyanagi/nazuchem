@@ -413,10 +413,10 @@ pub(super) fn name_adduct(
     const ORGANIC: u8 = 0;
     const INORGANIC: u8 = 1;
     const WATER: u8 = 2;
+    const UNORDERED: u16 = u16::MAX;
     struct Part {
-        // Formula order: kind, then class seniority, where a component
-        // without a characteristic group is last.
-        rank: (u8, Vec<i64>),
+        // Formula order: kind, then class seniority (P-41).
+        rank: (u8, u16),
         hydride: u8,
         labelled: bool,
         base: bool,
@@ -475,7 +475,7 @@ pub(super) fn name_adduct(
         }
         let salt = name_salt(&ions.join("."), style, budget)?;
         parts.push(Part {
-            rank: (if organic_ion { ORGANIC } else { INORGANIC }, vec![]),
+            rank: (if organic_ion { ORGANIC } else { INORGANIC }, 0),
             hydride: 0,
             labelled: false,
             base: false,
@@ -488,7 +488,7 @@ pub(super) fn name_adduct(
     for (component, (organic, nitrogen, hydride, labelled, count)) in neutral {
         let name = name_smiles_with_style(component, style, budget)?;
         let rank = if hydride == 8 {
-            (WATER, vec![])
+            (WATER, 0)
         } else if organic {
             let mol = super::graph_io::read_smiles(component, budget)?;
             // A zwitterion is senior to every neutral class (P-41), unlike a
@@ -503,13 +503,25 @@ pub(super) fn name_adduct(
             }
             let groups = super::perception::perceive_groups(&mol);
             let key = super::principal_groups::component_principal_key(&mol, &groups, false);
-            let seniority = groups
-                .iter()
-                .find(|g| Some(&g.key) == key.as_ref())
-                .and_then(|g| g.resolved_rule.as_ref()?.seniority.clone());
-            (ORGANIC, seniority.unwrap_or(vec![i64::MAX]))
+            // P-41, Table 4.1: the class of the principal characteristic
+            // group, for the classes whose perceived key is that class alone.
+            let class = match key.as_deref() {
+                Some("carboxylic_acid" | "ring_carboxylic_acid") => 70,
+                Some("sulfonic_acid") => 71,
+                Some("amide" | "ring_amide") => 110,
+                Some("nitrile" | "ring_nitrile") => 140,
+                Some("aldehyde" | "ring_aldehyde") => 150,
+                Some("ketone") => 160,
+                Some("alcohol") => 170,
+                Some("amine") => 190,
+                Some("imine") => 200,
+                // Classes 21 to 43 have no suffix.
+                None => 210,
+                Some(_) => UNORDERED,
+            };
+            (ORGANIC, class)
         } else {
-            (INORGANIC, vec![])
+            (INORGANIC, 0)
         };
         parts.push(Part {
             rank,
@@ -522,15 +534,17 @@ pub(super) fn name_adduct(
             count,
         });
     }
-    parts.sort_by(|a, b| a.rank.cmp(&b.rank));
+    parts.sort_by_key(|a| a.rank);
     if parts.len() < 2 {
         return Err("Adduct naming requires at least two different components".into());
     }
     // Organic components of one class, or without a characteristic group, are
     // ordered by the further criteria of P-41 and P-44, which are not covered.
-    if parts
-        .windows(2)
-        .any(|pair| pair[0].rank.0 == ORGANIC && pair[0].rank == pair[1].rank)
+    let neutral_organic = parts.iter().filter(|p| p.rank.0 == ORGANIC && !p.salt);
+    if neutral_organic.clone().count() > 1 && neutral_organic.clone().any(|p| p.rank.1 == UNORDERED)
+        || parts
+            .windows(2)
+            .any(|pair| pair[0].rank.0 == ORGANIC && pair[0].rank == pair[1].rank)
     {
         return Err("Adducts of organic components of the same class are unsupported".into());
     }
@@ -1349,6 +1363,12 @@ mod tests {
                 organic,
                 None,
             ),
+            (
+                "CC(N)=O.CC#N",
+                "acetamide\u{2014}acetonitrile (1/1)",
+                organic,
+                None,
+            ),
             // P-77.1.3 (1): organic acids are senior to amines (P-41).
             (
                 "Nc1ccccc1.OC=O",
@@ -1397,6 +1417,8 @@ mod tests {
             "[NH3+]CC(=O)[O-].[Na+].[Cl-]",
             "[NH3+]CC(=O)[O-].CC(=O)O",
             "[CH3].Cl",
+            // Classes whose order is not covered: an ester and an anhydride.
+            "CS(=O)(=O)OC.CC(=O)OC(C)=O",
             // Same class: the further P-41 and P-44 criteria are not covered.
             "ClCCl.c1ccncc1",
             "Oc1cccc(O)c1O.Oc1cccc2cccnc12",
