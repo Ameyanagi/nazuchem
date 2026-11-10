@@ -70,37 +70,35 @@ fn peroxycyanate_esters_preserve_both_oxygens() {
 /// substituted cationic nitrogen prefix is the aminium cation name plus
 /// 'yl' or 'ylidene', e.g. (N,N-dimethylmethanaminiumyl)acetate.
 #[test]
-fn aminiumyl_prefixes_match_the_ammonio_and_iminio_spellings() {
+fn aminiumyl_prefixes_keep_nitrogen_charge_hydrogens_and_attachment_order() {
     let parser = Parser::new().unwrap();
-    for (name, alternative) in [
+    for (name, expected) in [
         (
             "(N,N-dimethylmethanaminiumyl)acetate",
-            "(trimethylammonio)acetate",
+            "C[N+](C)(C)CC(=O)[O-]",
         ),
-        ("(methanaminiumyl)acetate", "(methylammonio)acetate"),
-        (
-            "(N-methylmethanaminiumyl)acetate",
-            "(dimethylammonio)acetate",
-        ),
+        ("(methanaminiumyl)acetate", "C[NH2+]CC(=O)[O-]"),
+        ("(N-methylmethanaminiumyl)acetate", "C[NH+](C)CC(=O)[O-]"),
         (
             "2-(N,N-dimethylmethanaminiumyl)propan-2-ide",
-            "2-(trimethylammonio)propan-2-ide",
+            "C[N+](C)(C)[C-](C)C",
         ),
         (
             "(N-ethyl-N-methylpropan-1-aminiumyl)acetate",
-            "[ethyl(methyl)propylammonio]acetate",
+            "C(C)[N+](CCC)(C)CC(=O)[O-]",
         ),
         (
             "(N-methylmethanaminiumylidene)acetate",
-            "(dimethyliminio)acetate",
+            "C[N+](C)=CC(=O)[O-]",
         ),
-        ("(methanaminiumylidene)acetate", "(methyliminio)acetate"),
+        ("(methanaminiumylidene)acetate", "C[NH+]=CC(=O)[O-]"),
     ] {
-        let [name, alternative] = [name, alternative].map(|text| {
-            let result = parser.parse(text, &ParseOptions::strict());
-            assert_eq!(result.status, Status::Success, "{text}: {}", result.message);
-            result.structure.unwrap().semantic_cxsmiles().unwrap()
-        });
-        assert_eq!(name, alternative);
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
     }
 }
