@@ -1181,6 +1181,18 @@ impl Builder<'_> {
         for node in locants {
             self.assembly.arena.detach(node);
         }
+        // P-65.7.4: on a mixed bridge such as thioperoxy (S, O), an acid's
+        // chalcogen locant names the bridge atom bonded to it.
+        let symbols: Vec<_> = smiles
+            .char_indices()
+            .filter(|(_, c)| c.is_ascii_uppercase())
+            .map(|(i, _)| {
+                let lower = smiles[i + 1..].starts_with(|c: char| c.is_ascii_lowercase());
+                smiles[i..i + 1 + usize::from(lower)].to_owned()
+            })
+            .collect();
+        let (first, last) = (symbols.first().cloned(), symbols.last().cloned());
+        let mixed = first != last;
         self.assembly.resolve_word_or_bracket(words[0])?;
         let mut one = self.results(words[0])?;
         if one.functional_atoms.is_empty() {
@@ -1197,7 +1209,7 @@ impl Builder<'_> {
             }
             let acid_locants = [words[0], words[1]].map(|w| self.assembly.attr(w, "locant"));
             if count > 1 {
-                if acid_locants != [None, None] {
+                if mixed || acid_locants != [None, None] {
                     return Err(error("Unsupported or invalid anhydride"));
                 }
                 for i in (0..count).rev() {
@@ -1217,32 +1229,26 @@ impl Builder<'_> {
                 if one.functional_atoms.len() != 1 && two.functional_atoms.len() != 1 {
                     return Err(error("Invalid anhydride description"));
                 }
-                // P-65.7.4: an acid's chalcogen locant names the bridge atom
-                // bonded to it; the bridge's first atom bonds to `one`. Two
-                // different acids on a mixed bridge need them.
-                let symbols: Vec<_> = smiles
-                    .char_indices()
-                    .filter(|(_, c)| c.is_ascii_uppercase())
-                    .map(|(i, _)| {
-                        let lower = smiles[i + 1..].starts_with(|c: char| c.is_ascii_lowercase());
-                        smiles[i..i + 1 + usize::from(lower)].to_owned()
-                    })
-                    .collect();
-                let (first, last) = (symbols.first().cloned(), symbols.last().cloned());
+                // The bridge's first atom bonds to `one`. Two different acids
+                // on a mixed bridge need locants.
                 if acid_locants == [None, None] {
-                    if first != last {
+                    if mixed {
                         return Err(error(
                             "Element locants are needed to place two acids on the bridge",
                         ));
                     }
-                } else if first != last && acid_locants == [last.clone(), first.clone()] {
+                } else if mixed && acid_locants == [last.clone(), first.clone()] {
                     std::mem::swap(&mut one, &mut two);
-                } else if first == last || acid_locants != [first, last] {
+                } else if !mixed || acid_locants != [first, last] {
                     return Err(error("Anhydride locants do not match its bridge"));
                 }
                 self.link_anhydride_results(&smiles, &mut one, &mut two)?;
             }
         } else if one.functional_atoms.len() > 1 {
+            // A mixed bridge within one acid has no stated orientation.
+            if mixed {
+                return Err(error("Unsupported or invalid anhydride"));
+            }
             if one.functional_atoms.len() == 2 {
                 if count != 1 || locant.is_some() {
                     return Err(error("Unsupported or invalid anhydride"));

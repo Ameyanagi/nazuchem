@@ -2342,13 +2342,13 @@ notes = "OPSIN algorithm/model port with Rust ownership, arena/container and err
 
 [[file]]
 path = "crates/nazuchem-n2s/src/suffix_applier.rs"
-origin = "port"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SuffixApplier.java", license = "MIT" },
   { project = "OPSIN", ref = "b91b610af5ab07560fedb20730d7aef46bb2bca0", path = "opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SuffixApplier.java", license = "MIT" },
 ]
-notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable."
+notes = "OPSIN algorithm/model port with Rust ownership, arena/container and error-handling adaptation. Source class mapping is verified against pinned git objects; baseline ancestry is retained where applicable. The native tellanal suffix (issue #26) is marked as an aldehyde by the adapted source Changes marker."
 
 [[file]]
 path = "crates/nazuchem-n2s/src/suffix_rules.rs"

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Origin: port
+// Origin: adapted
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SuffixApplier.java | 42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SuffixApplier.java | b91b610af5ab07560fedb20730d7aef46bb2bca0
 // Copyright Daniel Lowe and contributors; MIT (see the retained license).
 // Copyright 2017 Daniel Lowe
+// Changes: The native tellanal suffix keeps its aldehydic hydrogen like al (issue #26).
 
 //! Ordered suffix effects translated from OPSIN `SuffixApplier.java`.
 //!
@@ -267,7 +268,10 @@ impl<'a> SuffixApplier<'a> {
                                         .graph
                                         .incoming_valency(parent_atom)
                                         > 2
-                                        && matches!(value.as_str(), "aldehyde" | "al" | "aldoxime")
+                                        && matches!(
+                                            value.as_str(),
+                                            "aldehyde" | "al" | "aldoxime" | "tellanal"
+                                        )
                                     {
                                         let aldehyde = if self
                                             .state

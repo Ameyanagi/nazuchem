@@ -107,6 +107,12 @@ fn chalcogen_peroxy_names_keep_their_element_order() {
             "acetic S-methylcysteine anhydride",
             "CSC[C@H](N)C(=O)OC(C)=O",
         ),
+        (
+            "O-methylserine S-methylcysteine anhydride",
+            "CSC[C@H](N)C(=O)OC([C@@H](N)COC)=O",
+        ),
+        // Tellanal keeps its aldehydic hydrogen like ethanal.
+        ("perchloroethanetellanal", "ClC(C=[Te])(Cl)Cl"),
     ] {
         let result = parser.parse(name, &ParseOptions::strict());
         assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
@@ -123,6 +129,7 @@ fn chalcogen_peroxy_names_keep_their_element_order() {
         // Without locants the bridge could face either way.
         "acetic propanoic thioperoxyanhydride",
         "ethyl methyl thioperoxide",
+        "2-methylbutanedioic thioperoxyanhydride",
     ] {
         let result = parser.parse(name, &ParseOptions::strict());
         assert_eq!(result.status, Status::Failure, "{name}");

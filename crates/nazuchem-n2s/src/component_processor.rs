@@ -3683,14 +3683,25 @@ impl ComponentProcessor<'_> {
             }
             // P-65.7.4 and P-63.3.2: in "S-acetic O-propanoic thioperoxyanhydride"
             // and "Se-ethyl S-methyl selenothioperoxide" two different chalcogen
-            // locants before the two words name the bridge atom bonded to
-            // each; the structure builder reads them from the words. A single
-            // one, as in "acetic S-methylcysteine anhydride", stays put.
+            // locants before the two words name the mixed-bridge atom bonded
+            // to each; the structure builder reads them from the words. Other
+            // leading locants, as in "acetic S-methylcysteine anhydride",
+            // stay with their substituents.
             let rule_words = arena.children_named(rule, WORD_EL);
             if matches!(
                 self.state.current_word_rule.as_deref(),
                 Some("anhydride" | "divalentFunctionalGroup")
             ) && rule_words.len() == 3
+                && arena
+                    .descendants_named(rule_words[2], FUNCTIONALGROUP_EL)
+                    .first()
+                    .and_then(|&group| arena[group].attribute(VALUE_ATR))
+                    .is_some_and(|bridge| {
+                        matches!(
+                            bridge.trim_end_matches('-'),
+                            "SO" | "[Se|2]O" | "[Te|2]O" | "[Se|2]S" | "[Te|2]S" | "[Se|2][Te|2]"
+                        )
+                    })
             {
                 let leading = |w: NodeId| {
                     let first = *arena[w].children.first()?;
