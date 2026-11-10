@@ -2839,14 +2839,15 @@ mod tests {
     // Provenance: fn tests::compound_prefixes_inside_heteroatom_prefixes_are_enclosed | original
     // Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs::tests::compound_prefixes_inside_heteroatom_prefixes_are_enclosed
     fn compound_prefixes_inside_heteroatom_prefixes_are_enclosed() {
-        // P-16.5.1.1, P-29.1.2: a compound prefix is enclosed within a larger prefix; a
-        // simple one is not.
+        // P-16.5.1.1, P-29.1.2, P-35.4.1: a compound prefix is enclosed within a larger
+        // prefix, as in (chloromethyl)amino and (methoxyamino)phosphanyl; a simple one is not.
         for (smiles, expected) in [
             ("ClCSCC(=O)O", "[(chloromethyl)sulfanyl]acetic acid"),
             ("ClCNCC(=O)O", "[(chloromethyl)amino]acetic acid"),
             ("COCSCC(=O)O", "[(methoxymethyl)sulfanyl]acetic acid"),
             ("C1CC1CNCC(=O)O", "[(cyclopropylmethyl)amino]acetic acid"),
             ("ClC[Se]CC(=O)O", "[(chloromethyl)selanyl]acetic acid"),
+            ("CONSCC(=O)O", "[(methoxyamino)sulfanyl]acetic acid"),
             (
                 "ClCN=C1CCCC1C(=O)O",
                 "2-[(chloromethyl)imino]cyclopentane-1-carboxylic acid",
