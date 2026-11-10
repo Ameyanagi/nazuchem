@@ -65,6 +65,16 @@ pub fn is_composite_prefix(name: &str) -> bool {
     }
     name.contains("yl")
 }
+/// P-16.5.1.1: a compound prefix (P-29.1.2), a simple prefix that carries a
+/// substituent prefix such as chloromethyl or cyclopropylmethyl, is enclosed
+/// when it substitutes another prefix, as in [(chloromethyl)sulfanyl].
+// Provenance: fn is_compound_prefix | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::is_compound_prefix
+pub fn is_compound_prefix(name: &str) -> bool {
+    is_composite_prefix(name)
+        || stems::terminal_stem(name)
+            .is_some_and(|s| name != format!("{s}yl") && name != format!("cyclo{s}yl"))
+}
 // Provenance: fn needs_complex_multiplier | adapted
 // Source: openclatura | src/openclatura/formatting.py::needs_complex_multiplier
 pub fn needs_complex_multiplier(name: &str) -> bool {
@@ -249,7 +259,7 @@ pub fn format_element_substituent(
             .iter()
             .any(|end| stem.ends_with(end))
     });
-    if is_complex_prefix(&branch) || names_hydride {
+    if is_complex_prefix(&branch) || is_compound_prefix(&branch) || names_hydride {
         format!("({stereo_prefix}({branch}){suffix})")
     } else {
         format!("({stereo_prefix}{branch}{suffix})")

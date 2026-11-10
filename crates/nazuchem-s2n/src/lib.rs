@@ -2836,6 +2836,39 @@ mod tests {
     }
 
     #[test]
+    // Provenance: fn tests::compound_prefixes_inside_heteroatom_prefixes_are_enclosed | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs::tests::compound_prefixes_inside_heteroatom_prefixes_are_enclosed
+    fn compound_prefixes_inside_heteroatom_prefixes_are_enclosed() {
+        // P-16.5.1.1, P-29.1.2: a compound prefix is enclosed within a larger prefix; a
+        // simple one is not.
+        for (smiles, expected) in [
+            ("ClCSCC(=O)O", "[(chloromethyl)sulfanyl]acetic acid"),
+            ("ClCNCC(=O)O", "[(chloromethyl)amino]acetic acid"),
+            ("COCSCC(=O)O", "[(methoxymethyl)sulfanyl]acetic acid"),
+            ("C1CC1CNCC(=O)O", "[(cyclopropylmethyl)amino]acetic acid"),
+            ("ClC[Se]CC(=O)O", "[(chloromethyl)selanyl]acetic acid"),
+            (
+                "ClCN=C1CCCC1C(=O)O",
+                "2-[(chloromethyl)imino]cyclopentane-1-carboxylic acid",
+            ),
+            ("CSCC(=O)O", "(methylsulfanyl)acetic acid"),
+            ("CNCC(=O)O", "(methylamino)acetic acid"),
+            // Formerly declined: (cyclohexylperoxyamino) lost its carbamate contraction.
+            ("COC(=O)NOOC1CCCCC1", "methyl (cyclohexylperoxy)carbamate"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
+        }
+    }
+
+    #[test]
     // Provenance: fn tests::known_departures_keep_their_names_and_report_the_rule_family | adapted
     // Source: ReShiki | src/naming/openclatura/mod.rs::tests::known_departures_keep_their_names_and_report_the_rule_family
     // Source: openclatura | tests/unit/test_chalcogen_functional_groups.py::test_peroxide_linkages_preserve_both_chalcogen_sites
@@ -2983,7 +3016,7 @@ mod tests {
             ),
             (
                 "S(CC(=O)O)CC(=O)O",
-                "(carboxymethylsulfanyl)acetic acid",
+                "[(carboxymethyl)sulfanyl]acetic acid",
                 R::Multiplicative,
             ),
         ] {
@@ -3179,7 +3212,6 @@ mod tests {
             "CC(=O)NOC(=O)Cc1nc(C(=O)O)cs1",
             "O=C(O)[C@H](O)[C@@H](O)C(=O)OO",
             "CN(C(=O)[O-])C1(B(O)O)CCC1",
-            "COC(=O)NOOC1CCCCC1",
             "O[N@]1CC12CC2",
             "CN(C)[N@]1CC1(C)CO",
             "C[P@]1CCCC1C",

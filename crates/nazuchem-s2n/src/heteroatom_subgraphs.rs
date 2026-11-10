@@ -19,8 +19,8 @@ use super::assembly_prefixes::substituent_sort_key;
 use super::chains::get_cyclic_atoms;
 use super::formatting::{
     format_center_ligands_by, format_counted_prefixes, format_element_substituent,
-    format_multiplier, is_complex_prefix, oxy_prefix_from_branch, phenylamino_spelling,
-    strip_outer_parentheses,
+    format_multiplier, is_complex_prefix, is_compound_prefix, oxy_prefix_from_branch,
+    phenylamino_spelling, strip_outer_parentheses,
 };
 use super::molecule::{AtomSet, Molecule};
 use super::namer::{capped_acid_name, name_subgraph_rendered, name_subgraph_with_upstream};
@@ -253,7 +253,7 @@ pub fn format_amino_from_branches(
         }
         if names.len() == 1 {
             let n = strip_outer_parentheses(&names[0]);
-            return if is_complex_prefix(&n) {
+            return if is_complex_prefix(&n) || is_compound_prefix(&n) {
                 format!("(({n}){suffix})")
             } else {
                 format!("({n}{suffix})")
@@ -308,7 +308,7 @@ pub fn format_amino_from_branches(
         {
             return format!("{n}amino");
         }
-        return if is_complex_prefix(&n) {
+        return if is_complex_prefix(&n) || is_compound_prefix(&n) {
             format!("(({n})amino)")
         } else {
             format!("({n}amino)")
@@ -1936,7 +1936,8 @@ mod tests {
     fn amino_contractions_read_anilino_as_phenylamino() -> Result<(), String> {
         for (smiles, start, upstream, expected) in [
             ("CCS(=O)(=O)Nc1ccccc1", 2, 1, "(phenylsulfamoyl)"),
-            ("CCNC(=S)Nc1ccccc1", 2, 1, "(phenylcarbamothioylamino)"),
+            // P-16.5.1.1: the compound prefix phenylcarbamothioyl is enclosed.
+            ("CCNC(=S)Nc1ccccc1", 2, 1, "((phenylcarbamothioyl)amino)"),
         ] {
             let mol = read_smiles(smiles, &Default::default())?;
             assert_eq!(
@@ -1983,7 +1984,8 @@ mod tests {
             ("CN(C(=O)OC)C", "(methoxycarbonyl(methyl)amino)"),
             ("COC(=S)N(C)C", "(dimethylaminocarbonothioyloxy)"),
             ("CP(=O)(O)ON", "((aminooxy)(hydroxy)phosphoryl)"),
-            ("CS(=O)(=O)ON=CC", "(ethylideneaminooxysulfonyl)"),
+            // P-16.5.1.1: the compound prefix ethylideneamino is enclosed.
+            ("CS(=O)(=O)ON=CC", "((ethylideneamino)oxysulfonyl)"),
             (
                 "CN=S(=O)(C)C",
                 "((dimethyl(oxo)-lambda^6-sulfanylidene)amino)",
