@@ -974,7 +974,7 @@ fn sulfur_imide_branch(
         "sulfinyl"
     };
     // P-72.6.1: –S(=O)₂O⁻ and –S(=O)O⁻ take the acid-anion prefixes sulfonato
-    // and sulfinato. The OPSIN port neutralizes oxidosulfinyl to –SH(=O)=O.
+    // and sulfinato.
     if name == "oxido" {
         return Ok(Some(
             if oxygen.len() == 2 {

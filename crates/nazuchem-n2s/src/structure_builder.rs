@@ -2641,9 +2641,21 @@ impl Builder<'_> {
                 if self.check_connected_oxo(connected) {
                     continue;
                 }
-                if self.assembly.graph().fragment(a.fragment).fragment_type == "elementaryAtom"
+                let graph = self.assembly.graph();
+                // P-72.6.2: oxido is –O⁻. An S/P that already carries =O/=S (sulfinyl,
+                // phosphinyl, sulfinothioyl, ...) keeps it anionic: oxidosulfinyl is
+                // –S(=O)O⁻, not –SH(=O)=O.
+                let has_chalcogen_double_bond = a.bonds.iter().any(|&b| {
+                    let bond = graph.bond(b);
+                    bond.order == 2
+                        && bond
+                            .other_atom(connected)
+                            .is_some_and(|o| graph.atom(o).element.is_chalcogen())
+                });
+                if graph.fragment(a.fragment).fragment_type == "elementaryAtom"
                     || matches!(element, Element::S | Element::P)
                         && a.charge == 0
+                        && !has_chalcogen_double_bond
                         && valence::check_valency_available_for_bond(
                             self.assembly.graph(),
                             connected,
