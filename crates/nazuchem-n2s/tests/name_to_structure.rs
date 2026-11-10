@@ -77,6 +77,9 @@ fn cited_indicated_hydrogen_rejects_hydro_prefixes_that_strand_an_atom() {
         "4,5-dihydro-2H-imidazole",
         "4,6-dihydro-1H-indene",
         "hexahydro-1H,6H-pyrrolo[3,4-b]pyridine",
+        // The spiro junction replaces the cited atom.
+        "spiro[4,5-dihydro-2H-imidazole-2,1'-cyclopentane]",
+        "spiro[cyclopentane-1,2'-4,5-dihydro-2H-imidazole]",
     ] {
         let result = parser.parse(name, &ParseOptions::strict());
         assert_eq!(result.status, Status::Failure, "{name}");
@@ -97,6 +100,11 @@ fn cited_indicated_hydrogen_rejects_hydro_prefixes_that_strand_an_atom() {
         ("1,3-dihydro-2H-isoindole", "C1NCC2=CC=CC=C12"),
         ("octahydro-1H-pyrrolo[3,4-b]pyridine", "N1C2C(CCC1)CNC2"),
         ("pyrimidine-2,4(1H,3H)-dione", "N1C(NC(C=C1)=O)=O"),
+        // Indicated hydrogen cited in one spiro component only.
+        (
+            "spiro[1,3-dihydroisoindole-1,2'-2,3-dihydro-1H-indene]",
+            "C1C2(CC3=CC=CC=C13)NCC1=CC=CC=C12",
+        ),
     ] {
         let result = parser.parse(name, &ParseOptions::strict());
         assert_eq!(result.status, Status::Success, "{name}: {}", result.message);

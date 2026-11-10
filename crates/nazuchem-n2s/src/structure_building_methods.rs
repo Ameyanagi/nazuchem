@@ -832,7 +832,7 @@ impl Assembly<'_> {
                 self.add_dehydro_triple_bonds(triple)?;
             }
         }
-        for hydrogen in children
+        let hydrogens: Vec<_> = children
             .iter()
             .copied()
             .rev()
@@ -842,16 +842,23 @@ impl Assembly<'_> {
                     "hydro" | "indicatedHydrogen" | "addedHydrogen"
                 )
             })
-            .collect::<Vec<_>>()
-        {
+            .collect();
+        let indicated_cited = hydrogens
+            .iter()
+            .any(|&id| self.arena[id].name != "hydro" && self.attr(id, "locant").is_some());
+        for hydrogen in hydrogens {
             if let Some(locant) = self.attr(hydrogen, "locant") {
                 let atom = self.atom_by_locant(fragment, &locant)?;
                 if self.graph().atom(atom).spare_valency {
-                    let hydro = self.arena[hydrogen].name == "hydro";
-                    let a = self.graph_mut().atom_mut(atom);
-                    a.spare_valency = false;
-                    a.properties.hydro_cited |= hydro;
-                    a.properties.indicated_hydrogen_cited |= !hydro;
+                    self.graph_mut().atom_mut(atom).spare_valency = false;
+                    if indicated_cited {
+                        for neighbour in self.graph().neighbours(atom) {
+                            self.graph_mut()
+                                .atom_mut(neighbour)
+                                .properties
+                                .beside_cited_hydrogen = true;
+                        }
+                    }
                 } else {
                     let spiro_bug =
                         self.arena.value(group).starts_with("spiro")
