@@ -259,6 +259,7 @@ pub struct StereochemistryHandler<'a> {
     pub not_explicitly_defined_stereo_bond_map: BTreeMap<BondId, StereoBond>,
     pseudo_stereo_centres: Vec<(AtomId, String)>,
     preassigned_pseudo_stereo_centres: Vec<(AtomId, String)>,
+    deferred_stereo_centres: Vec<(AtomId, String, StereoGroupType)>,
     cage_stereo_groups: BTreeMap<AtomId, CageStereochemistry>,
     unknown_stereo_centres: Vec<UnknownStereoCentre>,
     unknown_stereo_reservations: BTreeSet<AtomId>,
@@ -311,6 +312,7 @@ impl<'a> StereochemistryHandler<'a> {
             not_explicitly_defined_stereo_bond_map: bonds.clone(),
             pseudo_stereo_centres: Vec::new(),
             preassigned_pseudo_stereo_centres: Vec::new(),
+            deferred_stereo_centres: Vec::new(),
             cage_stereo_groups: BTreeMap::new(),
             unknown_stereo_centres: Vec::new(),
             unknown_stereo_reservations: BTreeSet::new(),
@@ -458,6 +460,7 @@ impl<'a> StereochemistryHandler<'a> {
             let result = self.match_stereochemistry(id);
             self.warning_or_error(result)?
         }
+        self.resolve_deferred_stereo_centres()?;
         if !carbohydrate.is_empty() {
             self.process_carbohydrate_stereochemistry(&carbohydrate)?
         }
@@ -465,6 +468,7 @@ impl<'a> StereochemistryHandler<'a> {
             let result = self.match_stereochemistry(id);
             self.warning_or_error(result)?
         }
+        self.resolve_deferred_stereo_centres()?;
         let has_cage_descriptor = !cage.is_empty();
         for id in cage {
             let result = self.match_stereochemistry(id);
@@ -1031,7 +1035,19 @@ impl<'a> StereochemistryHandler<'a> {
                 self.pseudo_stereo_centres.push((atom, value.into()));
             } else {
                 let centre = self.atom_stereo_centre_map[&atom];
-                apply_stereo_chemistry_to_stereo_centre(self.state.graph_mut(), centre, value)?;
+                match apply_stereo_chemistry_to_stereo_centre(self.state.graph_mut(), centre, value)
+                {
+                    // Ligands that differ only in configuration are ranked by
+                    // sequence rules 4 and 5 (P-92.5, P-92.6), which need the other
+                    // centres; rank this one once they are all set.
+                    Err(error) if error == CipOrderingError::UnresolvedTie.into() => {
+                        self.deferred_stereo_centres
+                            .push((atom, value.into(), kind));
+                        self.not_explicitly_defined_stereo_centre_map.remove(&atom);
+                        return Ok(true);
+                    }
+                    other => other?,
+                }
             }
             self.set_stereo_group(atom, kind, 1);
             self.not_explicitly_defined_stereo_centre_map.remove(&atom);
@@ -1076,6 +1092,62 @@ impl<'a> StereochemistryHandler<'a> {
                 if labels.get(atom) != Some(expected) {
                     return stereo("Contradictory pseudoasymmetric stereochemistry");
                 }
+            }
+        }
+        Ok(())
+    }
+    /// Assigns the deferred uppercase centres with the full CIP rules
+    /// (P-92.5 Rule 4, P-92.6 Rule 5). A failed centre is rolled back
+    /// without undoing the others.
+    fn resolve_deferred_stereo_centres(&mut self) -> Result {
+        let deferred = std::mem::take(&mut self.deferred_stereo_centres);
+        if deferred.is_empty() {
+            return Ok(());
+        }
+        // Seed every centre first: one centre's rule 4/5 ranking can depend
+        // on another deferred centre. A failed centre keeps its previous
+        // parity, such as one inherited from a carbohydrate stem.
+        let mut originals = Vec::new();
+        for (atom, ..) in &deferred {
+            let mut neighbours = self.graph().neighbours(*atom);
+            if neighbours.len() == 3 {
+                neighbours.push(*atom);
+            }
+            let references: [AtomId; 4] = neighbours.try_into().map_err(|_| {
+                StereochemistryError::StructureBuilding(
+                    "Only tetrahedral chirality is currently supported".into(),
+                )
+            })?;
+            originals.push(
+                self.state
+                    .graph_mut()
+                    .atom_mut(*atom)
+                    .parity
+                    .replace(AtomParity::new(atom_references(references), 1)),
+            );
+        }
+        // Flip each centre to its descriptor, then check all of them together.
+        let mut labels = HashMap::new();
+        for index in 0..=deferred.len() {
+            labels = crate::modern_cip::atom_labels(self.graph())?;
+            if let Some((atom, expected, _)) = deferred.get(index)
+                && matches!(labels.get(atom).map(String::as_str), Some("R" | "S"))
+                && labels[atom] != *expected
+            {
+                let parity = self.state.graph_mut().atom_mut(*atom).parity.as_mut();
+                parity.unwrap().parity *= -1;
+            }
+        }
+        for ((atom, expected, kind), original) in deferred.into_iter().zip(originals) {
+            if labels.get(&atom) == Some(&expected) {
+                self.set_stereo_group(atom, kind, 1);
+                self.unknown_stereo_reservations.remove(&atom);
+            } else {
+                self.state.graph_mut().atom_mut(atom).parity = original;
+                let centre = self.atom_stereo_centre_map[&atom];
+                self.not_explicitly_defined_stereo_centre_map
+                    .insert(atom, centre);
+                self.warning_or_error(Err(CipOrderingError::UnresolvedTie.into()))?;
             }
         }
         Ok(())
