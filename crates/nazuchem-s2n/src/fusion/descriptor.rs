@@ -2477,7 +2477,7 @@ pub fn render_fusion_name_parts(
             pieces.push(combine_rendered_descriptors(
                 &joined
                     .iter()
-                    .map(|d| render_descriptor(d, false))
+                    .map(|d| render_descriptor(d, false, &specs))
                     .collect::<Vec<_>>(),
                 joined.iter().any(|d| d.kind == FusionJoinKind::HigherOrder),
                 false,
@@ -2548,6 +2548,7 @@ pub fn render_fusion_name_parts(
                         descriptors.len() == 1
                             && node.children.is_empty()
                             && omit_attached_locants(self.registry, spec, d.kind),
+                        self.specs,
                     )
                 })
                 .collect::<Vec<_>>();
@@ -2606,7 +2607,7 @@ pub fn render_fusion_name_parts(
                         &self.specs[&member.occurrence_id],
                         descriptor.kind,
                     );
-                    texts.push(render_descriptor(descriptor, omit));
+                    texts.push(render_descriptor(descriptor, omit, self.specs));
                     higher |= descriptor.kind == FusionJoinKind::HigherOrder;
                     side_only &= omit;
                 }
@@ -2678,18 +2679,27 @@ fn combine_rendered_descriptors(
 }
 // Provenance: fn render_descriptor | adapted
 // Source: openclatura | src/openclatura/fusion/descriptor.py::_render_descriptor
-fn render_descriptor(descriptor: &FusionDescriptor, omit: bool) -> String {
+fn render_descriptor(
+    descriptor: &FusionDescriptor,
+    omit: bool,
+    specs: &BTreeMap<usize, FusionComponentSpec>,
+) -> String {
     // P-25.3.8.4: an ortho- and peri-fusion omits the locants of the fusion
-    // carbon atoms inside its path ('naphtho[2,1,8-def]quinoline'); both
-    // ends stay cited ('naphtho[1,8a]azirine').
+    // carbon atoms inside its path ('naphtho[2,1,8-def]quinoline', purine's
+    // C4 too); both ends stay cited ('naphtho[1,8a]azirine').
+    let fusion_carbon = |l: &ComponentLocant| {
+        specs.get(&l.component_id).is_some_and(|s| {
+            s.atoms()
+                .iter()
+                .any(|a| a.locant == l.text && a.fusion && a.symbol == "C")
+        })
+    };
     let peri = |locants: &[ComponentLocant]| -> Vec<ComponentLocant> {
         let last = locants.len().saturating_sub(1);
         locants
             .iter()
             .enumerate()
-            .filter(|&(i, l)| {
-                i == 0 || i == last || !l.text.ends_with(|c: char| c.is_ascii_lowercase())
-            })
+            .filter(|&(i, l)| i == 0 || i == last || !fusion_carbon(l))
             .map(|(_, l)| l.clone())
             .collect()
     };
@@ -2881,9 +2891,15 @@ mod tests {
             kind: FusionJoinKind::HigherOrder,
             ..Default::default()
         };
-        assert_eq!(render_descriptor(&descriptor, false), "[1',2':3,4]");
+        assert_eq!(
+            render_descriptor(&descriptor, false, &BTreeMap::new()),
+            "[1',2':3,4]"
+        );
         // P-25.3.8.2: a terminal monocyclic hydrocarbon cites only the host.
-        assert_eq!(render_descriptor(&descriptor, true), "[3,4]");
+        assert_eq!(
+            render_descriptor(&descriptor, true, &BTreeMap::new()),
+            "[3,4]"
+        );
         assert_eq!(
             combine_rendered_descriptors(&[descriptor.render(), "[2',3':4,5]".into()], true, false),
             "[1',2':3,4;2',3':4,5]"
@@ -3463,8 +3479,21 @@ mod tests {
             let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
         }
-        // P-25.3.8.4 example; this layout is not verified as preferred.
-        let name = crate::name_smiles("N1=CC=C2C3=C4C(=CC=C13)C=CC=C4C=C2", &Default::default());
-        assert_eq!(name.unwrap().text, "naphtho[2,1,8-def]quinoline");
+        // P-25.3.8.4 example, a fusion carbon with a numeric locant (purine C4)
+        // and a kept ortho-fusion end; these layouts are not verified as preferred.
+        for (smiles, expected) in [
+            (
+                "N1=CC=C2C3=C4C(=CC=C13)C=CC=C4C=C2",
+                "naphtho[2,1,8-def]quinoline",
+            ),
+            (
+                "N1CN2C3C(NCN3CC4NCCNC24)C1",
+                "decahydropurino[3,9-ab]pteridine",
+            ),
+            ("N1=C2C13C=CC=CC3=CC=C2", "naphtho[1,8a-b]azirine"),
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+        }
     }
 }
