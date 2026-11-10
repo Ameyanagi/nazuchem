@@ -2721,6 +2721,12 @@ mod tests {
                 "O=C1C=Cc2ccc3Sc4ccccc4Sc3c2C1",
                 "benzo[a]thianthren-2(1H)-one",
             ),
+            // P-58.2.2.3: a suffix pair that only removes a double bond
+            // needs no added hydrogen.
+            (
+                "O=C1C=CC(=O)c2c1ccc1Oc3ccccc3Nc21",
+                "12H-benzo[a]phenoxazine-1,4-dione",
+            ),
             // Controls.
             (
                 "CN1c2ccccc2Nc2ccncc21",
@@ -2737,15 +2743,20 @@ mod tests {
             let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
         }
-        // Not composed yet: an ion whose ring also has a ketone cites it as
-        // 'oxo' (P-73.1.2.1), so these keep the von Baeyer fallback status.
+        // Not composed yet, so these keep main's names labelled not preferred:
+        // an ion whose ring also has a ketone cites it as 'oxo' (P-73.1.2.1),
+        // an 'oxo' prefix needs its own indicated hydrogen, and an ion at a
+        // hydro N takes added hydrogen (P-72.2.2.1.1).
         let fallback = NameStatus::NotPreferred(NameReason::VonBaeyerFusionFallback);
-        for smiles in [
-            "O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3[N+](C)(C)C2=C1",
-            "O=C1CC=C2Oc3cc4[N+](C)(C)c5ccccc5Sc4cc3NC2=C1",
+        let unregistered = NameStatus::NotPreferred(NameReason::UnregisteredRetainedComponent);
+        for (smiles, status) in [
+            ("O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3[N+](C)(C)C2=C1", &fallback),
+            ("O=C1CC=C2Oc3cc4[N+](C)(C)c5ccccc5Sc4cc3NC2=C1", &fallback),
+            ("OC(=O)c1ccc2nc3c(cc(=O)c4ccccc34)oc2c1", &unregistered),
+            ("C[N+]1(C)c2ccccc2Sc2cc3Oc4ccccc4N(C)c3cc21", &fallback),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
-            assert_eq!(name.status, fallback, "{smiles}: {}", name.text);
+            assert_eq!(&name.status, status, "{smiles}: {}", name.text);
         }
     }
 

@@ -1322,8 +1322,16 @@ fn is_fused_ring_derivative(mol: &Molecule, faces: &[&Face]) -> bool {
         .iter()
         .flat_map(|f| f.atom_cycle.iter().copied())
         .collect();
-    // A neutral ring ketone keeps a pheno...ine parent: the '-one' suffix
-    // composes its indicated and added hydrogen (P-58.2.2, P-58.2.3.1).
+    // A ring ketone cited by the '-one' suffix keeps a pheno...ine parent: the
+    // suffix composes its indicated and added hydrogen (P-58.2.2, P-58.2.3.1).
+    let ketone_suffix = std::cell::OnceCell::new();
+    let ketone_suffix = || {
+        *ketone_suffix.get_or_init(|| {
+            let groups = crate::perception::perceive_groups(mol);
+            crate::principal_groups::component_principal_key(mol, &groups, false).as_deref()
+                == Some("ketone")
+        })
+    };
     atoms.iter().any(|&a| {
         let atom = &mol.atoms[&a];
         atom.charge != 0
@@ -1332,7 +1340,8 @@ fn is_fused_ring_derivative(mol: &Molecule, faces: &[&Face]) -> bool {
                     && (mol.get_bond(a, n).is_some_and(|b| b.order == 2)
                         && !(atom.symbol == "C"
                             && mol.atoms[&n].symbol == "O"
-                            && mol.atoms[&n].charge == 0)
+                            && mol.atoms[&n].charge == 0
+                            && ketone_suffix())
                         || atom.symbol == "N" && mol.atoms[&n].symbol != "H")
             })
     })

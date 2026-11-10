@@ -139,12 +139,27 @@ fn plan_uncached(mol: &Molecule, atoms: &AtomSet, spiro_component: bool) -> Plan
                 atom.explicit_h_count = 1;
             }
         }
+        // An ion at a hydro N is named with added hydrogen instead
+        // ('pyridin-1(2H)-ide', P-72.2.2.1.1), which is not composed here: an
+        // ionic N must carry the parent's only indicated hydrogen.
+        let charged: Vec<_> = n_h_sites
+            .iter()
+            .filter(|id| mol.atoms[id].charge != 0)
+            .collect();
         if let Ok(Some(mut plan)) = plan_uncached(&parent, atoms, spiro_component)
             && plan.ast.component_occurrences.iter().any(|m| {
                 fusion_component_registry()
                     .spec_for_match(m)
                     .is_ok_and(|s| s.parent_hydride_only)
             })
+            && (charged.is_empty()
+                || plan.indicated_hydrogens.len() == 1
+                    && charged.iter().all(|id| {
+                        plan.numbering
+                            .abstract_atom_to_locant
+                            .iter()
+                            .any(|(a, l)| a == *id && plan.indicated_hydrogens.contains(l))
+                    }))
         {
             plan.charge_operations =
                 fusion_charge_operations(mol, &plan.abstract_parent_graph, &plan.numbering)?;
