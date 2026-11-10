@@ -1076,12 +1076,12 @@ mod tests {
             ),
             (
                 format!("[O-]c1ccccc1.[O-]c1ccccc1.{BIS_AMINIUM}"),
-                "N,N,N-trimethyl-1-{4-[(trimethylammonio)methyl]phenyl}methanaminium diphenoxide",
+                "1-{4-[(N,N-dimethylmethanaminiumyl)methyl]phenyl}-N,N,N-trimethylmethanaminium diphenoxide",
                 NotPreferred(Multiplicative),
             ),
             (
                 format!("{PENTALENE_CARBOXYLATE}.{BIS_AMINIUM}.{PENTALENE_CARBOXYLATE}"),
-                "N,N,N-trimethyl-1-{4-[(trimethylammonio)methyl]phenyl}methanaminium bis(octahydro-2,5-methanopentalene-1-carboxylate)",
+                "1-{4-[(N,N-dimethylmethanaminiumyl)methyl]phenyl}-N,N,N-trimethylmethanaminium bis(octahydro-2,5-methanopentalene-1-carboxylate)",
                 NotPreferred(Multiplicative),
             ),
             (

@@ -58,6 +58,12 @@ sense of this -->
 	<rule value="aminylium">
 		<addgroup SMILES="[*][NH+]" />
 	</rule>
+	<rule value="aminiumyl">
+		<addgroup SMILES="[*][NH3+]" outIDs="2"/>
+	</rule>
+	<rule value="aminiumylidene">
+		<addgroup SMILES="[*][NH3+]" outIDs="2,2"/>
+	</rule>
 	<rule value="amino">
 		<addgroup SMILES="[*]N" outIDs="2"/>
 	</rule>

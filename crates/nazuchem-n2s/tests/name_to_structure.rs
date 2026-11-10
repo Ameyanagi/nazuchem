@@ -65,3 +65,42 @@ fn peroxycyanate_esters_preserve_both_oxygens() {
         );
     }
 }
+
+/// P-73.6 method (1) and the 2020 corrections to P-73.6 and P-74.1.3: a
+/// substituted cationic nitrogen prefix is the aminium cation name plus
+/// 'yl' or 'ylidene', e.g. (N,N-dimethylmethanaminiumyl)acetate.
+#[test]
+fn aminiumyl_prefixes_match_the_ammonio_and_iminio_spellings() {
+    let parser = Parser::new().unwrap();
+    for (name, alternative) in [
+        (
+            "(N,N-dimethylmethanaminiumyl)acetate",
+            "(trimethylammonio)acetate",
+        ),
+        ("(methanaminiumyl)acetate", "(methylammonio)acetate"),
+        (
+            "(N-methylmethanaminiumyl)acetate",
+            "(dimethylammonio)acetate",
+        ),
+        (
+            "2-(N,N-dimethylmethanaminiumyl)propan-2-ide",
+            "2-(trimethylammonio)propan-2-ide",
+        ),
+        (
+            "(N-ethyl-N-methylpropan-1-aminiumyl)acetate",
+            "[ethyl(methyl)propylammonio]acetate",
+        ),
+        (
+            "(N-methylmethanaminiumylidene)acetate",
+            "(dimethyliminio)acetate",
+        ),
+        ("(methanaminiumylidene)acetate", "(methyliminio)acetate"),
+    ] {
+        let [name, alternative] = [name, alternative].map(|text| {
+            let result = parser.parse(text, &ParseOptions::strict());
+            assert_eq!(result.status, Status::Success, "{text}: {}", result.message);
+            result.structure.unwrap().semantic_cxsmiles().unwrap()
+        });
+        assert_eq!(name, alternative);
+    }
+}

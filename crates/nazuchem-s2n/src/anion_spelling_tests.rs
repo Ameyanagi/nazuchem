@@ -251,8 +251,9 @@ fn zwitterion_suffix_order_preserves_numbering_status_and_identity() {
         ),
         (
             "C[N+](C)(C)[N-]C",
-            "N-(trimethylammonio)methanaminide",
-            NameStatus::Unverified(NameReason::CationPrefix),
+            // P-73.6, P-74.1.3 (2020 correction)
+            "N-(N,N-dimethylmethanaminiumyl)methanaminide",
+            NameStatus::Preferred,
         ),
         (
             "[Na+].[Cl-]",
