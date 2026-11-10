@@ -62,6 +62,7 @@ struct ParentScore {
     skeletal_anionic_centres: i64,
     uide_centres: i64,
     anionic_elements: [i64; 19],
+    cationic_centres: i64,
     contains_principal: i64,
     principal_count: i64,
     senior_elements: Vec<usize>,
@@ -84,12 +85,13 @@ impl ParentScore {
     // Provenance: fn ParentScore::principal_preference | adapted
     // Source: openclatura | src/openclatura/parent_selection.py::_prefer_spiro_backbone_components
     // Source: openclatura | src/openclatura/parent_selection.py::ParentSeniorityProfile.criterion_value
-    fn principal_preference(&self) -> (i64, i64, i64, [i64; 19], i64, i64) {
+    fn principal_preference(&self) -> (i64, i64, i64, [i64; 19], i64, i64, i64) {
         (
             self.anionic_centres,
             self.skeletal_anionic_centres,
             self.uide_centres,
             self.anionic_elements,
+            self.cationic_centres,
             self.contains_principal,
             self.principal_count,
         )
@@ -100,6 +102,8 @@ struct ParentGroups<'a> {
     principal: &'a [usize],
     // Prefix parents must stay rooted at their attachment, not at an anion.
     anionic: Option<&'a [PerceivedGroup]>,
+    // Cationic centres of a cation; empty otherwise.
+    cationic: &'a AtomSet,
 }
 
 /// P-72.7(a): skeletal anions and anionic suffixes each contribute their
@@ -258,11 +262,28 @@ fn score(
             .filter(|id| mol.atoms[id].symbol == symbol)
             .count() as i64)
     });
+    // P-73.7(a): a cation's parent has the most cationic centres, counting
+    // its cationic suffixes, before any neutral principal group.
+    let cationic_centres = groups
+        .cationic
+        .iter()
+        .filter(|&i| {
+            atoms.contains(i)
+                || groups.anionic.is_some_and(|g| {
+                    g.iter().any(|g| {
+                        g.is_principal_candidate
+                            && atoms.contains(&g.attachment_carbon)
+                            && g.atoms_involved.contains(i)
+                    })
+                })
+        })
+        .count();
     ParentScore {
         anionic_centres: -(centres.len() as i64),
         skeletal_anionic_centres: -(skeletal.len() as i64),
         uide_centres: -(uide_count as i64),
         anionic_elements,
+        cationic_centres: -(cationic_centres as i64),
         contains_principal: -i64::from(principal_count > 0),
         principal_count: -principal_count,
         senior_elements,
@@ -670,9 +691,13 @@ fn parent_candidates(
     excluded: &AtomSet,
     atom_order_tiebreak: bool,
 ) -> Vec<(ParentScore, ParentSelection)> {
+    let cationic = groups
+        .map(|_| super::species::cationic_centres(mol))
+        .unwrap_or_default();
     let groups = ParentGroups {
         principal: principal_carbons,
         anionic: groups,
+        cationic: &cationic,
     };
     let ranks = canonical_ranks(mol, None);
     let assemblies = discover_ring_assemblies(mol, ring_systems);
@@ -762,6 +787,7 @@ fn parent_candidates(
             &ParentGroups {
                 principal: &[],
                 anionic: None,
+                cationic: &AtomSet::new(),
             },
             &ranks,
         )
@@ -1261,6 +1287,7 @@ mod tests {
         let groups = ParentGroups {
             principal: &[],
             anionic: Some(&[]),
+            cationic: &AtomSet::new(),
         };
         let phosphanide = score(&mol, &[0], false, 0, None, &groups, &ranks);
         let arsanuide = score(&mol, &[3], false, 0, None, &groups, &ranks);
@@ -1285,6 +1312,7 @@ mod tests {
         let groups = ParentGroups {
             principal: &[3],
             anionic: Some(&[]),
+            cationic: &AtomSet::new(),
         };
         let phosphanide = score(&mol, &[0], false, 0, None, &groups, &ranks);
         let silanide = score(&mol, &[3], false, 0, None, &groups, &ranks);
