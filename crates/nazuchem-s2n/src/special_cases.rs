@@ -3400,48 +3400,14 @@ pub(super) fn try_name_anhydride_component(
             // P-65.7.1–P-65.7.4: O bridges, or chalcogen/peroxy bridges between
             // graph-equivalent acid halves.
             let ranks = canonical_ranks(mol, None);
-            // P-65.7.2, P-14.5: the acids are cited in alphanumerical order,
-            // Roman letters first and locants, including the letters of
-            // compound locants such as 4a, ignored (acetic chloroacetic,
-            // chloroacetic 4-nitrobenzene-1-sulfonic). Only names made of
-            // lowercase words and locants without italic words (two adjacent
-            // words, as in 4-tert-butyl) are compared here; other names and
-            // letter ties (P-14.5.4) keep string order and are not certified.
-            let letters = |name: &str| {
-                let segments: Vec<_> = name.split('-').collect();
-                let word = |s: &str| s.bytes().all(|c| c.is_ascii_lowercase());
-                let locants = |s: &str| {
-                    s.split(',').all(|l| {
-                        l.starts_with(|c: char| c.is_ascii_digit())
-                            && l.bytes()
-                                .all(|c| c.is_ascii_digit() || c.is_ascii_lowercase())
-                    })
-                };
-                (segments.iter().all(|s| word(s) || locants(s))
-                    && !segments.windows(2).any(|w| word(w[0]) && word(w[1])))
-                .then(|| {
-                    segments
-                        .iter()
-                        .filter(|s| word(s))
-                        .copied()
-                        .collect::<String>()
-                })
-            };
-            let keys = (letters(&left), letters(&right));
-            let ordered = left == right || matches!(&keys, (Some(a), Some(b)) if a != b);
-            let certified = ordered
-                && anhydride_count == 1
+            let certified = anhydride_count == 1
                 && bridge.is_disjoint(&get_cyclic_atoms(mol, &AtomSet::new()))
                 && (path.len() == 3 && mol.atoms[&path[1]].symbol == "O"
                     || ranks[&descriptor.centers[0]] == ranks[&descriptor.centers[1]]);
             let name = if left == right {
                 format!("{left} {class}")
             } else {
-                let (left_key, right_key) = match keys {
-                    (Some(a), Some(b)) if ordered => (a, b),
-                    _ => (left.clone(), right.clone()),
-                };
-                let mut halves = [(left_key, left), (right_key, right)];
+                let mut halves = [(left.clone(), left), (right.clone(), right)];
                 if path.len() == 4 && mol.atoms[&path[1]].symbol != mol.atoms[&path[2]].symbol {
                     halves[0].1 = format!("{}-{}", mol.atoms[&path[1]].symbol, halves[0].1);
                     halves[1].1 = format!("{}-{}", mol.atoms[&path[2]].symbol, halves[1].1);
@@ -4202,55 +4168,119 @@ mod tests {
     }
 
     #[test]
-    // Provenance: fn tests::mixed_anhydride_acids_follow_alphanumerical_order | original
-    // Source: nazuchem | issue #9
     fn mixed_anhydride_acids_follow_alphanumerical_order() {
-        // Nazuchem issue #9, P-65.7.2, P-14.5: acids in alphanumerical order,
-        // locants ignored. Enclosing marks and locant ties (P-14.5.4) are
-        // left to issue #19 and stay unverified.
-        let unverified = NameStatus::Unverified(NameReason::UnauditedPath);
+        // Issues #9 and #19. P-65.7.2: the acids are cited in alphanumerical
+        // order (P-14.5).
+        let preferred = NameStatus::Preferred;
         for (smiles, expected, status) in [
+            // P-14.5: Roman letters first; locants take no part.
             (
                 "CC(=O)OC(=O)C(Cl)C",
                 "acetic 2-chloropropanoic anhydride",
-                NameStatus::Preferred,
+                preferred,
             ),
             (
                 "CCCC(=O)OC(=O)C(C)Cl",
                 "butanoic 2-chloropropanoic anhydride",
-                NameStatus::Preferred,
+                preferred,
             ),
             (
                 "ClCC(=O)OC(=O)C",
                 "acetic chloroacetic anhydride",
-                NameStatus::Preferred,
+                preferred,
             ),
             // P-14.5: the letter of a compound locant takes no part.
             (
                 "O=C(OC(C)=O)C1CC2(Br)CCCCC2CC1",
                 "acetic 8a-bromodecahydronaphthalene-2-carboxylic anhydride",
-                NameStatus::Preferred,
+                preferred,
             ),
+            // P-14.5.4: 4 is lower than 4a.
             (
                 "BrC1C(CC(C2CCCCC12)C(=O)OC(=O)C1C(CCC2(CCCCC12)Br)Cl)Cl",
                 "4-bromo-3-chlorodecahydronaphthalene-1-carboxylic \
                  4a-bromo-2-chlorodecahydronaphthalene-1-carboxylic anhydride",
-                unverified,
+                preferred,
             ),
+            // P-14.5: enclosing marks take no part ('phenoxy' before 'phenyls').
             (
                 "O=C(OC(=O)c1ccc(Sc2ccccc2)cc1)c1ccc(Oc2ccccc2)cc1",
-                "4-(phenylsulfanyl)benzoic 4-phenoxybenzoic anhydride",
-                unverified,
+                "4-phenoxybenzoic 4-(phenylsulfanyl)benzoic anhydride",
+                preferred,
             ),
             (
+                "CC(=O)OC(=O)c1ccc(Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
+                "acetic 4-[4-(4-phenoxyphenoxy)phenoxy]benzoic anhydride",
+                NameStatus::NotPreferred(NameReason::LinearPhane),
+            ),
+            // P-14.5.4: equal letters; lowest locants at the first point of
+            // difference, in order of citation.
+            (
                 "O=C(OC(=O)CCCCCCCCC(Cl)C)C(Cl)CCCCCCCCC",
-                "10-chloroundecanoic 2-chloroundecanoic anhydride",
-                unverified,
+                "2-chloroundecanoic 10-chloroundecanoic anhydride",
+                preferred,
+            ),
+            (
+                "O=C(OC(=O)C(Cl)C(Br)C)C(Br)C(Cl)C",
+                "2-bromo-3-chlorobutanoic 3-bromo-2-chlorobutanoic anhydride",
+                preferred,
+            ),
+            // P-14.5.3: fusion letters are italic and count only after the
+            // Roman letters ('carbot' before 'carbox', 'cyclopentan' before
+            // 'cyclopentap').
+            (
+                "BrC1=CC=C2C(=N1)C=C(O2)C(=O)OC(=S)C2=C(C=1C=NC=CC1O2)Br",
+                "3-bromofuro[3,2-c]pyridine-2-carbothioic \
+                 5-bromofuro[3,2-b]pyridine-2-carboxylic anhydride",
+                preferred,
+            ),
+            (
+                "C1(=CC2=C3C(=CC4=CC=CC5=CC=C1C3=C45)C=C2)C(=O)OC(=O)C2CCCC2",
+                "cyclopentanecarboxylic cyclopenta[cd]pyrene-1-carboxylic anhydride",
+                preferred,
+            ),
+            // P-14.5: the indicated hydrogen 1H is a locant ('iodo' before
+            // 'pyrrole').
+            (
+                "ICC(=O)OC(=O)c1ccc[nH]1",
+                "iodoacetic 1H-pyrrole-2-carboxylic anhydride",
+                preferred,
+            ),
+            // P-14.5.1, P-14.5.3: tert is italic ('butyl' before 'chloro').
+            (
+                "CC(C)(C)c1ccc(cc1)C(=O)OC(=O)c1ccc(Cl)cc1",
+                "4-(tert-butyl)benzoic 4-chlorobenzoic anhydride",
+                preferred,
+            ),
+            // P-14.5: stereodescriptors take no part ('bromob' before 'bromoc').
+            (
+                "O=C(OC(=O)c1c(Br)cc([C@H](Br)Cl)cc1)c1cc(Br)c([C@H](F)Cl)cc1",
+                "2-bromo-4-[(S)-bromochloromethyl]benzoic \
+                 3-bromo-4-[(R)-chlorofluoromethyl]benzoic anhydride",
+                preferred,
+            ),
+            // P-14.6: equal alphanumerical characters; a letter is preferred
+            // to an opening parenthesis, whichever half the input gives first.
+            (
+                "N[SiH](C)c1ccc(cc1)C(=O)OC(=O)c1ccc(cc1)[SiH2]CN",
+                "4-[amino(methyl)silyl]benzoic 4-[(aminomethyl)silyl]benzoic anhydride",
+                preferred,
+            ),
+            (
+                "NC[SiH2]c1ccc(cc1)C(=O)OC(=O)c1ccc(cc1)[SiH](C)N",
+                "4-[amino(methyl)silyl]benzoic 4-[(aminomethyl)silyl]benzoic anhydride",
+                preferred,
             ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, status, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
         }
     }
 
