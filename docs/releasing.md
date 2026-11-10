@@ -81,10 +81,12 @@ after each publication, so dependent crates need no sleeps. A timeout may follow
 a successful upload. On partial failure, inspect what was uploaded,
 then use **Re-run failed jobs** in the same workflow run. The crates.io job
 skips versions already in the sparse index, and the PyPI job skips files
-already uploaded. A re-run uses the workflow file at the tag, so a workflow
-bug needs a new commit: for 0.1.0, npm failed on a tarball-path bug and the
-`v0.1.0` tag was moved once from `a3afe24` (the source of the published crates
-and wheels) to the fix. Never reuse a published version.
+already uploaded. A re-run reuses the original commit, so a workflow bug needs
+a fix commit and a fresh tag-push run. Do not move a published tag; the one
+exception is 0.1.0, whose npm upload failed on a tarball-path bug: `v0.1.0`
+moved from `a3afe24` (the source of the published crates and PyPI wheels) to
+the fix. Keep both bootstrap secrets until such a run finishes. Never reuse a
+published version.
 
 ## Build choices
 
