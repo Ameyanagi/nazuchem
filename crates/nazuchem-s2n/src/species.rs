@@ -1223,6 +1223,13 @@ mod tests {
                 "OCc1cc[n+](cc1)c1ccc([N+](=O)[O-])cc1",
                 "4-(hydroxymethyl)-1-(4-nitrophenyl)pyridin-1-ium",
             ),
+            // P-73.5.3.2, P-75.2: a skeletal cationic centre takes the low
+            // locant before detachable prefixes (P-14.4(f)).
+            ("C[NH+]1CCN(CC)CC1", "4-ethyl-1-methylpiperazin-1-ium"),
+            (
+                "CCN1CC[NH+](CC1)CCNC2=NC3=CC(=NN3C4=CC=CC=C42)C",
+                "4-ethyl-1-{2-[(2-methylpyrazolo[1,5-a]quinazolin-5-yl)amino]ethyl}piperazin-1-ium",
+            ),
             // P-73.7(c): a cationic N precedes a cationic O before ring
             // seniority, which would prefer morpholine (P-44.2.1).
             (
