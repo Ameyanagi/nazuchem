@@ -244,6 +244,9 @@ fn stereo<T>(s: impl Into<String>) -> Result<T> {
     Err(StereochemistryError::Uninterpretable(s.into()))
 }
 
+const RAC_REL_XI: &str =
+    "rac-/rel- needs a defined stereocentre; xi states an unknown configuration";
+
 struct UnknownStereoCentre {
     atom: AtomId,
     fragment: FragmentId,
@@ -410,6 +413,27 @@ impl<'a> StereochemistryHandler<'a> {
         }) {
             self.find_coupled_unknown_candidates()?;
         }
+        // P-93.1.2/P-93.1.3: rac-/rel- qualify defined descriptors. A rac-/rel-
+        // token whose descriptors are all ξ would leave nothing to qualify.
+        let unknown = |id: NodeId| {
+            self.attr(id, TYPE_ATR) == ALPHA_OR_BETA_TYPE_VAL
+                && matches!(self.attr(id, VALUE_ATR).as_str(), "xi" | "Xi" | "ξ")
+        };
+        let qualifier = |id: NodeId| {
+            Some(self.arena[id].parent)
+                .zip(self.attribute(id, STEREOGROUP_ATR))
+                .filter(|(_, group)| matches!(group.as_str(), "Rac" | "Rel"))
+        };
+        let unqualified_xi = elements.iter().any(|&id| {
+            unknown(id)
+                && qualifier(id).is_some()
+                && !elements
+                    .iter()
+                    .any(|&other| !unknown(other) && qualifier(other) == qualifier(id))
+        });
+        if unqualified_xi {
+            self.warning_or_error(stereo(RAC_REL_XI))?;
+        }
         // Descriptor-set prefixes, starred R/S and RS/SR have already been
         // normalized to Rel/Rac attributes; standalone qualifiers keep a type.
         let mut requested_group_kinds = BTreeSet::new();
@@ -517,23 +541,6 @@ impl<'a> StereochemistryHandler<'a> {
             self.warning_or_error(result)?
         }
         self.resolve_unknown_stereo_centres()?;
-        // P-93.1.2/P-93.1.3: rel- and rac- qualify defined descriptors. When ξ
-        // leaves none in the requested group, the qualifier would be lost.
-        if !self.state.unknown_stereo_atoms.is_empty()
-            && requested_group_kinds.iter().any(|&kind| {
-                !self.graph().atoms.iter().any(|atom| {
-                    atom.active
-                        && atom
-                            .parity
-                            .as_ref()
-                            .is_some_and(|parity| parity.stereo_group.kind == kind)
-                })
-            })
-        {
-            self.warning_or_error(stereo(
-                "rac-/rel- needs a defined stereocentre; xi states an unknown configuration",
-            ))?;
-        }
         if has_cage_descriptor
             && !requested_group_kinds.is_empty()
             && !self.cage_scope_is_single_group(&requested_group_kinds)
@@ -1538,19 +1545,20 @@ impl<'a> StereochemistryHandler<'a> {
         // Only a locanted lowercase ξ may name a coupled r/s centre; anything
         // else keeps the ordinary stereocentre search.
         let coupled = matches!(value.as_str(), "xi" | "ξ");
-        let mut fragments = self.possible_fragments(id)?;
         // P-103.1.3.1/P-103.3.4: an unlocanted ξ stands in the D/L position,
-        // so it belongs to the amino-acid residue it precedes.
-        if locant.is_none()
-            && let Some(group) = self
-                .arena
-                .next_sibling_ignoring(id, &[STEREOCHEMISTRY_EL])
-                .filter(|&g| {
-                    self.arena[g].name == GROUP_EL && self.attr(g, TYPE_ATR) == AMINOACID_TYPE_VAL
-                })
-        {
-            fragments.insert(0, self.fragment(group)?);
-        }
+        // so it belongs only to the amino-acid residue it precedes.
+        let residue = self
+            .arena
+            .next_sibling_ignoring(id, &[STEREOCHEMISTRY_EL])
+            .filter(|&g| {
+                locant.is_none()
+                    && self.arena[g].name == GROUP_EL
+                    && self.attr(g, TYPE_ATR) == AMINOACID_TYPE_VAL
+            });
+        let fragments = match residue {
+            Some(group) => vec![self.fragment(group)?],
+            None => self.possible_fragments(id)?,
+        };
         for &fragment in &fragments {
             let atom = if let Some(locant) = &locant {
                 self.graph().atom_by_locant(fragment, locant).filter(|a| {
@@ -1744,6 +1752,15 @@ impl<'a> StereochemistryHandler<'a> {
                 false
             });
             if !restored {
+                // A rac-/rel- applied before ξ cleared its only centre is lost.
+                if originals.values().flatten().any(|parity| {
+                    matches!(
+                        parity.stereo_group.kind,
+                        StereoGroupType::Racemic | StereoGroupType::Relative
+                    )
+                }) {
+                    self.warning_or_error(stereo(RAC_REL_XI))?;
+                }
                 self.state.unknown_stereo_atoms.extend(targets);
                 return Ok(());
             }
@@ -1770,7 +1787,7 @@ impl<'a> StereochemistryHandler<'a> {
                 .token_attributes
                 .get(VALUE_ATR)
                 .is_some_and(|smiles| {
-                    smiles.split(']').filter(|atom| atom.contains('@')).count() == 1
+                    smiles.split(']').filter(|atom| atom.contains('@')).count() <= 1
                 })
             && self.graph().atom(atom).locants.iter().any(|l| l == "alpha");
         if centre.value == "xi" || (centre.value == "ξ" && (centre.alpha_beta || amino_acid_alpha))

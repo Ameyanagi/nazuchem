@@ -661,6 +661,9 @@ fn amino_acid_xi_leaves_the_alpha_carbon_unknown() {
         ("(Ξ)-alanine", "CC(N)C(=O)O"),
         ("N-acetyl-ξ-alanine", "CC(=O)NC(C)C(=O)O"),
         ("ξ-alanine methyl ester", "COC(=O)C(C)N"),
+        // Templates without a predefined α configuration.
+        ("ξ-phenylglycine", "NC(c1ccccc1)C(=O)O"),
+        ("ξ-allylglycine", "NC(CC=C)C(=O)O"),
     ] {
         let structure = parsed(&parser, name);
         assert_eq!(
@@ -706,6 +709,10 @@ fn amino_acid_xi_conflicts_are_refused() {
         "rac-(ξ)-alanine",
         "rel-(ξ)-alanine",
         "(rac)-N-acetyl-(ξ)-alanine",
+        "rac-(ξ)-alanyl-DL-alanine",
+        // P-103.3.4: ξ never moves to another residue.
+        "(ξ)-L-alanyl-alanine",
+        "ξ-glycyl-alanine",
         "D-(ξ)-alanine",
         "(ξ)-D-alanine",
         "(ξ)-L-alanine",
