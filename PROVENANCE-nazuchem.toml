@@ -1104,7 +1104,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/PORTING.md", license = "MIT" },
 ]
 notes = "Project-authored OPSIN source/module mapping, acceptance narrative and upstream commit classification. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "59640bf6fb327dd4d1b4b93cdf1d839978494887d900b42b2986ff72bb15587d"
+sha256 = "5049b291777da080bce8ae86f20297433e55f595de64eb2af7d7b9448b69412a"
 
 [[file]]
 path = "crates/nazuchem-n2s/README.md"
@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "52fea89647ce7008a3f6a16d8aa735dc5b43eeee6a99c8b0b46c26d7d8c93c4a"
+sha256 = "3e48beeb7b7b025f6a6e5073cb424e5f33ffb2d0a7c410c2b8ce53647e05a92d"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "1d600b9e90c8bf96d1c3484bdf6a5ecdf2dc58dc916c564c505fe52ecf419f03"
+sha256 = "b1bc0a33e23ededceebd7540086aaece5bcd6795878ef3fc0a9001a22cedea4b"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1385,13 +1385,13 @@ sha256 = "f60303cda7b23b65b1e1e88d09bb2f02ce48298ad6b9bd567ec3c8f21180c1e0"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/functionalTerms.xml"
-origin = "copy"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/functionalTerms.xml", license = "MIT" },
 ]
-notes = "Byte-preserved upstream data."
-sha256 = "1aff14ca9925c609780c50e82d8c6b4b555848155504972c96a5c50ab1451257"
+notes = "OPSIN functional terms with original native additions (issue #26): mixed-chalcogen peroxyanhydride (P-65.7.4) and peroxide (P-63.3.2) class names. Do not claim byte equality for this file."
+sha256 = "3d857b636dafc5fc25599baba90f239378740de0784f38ab9e52578fa49d3fc3"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/fusionComponents.xml"
@@ -1656,13 +1656,13 @@ sha256 = "50e57c6484ac2ec522cb6ca30e33d25288a74a036ad03432a40db1bb59787c16"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/suffixApplicability.xml"
-origin = "copy"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixApplicability.xml", license = "MIT" },
 ]
-notes = "Byte-preserved upstream data."
-sha256 = "86d39f1a16a695a35568bd2778576e0c3b8ac7e2612fcb718beeb785b19bb315"
+notes = "OPSIN suffix applicability with original native standardGroup entries (issue #26) for the added chalcogen peroxy acid, peroxol and tellanal suffixes. Do not claim byte equality for this file."
+sha256 = "ae10a2465c97ede1655ce3abc68824f69ceadaf6400505422a3a3ac305d9aed4"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/suffixPrefix.xml"
@@ -1686,23 +1686,23 @@ sha256 = "307af66d255095c9d117493c8bddf5e2b9dcc4741e998e7dd7fdcb38304d4daf"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/suffixRules.xml"
-origin = "copy"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixRules.xml", license = "MIT" },
 ]
-notes = "Byte-preserved upstream data."
-sha256 = "57e1aff341ad43911536a00283651ec468a70b1b09eadb9ab6d6f359f3a7ca21"
+notes = "OPSIN suffix rules with original native rules (issue #26) for the added chalcogen peroxy acid, peroxol and tellanal suffixes. Do not claim byte equality for this file."
+sha256 = "dd2dd6181b47475eec8ce7774e9a38537f90261b4af0a8478b4ae0cb8939ba43"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/suffixes.xml"
-origin = "copy"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixes.xml", license = "MIT" },
 ]
-notes = "Byte-preserved upstream data."
-sha256 = "6a76924255cceee29e99917d5808c4ae904d071243cf367d387f977992634b08"
+notes = "OPSIN suffix tokens with original native additions (issue #26): chalcogen peroxy acid suffixes with their SO/OS-type acid locants (P-65.1.5.3), Table 6.1 peroxol suffixes (P-63.4.2.1) and tellanal (P-66.6.3). Do not claim byte equality for this file."
+sha256 = "cd22e16bc15df9f62675583d9f0061eb4c3d6e0d81a0dfc1a15ff7dc68424f35"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/tokenFiles.dtd"
@@ -7462,7 +7462,7 @@ sources = [
   { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including the owner decision 2026-11-10 to retain bakeoff_corpus.tsv as a repository-only test fixture with PubChem (NCBI) attribution, excluded from all published packages. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
-sha256 = "8731317af36837df5ef47ed7a6455fcef53eb8a291f5bdc14cdde38400b2a540"
+sha256 = "d26d3840c9eb575721a2de2ece0dd3ae89b603581e9ea93f9fb3e7bfab4e3fd1"
 
 [[file]]
 path = "crates/nazuchem-ir/docs/cxsmiles.md"

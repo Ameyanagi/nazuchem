@@ -5,6 +5,7 @@
 // Copyright Daniel Lowe and OPSIN contributors; MIT (see LICENSE).
 // Copyright 2017 Daniel Lowe
 // Changes: Validate parsed integer ranges and relative atom offsets before construction.
+// Changes: Chalcogen locants on anhydride acids and peroxide substituents choose the bridge end (issue #26).
 
 //! Structure-aware component processing from OPSIN 2.9.0.
 //! Source: `ComponentProcessor.java`, commit b91b610af5ab07560fedb20730d7aef46bb2bca0.
@@ -3679,6 +3680,23 @@ impl ComponentProcessor<'_> {
             self.state.current_word_rule = arena[rule].attribute(WORDRULE_ATR).map(str::to_owned);
             if arena[word].attribute(TYPE_ATR) == Some("functionalTerm") {
                 continue;
+            }
+            // P-65.7.4 and P-63.3.2: in "S-acetic O-propanoic thioperoxyanhydride"
+            // and "Se-ethyl S-methyl selenothioperoxide" the chalcogen locant
+            // before each word names the bridge atom bonded to it; the
+            // structure builder reads it from the word.
+            if matches!(
+                self.state.current_word_rule.as_deref(),
+                Some("anhydride" | "divalentFunctionalGroup")
+            ) && arena.children_named(rule, WORD_EL).len() == 3
+                && let Some(&first) = arena[word].children.first()
+                && let Some(&locant) = arena[first].children.first()
+                && arena[locant].name == LOCANT_EL
+                && matches!(arena.value(locant).as_str(), "O" | "S" | "Se" | "Te")
+            {
+                let value = arena.value(locant);
+                arena[word].set_attribute(LOCANT_ATR, &value);
+                arena.detach(locant);
             }
             let roots = arena.descendants_named(word, ROOT_EL);
             if roots.len() > 1 {

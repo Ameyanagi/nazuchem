@@ -7,6 +7,7 @@
 // Copyright 2017 Daniel Lowe
 // Changes: Rust ownership, arena/container and error-handling adaptation; integrated native changes are documented in PORTING.md.
 // Changes: Validate stoichiometric graph expansion before cloning components.
+// Changes: Chalcogen locants on anhydride acids and peroxide substituents choose the bridge end (issue #26).
 
 //! OPSIN word-rule assembly and finalization.
 //! Port of `StructureBuilder.java`, OPSIN 2.9.0, b91b610af5ab07560fedb20730d7aef46bb2bca0.
@@ -465,16 +466,35 @@ impl Builder<'_> {
             b
         };
         let centre = self.first_atom(linker)?;
+        let locants = [words[0], words[1]].map(|w| self.assembly.attr(w, "locant"));
         if self.assembly.graph().fragment(linker).out_atoms.len() == 1 {
             let outgoing = self.assembly.graph_mut().remove_out_atom(linker, 0).atom;
+            // P-63.3.2: a substituent's chalcogen locant names the bridge atom
+            // it bonds to ("Se-ethyl S-methyl selenothioperoxide").
+            let (mut to_outgoing, mut to_centre) = (a, b);
+            if locants != [None, None] {
+                let symbol =
+                    |atom| Some(self.assembly.graph().atom(atom).element.symbol().to_owned());
+                let (start, end) = (symbol(centre), symbol(outgoing));
+                if start == end {
+                    return Err(error("Unsupported or invalid divalent functional group"));
+                }
+                if locants == [start.clone(), end.clone()] {
+                    std::mem::swap(&mut to_outgoing, &mut to_centre);
+                } else if locants != [end, start] {
+                    return Err(error("Locants do not match the divalent functional group"));
+                }
+            }
             self.assembly
                 .state
                 .fragment_manager
-                .create_bond(a, outgoing, 1)?;
+                .create_bond(to_outgoing, outgoing, 1)?;
             self.assembly
                 .state
                 .fragment_manager
-                .create_bond(b, centre, 1)?;
+                .create_bond(to_centre, centre, 1)?;
+        } else if locants != [None, None] {
+            return Err(error("Locants do not match the divalent functional group"));
         } else if a != b {
             self.assembly
                 .state
@@ -1171,7 +1191,11 @@ impl Builder<'_> {
             if two.functional_atoms.is_empty() {
                 return Err(error("Cannot find functionalAtom to form anhydride"));
             }
+            let acid_locants = [words[0], words[1]].map(|w| self.assembly.attr(w, "locant"));
             if count > 1 {
+                if acid_locants != [None, None] {
+                    return Err(error("Unsupported or invalid anhydride"));
+                }
                 for i in (0..count).rev() {
                     if two.functional_atoms.is_empty() {
                         return Err(error("Cannot find functionalAtom to form anhydride"));
@@ -1188,6 +1212,28 @@ impl Builder<'_> {
             } else {
                 if one.functional_atoms.len() != 1 && two.functional_atoms.len() != 1 {
                     return Err(error("Invalid anhydride description"));
+                }
+                // P-65.7.4: an acid's chalcogen locant names the bridge atom
+                // bonded to it; the bridge's first atom bonds to `one`.
+                if acid_locants != [None, None] {
+                    let symbols: Vec<_> = smiles
+                        .char_indices()
+                        .filter(|(_, c)| c.is_ascii_uppercase())
+                        .map(|(i, _)| {
+                            let lower =
+                                smiles[i + 1..].starts_with(|c: char| c.is_ascii_lowercase());
+                            smiles[i..i + 1 + usize::from(lower)].to_owned()
+                        })
+                        .collect();
+                    let (first, last) = (symbols.first().cloned(), symbols.last().cloned());
+                    if first == last {
+                        return Err(error("Unsupported or invalid anhydride"));
+                    }
+                    if acid_locants == [last.clone(), first.clone()] {
+                        std::mem::swap(&mut one, &mut two);
+                    } else if acid_locants != [first, last] {
+                        return Err(error("Anhydride locants do not match its bridge"));
+                    }
                 }
                 self.link_anhydride_results(&smiles, &mut one, &mut two)?;
             }
