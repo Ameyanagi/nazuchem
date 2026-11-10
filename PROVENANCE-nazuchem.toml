@@ -6590,6 +6590,7 @@ path = "crates/nazuchem-s2n/src/species.rs"
 origin = "mixed"
 license = "MIT AND (MIT OR Apache-2.0)"
 sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/species.rs", ref = "issue #25", license = "MIT OR Apache-2.0" },
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/exploratory/test_charge_representation_gaps.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/data/parser_xml_resources/simpleGroups.json", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
@@ -6620,6 +6621,8 @@ parts = [
   { items = ["fn name_salt"], origin = "original", sources = [
     { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "name_salt" },
   ] },
+  { items = ["fn name_adduct"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/species.rs", ref = "issue #25", license = "MIT OR Apache-2.0", symbol = "name_adduct" }] },
+  { items = ["fn tests::neutral_components_are_named_as_adducts"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/species.rs", ref = "issue #25", license = "MIT OR Apache-2.0", symbol = "tests::neutral_components_are_named_as_adducts" }] },
   { items = ["fn tests::salt_ion_key_orders_letters_then_locants_and_declines_uncovered_spellings"], origin = "adapted", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "tests::salt_ion_key_orders_letters_then_locants_and_declines_uncovered_spellings" }, { project = "openclatura", path = "tests/exploratory/test_charge_representation_gaps.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT", symbol = "test_wrong_charge_single_atoms_fail_honestly_instead_of_mislabeling" }, { project = "openclatura", path = "tests/data/parser_xml_resources/simpleGroups.json", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT", symbol = "<fixture data>" }], notes = "Conservatively adapted exact upstream test inputs/expected names; exact coincidence does not establish independent ancestry. Local harness, assertions, status checks and additional cases remain local extensions. Conservative test-data attribution required by the requested audit rule: shared SMILES/chemical-name literals are attributed even when common chemistry or independent introduction is plausible. Implementation ancestry is uncertain; this decision attributes the test data and does not assert a mechanical port. Fixture-to-consuming-test function mapping is uncertain; the exact upstream fixture path is cited directly." },
   { items = ["fn tests::salt_ion_order_falls_back_for_uncovered_ions"], origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "tests::salt_ion_order_falls_back_for_uncovered_ions" }] },
   { items = ["fn tests::mixed_salt_anion_spellings_preserve_status"], origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "tests::mixed_salt_anion_spellings_preserve_status" }] },
@@ -7289,7 +7292,7 @@ sources = [
   { project = "Nazuchem/ReShiki", path = "crates/nazuchem/README.md", ref = "Phase A step 5 (local extraction)", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Phase A step 5 facade code, documentation or metadata. Package metadata ANDs the established engine/kernel terms; the retained Blue Book factual table is excluded from the MIT/Apache-2.0 grant, with NOASSERTION in dependency records (owner decision 2026-11-10). Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
-sha256 = "4ba60ecdb725e54001de0a30776407d60b79543eed07a53a8c858341a4e32b5a"
+sha256 = "4ee33f7f0220ec6dd4ec7ef27214b7e81152f38ca219155f12109c2794184c18"
 
 [[file]]
 path = "crates/nazuchem/licenses/centres/LICENSE"
@@ -7462,7 +7465,7 @@ sources = [
   { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including the owner decision 2026-11-10 to retain bakeoff_corpus.tsv as a repository-only test fixture with PubChem (NCBI) attribution, excluded from all published packages. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
-sha256 = "8731317af36837df5ef47ed7a6455fcef53eb8a291f5bdc14cdde38400b2a540"
+sha256 = "76b646155d202b70a44760c2648c69d7c25294c2897fe28b2e8d094bfa8d890c"
 
 [[file]]
 path = "crates/nazuchem-ir/docs/cxsmiles.md"
@@ -7801,7 +7804,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/wasm/src/index.d.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "2bab3ddec608663f367d06275a687ea34ffaac087fbae2f2847a030e78aeb838"
+sha256 = "b7a0f650819b5297fa4d36fd2c0d183cec8c74a2b451abb788a98b806fe8ecf7"
 
 [[file]]
 path = "bindings/wasm/src/lib.rs"

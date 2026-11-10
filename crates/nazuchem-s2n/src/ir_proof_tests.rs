@@ -472,7 +472,7 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
     assert_eq!(counts.names.records, 1650);
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (1616, 34)
+        (1620, 30)
     );
     counts
         .names
@@ -704,7 +704,7 @@ fn stereo_free_corpus_ordinary_hydrogen_variants_retain_complete_name_results() 
             counts.names.identical,
             counts.names.both_rejected
         ),
-        (1376, 1345, 31)
+        (1376, 1348, 28)
     );
     counts.names.assert_routes(&[("salt", 9)], 1366);
     assert_eq!(
@@ -1030,7 +1030,7 @@ fn every_n2s_structure_oracle_structure_retains_complete_name_results() {
     assert_n2s_coverage(&counts, (2624, 2535, 70, 19));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (2293, 312)
+        (2317, 288)
     );
     counts
         .names
@@ -1111,7 +1111,7 @@ fn every_n2s_golden_structure_retains_complete_name_results() {
     }
     finish("n2s generated-name golden", &counts, differences, started);
     assert_eq!(records, 1650);
-    assert_n2s_coverage(&counts, (1650, 1609, 0, 41));
+    assert_n2s_coverage(&counts, (1658, 1617, 0, 41));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
         (1608, 1)

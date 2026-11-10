@@ -43,6 +43,51 @@ fn parser_upstream_cases() {
     );
 }
 
+/// Issue #25, Blue Book P-14.8.1: an enclosed salt is one adduct component,
+/// as in {piperazin-1-ium ...carboxylate}—ethyl acetate—dichloromethane (1/1/1).
+#[test]
+fn enclosed_salt_takes_one_adduct_ratio() {
+    let parser = Parser::new().unwrap();
+    for (name, expected) in [
+        ("(sodium acetate)\u{2014}water (1/3)", [1, 1, 3].as_slice()),
+        (
+            "[bis(methanaminium) sulfate]\u{2014}water (1/2)",
+            &[1, 1, 2],
+        ),
+        (
+            "{piperazin-1-ium benzoate}\u{2014}ethyl acetate\u{2014}dichloromethane (1/1/1)",
+            &[1, 1, 1, 1],
+        ),
+        ("(sodium acetate)\u{2014}water (2/1)", &[2, 2, 1]),
+    ] {
+        let tree = &parser.parse_trees(name, &ParseOptions::default()).unwrap()[0];
+        let ratios: Vec<i32> = tree
+            .arena
+            .children_named(tree.root, "wordRule")
+            .iter()
+            .map(|&rule| {
+                tree.arena[rule]
+                    .attribute("stoichiometry")
+                    .unwrap()
+                    .parse()
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(ratios, expected, "{name}");
+    }
+    // The ratio still counts unenclosed words.
+    assert!(
+        parser
+            .parse_trees(
+                "sodium acetate\u{2014}water (1/3)",
+                &ParseOptions::default()
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("3 components but 2 ratios")
+    );
+}
+
 #[test]
 fn upstream_component_ratio_examples_and_precise_mismatch() {
     assert_eq!(process_stoichiometry_indication("(1:2)").unwrap(), [1, 2]);

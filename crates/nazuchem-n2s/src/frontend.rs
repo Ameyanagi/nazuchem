@@ -24,7 +24,58 @@ pub(crate) fn parse(
     name: &str,
     options: &ParseOptions,
 ) -> Result<Vec<ParseTree>, ParsingError> {
-    let (name, ratios) = extract_stoichiometry(name)?;
+    let (name, mut ratios) = extract_stoichiometry(name)?;
+    // Changes: An enclosed multi-word adduct component, as in
+    // (sodium acetate)—water (1/3), takes one ratio for all of its words
+    // (Blue Book P-14.8.1).
+    fn enclosed(piece: &str) -> Option<&str> {
+        piece
+            .strip_prefix(['(', '[', '{'])
+            .and_then(|rest| rest.strip_suffix([')', ']', '}']))
+            .filter(|inner| {
+                let mut depth = 0;
+                inner.contains(' ')
+                    && inner.chars().all(|ch| {
+                        depth += match ch {
+                            '(' | '[' | '{' => 1,
+                            ')' | ']' | '}' => -1,
+                            _ => 0,
+                        };
+                        depth >= 0
+                    })
+            })
+    }
+    let pieces: Vec<_> = name.split(" - ").collect();
+    let mut unenclosed = String::new();
+    if let Some(given) = &ratios
+        && given.len() == pieces.len()
+        && pieces.iter().any(|piece| enclosed(piece).is_some())
+    {
+        let mut expanded = Vec::new();
+        for (piece, &ratio) in pieces.iter().zip(given) {
+            let (text, words) = match enclosed(piece) {
+                Some(inner) => {
+                    let tree = &parse(resources, inner, options)?[0];
+                    (
+                        inner,
+                        tree.arena.children_named(tree.root, "wordRule").len(),
+                    )
+                }
+                None => (*piece, 1),
+            };
+            if !unenclosed.is_empty() {
+                unenclosed.push_str(" - ");
+            }
+            unenclosed.push_str(text);
+            expanded.extend(std::iter::repeat_n(ratio, words));
+        }
+        ratios = Some(expanded);
+    }
+    let name = if unenclosed.is_empty() {
+        name
+    } else {
+        &unenclosed
+    };
     let mut tokenized = None;
     if name.contains(", ")
         && let Ok(uninverted) = cas::uninvert(resources, name)

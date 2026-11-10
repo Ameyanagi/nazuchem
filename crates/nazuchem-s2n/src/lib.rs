@@ -276,7 +276,7 @@ pub fn name_molecule(
     } else if canonical.contains('.') {
         #[cfg(test)]
         ir_proof_tests::record_fallback("salt");
-        species::name_salt(&canonical, style, budget)?
+        species::name_adduct(&canonical, style, budget)?
     } else if let Some(name) = {
         #[cfg(test)]
         ir_proof_tests::record_monatomic_probe();
@@ -355,7 +355,7 @@ fn name_routes(
     }
     let canonical = canonical_smiles(smiles, budget)?;
     if canonical.contains('.') {
-        return species::name_salt(&canonical, style, budget);
+        return species::name_adduct(&canonical, style, budget);
     }
     if let Some(name) = species::monatomic_cation(&canonical, false, budget)? {
         return Ok(name);
@@ -3153,11 +3153,7 @@ mod tests {
 
     #[test]
     fn unsupported_spiro_topologies_decline() {
-        for smiles in [
-            "C1CC12CC23CC34CC4",
-            "S123(CC1)(CC2)CC3",
-            "C1CCC2(CC1)CCCC2.C",
-        ] {
+        for smiles in ["C1CC12CC23CC34CC4", "S123(CC1)(CC2)CC3"] {
             assert!(
                 name_smiles(smiles, &Default::default()).is_err(),
                 "{smiles}"
