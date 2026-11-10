@@ -76,7 +76,7 @@ fn unit_name(mol: &Molecule, component: &AtomSet) -> Option<(String, &'static st
     let locant = parent.locants.get(&root)?;
     let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
     // P-15.3.1.1, P-15.3.4.2: rings and functionalized chains, not alkanes.
-    // Heteroatom parents need the 'bis' rules of P-16.3.6 and are left alone.
+    // Heteroatom parents are left alone: some need 'bis' (P-16.3.6 (c)).
     if parent_atoms.len() < 2
         || parent_atoms.iter().any(|i| !mol.atoms[i].is_carbon())
         || !(cyclic.contains(&root) || principal_group.is_some())
@@ -197,6 +197,38 @@ mod tests {
                 "O=[Te](=O)(c1ccccc1)c1ccccc1",
                 "1,1'-telluronyldibenzene",
                 "[dioxo(phenyl)-lambda^6-tellanyl]benzene",
+            ),
+            (
+                "O=S(=O)(c1ccccc1)c1ccccc1",
+                "1,1'-sulfonyldibenzene",
+                "(benzenesulfonyl)benzene",
+            ),
+            (
+                "O=[Te](c1ccccc1)c1ccccc1",
+                "1,1'-tellurinyldibenzene",
+                "[oxo(phenyl)-lambda^4-tellanyl]benzene",
+            ),
+            // P-63.2.5, P-35.2.2.
+            (
+                "c1ccccc1[Se]c1ccccc1",
+                "1,1'-selanediyldibenzene",
+                "(phenylselanyl)benzene",
+            ),
+            (
+                "c1ccccc1[Te]c1ccccc1",
+                "1,1'-tellanediyldibenzene",
+                "(phenyltellanyl)benzene",
+            ),
+            // P-16.3.4 (e): several suffix groups, and a ketone.
+            (
+                "O=C(O)c1cc(Oc2cc(C(=O)O)cc(C(=O)O)c2)cc(C(=O)O)c1",
+                "5,5'-oxydi(benzene-1,3-dicarboxylic acid)",
+                "5-(3,5-dicarboxyphenoxy)benzene-1,3-dicarboxylic acid",
+            ),
+            (
+                "CC(=O)COCC(C)=O",
+                "1,1'-oxydi(propan-2-one)",
+                "1-(2-oxopropoxy)propan-2-one",
             ),
             // P-44.1.2.2: the ring is senior to the chain.
             (
@@ -333,6 +365,13 @@ mod tests {
             ),
             // P-15.3.3.1: chains as linking groups.
             ("CC(c1ccccc1)Cc1ccccc1", "(2-phenylpropyl)benzene"),
+            // P-45.6.2: configuration needs primed stereodescriptors.
+            (
+                "C[C@H](O)CSC[C@H](C)O",
+                "(2S)-1-{[(2S)-2-hydroxypropyl]sulfanyl}propan-2-ol",
+            ),
+            // A unit name outside the audited spellings.
+            ("O=CCOCC=O", "2-(2-oxoethoxy)ethanal"),
             // P-16.3.6 (c): heterocyclic units.
             ("c1ccncc1Oc1cccnc1", "3-[(pyridin-3-yl)oxy]pyridine"),
             // P-16.3.4 (f), P-16.3.6 (d): names with brackets.
