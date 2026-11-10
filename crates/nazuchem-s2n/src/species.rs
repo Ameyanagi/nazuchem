@@ -219,16 +219,17 @@ fn neutral_group_atoms(mol: &Molecule) -> std::collections::BTreeSet<usize> {
         .collect()
 }
 
-/// Nonitalic Roman letters, then locants (italic element locants before numerals).
-type SaltIonKey = (String, Option<Vec<(bool, usize, String)>>);
+/// Nonitalic Roman letters, italic descriptors, then primary locants (italic
+/// element locants before numerals).
+type SaltIonKey = (String, Vec<String>, Option<Vec<(bool, usize, String)>>);
 
-/// P-14.5 key of a plainly spelled ion name: Roman letters first, then locants
-/// at the first difference. `None` for any italic descriptor other than element
-/// locants and indicated hydrogen (tert, sec, the s/as of indacene, fusion
-/// letters and other descriptor brackets), lambda, superscripts, marks other
-/// than hyphens, commas, primes and enclosing marks, and composite locants.
-/// Locants are compared only in names without enclosing marks, where every
-/// locant is a primary one (P-14.5).
+/// P-14.5 key of an ion name cited without stereo or isotope descriptors:
+/// Roman letters first, then the italic tert, sec, s/as of indacene and fusion
+/// letters (P-14.5.3) and the primary locants, those outside every enclosing
+/// mark (P-14.5.4). `None` for lambda, superscripts, composite locants and
+/// marks other than hyphens, commas, primes, periods and enclosing marks. The
+/// locants are `None` beside a descriptor bracket (fusion, von Baeyer, spiro
+/// or ring assembly), whose own locants are not ranked here.
 // Provenance: fn salt_ion_sort_key | original
 // Source: ReShiki | src/naming/openclatura/species.rs::salt_ion_sort_key
 fn salt_ion_sort_key(name: &str) -> Option<SaltIonKey> {
@@ -239,16 +240,25 @@ fn salt_ion_sort_key(name: &str) -> Option<SaltIonKey> {
         .any(|rest| !rest.split(']').next().unwrap_or(rest).contains('('));
     if !name
         .chars()
-        .all(|c| c.is_ascii_alphanumeric() || " ,-'()[]{}".contains(c))
+        .all(|c| c.is_ascii_alphanumeric() || " ,.-'()[]{}".contains(c))
         || name.contains("lambda")
-        || name.contains("indacen")
-        || descriptor_bracket
+        // 3-chloros-indacene: the italic s or as is not told from the prefix.
+        || name.match_indices("s-indacen").any(|(i, _)| {
+            name[..i]
+                .strip_suffix('a')
+                .unwrap_or(&name[..i])
+                .ends_with(|c: char| c.is_ascii_alphanumeric())
+        })
     {
         return None;
     }
-    let (mut letters, mut locants) = (String::new(), Vec::new());
-    let primary_locants = !name.contains('(');
-    for token in name.split(|c: char| !c.is_ascii_alphanumeric() && c != '\'') {
+    let (mut letters, mut italics, mut locants) = (String::new(), Vec::new(), Vec::new());
+    let (mut token, mut depth) = (String::new(), 0usize);
+    for c in name.chars().chain([' ']) {
+        if c.is_ascii_alphanumeric() || c == '\'' {
+            token.push(c);
+            continue;
+        }
         let digits = token
             .find(|c: char| !c.is_ascii_digit())
             .unwrap_or(token.len());
@@ -261,23 +271,31 @@ fn salt_ion_sort_key(name: &str) -> Option<SaltIonKey> {
             if letter.len() > 1 || !letter.bytes().all(|b| b.is_ascii_lowercase()) {
                 return None;
             }
-            locants.push((true, token[..digits].parse().ok()?, rest.to_owned()));
+            if depth == 0 {
+                locants.push((true, token[..digits].parse().ok()?, rest.to_owned()));
+            }
         } else if matches!(
             token.trim_end_matches('\''),
             "N" | "O" | "S" | "Se" | "Te" | "P"
         ) {
-            locants.push((false, 0, token.to_owned()));
-        } else if token.starts_with(|c: char| c.is_ascii_uppercase())
-            || token.contains('\'')
-            || token.len() == 1
-            || matches!(token, "tert" | "sec")
-        {
+            if depth == 0 {
+                locants.push((false, 0, token.clone()));
+            }
+        } else if token.starts_with(|c: char| c.is_ascii_uppercase()) || token.contains('\'') {
             return None;
+        } else if token.len() == 1 || matches!(token.as_str(), "tert" | "sec" | "as") {
+            italics.push(token.clone());
         } else {
-            letters.push_str(token);
+            letters.push_str(&token);
+        }
+        token.clear();
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth = depth.saturating_sub(1),
+            _ => {}
         }
     }
-    Some((letters, primary_locants.then_some(locants)))
+    Some((letters, italics, (!descriptor_bracket).then_some(locants)))
 }
 
 // Provenance: fn name_salt | original
@@ -307,33 +325,111 @@ pub(super) fn name_salt(
             Some(name) => name,
             None => name_smiles_with_style(component, style, budget)?,
         };
-        // P-14.5 leaves out stereodescriptors and isotope descriptors, which
-        // the cited names cannot omit yet.
-        let key = (state.graph.atoms.iter().all(|a| a.isotope == 0)
-            && state.metadata.atoms.iter().all(|a| a.chiral_tag == 0)
-            && state.metadata.bonds.iter().all(|b| b.stereo == 0))
-        .then(|| salt_ion_sort_key(&name.text))
-        .flatten();
-        ions.push((q < 0, name, component, key));
+        let labelled = state.graph.atoms.iter().any(|a| a.isotope != 0)
+            || state.metadata.atoms.iter().any(|a| a.chiral_tag != 0)
+            || state.metadata.bonds.iter().any(|b| b.stereo != 0);
+        ions.push((q < 0, name, component, labelled));
     }
+    // The name without its stereodescriptor and isotopic descriptor groups, such
+    // as `(2R,3R)-`, `(4aS)-`, `(2E)-`, `(2H3)` and `(1-13C)`, with every
+    // enclosing mark written as a parenthesis. P-14.5 leaves both kinds of
+    // descriptor out of alphanumerical order. The result only counts once it
+    // equals the name of the same ion without stereo and isotope labels.
+    let without_descriptor_groups = |name: &str| {
+        let locant = |t: &str| {
+            let t = t
+                .trim_end_matches('\'')
+                .trim_start_matches(|c: char| c.is_ascii_digit());
+            t.len() <= 1 && t.bytes().all(|b| b.is_ascii_lowercase())
+        };
+        let descriptor = |t: &str| {
+            // 2R, 4aS, E or a nuclide with its count: 2H3, 13C.
+            t.strip_suffix(['R', 'S', 'E', 'Z', 'M', 'P', 'r', 's'])
+                .is_some_and(locant)
+                || {
+                    let symbol = t.trim_start_matches(|c: char| c.is_ascii_digit());
+                    symbol.len() < t.len() && symbol.starts_with(|c: char| c.is_ascii_uppercase())
+                }
+        };
+        let mut out = String::new();
+        let mut rest = name;
+        while let Some(open) = rest.find(['(', '[', '{']) {
+            out.push_str(&rest[..open]);
+            rest = &rest[open + 1..];
+            let end = rest
+                .find(['(', '[', '{', ')', ']', '}'])
+                .unwrap_or(rest.len());
+            let tokens: Vec<&str> = rest[..end].split([',', '-']).collect();
+            if rest[end..].starts_with(')')
+                && tokens.last().is_some_and(|t| descriptor(t))
+                && tokens
+                    .iter()
+                    .all(|t| descriptor(t) || locant(t) && !t.is_empty())
+            {
+                rest = &rest[end + 1..];
+                rest = rest.strip_prefix('-').unwrap_or(rest);
+            } else {
+                out.push('(');
+            }
+        }
+        out.push_str(rest);
+        out.replace([']', '}'], ")")
+    };
+    let keys: Vec<_> = ions
+        .iter()
+        .map(|(negative, name, component, labelled)| {
+            if !labelled {
+                return salt_ion_sort_key(&name.text);
+            }
+            // Nothing to order against.
+            if !ions
+                .iter()
+                .any(|o| o.0 == *negative && o.1.text != name.text)
+            {
+                return None;
+            }
+            // P-14.5 leaves out stereo and isotope descriptors: the key comes
+            // from the name of the unlabelled ion, when the cited name is that
+            // name plus descriptor groups (same parent, prefixes and locants).
+            let mut mass = false;
+            let mut plain = String::new();
+            for c in component.chars() {
+                if matches!(c, '@' | '/' | '\\') || mass && c.is_ascii_digit() {
+                    continue;
+                }
+                mass = c == '[';
+                plain.push(c);
+            }
+            let bare = name_smiles_with_style(&plain, style, budget).ok()?.text;
+            (without_descriptor_groups(&name.text) == without_descriptor_groups(&bare))
+                .then(|| salt_ion_sort_key(&bare))
+                .flatten()
+        })
+        .collect();
     // Ions of one sign are ordered by the key; when any of them has no key or
     // two different names are not told apart by it, main's character order
-    // stays and is unverified.
-    let ordered = ions.iter().all(|(negative, name, _, key)| {
-        ions.iter().all(|other| {
+    // stays and is unverified. With identical Roman letters, locant sets of
+    // one length decide when the italic descriptors agree, and the italic
+    // descriptors decide when the locants agree; other ties are not ranked.
+    let ordered = ions.iter().zip(&keys).all(|((negative, name, ..), key)| {
+        ions.iter().zip(&keys).all(|(other, other_key)| {
             other.0 != *negative
                 || other.1.text == name.text
-                || match (key, &other.3) {
-                    (Some((a, a_locants)), Some((b, b_locants))) => {
-                        a != b
-                            || a_locants.is_some() && b_locants.is_some() && a_locants != b_locants
+                || match (key, other_key) {
+                    (Some(a), Some(b)) => {
+                        a.0 != b.0
+                            || match (&a.2, &b.2) {
+                                (Some(x), Some(y)) if a.1 == b.1 => x.len() == y.len() && x != y,
+                                (Some(x), Some(y)) => x == y,
+                                _ => false,
+                            }
                     }
                     _ => false,
                 }
         })
     });
     let mut grouped = BTreeMap::new();
-    for (negative, name, component, key) in ions {
+    for ((negative, name, component, _), key) in ions.into_iter().zip(keys) {
         let plain: String = name
             .text
             .chars()
@@ -421,35 +517,79 @@ mod tests {
             );
         }
         for name in [
-            "[1,1'-biphenyl]-4-carboxylate",
-            "benzo[a]anthracen-7-ide",
             "(2H3)acetate",
             "1lambda^5-phosphinin-1-ylium",
             "N1-methylbutanediamide",
             "3-chloros-indacene-1-carboxylate",
             "3-chloros-indacen-1-olate",
-            "as-indacen-1-ide",
-            "tert-butoxide",
-            "N-(tert-butyl)anilinium",
-            "s-triazin-2-olate",
             "(2R)-butan-2-olate",
         ] {
             assert_eq!(salt_ion_sort_key(name), None, "{name}");
         }
+        // P-14.5.3: italic letters (tert, s/as, fusion letters) are left out of
+        // the Roman letters and only break a tie; none comes first.
+        // P-14.5: enclosing marks and descriptor brackets hold no Roman letters.
+        for (first, second) in [
+            ("tert-butoxide", "methoxide"),
+            ("butoxide", "tert-butoxide"),
+            ("4-butylbenzoate", "4-(tert-butyl)benzoate"),
+            ("as-indacen-1-ide", "s-indacen-1-ide"),
+            ("3-chloro-s-indacen-1-olate", "4-chloronaphthalen-1-olate"),
+            ("acetate", "[1,1'-biphenyl]-4-carboxylate"),
+            (
+                "benzo[c]phenanthrene-3-carboxylate",
+                "phenanthrene-3-carboxylate",
+            ),
+            // P-14.5.4: primary locants, outside every enclosing mark.
+            ("2-(chloromethyl)heptanoate", "3-(chloromethyl)heptanoate"),
+        ] {
+            assert!(
+                salt_ion_sort_key(first).unwrap() < salt_ion_sort_key(second).unwrap(),
+                "{first} before {second}"
+            );
+        }
+        // The locants of a descriptor bracket are not ranked.
+        assert_eq!(
+            salt_ion_sort_key("bicyclo[2.2.1]heptane-2-carboxylate"),
+            Some(("bicycloheptanecarboxylate".into(), vec![], None))
+        );
     }
 
     #[test]
     // Provenance: fn tests::salt_ion_order_falls_back_for_uncovered_ions | original
     // Source: ReShiki | src/naming/openclatura/species.rs::tests::salt_ion_order_falls_back_for_uncovered_ions
     fn salt_ion_order_falls_back_for_uncovered_ions() {
+        // Identical Roman letters (P-14.5) that these keys do not rank.
         for (smiles, expected) in [
+            // Primary locant sets of different lengths (P-14.5.4, P-14.6).
             (
-                "[Na+].[Na+].CC[C@@H](C)[C@@H](O)C([O-])=O.CC[C@H](O)[C@H](C)C([O-])=O",
-                "disodium (2R,3R)-2-hydroxy-3-methylpentanoate (2S,3S)-3-hydroxy-2-methylpentanoate",
+                "[Na+].[Na+].O=C([O-])C(CCCCl)CCCCCC.O=C([O-])C(Cl)(CCC)CCCCCC",
+                "disodium 2-(3-chloropropyl)octanoate 2-chloro-2-propyloctanoate",
             ),
+            // Equal primary locants; only internal locants differ (P-14.6).
             (
-                "[Na+].[Na+].[O-]C(=O)c1ccc(cc1)-c1ccccc1.CC(=O)[O-]",
-                "disodium [1,1'-biphenyl]-4-carboxylate acetate",
+                "[Na+].[Na+].[O-]C(=O)c1ccc(cc1)[C@H](C)Cl.[O-]C(=O)c1ccc(cc1)CCCl",
+                "disodium 4-[(1S)-1-chloroethyl]benzoate 4-(2-chloroethyl)benzoate",
+            ),
+            // An italic descriptor beside differing locants (P-14.5.3, P-14.5.4).
+            (
+                "CC(=O)[O-].CC(=O)[O-].CC(C)(C)[NH2+]c1ccccc1.[NH3+]c1ccccc1CCCC",
+                "2-butylanilinium N-(tert-butyl)anilinium diacetate",
+            ),
+            // Locants beside a von Baeyer descriptor.
+            (
+                "[Na+].[Na+].[O-]C(=O)C12CCC(CC1)C2.[O-]C(=O)C1CC2CCC1C2",
+                "disodium bicyclo[2.2.1]heptane-1-carboxylate bicyclo[2.2.1]heptane-2-carboxylate",
+            ),
+            // Ions that differ only in stereodescriptors, which P-14.5 leaves out.
+            (
+                "[Na+].[Na+].C/C=C/C(=O)[O-].C/C=C\\C(=O)[O-]",
+                "disodium (2E)-but-2-enoate (2Z)-but-2-enoate",
+            ),
+            // The italic s of this name is not set off from the prefix.
+            (
+                "[Na+].[Na+].ClC1=c2cc3c(cc2C([O-])=C1)=CC=C3.[O-]c1ccc(Cl)c2ccccc12",
+                "disodium 3-chloros-indacen-1-olate 4-chloronaphthalen-1-olate",
             ),
         ] {
             let name = name_salt(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
@@ -460,13 +600,19 @@ mod tests {
                 "{smiles}"
             );
         }
-        // A letter tie that needs internal locants is not ordered.
-        let (first, second) = (
-            salt_ion_sort_key("2-(3-chloropropyl)octanoate").unwrap(),
-            salt_ion_sort_key("2-chloro-2-propyloctanoate").unwrap(),
+        // Without its stereo the gonane ion is named from another parent, so
+        // its cited name has no stereo-free key and the character order stays.
+        let name = name_salt(
+            "[Cl-].[Cl-].C[C@]12CC[C@H]3[C@@H](CCC4CC(CC[C@]34C)[NH3+])[C@@H]1CCC2.CC[NH3+]",
+            IsotopeStyle::Iupac,
+            &Default::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            name.text,
+            "(8S,9S,10S,13S,14S)-10,13-dimethylgonan-3-aminium ethanaminium dichloride"
         );
-        assert_eq!(first.0, second.0);
-        assert!(first.1.is_none() || second.1.is_none());
+        assert_ne!(name.status, NameStatus::Preferred);
         // One stereospecified ion per sign leaves nothing to order.
         let name = name_salt(
             "C[C@@H](CC)[NH3+].CC(=O)[O-]",
@@ -491,6 +637,100 @@ mod tests {
                 "[Na+].[Na+].[Na+].CC(=O)CC[O-].O=C([O-])c1ccc(cc1)Oc1ccc(cc1)C(=O)[O-]",
                 "trisodium 4-(4-carboxylatophenoxy)benzoate 3-oxobutan-1-olate",
                 NameStatus::NotPreferred(NameReason::Multiplicative),
+            ),
+            // P-14.5: stereodescriptors take no part; the ions are compared as
+            // 2-hydroxy-3-methylpentanoate and 3-hydroxy-2-methylpentanoate,
+            // identical Roman letters, then locants 2,3 before 3,2 (P-14.5.4).
+            (
+                "[Na+].[Na+].CC[C@@H](C)[C@@H](O)C([O-])=O.CC[C@H](O)[C@H](C)C([O-])=O",
+                "disodium (2R,3R)-2-hydroxy-3-methylpentanoate (2S,3S)-3-hydroxy-2-methylpentanoate",
+                NameStatus::Preferred,
+            ),
+            // P-14.5: acetate before hydroxypropanoate, butenoate before
+            // propanoate and ethenyl before propenyl, whatever the descriptors.
+            (
+                "[Na+].[Na+].C[C@H](O)C(=O)[O-].CC(=O)[O-]",
+                "disodium acetate (2S)-2-hydroxypropanoate",
+                NameStatus::Preferred,
+            ),
+            (
+                "[Na+].[Na+].C/C=C/C(=O)[O-].CCC(=O)[O-]",
+                "disodium (2E)-but-2-enoate propanoate",
+                NameStatus::Preferred,
+            ),
+            (
+                "[Na+].[Na+].[O-]C(=O)c1ccc(cc1)/C=C/C.[O-]C(=O)c1ccc(cc1)C=C",
+                "disodium 4-ethenylbenzoate 4-[(1E)-prop-1-en-1-yl]benzoate",
+                NameStatus::Preferred,
+            ),
+            (
+                "[Na+].[Na+].C[C@@H]1CC[C@H](CC1)C(=O)[O-].CC(=O)[O-]",
+                "disodium acetate (1r,4r)-4-methylcyclohexane-1-carboxylate",
+                NameStatus::Preferred,
+            ),
+            // P-14.5.4: 2-chloropropanoate before 3-chloropropanoate.
+            (
+                "[Na+].[Na+].C[C@H](Cl)C(=O)[O-].ClCCC(=O)[O-]",
+                "disodium (2S)-2-chloropropanoate 3-chloropropanoate",
+                NameStatus::Preferred,
+            ),
+            // P-14.5.4 with compound locants in the descriptors: 1 before 2.
+            (
+                "[Cl-].[Cl-].[NH3+][C@@H]1CCC[C@H]2CCCC[C@@H]12.[NH3+][C@@H]1CC[C@@H]2CCCC[C@H]2C1",
+                "(1R,4aR,8aR)-decahydronaphthalen-1-aminium (2R,4aS,8aS)-decahydronaphthalen-2-aminium dichloride",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            // P-14.5: isotopic descriptors take no part; acetate before
+            // chloroacetate and before hydroxypropanoate.
+            (
+                "[Na+].[Na+].C[13C](=O)[O-].[O-]C(=O)CCl",
+                "disodium (1-13C)acetate chloroacetate",
+                NameStatus::Unverified(NameReason::IsotopePlacement),
+            ),
+            (
+                "[Na+].[Na+].[2H]C([2H])([2H])[C@H](O)C(=O)[O-].CC(=O)[O-]",
+                "disodium acetate (2S)-2-hydroxy(3,3,3-2H3)propanoate",
+                NameStatus::Unverified(NameReason::IsotopePlacement),
+            ),
+            // P-14.5.3: the italic tert is not a Roman letter (butoxide before
+            // methoxide) and breaks a tie after the plain name.
+            (
+                "[Na+].CC(C)(C)[O-].[Na+].C[O-]",
+                "disodium tert-butoxide methoxide",
+                NameStatus::Preferred,
+            ),
+            (
+                "[Na+].[Na+].CC(C)(C)[O-].CCCC[O-]",
+                "disodium butoxide tert-butoxide",
+                NameStatus::Preferred,
+            ),
+            (
+                "[Na+].[Na+].CC(C)(C)c1ccc(cc1)C(=O)[O-].CCCCc1ccc(cc1)C(=O)[O-]",
+                "disodium 4-butylbenzoate 4-(tert-butyl)benzoate",
+                NameStatus::Preferred,
+            ),
+            // P-14.5: enclosing marks, fusion letters and von Baeyer
+            // descriptors hold no Roman letters.
+            (
+                "[Na+].[Na+].[O-]C(=O)c1ccc(cc1)-c1ccccc1.CC(=O)[O-]",
+                "disodium acetate [1,1'-biphenyl]-4-carboxylate",
+                NameStatus::Preferred,
+            ),
+            (
+                "[Na+].[Na+].[O-]C(=O)c1ccc2ccc3ccccc3c2c1.[O-]C(=O)c1ccc2c(c1)ccc1ccc3ccccc3c12",
+                "disodium benzo[c]phenanthrene-3-carboxylate phenanthrene-3-carboxylate",
+                NameStatus::Preferred,
+            ),
+            (
+                "[Na+].[Na+].[O-]C(=O)[C@@H]1C[C@H]2CC[C@@H]1C2.CC(=O)[O-]",
+                "disodium acetate (1R,2R,4S)-bicyclo[2.2.1]heptane-2-carboxylate",
+                NameStatus::Preferred,
+            ),
+            // P-14.5.4: primary locants outside the enclosing marks, 2 before 3.
+            (
+                "[Na+].[Na+].[O-]C(=O)C(CCl)CCCCC.[O-]C(=O)CC(CCl)CCCC",
+                "disodium 2-(chloromethyl)heptanoate 3-(chloromethyl)heptanoate",
+                NameStatus::Preferred,
             ),
         ] {
             let name = name_salt(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
