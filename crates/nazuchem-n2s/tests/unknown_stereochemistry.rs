@@ -688,6 +688,12 @@ fn peptide_xi_marks_only_its_residue() {
         ("ξ-alanyl-alanine", "NC(C)C(=O)N[C@@H](C)C(=O)O", 1),
         ("L-alanyl-ξ-alanine", "N[C@@H](C)C(=O)NC(C)C(=O)O", 1),
         ("ξ-alanyl-ξ-alanine", "NC(C)C(=O)NC(C)C(=O)O", 2),
+        // Multiplied residues carry primed α locants.
+        (
+            "N,N-bis(ξ-alanyl)glycine",
+            "OC(=O)CN(C(=O)C(C)N)C(=O)C(C)N",
+            2,
+        ),
     ] {
         let structure = parsed(&parser, name);
         assert_eq!(
@@ -710,6 +716,8 @@ fn amino_acid_xi_conflicts_are_refused() {
         "rel-(ξ)-alanine",
         "(rac)-N-acetyl-(ξ)-alanine",
         "rac-(ξ)-alanyl-DL-alanine",
+        "rac-(2Ξ,3E)-pent-3-en-2-ol",
+        "rel-(2Ξ,3E)-pent-3-en-2-ol",
         // P-103.3.4: ξ never moves to another residue.
         "(ξ)-L-alanyl-alanine",
         "ξ-glycyl-alanine",
@@ -733,6 +741,28 @@ fn amino_acid_xi_conflicts_are_refused() {
     ] {
         let result = parser.parse(name, &ParseOptions::strict());
         assert_eq!(result.status, Status::Failure, "{name}: {}", result.message);
+    }
+}
+
+// P-93.1.2/P-93.1.3: rac-/rel- survives on the centres that ξ leaves defined.
+#[test]
+fn rac_rel_with_xi_keeps_the_remaining_group() {
+    let parser = Parser::new().unwrap();
+    for name in [
+        "(rac)-(5xi)-cholestane",
+        "(rel)-(5ξ)-cholestane",
+        "rac-(2R,3Ξ)-3-chlorobutan-2-ol",
+    ] {
+        let structure = parsed(&parser, name);
+        assert_eq!(unknown_ir_atoms(&structure).len(), 1, "{name}");
+        assert!(
+            structure.graph.atoms.iter().any(|atom| atom
+                .parity
+                .as_ref()
+                .is_some_and(|parity| parity.stereo_group.kind
+                    != nazuchem_n2s::graph::StereoGroupType::Absolute)),
+            "{name}"
+        );
     }
 }
 

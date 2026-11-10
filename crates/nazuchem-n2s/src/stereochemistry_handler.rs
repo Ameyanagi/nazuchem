@@ -413,8 +413,8 @@ impl<'a> StereochemistryHandler<'a> {
         }) {
             self.find_coupled_unknown_candidates()?;
         }
-        // P-93.1.2/P-93.1.3: rac-/rel- qualify defined descriptors. A rac-/rel-
-        // token whose descriptors are all ξ would leave nothing to qualify.
+        // P-93.1.2/P-93.1.3: rac-/rel- qualify defined R/S descriptors. A
+        // rac-/rel- token with ξ and no R/S would leave nothing to qualify.
         let unknown = |id: NodeId| {
             self.attr(id, TYPE_ATR) == ALPHA_OR_BETA_TYPE_VAL
                 && matches!(self.attr(id, VALUE_ATR).as_str(), "xi" | "Xi" | "ξ")
@@ -427,9 +427,10 @@ impl<'a> StereochemistryHandler<'a> {
         let unqualified_xi = elements.iter().any(|&id| {
             unknown(id)
                 && qualifier(id).is_some()
-                && !elements
-                    .iter()
-                    .any(|&other| !unknown(other) && qualifier(other) == qualifier(id))
+                && !elements.iter().any(|&other| {
+                    self.attr(other, TYPE_ATR) == R_OR_S_TYPE_VAL
+                        && qualifier(other) == qualifier(id)
+                })
         });
         if unqualified_xi {
             self.warning_or_error(stereo(RAC_REL_XI))?;
@@ -1752,12 +1753,18 @@ impl<'a> StereochemistryHandler<'a> {
                 false
             });
             if !restored {
-                // A rac-/rel- applied before ξ cleared its only centre is lost.
-                if originals.values().flatten().any(|parity| {
+                // A rac-/rel- group whose only centres ξ cleared is lost.
+                if originals.values().flatten().any(|original| {
                     matches!(
-                        parity.stereo_group.kind,
+                        original.stereo_group.kind,
                         StereoGroupType::Racemic | StereoGroupType::Relative
-                    )
+                    ) && !self.graph().atoms.iter().any(|atom| {
+                        atom.active
+                            && atom
+                                .parity
+                                .as_ref()
+                                .is_some_and(|parity| parity.stereo_group == original.stereo_group)
+                    })
                 }) {
                     self.warning_or_error(stereo(RAC_REL_XI))?;
                 }
@@ -1789,7 +1796,13 @@ impl<'a> StereochemistryHandler<'a> {
                 .is_some_and(|smiles| {
                     smiles.split(']').filter(|atom| atom.contains('@')).count() <= 1
                 })
-            && self.graph().atom(atom).locants.iter().any(|l| l == "alpha");
+            // Multiplied residues carry primed copies of the template locants.
+            && self
+                .graph()
+                .atom(atom)
+                .locants
+                .iter()
+                .any(|l| l.trim_end_matches('\'') == "alpha");
         if centre.value == "xi" || (centre.value == "ξ" && (centre.alpha_beta || amino_acid_alpha))
         {
             return Ok(());
