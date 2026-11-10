@@ -254,7 +254,10 @@ fn salt_ion_sort_key(name: &str) -> Option<SaltIonKey> {
     }
     let (mut letters, mut italics, mut locants) = (String::new(), Vec::new(), Vec::new());
     let (mut token, mut depth) = (String::new(), 0usize);
-    for c in name.chars().chain([' ']) {
+    // Inside a descriptor bracket: its short letter runs are fusion letters
+    // such as f or ghi (P-16.2.1), a longer one is a ring-assembly parent.
+    let mut descriptor = false;
+    for (i, c) in name.char_indices().chain([(name.len(), ' ')]) {
         if c.is_ascii_alphanumeric() || c == '\'' {
             token.push(c);
             continue;
@@ -283,15 +286,26 @@ fn salt_ion_sort_key(name: &str) -> Option<SaltIonKey> {
             }
         } else if token.starts_with(|c: char| c.is_ascii_uppercase()) || token.contains('\'') {
             return None;
-        } else if token.len() == 1 || matches!(token.as_str(), "tert" | "sec" | "as") {
+        } else if token.len() == 1
+            || descriptor && token.len() <= 4
+            || matches!(token.as_str(), "tert" | "sec" | "as")
+        {
             italics.push(token.clone());
         } else {
             letters.push_str(&token);
         }
         token.clear();
         match c {
-            '(' | '[' | '{' => depth += 1,
-            ')' | ']' | '}' => depth = depth.saturating_sub(1),
+            '[' => {
+                depth += 1;
+                descriptor = !name[i..].split(']').next().unwrap_or(name).contains('(');
+            }
+            ']' => {
+                depth = depth.saturating_sub(1);
+                descriptor = false;
+            }
+            '(' | '{' => depth += 1,
+            ')' | '}' => depth = depth.saturating_sub(1),
             _ => {}
         }
     }
@@ -540,6 +554,12 @@ mod tests {
                 "benzo[c]phenanthrene-3-carboxylate",
                 "phenanthrene-3-carboxylate",
             ),
+            // P-16.2.1: the letters of a peri-fusion descriptor are italic too.
+            (
+                "1H-benzo[e]indole-2-carboxylate",
+                "benzo[ghi]perylene-1-carboxylate",
+            ),
+            ("cyclopenta[cd]pentalen-1-ide", "cyclopentathiophen-1-ide"),
             // P-14.5.4: primary locants, outside every enclosing mark.
             ("2-(chloromethyl)heptanoate", "3-(chloromethyl)heptanoate"),
         ] {
@@ -724,6 +744,13 @@ mod tests {
             (
                 "[Na+].[Na+].[O-]C(=O)[C@@H]1C[C@H]2CC[C@@H]1C2.CC(=O)[O-]",
                 "disodium acetate (1R,2R,4S)-bicyclo[2.2.1]heptane-2-carboxylate",
+                NameStatus::Preferred,
+            ),
+            // P-14.5.3, P-16.2.1: the italic ghi of a peri-fusion descriptor is
+            // not Roman either; benzoindole before benzoperylene.
+            (
+                "[Na+].[Na+].C1(=CC=2C=3C4=C1C=CC1=CC=CC(C5=CC=CC(=CC2)C35)=C14)C(=O)[O-].C1C(=NC=2C=CC3=C(C12)C=CC=C3)C(=O)[O-]",
+                "disodium 1H-benzo[e]indole-2-carboxylate benzo[ghi]perylene-1-carboxylate",
                 NameStatus::Preferred,
             ),
             // P-14.5.4: primary locants outside the enclosing marks, 2 before 3.
