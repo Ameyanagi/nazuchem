@@ -1411,6 +1411,8 @@ mod tests {
             ("C=C=C=C", "butatriene"),
             ("C=C=C=C=C", "pentatetraene"),
             ("C=C=C=C=C=C", "hexapentaene"),
+            // Nazuchem issue #9, P-14.3.4.4: no isomer exists.
+            ("ClC=C=C=C=C=C=C=C=C=C=C=C=C", "chlorotridecadodecaene"),
             ("FC=CCl", "1-chloro-2-fluoroethene"),
             ("ClC=C", "chloroethene"),
             ("ClC#CCl", "dichloroethyne"),

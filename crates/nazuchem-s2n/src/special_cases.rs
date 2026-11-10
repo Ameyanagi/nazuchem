@@ -3400,14 +3400,39 @@ pub(super) fn try_name_anhydride_component(
             // P-65.7.1–P-65.7.4: O bridges, or chalcogen/peroxy bridges between
             // graph-equivalent acid halves.
             let ranks = canonical_ranks(mol, None);
-            let certified = anhydride_count == 1
+            // P-65.7.2, P-14.5: the acids are cited in alphanumerical order,
+            // Roman letters first and locants ignored (acetic chloroacetic,
+            // chloroacetic 4-nitrobenzene-1-sulfonic). Only names of
+            // lowercase letters, digits, commas and hyphens without italic
+            // words (two adjacent letter segments, as in 4-tert-butyl) are
+            // compared here; other names and letter ties (P-14.5.4) keep
+            // string order and are not certified.
+            let letters = |name: &str| {
+                let words: Vec<_> = name
+                    .split('-')
+                    .map(|s| s.bytes().all(|c| c.is_ascii_lowercase()))
+                    .collect();
+                (name
+                    .bytes()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || b",-".contains(&c))
+                    && !words.windows(2).any(|w| w[0] && w[1]))
+                .then(|| name.replace(|c: char| !c.is_ascii_lowercase(), ""))
+            };
+            let keys = (letters(&left), letters(&right));
+            let ordered = left == right || matches!(&keys, (Some(a), Some(b)) if a != b);
+            let certified = ordered
+                && anhydride_count == 1
                 && bridge.is_disjoint(&get_cyclic_atoms(mol, &AtomSet::new()))
                 && (path.len() == 3 && mol.atoms[&path[1]].symbol == "O"
                     || ranks[&descriptor.centers[0]] == ranks[&descriptor.centers[1]]);
             let name = if left == right {
                 format!("{left} {class}")
             } else {
-                let mut halves = [(left.clone(), left), (right.clone(), right)];
+                let (left_key, right_key) = match keys {
+                    (Some(a), Some(b)) if ordered => (a, b),
+                    _ => (left.clone(), right.clone()),
+                };
+                let mut halves = [(left_key, left), (right_key, right)];
                 if path.len() == 4 && mol.atoms[&path[1]].symbol != mol.atoms[&path[2]].symbol {
                     halves[0].1 = format!("{}-{}", mol.atoms[&path[1]].symbol, halves[0].1);
                     halves[1].1 = format!("{}-{}", mol.atoms[&path[2]].symbol, halves[1].1);
@@ -4082,6 +4107,47 @@ mod tests {
             let actual =
                 super::super::component_namer::name_component(&mol, &all_atoms(&mol)).unwrap();
             assert_eq!(actual, expected, "{smiles}");
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::mixed_anhydride_acids_follow_alphanumerical_order | original
+    // Source: nazuchem | issue #9
+    fn mixed_anhydride_acids_follow_alphanumerical_order() {
+        // Nazuchem issue #9, P-65.7.2, P-14.5: acids in alphanumerical order,
+        // locants ignored. Enclosing marks and locant ties (P-14.5.4) are
+        // left to issue #19 and stay unverified.
+        let unverified = NameStatus::Unverified(NameReason::UnauditedPath);
+        for (smiles, expected, status) in [
+            (
+                "CC(=O)OC(=O)C(Cl)C",
+                "acetic 2-chloropropanoic anhydride",
+                NameStatus::Preferred,
+            ),
+            (
+                "CCCC(=O)OC(=O)C(C)Cl",
+                "butanoic 2-chloropropanoic anhydride",
+                NameStatus::Preferred,
+            ),
+            (
+                "ClCC(=O)OC(=O)C",
+                "acetic chloroacetic anhydride",
+                NameStatus::Preferred,
+            ),
+            (
+                "O=C(OC(=O)c1ccc(Sc2ccccc2)cc1)c1ccc(Oc2ccccc2)cc1",
+                "4-(phenylsulfanyl)benzoic 4-phenoxybenzoic anhydride",
+                unverified,
+            ),
+            (
+                "O=C(OC(=O)CCCCCCCCC(Cl)C)C(Cl)CCCCCCCCC",
+                "10-chloroundecanoic 2-chloroundecanoic anhydride",
+                unverified,
+            ),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, status, "{smiles}");
         }
     }
 
