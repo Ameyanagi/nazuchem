@@ -61,9 +61,10 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
         // hydrazinecarbohydrazide (P-65.1.2.2.2, P-65.1.8.1, P-68.3.1.2.4,
         // P-68.3.1.2.6). Only the unsubstituted parents are generated. A name
         // whose parent is that carbon (formohydrazide, formamide, methanone)
-        // is a fallback, and so is a prefix for it when it outranks the
-        // principal group or ties with it, N being the senior parent atom
-        // (P-41, P-44.1.2).
+        // is a fallback. So is a prefix for it in a neutral compound when it
+        // outranks the principal group (P-41), or ties with a single one on a
+        // parent without N, since N is the senior parent atom (P-44.1.1,
+        // P-44.1.2, P-44.1.2.2).
         if !parts.is_substituent
             && !parts
                 .retained_name
@@ -73,6 +74,13 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
             let principal = rule
                 .and_then(|rule| rule.seniority.as_deref())
                 .map_or(0, |seniority| seniority[0]);
+            let tie = group.locants.len() == 1
+                && !parts
+                    .parent_atom_symbols_by_locant
+                    .values()
+                    .any(|symbol| symbol == "N");
+            let outranks = |rank: i64| principal > rank || principal == rank && tie;
+            let neutral = mol.atoms.values().all(|atom| atom.charge == 0);
             let cyclic = super::chains::get_cyclic_atoms(mol, &Default::default());
             let symbol = |atom: usize| mol.atoms[&atom].symbol.as_str();
             let single = |a: usize, b: usize| mol.bond_order(a, b) == 1;
@@ -103,12 +111,22 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
                                     && match symbol(y) {
                                         "C" | "H" => false,
                                         _ if parent => true,
-                                        // Hydrazide (68), then amide (60) or
-                                        // chalcogen amide (65).
-                                        "N" if hydrazino(y) => principal >= 68,
-                                        "N" => principal >= if symbol(x) == "O" { 60 } else { 65 },
-                                        // Acid, ester or acid halide.
-                                        _ => principal >= 60,
+                                        _ if !neutral => false,
+                                        // Hydrazide, then amide or chalcogen
+                                        // amide.
+                                        "N" if hydrazino(y) => outranks(68),
+                                        "N" => outranks(if symbol(x) == "O" { 60 } else { 65 }),
+                                        "F" | "Cl" | "Br" | "I" => outranks(50),
+                                        // Ester, peroxy acid or acid.
+                                        _ => match mol
+                                            .get_neighbors(y)
+                                            .iter()
+                                            .find(|&&z| z != c && symbol(z) != "H")
+                                        {
+                                            Some(&z) if symbol(z) == "C" => outranks(40),
+                                            Some(_) => outranks(22),
+                                            None => outranks(20),
+                                        },
                                     }
                             })
                     })
@@ -1366,7 +1384,16 @@ mod tests {
             ("NC(=O)N(C)N", "N,1-diamino-N-methylformamide"),
             ("CNNC(=S)N", "1-(methylhydrazinyl)methanethioamide"),
             ("NNC(N)=[Se]", "hydrazinylmethaneselenoamide"),
-            // The acid or ester outranks the amide principal group (P-41).
+            // The acid outranks the ester and acid chloride principal groups,
+            // and the acid or ester outranks the amide (P-41).
+            (
+                "COC(=O)CNNC(=O)O",
+                "methyl (hydroxycarbonylhydrazinyl)acetate",
+            ),
+            (
+                "O=C(Cl)CNNC(=O)O",
+                "(hydroxycarbonylhydrazinyl)acetyl chloride",
+            ),
             (
                 "NC(=O)CCNNC(=O)O",
                 "3-(hydroxycarbonylhydrazinyl)propanamide",
@@ -1374,6 +1401,12 @@ mod tests {
             (
                 "NC(=O)CCNNC(=O)OC",
                 "3-(methoxycarbonylhydrazinyl)propanamide",
+            ),
+            // Equal acids: N outranks C as parent atom, as in
+            // 2-(2-carboxyethyl)disilane-1-carboxylic acid (P-44.1.2).
+            (
+                "OC(=O)c1ccccc1NNC(=O)O",
+                "2-(hydroxycarbonylhydrazinyl)benzoic acid",
             ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
@@ -1392,7 +1425,16 @@ mod tests {
             ("NNC(N)=O", "hydrazinecarboxamide"),
             ("CC(=O)NNC(C)=O", "N'-acetylacetohydrazide"),
             ("NNC=O", "formohydrazide"),
-            // A senior amide principal group keeps a hydrazide prefix.
+            // A senior principal group, or two of an equal one (P-44.1.1),
+            // keeps the prefix.
+            (
+                "OC(=O)CCNNC(=O)OC",
+                "3-(methoxycarbonylhydrazinyl)propanoic acid",
+            ),
+            (
+                "NC(=O)C(NNC(=O)N)C(N)=O",
+                "2-(N'-carbamoylhydrazinyl)propanediamide",
+            ),
             (
                 "NC(=O)CCNNC(=O)NN",
                 "3-(N'-aminocarbamoylhydrazinyl)propanamide",
