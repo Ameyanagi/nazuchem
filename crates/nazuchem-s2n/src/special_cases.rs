@@ -3401,22 +3401,31 @@ pub(super) fn try_name_anhydride_component(
             // graph-equivalent acid halves.
             let ranks = canonical_ranks(mol, None);
             // P-65.7.2, P-14.5: the acids are cited in alphanumerical order,
-            // Roman letters first and locants ignored (acetic chloroacetic,
-            // chloroacetic 4-nitrobenzene-1-sulfonic). Only names of
-            // lowercase letters, digits, commas and hyphens without italic
-            // words (two adjacent letter segments, as in 4-tert-butyl) are
-            // compared here; other names and letter ties (P-14.5.4) keep
-            // string order and are not certified.
+            // Roman letters first and locants, including the letters of
+            // compound locants such as 4a, ignored (acetic chloroacetic,
+            // chloroacetic 4-nitrobenzene-1-sulfonic). Only names made of
+            // lowercase words and locants without italic words (two adjacent
+            // words, as in 4-tert-butyl) are compared here; other names and
+            // letter ties (P-14.5.4) keep string order and are not certified.
             let letters = |name: &str| {
-                let words: Vec<_> = name
-                    .split('-')
-                    .map(|s| s.bytes().all(|c| c.is_ascii_lowercase()))
-                    .collect();
-                (name
-                    .bytes()
-                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || b",-".contains(&c))
-                    && !words.windows(2).any(|w| w[0] && w[1]))
-                .then(|| name.replace(|c: char| !c.is_ascii_lowercase(), ""))
+                let segments: Vec<_> = name.split('-').collect();
+                let word = |s: &str| s.bytes().all(|c| c.is_ascii_lowercase());
+                let locants = |s: &str| {
+                    s.split(',').all(|l| {
+                        l.starts_with(|c: char| c.is_ascii_digit())
+                            && l.bytes()
+                                .all(|c| c.is_ascii_digit() || c.is_ascii_lowercase())
+                    })
+                };
+                (segments.iter().all(|s| word(s) || locants(s))
+                    && !segments.windows(2).any(|w| word(w[0]) && word(w[1])))
+                .then(|| {
+                    segments
+                        .iter()
+                        .filter(|s| word(s))
+                        .copied()
+                        .collect::<String>()
+                })
             };
             let keys = (letters(&left), letters(&right));
             let ordered = left == right || matches!(&keys, (Some(a), Some(b)) if a != b);
@@ -4133,6 +4142,18 @@ mod tests {
                 "ClCC(=O)OC(=O)C",
                 "acetic chloroacetic anhydride",
                 NameStatus::Preferred,
+            ),
+            // P-14.5: the letter of a compound locant takes no part.
+            (
+                "O=C(OC(C)=O)C1CC2(Br)CCCCC2CC1",
+                "acetic 8a-bromodecahydronaphthalene-2-carboxylic anhydride",
+                NameStatus::Preferred,
+            ),
+            (
+                "BrC1C(CC(C2CCCCC12)C(=O)OC(=O)C1C(CCC2(CCCCC12)Br)Cl)Cl",
+                "4-bromo-3-chlorodecahydronaphthalene-1-carboxylic \
+                 4a-bromo-2-chlorodecahydronaphthalene-1-carboxylic anhydride",
+                unverified,
             ),
             (
                 "O=C(OC(=O)c1ccc(Sc2ccccc2)cc1)c1ccc(Oc2ccccc2)cc1",
