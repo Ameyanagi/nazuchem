@@ -1043,6 +1043,10 @@ fn cage_scope_refusal_names_the_qualified_descriptors() {
             ": 3alpha (rel), 5alpha (rel)",
         ),
         (
+            "rac-(3alpha,5alpha)-cholestan-3-yl (1R)-bicyclo[2.2.1]heptane-2-exo-carboxylate",
+            ": 3alpha (rac), 5alpha (rac)",
+        ),
+        (
             "(2R*)-butan-2-yl (1R)-bicyclo[2.2.1]heptane-2-exo-carboxylate",
             ": 2R* (rel)",
         ),

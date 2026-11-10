@@ -681,6 +681,10 @@ fn starred_and_racemic_sets_on_separate_components_get_separate_groups() {
             "O[C@@H](C(=O)[O-])C.O[C@@H]1[C@@H](CCCC1)[NH3+] |&1:1,&2:7,8|",
         ),
         (
+            "(1R*,2S*)-2-hydroxycyclohexan-1-aminium (2RS)-2-hydroxypropanoate",
+            "O[C@@H](C(=O)[O-])C.O[C@@H]1[C@@H](CCCC1)[NH3+] |&1:1,o1:7,8|",
+        ),
+        (
             "(2R*)-butan-2-amine compound with (2R*)-2-hydroxypropanoic acid (2:1)",
             "O[C@@H](C(=O)O)C.C[C@H](CC)N.C[C@H](CC)N |o1:1,o2:7,o3:12|",
         ),
