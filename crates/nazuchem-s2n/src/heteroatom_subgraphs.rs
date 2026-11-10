@@ -681,7 +681,9 @@ fn name_oxygen(
 /// nitrogen adds 'yl' or 'ylidene' to the cation name, e.g.
 /// (N,N-dimethylmethanaminiumyl) (P-74.1.3) and N-methylmethanaminiumylidene
 /// (P-73.6), both as corrected in 2020. `None` when the cation is not named
-/// with the 'aminium' suffix (e.g. anilinium); callers keep ammonio/iminio.
+/// with the 'aminium' suffix (e.g. anilinium), or when the nitrogen continues
+/// an N-N chain whose PIN keeps the hydrazine parent (P-74.2.1.3); callers keep
+/// the unverified ammonio/iminio prefix.
 // Provenance: fn aminium_prefix | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs::aminium_prefix
 pub(super) fn aminium_prefix(
@@ -694,6 +696,7 @@ pub(super) fn aminium_prefix(
     let atoms = subgraph_component(mol, start, &with_atoms(exclude, upstream));
     if !matches!(order, 1 | 2)
         || mol.atoms[&start].charge != 1
+        || upstream.is_some_and(|up| mol.atoms[&up].symbol == "N")
         || atoms.len() == 1
         || mol
             .get_neighbors(start)

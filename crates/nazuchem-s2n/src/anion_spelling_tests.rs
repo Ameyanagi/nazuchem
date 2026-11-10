@@ -251,9 +251,10 @@ fn zwitterion_suffix_order_preserves_numbering_status_and_identity() {
         ),
         (
             "C[N+](C)(C)[N-]C",
-            // P-73.6, P-74.1.3 (2020 correction)
-            "N-(N,N-dimethylmethanaminiumyl)methanaminide",
-            NameStatus::Preferred,
+            // P-74.1.1, P-74.2.1.3: the PIN keeps the hydrazine parent
+            // (1,2,2,2-tetramethylhydrazin-2-ium-1-ide); not certified.
+            "N-(trimethylammonio)methanaminide",
+            NameStatus::Unverified(NameReason::CationPrefix),
         ),
         (
             "[Na+].[Cl-]",
