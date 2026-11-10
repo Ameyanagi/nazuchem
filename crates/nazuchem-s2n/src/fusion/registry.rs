@@ -1986,6 +1986,8 @@ mod tests {
                 .count(),
             15
         );
+        // P-25.2.2.2 and P-25.2.2.3 PINs; P-25.3.2.2.2 turns the final 'e'
+        // into 'o' for the fusion prefix.
         for (name, parent, prefix) in [
             ("10H-phenoxazine", "phenoxazine", "phenoxazino"),
             ("10H-phenothiazine", "phenothiazine", "phenothiazino"),
@@ -2037,8 +2039,8 @@ mod tests {
         assert!(key("10H-phenothiazine") < key("phenazine"));
         assert!(key("phenoxathiine") < key("thianthrene"));
         assert!(key("pyridine") < key("phenoxathiine"));
-        // P-25.3.2.4: a senior heteroatom (b), then a greater variety of
-        // heteroatoms (f), decides between the heteranthrenes.
+        // P-25.3.2.4: a senior heteroatom (a), then a greater variety of
+        // heteroatoms (e), decides between the heteranthrenes.
         assert!(key("phenoxathiine") < key("oxanthrene"));
         assert!(key("oxanthrene") < key("thianthrene"));
         assert!(key("thianthrene") < key("selenanthrene"));
