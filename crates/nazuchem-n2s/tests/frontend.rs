@@ -45,36 +45,60 @@ fn parser_upstream_cases() {
 
 /// Issue #25, Blue Book P-14.8.1: an enclosed salt is one adduct component,
 /// as in {piperazin-1-ium ...carboxylate}—ethyl acetate—dichloromethane (1/1/1).
+/// Its ions stay balanced by the salt name itself.
 #[test]
-fn enclosed_salt_takes_one_adduct_ratio() {
+fn enclosed_salt_is_one_adduct_component() {
     let parser = Parser::new().unwrap();
     for (name, expected) in [
-        ("(sodium acetate)\u{2014}water (1/3)", [1, 1, 3].as_slice()),
+        (
+            "(sodium acetate)\u{2014}water (1/3)",
+            "sodium acetate trihydrate",
+        ),
         (
             "[bis(methanaminium) sulfate]\u{2014}water (1/2)",
-            &[1, 1, 2],
+            "bis(methanaminium) sulfate dihydrate",
+        ),
+        (
+            "(calcium chloride)\u{2014}water (1/2)",
+            "calcium chloride dihydrate",
+        ),
+        (
+            "(ammonium sulfate)\u{2014}water (1/2)",
+            "ammonium sulfate dihydrate",
+        ),
+        (
+            "(calcium chloride)\u{2014}water (2/1)",
+            "calcium chloride; calcium chloride; water",
         ),
         (
             "{piperazin-1-ium benzoate}\u{2014}ethyl acetate\u{2014}dichloromethane (1/1/1)",
-            &[1, 1, 1, 1],
+            "piperazin-1-ium benzoate; ethyl acetate; dichloromethane",
         ),
-        ("(sodium acetate)\u{2014}water (2/1)", &[2, 2, 1]),
     ] {
-        let tree = &parser.parse_trees(name, &ParseOptions::default()).unwrap()[0];
-        let ratios: Vec<i32> = tree
-            .arena
-            .children_named(tree.root, "wordRule")
-            .iter()
-            .map(|&rule| {
-                tree.arena[rule]
-                    .attribute("stoichiometry")
-                    .unwrap()
-                    .parse()
-                    .unwrap()
-            })
-            .collect();
-        assert_eq!(ratios, expected, "{name}");
+        let formula = |text: &str| {
+            let result = parser.parse(text, &ParseOptions::strict());
+            assert_eq!(result.status, nazuchem_n2s::Status::Success, "{text}");
+            let smiles = result.structure.unwrap().semantic_cxsmiles().unwrap();
+            let mut components: Vec<_> = smiles.split('.').map(str::to_owned).collect();
+            components.sort();
+            components
+        };
+        assert_eq!(formula(name), formula(expected), "{name}");
     }
+    assert_eq!(
+        parser
+            .parse(
+                "(calcium chloride)\u{2014}water (1/2)",
+                &ParseOptions::strict()
+            )
+            .structure
+            .unwrap()
+            .semantic_cxsmiles()
+            .unwrap()
+            .matches("[Cl-]")
+            .count(),
+        2
+    );
     // The ratio still counts unenclosed words.
     assert!(
         parser

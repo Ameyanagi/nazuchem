@@ -483,7 +483,7 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
             counts.rejection_messages_identical,
             counts.rejection_messages_differing
         ),
-        (34, 0)
+        (30, 0)
     );
     assert_eq!(
         (
@@ -1030,7 +1030,7 @@ fn every_n2s_structure_oracle_structure_retains_complete_name_results() {
     assert_n2s_coverage(&counts, (2624, 2535, 70, 19));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (2317, 288)
+        (2315, 290)
     );
     counts
         .names
@@ -1114,9 +1114,9 @@ fn every_n2s_golden_structure_retains_complete_name_results() {
     assert_n2s_coverage(&counts, (1658, 1617, 0, 41));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (1608, 1)
+        (1616, 1)
     );
     counts
         .names
-        .assert_routes(&[("monatomic cation", 1), ("salt", 3)], 1605);
+        .assert_routes(&[("monatomic cation", 1), ("salt", 11)], 1605);
 }

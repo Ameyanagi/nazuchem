@@ -418,6 +418,7 @@ pub(super) fn name_adduct(
         // without a characteristic group is last.
         rank: (u8, Vec<i64>),
         hydride: u8,
+        labelled: bool,
         base: bool,
         salt: bool,
         text: String,
@@ -427,8 +428,9 @@ pub(super) fn name_adduct(
     let mut ions = Vec::new();
     let mut organic_ion = false;
     // Per neutral component: whether it is organic and has nitrogen, the
-    // element of a plain mononuclear hydride (0 otherwise), and its count.
-    let mut neutral = BTreeMap::<&str, (bool, bool, u8, usize)>::new();
+    // element of a mononuclear hydride (0 otherwise), whether it is
+    // isotopically labelled, and its count.
+    let mut neutral = BTreeMap::<&str, (bool, bool, u8, bool, usize)>::new();
     let mut charged_neutral = false;
     for component in smiles.split('.') {
         let atoms = nazuchem_kernel::smiles::prepare(component, budget)
@@ -441,20 +443,19 @@ pub(super) fn name_adduct(
             let nitrogen = atoms.iter().any(|a| a.atomic_number == 7);
             let mut heavy = atoms.iter().filter(|a| a.atomic_number != 1);
             let hydride = match (heavy.next(), heavy.next()) {
-                (Some(atom), None)
-                    if atoms
-                        .iter()
-                        .all(|a| a.isotope == 0 && a.radical_electrons == 0) =>
-                {
-                    atom.atomic_number
-                }
+                (Some(atom), None) => atom.atomic_number,
                 _ => 0,
             };
+            // Radicals are the most senior class (P-41) and are not ordered here.
+            if atoms.iter().any(|a| a.radical_electrons != 0) {
+                return Err("Adducts with radical components are unsupported".into());
+            }
+            let labelled = atoms.iter().any(|a| a.isotope != 0);
             charged_neutral |= atoms.iter().any(|a| a.charge != 0);
             neutral
                 .entry(component)
-                .or_insert((organic, nitrogen, hydride, 0))
-                .3 += 1;
+                .or_insert((organic, nitrogen, hydride, labelled, 0))
+                .4 += 1;
         } else {
             ions.push(component);
             organic_ion |= organic;
@@ -476,6 +477,7 @@ pub(super) fn name_adduct(
         parts.push(Part {
             rank: (if organic_ion { ORGANIC } else { INORGANIC }, vec![]),
             hydride: 0,
+            labelled: false,
             base: false,
             salt: true,
             text: salt.text,
@@ -483,12 +485,22 @@ pub(super) fn name_adduct(
             count: 1,
         });
     }
-    for (component, (organic, nitrogen, hydride, count)) in neutral {
+    for (component, (organic, nitrogen, hydride, labelled, count)) in neutral {
         let name = name_smiles_with_style(component, style, budget)?;
         let rank = if hydride == 8 {
             (WATER, vec![])
         } else if organic {
             let mol = super::graph_io::read_smiles(component, budget)?;
+            // A zwitterion is senior to every neutral class (P-41), unlike a
+            // charge-separated neutral group such as nitro.
+            let neutral_groups = neutral_group_atoms(&mol);
+            if mol
+                .atoms
+                .iter()
+                .any(|(i, atom)| atom.charge != 0 && !neutral_groups.contains(i))
+            {
+                return Err("Adducts with zwitterionic components are unsupported".into());
+            }
             let groups = super::perception::perceive_groups(&mol);
             let key = super::principal_groups::component_principal_key(&mol, &groups, false);
             let seniority = groups
@@ -502,6 +514,7 @@ pub(super) fn name_adduct(
         parts.push(Part {
             rank,
             hydride,
+            labelled,
             base: organic && nitrogen,
             salt: false,
             text: name.text,
@@ -512,6 +525,14 @@ pub(super) fn name_adduct(
     parts.sort_by(|a, b| a.rank.cmp(&b.rank));
     if parts.len() < 2 {
         return Err("Adduct naming requires at least two different components".into());
+    }
+    // Organic components of one class, or without a characteristic group, are
+    // ordered by the further criteria of P-41 and P-44, which are not covered.
+    if parts
+        .windows(2)
+        .any(|pair| pair[0].rank.0 == ORGANIC && pair[0].rank == pair[1].rank)
+    {
+        return Err("Adducts of organic components of the same class are unsupported".into());
     }
     // Inorganic components are ordered by the Red Book, which is not covered.
     if parts.iter().filter(|p| p.rank.0 == INORGANIC).count() > 1 {
@@ -537,15 +558,17 @@ pub(super) fn name_adduct(
     };
     let word = match parts.as_slice() {
         // P-14.8.2: hydrate with a numerical prefix; hemi and sesqui are also used.
-        [first, water] if water.rank.0 == WATER => match (first.count, water.count) {
-            (1, 1) => Some("monohydrate".to_owned()),
-            (1, n) => Some(multiplied(n, "hydrate")),
-            (2, 1) => Some("hemihydrate".to_owned()),
-            (2, 3) => Some("sesquihydrate".to_owned()),
-            _ => None,
-        },
+        [first, water] if water.rank.0 == WATER && !water.labelled => {
+            match (first.count, water.count) {
+                (1, 1) => Some("monohydrate".to_owned()),
+                (1, n) => Some(multiplied(n, "hydrate")),
+                (2, 1) => Some("hemihydrate".to_owned()),
+                (2, 3) => Some("sesquihydrate".to_owned()),
+                _ => None,
+            }
+        }
         // P-77.1.3 (3): the unaltered name of the organic base, then the hydrohalide.
-        [first, acid] if first.count == 1 && first.base => [
+        [first, acid] if first.count == 1 && first.base && !acid.labelled => [
             (9, "hydrofluoride"),
             (17, "hydrochloride"),
             (35, "hydrobromide"),
@@ -1306,6 +1329,13 @@ mod tests {
                 mixed,
                 Some("aniline hemihydrate"),
             ),
+            // P-14.8.2: labelled water is still last; no hydrate form is given.
+            (
+                "CN.Cl.[18OH2]",
+                "methanamine\u{2014}hydrogen chloride\u{2014}(18O)water (1/1/1)",
+                mixed,
+                None,
+            ),
             // P-14.8.1 examples: organic adducts in order of class seniority.
             (
                 "CCO.c1ccncc1",
@@ -1361,7 +1391,16 @@ mod tests {
         }
         // Identical molecules are no adduct, and the Red Book order of several
         // inorganic components is not covered.
-        for smiles in ["O.O", "Nc1ccccc1.Cl.Br", "[NH3+]CC(=O)[O-].[Na+].[Cl-]"] {
+        for smiles in [
+            "O.O",
+            "Nc1ccccc1.Cl.Br",
+            "[NH3+]CC(=O)[O-].[Na+].[Cl-]",
+            "[NH3+]CC(=O)[O-].CC(=O)O",
+            "[CH3].Cl",
+            // Same class: the further P-41 and P-44 criteria are not covered.
+            "ClCCl.c1ccncc1",
+            "Oc1cccc(O)c1O.Oc1cccc2cccnc12",
+        ] {
             assert!(super::super::name_smiles(smiles, &Default::default()).is_err());
         }
     }

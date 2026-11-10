@@ -26,8 +26,9 @@ pub(crate) fn parse(
 ) -> Result<Vec<ParseTree>, ParsingError> {
     let (name, mut ratios) = extract_stoichiometry(name)?;
     // Changes: An enclosed multi-word adduct component, as in
-    // (sodium acetate)—water (1/3), takes one ratio for all of its words
-    // (Blue Book P-14.8.1).
+    // (sodium acetate)—water (1/3), is one component of the ratio (Blue Book
+    // P-14.8.1). Each component is repeated by its ratio instead, so the
+    // ions of the salt are still balanced by its own name.
     fn enclosed(piece: &str) -> Option<&str> {
         piece
             .strip_prefix(['(', '[', '{'])
@@ -46,36 +47,27 @@ pub(crate) fn parse(
             })
     }
     let pieces: Vec<_> = name.split(" - ").collect();
-    let mut unenclosed = String::new();
+    let mut repeated = String::new();
     if let Some(given) = &ratios
         && given.len() == pieces.len()
         && pieces.iter().any(|piece| enclosed(piece).is_some())
     {
-        let mut expanded = Vec::new();
-        for (piece, &ratio) in pieces.iter().zip(given) {
-            let (text, words) = match enclosed(piece) {
-                Some(inner) => {
-                    let tree = &parse(resources, inner, options)?[0];
-                    (
-                        inner,
-                        tree.arena.children_named(tree.root, "wordRule").len(),
-                    )
-                }
-                None => (*piece, 1),
-            };
-            if !unenclosed.is_empty() {
-                unenclosed.push_str(" - ");
-            }
-            unenclosed.push_str(text);
-            expanded.extend(std::iter::repeat_n(ratio, words));
+        if given.iter().any(|&ratio| ratio > 100) {
+            return Err(ParsingError(
+                "Component ratios above 100 are unsupported with an enclosed component".into(),
+            ));
         }
-        ratios = Some(expanded);
+        let components: Vec<_> = pieces
+            .iter()
+            .zip(given)
+            .flat_map(|(piece, &ratio)| {
+                std::iter::repeat_n(enclosed(piece).unwrap_or(piece), ratio as usize)
+            })
+            .collect();
+        repeated = components.join(" - ");
+        ratios = None;
     }
-    let name = if unenclosed.is_empty() {
-        name
-    } else {
-        &unenclosed
-    };
+    let name = if repeated.is_empty() { name } else { &repeated };
     let mut tokenized = None;
     if name.contains(", ")
         && let Ok(uninverted) = cas::uninvert(resources, name)
