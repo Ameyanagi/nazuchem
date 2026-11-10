@@ -9,6 +9,7 @@
 // Source: openclatura | tests/data/parser_xml_resources/suffixes.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/data/parser_xml_resources/carboxylicAcids.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_spiro_composed_parent_families.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/rules/multipliers.rs | issue #21
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Inherited openclatura numerical-term constants/generation plus original suffix-specific elision and compound-anion multiplication.
@@ -181,6 +182,63 @@ mod tests {
             (1000, "one", "kilione"),
         ] {
             assert_eq!(suffix(count, ending), expected, "{count} {ending}");
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::parser_reads_every_generated_multiplier | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/rules/multipliers.rs::tests::parser_reads_every_generated_multiplier
+    // Issue #21. P-14.2.1 basic and P-14.2.2 "kis" terms through 1000, and von Baeyer
+    // ring counts (P-23.1.9) above the tabulated prefixes.
+    // https://iupac.qmul.ac.uk/BlueBook/P1.html#140201
+    // https://iupac.qmul.ac.uk/BlueBook/P1.html#140202
+    // https://iupac.qmul.ac.uk/BlueBook/P2.html#230109
+    fn parser_reads_every_generated_multiplier() {
+        let parser = nazuchem_n2s::Parser::new().unwrap();
+        let options = nazuchem_n2s::ParseOptions::default();
+        let reads = |name: &str, tag: &str, count: usize| {
+            parser.parse_trees(name, &options).is_ok_and(|trees| {
+                trees.iter().any(|tree| {
+                    tree.arena
+                        .descendants_named(tree.root, tag)
+                        .into_iter()
+                        .any(|id| tree.arena[id].attribute("value") == Some(&count.to_string()))
+                })
+            })
+        };
+        for count in 2..=1000 {
+            let name = format!("{}fluoroethane", basic(count));
+            assert!(reads(&name, "multiplier", count), "{name}");
+            let name = format!("{}(chloromethyl)ethane", complex_(count));
+            assert!(reads(&name, "multiplier", count), "{name}");
+            if count > 10 {
+                let name = format!(
+                    "{}[2.2.1]heptane",
+                    crate::ring_renderer::von_baeyer_kind(count)
+                );
+                assert!(reads(&name, "multiplier", count), "{name}");
+            }
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::perfluorocycloalkanes_round_trip | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/rules/multipliers.rs::tests::perfluorocycloalkanes_round_trip
+    // Issue #21: hexaconta = 60 and hecta = 100 (P-14.2.1).
+    // https://iupac.qmul.ac.uk/BlueBook/P1.html#140201
+    fn perfluorocycloalkanes_round_trip() {
+        for (ring, expected) in [
+            (30, "hexacontafluorocyclotriacontane"),
+            (50, "hectafluorocyclopentacontane"),
+        ] {
+            let smiles = format!("FC1(F){}C1(F)F", "C(F)(F)".repeat(ring - 2));
+            let name = crate::name_smiles(&smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected);
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                crate::test_support::canonical_smiles(&smiles).unwrap()
+            );
         }
     }
 }
