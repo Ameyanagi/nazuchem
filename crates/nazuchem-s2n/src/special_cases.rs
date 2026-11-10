@@ -3414,73 +3414,106 @@ pub(super) fn try_name_anhydride_component(
                 }
                 // P-65.7.2 cites the acids in alphabetical order, the
                 // alphanumerical order of P-14.5: nonitalic Roman letters first,
-                // then italic letters (P-14.5.3), then the locants in order of
-                // citation, lowest at the first point of difference (P-14.5.4).
-                // Enclosing marks, locants with their letters (4a, 1H, N,
-                // 1lambda^4) and stereodescriptors such as (S) or (1r,4r) give no
-                // Roman letters; fusion letters ([3,2-c], [cd]) and words such as
-                // tert are italic. Remaining ties compare enclosing marks and
-                // punctuation (P-14.6).
+                // then italic letters (P-14.5.3), then the locants, lowest at
+                // the first point of difference (P-14.5.4): first those outside
+                // enclosing marks, then all, in order of citation, with element
+                // locants (N) before numerals. Locant letters (4a, 1H, 1lambda)
+                // and stereodescriptors such as (S) or (1r,4r) give no Roman
+                // letters; fusion letters ([3,2-c], [cd]) and words such as tert
+                // are italic. Remaining ties compare enclosing marks and
+                // punctuation, stereodescriptors excluded (P-14.6).
                 let order_key = |name: &str| {
                     const ITALIC_WORDS: [&str; 10] = [
                         "tert", "sec", "cis", "trans", "endo", "exo", "syn", "anti", "as", "asym",
                     ];
                     let chars: Vec<char> = name.chars().collect();
-                    let (mut roman, mut italic, mut locants) =
-                        (String::new(), String::new(), Vec::new());
-                    let mut i = 0;
+                    let (mut roman, mut italic) = (String::new(), String::new());
+                    let (mut locants, mut marks) = (Vec::new(), Vec::new());
+                    let (mut depth, mut i) = (0usize, 0);
                     while i < chars.len() {
                         let c = chars[i];
                         let run = |from: usize, f: fn(&char) -> bool| {
                             from + chars[from..].iter().take_while(|c| f(c)).count()
                         };
                         if c == '(' {
-                            // A descriptor such as (S), (2E) or (1r,4r) has no
-                            // hyphen and no word of two or more letters.
+                            // A descriptor such as (S), (2E) or (1r,4r) has a
+                            // letter, no hyphen and no word of two letters; it
+                            // is dropped with its hyphen.
                             let end = chars[i..]
                                 .iter()
                                 .position(|&c| c == ')')
                                 .map_or(chars.len(), |n| i + n);
                             let inner = &chars[i + 1..end];
-                            let descriptor = !inner.contains(&'-')
+                            if inner.iter().any(char::is_ascii_alphabetic)
+                                && !inner.contains(&'-')
                                 && !inner
                                     .windows(2)
-                                    .any(|w| w.iter().all(char::is_ascii_lowercase));
-                            i = if descriptor { end + 1 } else { i + 1 };
-                        } else if c.is_ascii_digit() {
+                                    .any(|w| w.iter().all(char::is_ascii_lowercase))
+                            {
+                                i = end + 1 + usize::from(chars.get(end + 1) == Some(&'-'));
+                                continue;
+                            }
+                        }
+                        let start = i;
+                        if c.is_ascii_digit() {
                             let digits = run(i, char::is_ascii_digit);
                             let number: u32 = chars[i..digits]
                                 .iter()
                                 .collect::<String>()
                                 .parse()
                                 .unwrap_or(u32::MAX);
-                            // Letters written onto a locant: 4a, 1H, 3aH, 1lambda.
-                            let letters = run(digits, char::is_ascii_alphabetic);
-                            let letter = match chars[digits..letters] {
-                                [l] | [l, 'A'..='Z', ..] if l.is_ascii_lowercase() => Some(l),
-                                _ => None,
+                            // Letters and primes written onto a locant: 4a, 3'a,
+                            // 1H, 3aH, 1lambda.
+                            i = run(digits, |c| c.is_ascii_alphabetic() || *c == '\'');
+                            let tail = &chars[digits..i];
+                            let letters: Vec<char> = tail
+                                .iter()
+                                .filter(|c| c.is_ascii_alphabetic())
+                                .copied()
+                                .collect();
+                            let letter = match letters[..] {
+                                [l] | [l, 'A'..='Z', ..] if l.is_ascii_lowercase() => l.into(),
+                                _ => String::new(),
                             };
-                            i = run(letters, |c| *c == '\'');
-                            locants.push((number, letter, i - letters));
+                            let primes = tail.iter().filter(|&&c| c == '\'').count();
+                            locants.push((depth, (true, number, letter, primes)));
                         } else if c.is_ascii_alphabetic() {
                             let end = run(i, char::is_ascii_alphabetic);
-                            let word: String = chars[i..end].iter().collect();
-                            // Fusion letters run in alphabetical sequence: c, cd.
-                            let fusion = word.bytes().all(|b| b.is_ascii_lowercase())
-                                && word.as_bytes().windows(2).all(|w| w[1] == w[0] + 1);
-                            if fusion || ITALIC_WORDS.contains(&word.as_str()) {
-                                italic.push_str(&word);
-                            } else if !word.contains(|c: char| c.is_ascii_uppercase()) {
-                                roman.push_str(&word);
+                            i = run(end, |c| *c == '\'');
+                            let mut word: String = chars[start..end].iter().collect();
+                            if word.contains(|c: char| c.is_ascii_uppercase()) {
+                                // An element locant such as N or N'.
+                                locants.push((depth, (false, 0, word, i - end)));
+                            } else {
+                                // s- and as-indacene take a prefix directly:
+                                // 3-chloros-indacene.
+                                if chars[end..]
+                                    .starts_with(&['-', 'i', 'n', 'd', 'a', 'c', 'e', 'n'])
+                                {
+                                    let n = if word.ends_with("as") {
+                                        2
+                                    } else {
+                                        usize::from(word.ends_with('s'))
+                                    };
+                                    italic.push_str(&word.split_off(word.len() - n));
+                                }
+                                // Fusion letters run in alphabetical sequence: c, cd.
+                                let fusion = word.as_bytes().windows(2).all(|w| w[1] == w[0] + 1);
+                                if fusion || ITALIC_WORDS.contains(&word.as_str()) {
+                                    italic.push_str(&word);
+                                } else {
+                                    roman.push_str(&word);
+                                }
                             }
-                            i = end;
                         } else {
+                            match c {
+                                '(' | '[' | '{' => depth += 1,
+                                ')' | ']' | '}' => depth = depth.saturating_sub(1),
+                                _ => {}
+                            }
                             i += 1;
                         }
-                    }
-                    let marks: Vec<u8> = chars
-                        .iter()
-                        .map(|c| match c {
+                        marks.extend(chars[start..i].iter().map(|c| match c {
                             '{' | '}' => 1,
                             '[' | ']' => 2,
                             '(' | ')' => 3,
@@ -3490,9 +3523,15 @@ pub(super) fn try_name_anhydride_component(
                             ':' => 7,
                             '-' => 8,
                             _ => 0,
-                        })
+                        }));
+                    }
+                    let primary: Vec<_> = locants
+                        .iter()
+                        .filter(|l| l.0 == 0)
+                        .map(|l| l.1.clone())
                         .collect();
-                    (roman, italic, locants, marks)
+                    let all: Vec<_> = locants.into_iter().map(|l| l.1).collect();
+                    (roman, italic, primary, all, marks)
                 };
                 halves.sort_by_cached_key(|half| order_key(&half.0));
                 format!("{} {} {class}", halves[0].1, halves[1].1)
@@ -4225,6 +4264,26 @@ mod tests {
                 "2-bromo-3-chlorobutanoic 3-bromo-2-chlorobutanoic anhydride",
                 preferred,
             ),
+            // P-14.5: locants of the primary substituents are compared before
+            // those inside enclosing marks ({2,4} before {2,5}).
+            (
+                "O=C(OC(=O)c1c(C(C)CCC)ccc(S)c1)c1c(C(CC)CC)cc(S)cc1",
+                "2-(pentan-3-yl)-4-sulfanylbenzoic 2-(pentan-2-yl)-5-sulfanylbenzoic anhydride",
+                preferred,
+            ),
+            // P-14.5: an italic element locant is lower than a numeral.
+            (
+                "CN(CCC(=O)OC(=O)CCNC(=O)c1ccc(C)cc1C)C(=O)c1ccc(C)cc1",
+                "3-(N,4-dimethylbenzamido)propanoic 3-(2,4-dimethylbenzamido)propanoic anhydride",
+                preferred,
+            ),
+            // P-14.5.3: s of s-indacene is italic even when joined to a prefix
+            // ('chloroindacene' before 'chloroindene').
+            (
+                "ClC=1C=C(C2=CC3=CC=CC3=CC12)C(=O)OC(=O)C=1CC2=CC=CC=C2C1Cl",
+                "3-chloros-indacene-1-carboxylic 3-chloro-1H-indene-2-carboxylic anhydride",
+                preferred,
+            ),
             // P-14.5.3: fusion letters are italic and count only after the
             // Roman letters ('carbot' before 'carbox', 'cyclopentan' before
             // 'cyclopentap').
@@ -4269,6 +4328,12 @@ mod tests {
             (
                 "NC[SiH2]c1ccc(cc1)C(=O)OC(=O)c1ccc(cc1)[SiH](C)N",
                 "4-[amino(methyl)silyl]benzoic 4-[(aminomethyl)silyl]benzoic anhydride",
+                preferred,
+            ),
+            // P-14.6 with the stereodescriptor (R) and its hyphen excluded.
+            (
+                "N[P@](C)c1ccc(cc1)C(=O)OC(=O)c1ccc(cc1)[PH]CN",
+                "4-[(R)-amino(methyl)phosphanyl]benzoic 4-[(aminomethyl)phosphanyl]benzoic anhydride",
                 preferred,
             ),
         ] {
