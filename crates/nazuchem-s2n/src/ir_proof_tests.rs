@@ -1114,9 +1114,9 @@ fn every_n2s_golden_structure_retains_complete_name_results() {
     assert_n2s_coverage(&counts, (1650, 1640, 0, 10));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (1608, 1)
+        (1639, 1)
     );
     counts
         .names
-        .assert_routes(&[("monatomic cation", 1), ("salt", 3)], 1605);
+        .assert_routes(&[("monatomic cation", 1), ("salt", 3)], 1636);
 }
