@@ -67,6 +67,7 @@ pub const UNSATURATOR_EL: &str = "unsaturator";
 pub const VONBAEYER_EL: &str = "vonBaeyer";
 pub const VALUE_ATR: &str = "value";
 pub const STEREOGROUP_ATR: &str = "stereoGroup";
+pub const LEADINGSTEREOGROUP_ATR: &str = "leadingStereoGroup";
 pub const TYPE_ATR: &str = "type";
 pub const SUBTYPE_ATR: &str = "subType";
 pub const ACCEPTSADDITIVEBONDS_ATR: &str = "acceptsAdditiveBonds";

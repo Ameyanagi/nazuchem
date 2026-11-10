@@ -454,6 +454,64 @@ impl<'a> StereochemistryHandler<'a> {
                 }
             }
         }
+        // rel/rac cited at the front of a compound's name give the configuration
+        // of the entire molecule (P-93.1.2.1, P-93.1.3). Collect each such
+        // molecule before the elements are consumed. Descriptor sets were marked when
+        // they were split; a standalone qualifier may follow a sign of rotation,
+        // as in (+)-rel- (P-101.8.3). The racemate token read from (±) sits
+        // before its sign and keeps the upstream handling. A qualifier
+        // written inside a bracket, whose locant is already consumed, sits
+        // one level below the word's own children and is not at the front.
+        let mut leading_groups: Vec<(StereoGroupType, BTreeSet<AtomId>, Option<NodeId>)> =
+            Vec::new();
+        for &id in elements {
+            let mut standalone = None;
+            let mut kind = self.attribute(id, LEADINGSTEREOGROUP_ATR);
+            let is_rotation = |node: NodeId| {
+                self.arena[node].attribute(TYPE_ATR) == Some(OPTICALROTATION_TYPE_VAL)
+            };
+            if matches!(
+                self.attr(id, TYPE_ATR).as_str(),
+                RAC_TYPE_VAL | REL_TYPE_VAL
+            ) && !self.arena.next_sibling(id).is_some_and(is_rotation)
+                && self.arena[self.parent(self.parent(id)?)?].name == WORD_EL
+            {
+                let mut previous = self.arena.previous_element(id, true);
+                while let Some(p) = previous.filter(|&p| is_rotation(p)) {
+                    previous = self.arena.previous_element(p, true);
+                }
+                if previous.is_none() {
+                    kind = self.attribute(id, TYPE_ATR);
+                    standalone = Some(id);
+                }
+            }
+            let kind = match kind.as_deref() {
+                Some("Rac" | RAC_TYPE_VAL) => StereoGroupType::Racemic,
+                Some("Rel" | REL_TYPE_VAL) => StereoGroupType::Relative,
+                _ => continue,
+            };
+            let mut word = id;
+            while self.arena[word].name != WORD_EL {
+                word = self.parent(word)?;
+            }
+            let mut stack = Vec::new();
+            for group in self.arena.descendants_named(word, GROUP_EL) {
+                stack.extend(&self.graph().fragment(self.fragment(group)?).atoms);
+            }
+            if leading_groups
+                .iter()
+                .any(|(_, molecule, _)| stack.iter().any(|atom| molecule.contains(atom)))
+            {
+                continue;
+            }
+            let mut molecule = BTreeSet::new();
+            while let Some(atom) = stack.pop() {
+                if molecule.insert(atom) {
+                    stack.extend(self.graph().neighbours(atom));
+                }
+            }
+            leading_groups.push((kind, molecule, standalone));
+        }
         for id in locanted {
             let result = self.match_stereochemistry(id);
             self.warning_or_error(result)?
@@ -506,6 +564,18 @@ impl<'a> StereochemistryHandler<'a> {
             }
         }
         for id in global {
+            // At the front of the name the qualifier covers the configured
+            // centres of its molecule (below); it does not configure another.
+            if leading_groups.iter().any(|(_, molecule, standalone)| {
+                *standalone == Some(id)
+                    && molecule.iter().any(|atom| {
+                        self.graph().atom(*atom).parity.is_some()
+                            && self.atom_stereo_centre_map.contains_key(atom)
+                    })
+            }) {
+                self.arena.detach(id);
+                continue;
+            }
             let result = self.match_stereochemistry(id);
             self.warning_or_error(result)?
         }
@@ -516,6 +586,35 @@ impl<'a> StereochemistryHandler<'a> {
             self.warning_or_error(result)?
         }
         self.resolve_unknown_stereo_centres()?;
+        // Every centre of that molecule joins the group, including nested
+        // descriptor sets and the configurations a stereoparent implies. A
+        // descriptor set leaves starred and RS/SR centres as written; a
+        // standalone qualifier replaces every group, as upstream does.
+        for (kind, molecule, standalone) in leading_groups {
+            // Stereo groups hold atom parities only.
+            if self.graph().bonds.iter().any(|bond| {
+                bond.active && bond.axial_stereo.is_some() && molecule.contains(&bond.from)
+            }) {
+                self.warning_or_error(stereo(
+                    "rac- or rel- axial stereochemistry is not currently interpretable",
+                ))?;
+                continue;
+            }
+            for atom in molecule {
+                if self
+                    .graph()
+                    .atom(atom)
+                    .parity
+                    .as_ref()
+                    .is_some_and(|parity| {
+                        standalone.is_some()
+                            || parity.stereo_group.kind == StereoGroupType::Absolute
+                    })
+                {
+                    self.set_stereo_group(atom, kind, 1);
+                }
+            }
+        }
         if has_cage_descriptor
             && !requested_group_kinds.is_empty()
             && !self.cage_scope_is_single_group(&requested_group_kinds)
