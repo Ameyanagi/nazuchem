@@ -662,3 +662,36 @@ fn redundant_predefined_atom_and_bond_stereo_are_removed() {
         .remove_redundant_stereo_centres(&[atom], &[]);
     assert!(state.graph().atom(atom).parity.is_none());
 }
+#[test]
+fn starred_and_racemic_sets_on_separate_components_get_separate_groups() {
+    // #46: disconnected components are separate molecular entities, so a
+    // relative (R*, rel) or racemic (RS, rac) set cannot correlate them
+    // (P-93.1.2, P-93.1.3). Centres within one component stay together.
+    for (name, expected) in [
+        (
+            "(2R*)-2-hydroxypropan-1-aminium (2S*)-2-hydroxypropanoate",
+            "O[C@H](C(=O)[O-])C.O[C@@H](C[NH3+])C |o1:1,o2:7|",
+        ),
+        (
+            "(1R*,2S*)-2-hydroxycyclohexan-1-aminium (2S*)-2-hydroxypropanoate",
+            "O[C@H](C(=O)[O-])C.O[C@@H]1[C@@H](CCCC1)[NH3+] |o1:1,o2:7,8|",
+        ),
+        (
+            "(1RS,2SR)-2-hydroxycyclohexan-1-aminium (2RS)-2-hydroxypropanoate",
+            "O[C@@H](C(=O)[O-])C.O[C@@H]1[C@@H](CCCC1)[NH3+] |&1:1,&2:7,8|",
+        ),
+        (
+            "(2R*)-butan-2-amine compound with (2R*)-2-hydroxypropanoic acid (2:1)",
+            "O[C@@H](C(=O)O)C.C[C@H](CC)N.C[C@H](CC)N |o1:1,o2:7,o3:12|",
+        ),
+        (
+            "(1R*,2S*)-2-chlorocyclopentane-1-carboxylic acid",
+            "Cl[C@@H]1[C@H](CCC1)C(=O)O |o1:1,2|",
+        ),
+    ] {
+        let result = Parser::new().unwrap().parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        let written = result.structure.unwrap().semantic_cxsmiles().unwrap();
+        assert_eq!(written, expected, "{name}");
+    }
+}

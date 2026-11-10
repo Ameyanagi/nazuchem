@@ -412,18 +412,23 @@ impl<'a> StereochemistryHandler<'a> {
         // Descriptor-set prefixes, starred R/S and RS/SR have already been
         // normalized to Rel/Rac attributes; standalone qualifiers keep a type.
         let mut requested_group_kinds = BTreeSet::new();
+        let mut qualified = Vec::new();
         for &id in elements {
             let element = &self.arena[id];
-            if element.attribute(TYPE_ATR) == Some(RAC_TYPE_VAL)
-                || element.attribute(STEREOGROUP_ATR) == Some("Rac")
-            {
-                requested_group_kinds.insert(StereoGroupType::Racemic);
-            }
-            if element.attribute(TYPE_ATR) == Some(REL_TYPE_VAL)
-                || element.attribute(STEREOGROUP_ATR) == Some("Rel")
-            {
-                requested_group_kinds.insert(StereoGroupType::Relative);
-            }
+            let kind = match (
+                element.attribute(TYPE_ATR),
+                element.attribute(STEREOGROUP_ATR),
+            ) {
+                (Some(RAC_TYPE_VAL), _) | (_, Some("Rac")) => StereoGroupType::Racemic,
+                (Some(REL_TYPE_VAL), _) | (_, Some("Rel")) => StereoGroupType::Relative,
+                _ => continue,
+            };
+            requested_group_kinds.insert(kind);
+            qualified.push(match element.attribute(TYPE_ATR) {
+                Some(RAC_TYPE_VAL | REL_TYPE_VAL) => self.arena.value(id),
+                _ if kind == StereoGroupType::Racemic => format!("{} (rac)", self.arena.value(id)),
+                _ => format!("{} (rel)", self.arena.value(id)),
+            });
         }
         let mut locanted = Vec::new();
         let mut unlocanted = Vec::new();
@@ -520,11 +525,55 @@ impl<'a> StereochemistryHandler<'a> {
             && !requested_group_kinds.is_empty()
             && !self.cage_scope_is_single_group(&requested_group_kinds)
         {
-            self.warning_or_error(stereo(
-                "rel-/rac- outside an endo/exo cage's own scope is not supported",
-            ))?;
+            self.warning_or_error(stereo(format!(
+                "rel-/rac- outside an endo/exo cage's own scope is not supported: {}",
+                qualified.join(", ")
+            )))?;
         }
         self.cage_stereo_groups.clear();
+        // Disconnected components (salt ions, stoichiometric partners) are
+        // separate molecular entities, so a relative or racemic set cannot
+        // correlate them (P-93.1.2, P-93.1.3): give each component its own group.
+        let grouped: Vec<_> = self
+            .graph()
+            .atoms
+            .iter()
+            .filter(|atom| atom.active)
+            .filter_map(|atom| Some((atom.id, atom.parity.as_ref()?.stereo_group)))
+            .filter(|(_, group)| {
+                matches!(
+                    group.kind,
+                    StereoGroupType::Relative | StereoGroupType::Racemic
+                )
+            })
+            .collect();
+        let mut next = HashMap::new();
+        for (_, group) in &grouped {
+            let number = next.entry(group.kind).or_insert(0);
+            *number = group.number.max(*number);
+        }
+        let (mut component, mut numbers, mut claimed) =
+            (HashMap::new(), HashMap::new(), HashSet::new());
+        for (atom, group) in grouped {
+            if !component.contains_key(&atom) {
+                let mut stack = vec![atom];
+                while let Some(member) = stack.pop() {
+                    if component.insert(member, atom).is_none() {
+                        stack.extend(self.graph().neighbours(member));
+                    }
+                }
+            }
+            let number = *numbers.entry((group, component[&atom])).or_insert_with(|| {
+                if claimed.insert(group) {
+                    group.number
+                } else {
+                    let number = next.get_mut(&group.kind).unwrap();
+                    *number += 1;
+                    *number
+                }
+            });
+            self.set_stereo_group(atom, group.kind, number);
+        }
         Ok(())
     }
     // Provenance: fn StereochemistryHandler::cage_scope_is_single_group | original
