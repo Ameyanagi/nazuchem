@@ -78,6 +78,8 @@ fn ide_on_a_mancude_ring_atom_without_hydrogen_is_rejected() {
         "quinolin-1-ide",
         "3H-pyrrol-1-ide",
         "2H-pyrrol-1-ide",
+        "pyrazine-1,4-diide",
+        "perchloropyridin-1-ide",
     ] {
         let result = parser.parse(name, &ParseOptions::strict());
         assert_eq!(result.status, Status::Failure, "{name}: {result:?}");
@@ -100,6 +102,11 @@ fn ide_on_a_mancude_ring_atom_without_hydrogen_is_rejected() {
         // places the hydrogen that the unlocanted "-ide" removes.
         ("2H-pyrazolide", "N=1[N-]C=CC1"),
         ("pyrazolide", "[N-]1N=CC=C1"),
+        ("uracil-1-ide", "[N-]1C(=O)NC(=O)C=C1"),
+        ("uracil-3-ide", "N1C(=O)[N-]C(=O)C=C1"),
+        ("perchloropyrrol-1-ide", "ClC=1[N-]C(=C(C1Cl)Cl)Cl"),
+        // Omitted indicated hydrogen may sit on the anionic atom (9H-purine).
+        ("purin-9-ide", "N1=CN=C2[N-]C=NC2=C1"),
     ] {
         let result = parser.parse(name, &ParseOptions::strict());
         assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
@@ -111,10 +118,10 @@ fn ide_on_a_mancude_ring_atom_without_hydrogen_is_rejected() {
     }
 }
 
-// P-92.5 (rules 4 and 5): ligands that differ only in the configuration of
-// other stereogenic units are ranked at a deeper sphere. C4 here depends on
-// the r/s centres C3 and C5, and the ring carbons of a cyclohexanehexol each
-// depend on the others (compare P-92.5.2.2, example 3).
+// P-92.5 and P-92.6 (rules 4 and 5): ligands that differ only in the
+// configuration of other stereogenic units are ranked at a deeper sphere. C4
+// here depends on the r/s centres C3 and C5, and the ring carbons of a
+// cyclohexanehexol each depend on the others (compare P-92.5.2.2, example 3).
 #[test]
 fn centres_ranked_by_other_stereodescriptors_are_assigned() {
     let parser = Parser::new().unwrap();
