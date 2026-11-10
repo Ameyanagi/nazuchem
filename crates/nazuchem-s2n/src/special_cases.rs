@@ -1465,10 +1465,17 @@ fn simple_central_parent_hydride_name(
             .sum::<usize>()
             + a.total_h_count.max(a.explicit_h_count)
             == 3
-        && mol
-            .get_neighbors(c)
-            .iter()
-            .all(|n| mol.atoms[n].is_carbon())
+        // A heteroatom on an ylidene or ylidyne carbon can need a retained
+        // parent such as uronium (P-73.1.2.2) or meet prefixes that assume a
+        // single attachment, so those keep the ordinary route.
+        && mol.get_neighbors(c).iter().all(|&n| {
+            mol.atoms[&n].is_carbon()
+                && (mol.bond_order(c, n) == 1
+                    || mol
+                        .get_neighbors(n)
+                        .iter()
+                        .all(|&m| m == c || mol.atoms[&m].is_carbon()))
+        })
         // Ligand names cannot carry E/Z of a double bond at the centre.
         && !mol
             .bonds
@@ -3788,6 +3795,8 @@ mod tests {
             ("CC#[O+]", "ethylidyneoxidanium"),
             ("C1CCCCC1=[O+]C", "cyclohexylidene(methyl)oxidanium"),
             ("C=[S+]C", "methyl(methylidene)sulfanium"),
+            ("CC=[Se+]C", "ethylidene(methyl)selanium"),
+            ("NCC=[OH+]", "(2-aminoethylidene)oxidanium"),
             // Issue #18. P-41, P-73.1.2: the cation outranks a neutral amine or
             // other heteroatom centre, which becomes a prefix.
             (
@@ -3831,6 +3840,11 @@ mod tests {
             "C[O+]1CCCC1",
             // The ligand names cannot carry E/Z of the C=O+ bond.
             "C/C=[O+]/C",
+            // P-73.1.2.2: protonated (thio)urea is named from uronium.
+            "[OH+]=C(N)N",
+            "[SH+]=C(N)N",
+            // Methanethioyl would cite a single bond to the centre.
+            "S=C=[OH+]",
             "C[O+](C)CC[S+](C)C",
             "C[S+](C)[CH2-]",
             "C[S+](C)C[O-]",
