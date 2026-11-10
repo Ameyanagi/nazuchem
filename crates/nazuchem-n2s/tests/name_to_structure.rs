@@ -65,3 +65,45 @@ fn peroxycyanate_esters_preserve_both_oxygens() {
         );
     }
 }
+
+#[test]
+fn cited_indicated_hydrogen_rejects_hydro_prefixes_that_strand_an_atom() {
+    // P-14.7.1, P-31.2.2: once indicated hydrogen is cited, hydro prefixes that
+    // leave a ring atom without a double-bond partner describe no structure.
+    let parser = Parser::new().unwrap();
+    for name in [
+        "3a,4,7,7a-tetrahydro-2H-isoindole",
+        "3a,4,7,7a-tetrahydro-2H-isoindol-2-ium",
+        "4,5-dihydro-2H-imidazole",
+        "4,6-dihydro-1H-indene",
+        "hexahydro-1H,6H-pyrrolo[3,4-b]pyridine",
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Failure, "{name}");
+        assert!(
+            result.message.contains("without a double bond"),
+            "{name}: {}",
+            result.message
+        );
+    }
+    // Valid combinations; P-58.2.1.1 lets indicated hydrogen be omitted.
+    for (name, expected) in [
+        (
+            "2,3,3a,4,7,7a-hexahydro-1H-isoindol-2-ium",
+            "C1[NH2+]CC2CC=CCC12",
+        ),
+        ("3a,4,7,7a-tetrahydro-1H-isoindole", "C1N=CC2CC=CCC12"),
+        ("1,3-dihydroisoindole", "C1NCC2=CC=CC=C12"),
+        ("1,3-dihydro-2H-isoindole", "C1NCC2=CC=CC=C12"),
+        ("octahydro-1H-pyrrolo[3,4-b]pyridine", "N1C2C(CCC1)CNC2"),
+        ("pyrimidine-2,4(1H,3H)-dione", "N1C(NC(C=C1)=O)=O"),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+}

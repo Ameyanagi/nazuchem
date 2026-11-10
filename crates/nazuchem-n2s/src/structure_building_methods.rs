@@ -847,7 +847,11 @@ impl Assembly<'_> {
             if let Some(locant) = self.attr(hydrogen, "locant") {
                 let atom = self.atom_by_locant(fragment, &locant)?;
                 if self.graph().atom(atom).spare_valency {
-                    self.graph_mut().atom_mut(atom).spare_valency = false;
+                    let hydro = self.arena[hydrogen].name == "hydro";
+                    let a = self.graph_mut().atom_mut(atom);
+                    a.spare_valency = false;
+                    a.properties.hydro_cited |= hydro;
+                    a.properties.indicated_hydrogen_cited |= !hydro;
                 } else {
                     let spiro_bug =
                         self.arena.value(group).starts_with("spiro")

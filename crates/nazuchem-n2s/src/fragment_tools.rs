@@ -308,12 +308,33 @@ fn convert_spare_inner(graph: &mut Graph, fragment: FragmentId) -> Result<(), Gr
     for &atom in &atoms {
         ensure_spare_valency_consistent_with_valency(graph, atom, true)?;
     }
+    // Indicated hydrogen fixes the mancude parent (P-14.7.1) and hydro prefixes
+    // saturate its double bonds (P-31.2.2), so an uncharged atom that the cited
+    // positions leave without a double-bond partner makes the name impossible.
+    // Without cited indicated hydrogen the atom may be an omitted one
+    // (P-58.2.1.1), which OPSIN accepts.
+    let indicated_cited = atoms
+        .iter()
+        .any(|&atom| graph.atom(atom).properties.indicated_hydrogen_cited);
     for &atom in &atoms {
+        let neighbours = intra_fragment_neighbours(graph, atom);
         if graph.atom(atom).spare_valency
-            && !intra_fragment_neighbours(graph, atom)
+            && !neighbours
                 .iter()
                 .any(|atom| graph.atom(*atom).spare_valency)
         {
+            if indicated_cited
+                && graph.atom(atom).charge == 0
+                && neighbours.iter().any(|&n| {
+                    let cited = &graph.atom(n).properties;
+                    cited.hydro_cited || cited.indicated_hydrogen_cited
+                })
+            {
+                return Err(GraphError(format!(
+                    "Hydro prefixes and indicated hydrogen leave atom {} without a double bond",
+                    graph.atom(atom).locants.first().map_or("?", String::as_str)
+                )));
+            }
             graph.atom_mut(atom).spare_valency = false;
         }
     }

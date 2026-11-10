@@ -184,6 +184,10 @@ pub struct AtomProperties {
     pub oxidation_number: Option<i32>,
     pub is_aldehyde: bool,
     pub is_anomeric: bool,
+    /// A locanted hydro prefix removed this atom's spare valency.
+    pub hydro_cited: bool,
+    /// Locanted indicated or added hydrogen removed this atom's spare valency.
+    pub indicated_hydrogen_cited: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
