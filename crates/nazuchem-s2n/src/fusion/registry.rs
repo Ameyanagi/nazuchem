@@ -1322,12 +1322,17 @@ fn is_fused_ring_derivative(mol: &Molecule, faces: &[&Face]) -> bool {
         .iter()
         .flat_map(|f| f.atom_cycle.iter().copied())
         .collect();
+    // A neutral ring ketone keeps a pheno...ine parent: the '-one' suffix
+    // composes its indicated and added hydrogen (P-58.2.2, P-58.2.3.1).
     atoms.iter().any(|&a| {
         let atom = &mol.atoms[&a];
         atom.charge != 0
             || mol.get_neighbors(a).iter().any(|&n| {
                 !atoms.contains(&n)
                     && (mol.get_bond(a, n).is_some_and(|b| b.order == 2)
+                        && !(atom.symbol == "C"
+                            && mol.atoms[&n].symbol == "O"
+                            && mol.atoms[&n].charge == 0)
                         || atom.symbol == "N" && mol.atoms[&n].symbol != "H")
             })
     })
@@ -2021,7 +2026,8 @@ mod tests {
             ("c1ccc2c(c1)N([H])c1cc3cnc4ccccc4c3cc1O2", false),
             ("c1ccc2c(c1)N(C)c1cc3cnc4ccccc4c3cc1O2", true),
             ("c1ccc2c(c1)Nc1cc3c[nH+]c4ccccc4c3cc1O2", true),
-            ("O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", true),
+            // #24: a neutral ketone keeps the pheno...ine parent (P-58.2.3.1).
+            ("O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", false),
             ("N=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", true),
         ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();

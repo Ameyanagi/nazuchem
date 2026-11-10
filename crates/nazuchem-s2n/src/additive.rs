@@ -1076,17 +1076,40 @@ pub(super) fn systematic_suffix_hydrogen_state(
         .iter()
         .filter(|(id, l)| mol.atoms[id].symbol == "C" && plan.indicated_hydrogens.contains(l))
         .count();
-    if quota > carbon_h {
+    // P-25.2.2.3: a pheno...ine component fixes its N-H role. With no N-H
+    // cited, the ketone takes the parent's indicated hydrogen (P-58.2.3.1.1,
+    // '7H-1-benzopyran-7-one'); cited N-H stays with the parent hydride
+    // ('7,14-dihydro...-2(3H)-one', P-58.2.4).
+    let pheno = plan.ast.component_occurrences.iter().any(|m| {
+        super::fusion::registry::fusion_component_registry()
+            .spec_for_match(m)
+            .is_ok_and(|s| s.parent_hydride_only)
+    });
+    if quota > carbon_h && !(pheno && plan.indicated_hydrogens.is_empty()) {
         return Ok(None);
     }
-    graph_suffix_hydrogen_state(
+    let state = graph_suffix_hydrogen_state(
         mol,
         &plan.abstract_parent_graph,
         suffix,
         suffix,
         locants,
         None,
-    )
+    )?;
+    Ok(state.map(|(mut indicated, model, state)| {
+        if pheno {
+            for (id, locant) in locants {
+                if mol.atoms[id].symbol == "N"
+                    && plan.indicated_hydrogens.contains(locant)
+                    && !indicated.contains(locant)
+                {
+                    indicated.push(locant.clone());
+                }
+            }
+            indicated.sort_by_key(|l| parse_locant(l));
+        }
+        (indicated, model, state)
+    }))
 }
 
 // Provenance: fn parent_pi_atoms | adapted

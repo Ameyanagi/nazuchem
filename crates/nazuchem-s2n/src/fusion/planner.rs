@@ -33,9 +33,10 @@ use super::{
         can_use_component_entry_layout, component_entry_layouts, preferred_intrinsic_layouts,
     },
     mancude::{
-        ParentDerivativeOptions, ParentDerivativeState, has_complete_saturated_hydrogenation,
-        indicated_hydrogen_parent_bond_model, is_added_hydrogen_nitrogen, parent_derivative_state,
-        protonated_hydrogenation_is_complete, saturated_nitrogen_hydrogen_sites,
+        ParentDerivativeOptions, ParentDerivativeState, all_single,
+        has_complete_saturated_hydrogenation, indicated_hydrogen_parent_bond_model,
+        is_added_hydrogen_nitrogen, parent_derivative_state, protonated_hydrogenation_is_complete,
+        saturated_nitrogen_hydrogen_sites,
     },
     model::*,
     numbering::{
@@ -93,6 +94,69 @@ fn plan_uncached(mol: &Molecule, atoms: &AtomSet, spiro_component: bool) -> Plan
     let support = &config.rules.support;
     if atoms.len() < 6 || atoms.iter().any(|a| !mol.atoms.contains_key(a)) {
         return Ok(None);
+    }
+    // P-58.2.4, P-72.2.2.1, P-73.1.1.2: substituents, '-ide' and '-ium' are
+    // added to the neutral parent hydride, so an N-substituted, anionic or
+    // quaternary ring N keeps the indicated or hydro hydrogen of its N-H
+    // parent. Plan that parent; only a pheno...ine parent component
+    // (P-25.2.2.3) needs this, other parents compose it on the input.
+    let n_h_sites: Vec<_> = atoms
+        .iter()
+        .copied()
+        .filter(|&id| {
+            let atom = &mol.atoms[&id];
+            let exocyclic = mol
+                .get_neighbors(id)
+                .iter()
+                .filter(|n| !atoms.contains(n))
+                .count();
+            atom.symbol == "N"
+                && atom.total_h_count == 0
+                && all_single(mol, id)
+                && mol.degree(id) == exocyclic + 2
+                && exocyclic as i32 == 1 + atom.charge
+        })
+        .collect();
+    // An ion whose ring also carries a suffix group cites it as a prefix
+    // (P-73.1.2.1, '2,2-dimethyl-1,3-dioxo-...-2-ium'); that is not composed here.
+    let ring_suffix = atoms.iter().any(|&a| {
+        mol.get_neighbors(a)
+            .iter()
+            .any(|n| !atoms.contains(n) && mol.bond_order(a, *n) > 1)
+    });
+    if !n_h_sites.is_empty()
+        && !(ring_suffix && n_h_sites.iter().any(|id| mol.atoms[id].charge != 0))
+    {
+        let mut kept: AtomSet = mol.atoms.keys().copied().collect();
+        for &id in &n_h_sites {
+            kept.retain(|a| atoms.contains(a) || !mol.get_neighbors(id).contains(a));
+        }
+        let mut parent = mol.subgraph(&kept);
+        for &id in &n_h_sites {
+            if let Some(atom) = parent.atoms.get_mut(&id) {
+                atom.charge = 0;
+                atom.total_h_count = 1;
+                atom.explicit_h_count = 1;
+            }
+        }
+        if let Ok(Some(mut plan)) = plan_uncached(&parent, atoms, spiro_component)
+            && plan.ast.component_occurrences.iter().any(|m| {
+                fusion_component_registry()
+                    .spec_for_match(m)
+                    .is_ok_and(|s| s.parent_hydride_only)
+            })
+        {
+            plan.charge_operations =
+                fusion_charge_operations(mol, &plan.abstract_parent_graph, &plan.numbering)?;
+            for variant in &mut plan.numbering_variants {
+                variant.charge_operations = fusion_charge_operations(
+                    mol,
+                    &variant.abstract_parent_graph,
+                    &variant.numbering,
+                )?;
+            }
+            return Ok(Some(plan));
+        }
     }
     if (!support.charged_parents && atoms.iter().any(|a| mol.atoms[a].charge != 0))
         || atoms

@@ -2623,107 +2623,123 @@ mod tests {
     }
 
     #[test]
-    fn pheno_fusion_derivatives_preserve_main_names_and_statuses() {
+    fn pheno_fusion_derivatives_use_the_senior_parent() {
         use nazuchem_ir::{NameReason, NameStatus};
-        let unregistered = NameStatus::NotPreferred(NameReason::UnregisteredRetainedComponent);
-        let fallback = NameStatus::NotPreferred(NameReason::VonBaeyerFusionFallback);
-        // Keep derivative behavior unchanged until its hydrogen composition and
-        // parent selection can be audited together (issue #1022).
-        for (smiles, expected, status) in [
+        // #24: N-substituted, anionic, quaternary and ketone derivatives keep
+        // the pheno...ine parent (P-25.2.2.3, P-25.3.2.4) and its hydrogen.
+        for (smiles, expected) in [
+            // P-58.2.4: prefixes replace the parent's N-H (indicated or hydro).
             (
                 "c1ccc2c(c1)N(C)c1cc3cnc4ccccc4c3cc1O2",
-                "8-methyl[1,4]benzoxazino[3,2-j]phenanthridine",
-                unregistered,
+                "8-methyl-8H-quinolino[3,4-b]phenoxazine",
+            ),
+            (
+                "c1ccc2c(c1)N(c1ccccc1)c1cc3cnc4ccccc4c3cc1O2",
+                "8-phenyl-8H-quinolino[3,4-b]phenoxazine",
+            ),
+            (
+                "c1ccc2c(c1)Oc1ccc3ccccc3c1N2C",
+                "12-methyl-12H-benzo[a]phenoxazine",
+            ),
+            (
+                "CCN1c2ccccc2Sc2cc3ccccc3cc21",
+                "12-ethyl-12H-benzo[b]phenothiazine",
             ),
             (
                 "c1ccc2c(c1)N(C)c1cc3Sc4ccccc4Nc3cc1O2",
-                "11-methyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1,3(12),5,7,9,13,16,18,20-nonaene",
-                fallback,
+                "14-methyl-7,14-dihydro[1,4]benzothiazino[2,3-b]phenoxazine",
             ),
             (
                 "c1ccc2c(c1)Nc1cc3Sc4ccccc4N(C)c3cc1O2",
-                "22-methyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1(14),2,5,7,9,12,16,18,20-nonaene",
-                fallback,
+                "7-methyl-7,14-dihydro[1,4]benzothiazino[2,3-b]phenoxazine",
             ),
             (
                 "c1ccc2c(c1)N(C)c1cc3Sc4ccccc4N(C)c3cc1O2",
-                "11,22-dimethyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1(14),2,5,7,9,12,16,18,20-nonaene",
-                fallback,
+                "7,14-dimethyl-7,14-dihydro[1,4]benzothiazino[2,3-b]phenoxazine",
             ),
-            (
-                "CN1c2ccccc2Nc2ccncc21",
-                "10-methyl-5,10-dihydropyrido[3,4-b]quinoxaline",
-                NameStatus::Preferred,
-            ),
+            // P-72.2.2.1 / P-73.1.1.2: '-ide' and '-ium' modify the parent
+            // hydride, which keeps its indicated hydrogen (P-58.2.1.1).
             (
                 "c1ccc2c(c1)Oc1ccc3ccccc3c1[N-]2",
-                "naphtho[2,1-b][1,4]benzoxazin-12-ide",
-                unregistered,
+                "12H-benzo[a]phenoxazin-12-ide",
             ),
             (
                 "c1ccc2c(c1)Oc1ccc3ccccc3c1[N+]2(C)C",
-                "12,12-dimethylnaphtho[2,1-b][1,4]benzoxazin-12-ium",
-                unregistered,
+                "12,12-dimethyl-12H-benzo[a]phenoxazin-12-ium",
             ),
             (
                 "c1ccc2c(c1)Sc1ccc3ccccc3c1[N-]2",
-                "naphtho[2,1-b][1,4]benzothiazin-12-ide",
-                unregistered,
+                "12H-benzo[a]phenothiazin-12-ide",
             ),
             (
                 "c1ccc2c(c1)Sc1ccc3ccccc3c1[N+]2(C)C",
-                "12,12-dimethylnaphtho[2,1-b][1,4]benzothiazin-12-ium",
-                unregistered,
+                "12,12-dimethyl-12H-benzo[a]phenothiazin-12-ium",
             ),
             (
                 "c1ccc2c(c1)[N-]c1cc3cnc4ccccc4c3cc1O2",
-                "[1,4]benzoxazino[3,2-j]phenanthridin-8-ide",
-                unregistered,
+                "8H-quinolino[3,4-b]phenoxazin-8-ide",
             ),
             (
                 "c1ccc2c(c1)[N+](C)(C)c1cc3cnc4ccccc4c3cc1O2",
-                "8,8-dimethyl[1,4]benzoxazino[3,2-j]phenanthridin-8-ium",
-                unregistered,
+                "8,8-dimethyl-8H-quinolino[3,4-b]phenoxazin-8-ium",
+            ),
+            // P-58.2.3.1.1: the ketone takes the indicated hydrogen
+            // ('7H-1-benzopyran-7-one').
+            (
+                "CCN(CC)c1ccc2nc3c(cc(=O)c4ccccc34)oc2c1",
+                "9-(diethylamino)-5H-benzo[a]phenoxazin-5-one",
             ),
             (
+                "O=C1C=CC2=Nc3ccc4ccccc4c3OC2=C1",
+                "10H-benzo[c]phenoxazin-10-one",
+            ),
+            // P-58.2.2: added hydrogen; the N-H stays as indicated or hydro
+            // hydrogen of the parent hydride (P-58.2.4).
+            (
                 "O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1",
-                "4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1,3(12),5,9,13,16,18,20-octaen-8-one",
-                fallback,
+                "7,14-dihydro[1,4]benzothiazino[2,3-b]phenoxazin-2(3H)-one",
             ),
             (
                 "O=C1CC=C2Oc3cc4N(C)c5ccccc5Sc4cc3NC2=C1",
-                "22-methyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1,3(12),5,9,13,16,18,20-octaen-8-one",
-                fallback,
+                "7-methyl-7,14-dihydro[1,4]benzothiazino[2,3-b]phenoxazin-2(3H)-one",
             ),
             (
                 "O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3N(C)C2=C1",
-                "11-methyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1,3(12),5,9,13,16,18,20-octaen-8-one",
-                fallback,
+                "14-methyl-7,14-dihydro[1,4]benzothiazino[2,3-b]phenoxazin-2(3H)-one",
             ),
             (
-                "O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3[N+](C)(C)C2=C1",
-                "11,11-dimethyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1,3(12),5,9,13,16,18,20-octaen-11-ium-8-one",
-                fallback,
+                "O=C1CC=C2N(C)c3cc4ccccc4cc3OC2=C1",
+                "12-methyl-12H-benzo[b]phenoxazin-3(2H)-one",
             ),
             (
-                "O=C1CC=C2Oc3cc4[N+](C)(C)c5ccccc5Sc4cc3NC2=C1",
-                "22,22-dimethyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1(14),2,5,9,12,16,18,20-octaen-22-ium-8-one",
-                fallback,
+                "O=C1C=Cc2ccc3Sc4ccccc4Sc3c2C1",
+                "benzo[a]thianthren-2(1H)-one",
             ),
+            // Controls.
             (
-                "CCN(CC)c1ccc2nc3c(cc(=O)c4ccccc34)oc2c1",
-                "9-(diethylamino)naphtho[2,1-b][1,4]benzoxazin-5-one",
-                unregistered,
+                "CN1c2ccccc2Nc2ccncc21",
+                "10-methyl-5,10-dihydropyrido[3,4-b]quinoxaline",
             ),
             (
                 "O=S1c2ccccc2S(=O)c2ccccc21",
                 "5lambda^4,10lambda^4-thianthrene-5,10-dione",
-                NameStatus::Preferred,
             ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
-            assert_eq!(name.status, status, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        // Not composed yet: an ion whose ring also has a ketone cites it as
+        // 'oxo' (P-73.1.2.1), so these keep the von Baeyer fallback status.
+        let fallback = NameStatus::NotPreferred(NameReason::VonBaeyerFusionFallback);
+        for smiles in [
+            "O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3[N+](C)(C)C2=C1",
+            "O=C1CC=C2Oc3cc4[N+](C)(C)c5ccccc5Sc4cc3NC2=C1",
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.status, fallback, "{smiles}: {}", name.text);
         }
     }
 
