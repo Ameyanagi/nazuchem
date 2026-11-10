@@ -103,6 +103,10 @@ pub struct Structure {
     pub fragment: graph::FragmentId,
     /// Parent-group atoms captured before word-rule assembly, excluding suffix atoms.
     pub principal_parent_atoms: Vec<graph::AtomId>,
+    /// Stereocentres and double bonds a ξ/Ξ descriptor marked as configuration
+    /// unknown (P-91.2.1.2.1). The graph leaves them unspecified; IR records them.
+    pub unknown_stereo_atoms: Vec<graph::AtomId>,
+    pub unknown_stereo_bonds: Vec<graph::BondId>,
 }
 
 // Provenance: impl Structure | adapted

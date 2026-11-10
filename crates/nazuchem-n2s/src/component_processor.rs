@@ -1266,6 +1266,7 @@ impl<'a> ComponentProcessor<'a> {
         if atoms.is_empty() {
             return Ok(false);
         }
+        self.state.dl_defined_atoms.extend(&atoms);
         if value == "dl" {
             self.state.racemic_group_count += 1;
             for atom in atoms {

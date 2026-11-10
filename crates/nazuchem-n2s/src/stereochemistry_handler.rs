@@ -246,6 +246,7 @@ fn stereo<T>(s: impl Into<String>) -> Result<T> {
 
 struct UnknownStereoCentre {
     atom: AtomId,
+    fragment: FragmentId,
     value: String,
     alpha_beta: bool,
 }
@@ -516,6 +517,23 @@ impl<'a> StereochemistryHandler<'a> {
             self.warning_or_error(result)?
         }
         self.resolve_unknown_stereo_centres()?;
+        // P-93.1.2/P-93.1.3: rel- and rac- qualify defined descriptors. When ξ
+        // leaves none in the requested group, the qualifier would be lost.
+        if !self.state.unknown_stereo_atoms.is_empty()
+            && requested_group_kinds.iter().any(|&kind| {
+                !self.graph().atoms.iter().any(|atom| {
+                    atom.active
+                        && atom
+                            .parity
+                            .as_ref()
+                            .is_some_and(|parity| parity.stereo_group.kind == kind)
+                })
+            })
+        {
+            self.warning_or_error(stereo(
+                "rac-/rel- needs a defined stereocentre; xi states an unknown configuration",
+            ))?;
+        }
         if has_cage_descriptor
             && !requested_group_kinds.is_empty()
             && !self.cage_scope_is_single_group(&requested_group_kinds)
@@ -1208,7 +1226,10 @@ impl<'a> StereochemistryHandler<'a> {
             }
         }
         for fragment in self.possible_fragments(id)? {
-            if self.attempt_assign_stereo_bond(fragment, &value, locant.as_deref(), cis_trans)? {
+            if self
+                .attempt_assign_stereo_bond(fragment, &value, locant.as_deref(), cis_trans)?
+                .is_some()
+            {
                 return Ok(());
             }
         }
@@ -1228,12 +1249,15 @@ impl<'a> StereochemistryHandler<'a> {
                     .into_iter()
                     .rev()
                 {
-                    if self.attempt_assign_stereo_bond(
-                        self.fragment(g)?,
-                        &value,
-                        locant.as_deref(),
-                        cis_trans,
-                    )? {
+                    if self
+                        .attempt_assign_stereo_bond(
+                            self.fragment(g)?,
+                            &value,
+                            locant.as_deref(),
+                            cis_trans,
+                        )?
+                        .is_some()
+                    {
                         return Ok(());
                     }
                 }
@@ -1255,12 +1279,12 @@ impl<'a> StereochemistryHandler<'a> {
         value: &str,
         locant: Option<&str>,
         cis_trans: bool,
-    ) -> Result<bool> {
+    ) -> Result<Option<BondId>> {
         let candidates = if let Some(locant) = locant {
             let compound = crate::tree_tools::split_compound_locant(locant);
             let (locant, second_atom) = if let Some((ref base, compound)) = compound {
                 let Some(second_atom) = self.graph().atom_by_locant(fragment, compound) else {
-                    return Ok(false);
+                    return Ok(None);
                 };
                 (base.as_str(), Some(second_atom))
             } else {
@@ -1303,10 +1327,10 @@ impl<'a> StereochemistryHandler<'a> {
             {
                 apply_stereo_chemistry_to_stereo_bond(self.state.graph_mut(), stereo_bond, value)?;
                 self.not_explicitly_defined_stereo_bond_map.remove(&bond);
-                return Ok(true);
+                return Ok(Some(bond));
             }
         }
-        Ok(false)
+        Ok(None)
     }
     fn assign_cis_trans_on_ring(&mut self, id: NodeId) -> Result<bool> {
         if self.arena[id].attribute(LOCANT_ATR).is_some() {
@@ -1514,12 +1538,25 @@ impl<'a> StereochemistryHandler<'a> {
         // Only a locanted lowercase ξ may name a coupled r/s centre; anything
         // else keeps the ordinary stereocentre search.
         let coupled = matches!(value.as_str(), "xi" | "ξ");
-        let fragments = self.possible_fragments(id)?;
+        let mut fragments = self.possible_fragments(id)?;
+        // P-103.1.3.1/P-103.3.4: an unlocanted ξ stands in the D/L position,
+        // so it belongs to the amino-acid residue it precedes.
+        if locant.is_none()
+            && let Some(group) = self
+                .arena
+                .next_sibling_ignoring(id, &[STEREOCHEMISTRY_EL])
+                .filter(|&g| {
+                    self.arena[g].name == GROUP_EL && self.attr(g, TYPE_ATR) == AMINOACID_TYPE_VAL
+                })
+        {
+            fragments.insert(0, self.fragment(group)?);
+        }
         for &fragment in &fragments {
             let atom = if let Some(locant) = &locant {
                 self.graph().atom_by_locant(fragment, locant).filter(|a| {
-                    self.atom_stereo_centre_map.contains_key(a)
-                        || (coupled && self.coupled_unknown_candidates.contains(a))
+                    (self.atom_stereo_centre_map.contains_key(a)
+                        || (coupled && self.coupled_unknown_candidates.contains(a)))
+                        && !self.state.dl_defined_atoms.contains(a)
                 })
             } else {
                 self.graph()
@@ -1530,6 +1567,7 @@ impl<'a> StereochemistryHandler<'a> {
                     .find(|a| {
                         self.not_explicitly_defined_stereo_centre_map
                             .contains_key(a)
+                            && !self.state.dl_defined_atoms.contains(a)
                     })
             };
             if let Some(atom) = atom {
@@ -1547,6 +1585,7 @@ impl<'a> StereochemistryHandler<'a> {
                     });
                     self.unknown_stereo_centres.push(UnknownStereoCentre {
                         atom,
+                        fragment,
                         value,
                         alpha_beta,
                     });
@@ -1572,7 +1611,10 @@ impl<'a> StereochemistryHandler<'a> {
         }
         if matches!(value.as_str(), "Xi" | "xi") {
             for fragment in fragments {
-                if self.attempt_assign_stereo_bond(fragment, "EZ", locant.as_deref(), false)? {
+                if let Some(bond) =
+                    self.attempt_assign_stereo_bond(fragment, "EZ", locant.as_deref(), false)?
+                {
+                    self.state.unknown_stereo_bonds.push(bond);
                     return Ok(());
                 }
             }
@@ -1702,6 +1744,7 @@ impl<'a> StereochemistryHandler<'a> {
                 false
             });
             if !restored {
+                self.state.unknown_stereo_atoms.extend(targets);
                 return Ok(());
             }
             // Restoring an ignored descriptor can change whether another
@@ -1714,7 +1757,24 @@ impl<'a> StereochemistryHandler<'a> {
         if self.coupled_unknown_candidates.contains(&atom) {
             return self.validate_coupled_unknown_centre(centre);
         }
-        if centre.value == "xi" || (centre.value == "ξ" && centre.alpha_beta) {
+        // P-103.1.3.1: ξ replaces D/L at the α-carbon of an amino acid that
+        // accepts a D/L prefix. With another template centre (threonine,
+        // isoleucine, cystine) the scope of ξ is ambiguous, so it is refused.
+        let fragment = self.graph().fragment(centre.fragment);
+        let amino_acid_alpha = fragment.fragment_type == AMINOACID_TYPE_VAL
+            && matches!(
+                fragment.sub_type.as_str(),
+                ENDININE_SUBTYPE_VAL | ENDINAN_SUBTYPE_VAL | ENDINIC_SUBTYPE_VAL
+            )
+            && fragment
+                .token_attributes
+                .get(VALUE_ATR)
+                .is_some_and(|smiles| {
+                    smiles.split(']').filter(|atom| atom.contains('@')).count() == 1
+                })
+            && self.graph().atom(atom).locants.iter().any(|l| l == "alpha");
+        if centre.value == "xi" || (centre.value == "ξ" && (centre.alpha_beta || amino_acid_alpha))
+        {
             return Ok(());
         }
         let mut neighbours = self.graph().neighbours(atom);
