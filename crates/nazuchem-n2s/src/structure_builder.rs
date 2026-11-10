@@ -2644,13 +2644,23 @@ impl Builder<'_> {
                 let graph = self.assembly.graph();
                 // P-72.6.2: oxido is –O⁻. An S/P that already carries =O/=S (sulfinyl,
                 // phosphinyl, sulfinothioyl, ...) keeps it anionic: oxidosulfinyl is
-                // –S(=O)O⁻, not –SH(=O)=O.
+                // –S(=O)O⁻, not –SH(=O)=O. An =O made from an earlier oxido does not
+                // count, so 1,1-dioxidothiolane stays the neutral sulfone.
                 let has_chalcogen_double_bond = a.bonds.iter().any(|&b| {
                     let bond = graph.bond(b);
                     bond.order == 2
-                        && bond
-                            .other_atom(connected)
-                            .is_some_and(|o| graph.atom(o).element.is_chalcogen())
+                        && bond.other_atom(connected).is_some_and(|o| {
+                            let o = graph.atom(o);
+                            o.element.is_chalcogen()
+                                && self
+                                    .assembly
+                                    .state
+                                    .fragment_manager
+                                    .token_for_fragment(o.fragment)
+                                    .and_then(|token| self.assembly.attr(token, "subType"))
+                                    .as_deref()
+                                    != Some("oxidoLike")
+                        })
                 });
                 if graph.fragment(a.fragment).fragment_type == "elementaryAtom"
                     || matches!(element, Element::S | Element::P)

@@ -86,6 +86,10 @@ fn oxido_on_sulfinyl_like_groups_keeps_its_charge() {
         ("oxidosulfinothioylbenzene", "[O-]S(=S)C1=CC=CC=C1"),
         // Without an existing =O/=S the upstream oxido-to-oxo reading is kept.
         ("1-oxidothiolane", "O=S1CCCC1"),
+        // An =O made from one oxido must not keep the next oxido anionic.
+        ("1,1-dioxidothiolane", "O=S1(CCCC1)=O"),
+        ("1,1-dioxidothiomorpholine", "O=S1(CCNCC1)=O"),
+        ("1-oxido-1-sulfidothiolane", "O=S1(CCCC1)=S"),
         ("dimethyl(oxido)sulfur", "CS(=O)C"),
     ] {
         let result = parser.parse(name, &ParseOptions::strict());
