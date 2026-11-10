@@ -42,7 +42,10 @@ public GitHub repository for npm provenance.
   environment secret **`NPM_BOOTSTRAP_TOKEN`**. After publication configure
   [trusted publishing](https://docs.npmjs.com/trusted-publishers/) for package
   **`nazuchem`**: GitHub owner **`Ameyanagi`**, repository **`nazuchem`**,
-  workflow **`release.yml`**, environment **`npm`**.
+  workflow **`release.yml`**, environment **`npm`**, and enable **Allow npm
+  publish** (new configurations allow only staged publishing). A new
+  configuration [expires](https://docs.npmjs.com/trusted-publishers/#trusted-publisher-configuration-expiry)
+  unless used within two days, so create it just before the next release.
   Delete the bootstrap secret and revoke its token. OIDC needs npm ≥11.5.1 and
   Node ≥22.14.0; the workflow's pinned Node includes a suitable npm. The package
   repository URL must match this repository. npm generates provenance for the
@@ -78,11 +81,15 @@ All build and package checks finish before the first registry upload. The
 workflow does not require a prior main-CI result for the commit. Cargo already
 [waits for index availability](https://doc.rust-lang.org/cargo/commands/cargo-publish.html#description)
 after each publication, so dependent crates need no sleeps. A timeout may follow
-a successful upload. On partial crates.io failure, inspect what was uploaded,
+a successful upload. On partial failure, inspect what was uploaded,
 then use **Re-run failed jobs** in the same workflow run. The crates.io job
-checks each exact version in the sparse index and skips versions already
-published. Do not move a published tag or reuse a published
-version.
+skips versions already in the sparse index, and the PyPI job skips files
+already uploaded. A re-run reuses the original commit, so a workflow bug needs
+a fix commit and a fresh tag-push run. Do not move a published tag; the one
+exception is 0.1.0, whose npm upload failed on a tarball-path bug: `v0.1.0`
+moved from `a3afe24` (the source of the published crates and PyPI wheels) to
+the fix. Keep both bootstrap secrets until such a run finishes. Never reuse a
+published version.
 
 ## Build choices
 
