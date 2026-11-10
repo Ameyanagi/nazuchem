@@ -180,7 +180,7 @@ impl NameReason {
                 "Uses a substituted parent hydride such as chloro(methyl)azane, 1,2-dimethyldisulfane or ethoxy(methyl)sulfane; preferred IUPAC names use methylhypochlorous amide, (methyldisulfanyl)methane or [(methylsulfanyl)oxy]ethane (P-68.5.3, P-63.3.1, P-63.3.2)."
             }
             Self::UnretainedParent => {
-                "Uses a substituted methanal or methanenitrile oxide, an N-substituted ethanediamide, or a formic acid, formyl halide or formamide substituted on carbon; preferred IUPAC names use N-substituted oxamide (P-66.1.1.1.2.1) or carbonic and carbamic acid derivatives such as carbonochloridic acid (P-65.1.8.1)."
+                "Uses a substituted methanal or methanenitrile oxide, an N-substituted ethanediamide, or a formic acid, formyl halide or formamide substituted on carbon; preferred IUPAC names use N-substituted oxamide (P-66.1.1.1.2.1) or carbonic and carbamic acid derivatives such as carbonochloridic acid (P-65.1.8.1). It also covers a formohydrazide or methanone name for an acid, ester, acid halide, amide or hydrazide group on hydrazine; preferred IUPAC names build these on hydrazine, as in 2-methylhydrazine-1-carboxylic acid or hydrazinecarbohydrazide (P-65.1.2.2.2, P-68.3.1.2.6)."
             }
             Self::DiamideLocants => {
                 "Uses N or N' locants on a di- or polyamide; the preferred IUPAC name cites the parent locant on each nitrogen, as in N1-methylbutanediamide (P-66.1.1.3.1.1)."
