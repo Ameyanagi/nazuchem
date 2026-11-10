@@ -1504,6 +1504,15 @@ mod tests {
                 "C1CCN(CC1)CCNC2=C(C(=NC=N2)NC3=NC4=CC=CC=C4S3)[N+](=O)[O-]",
                 "N^4-(1,3-benzothiazol-2-yl)-5-nitro-N^6-[2-(piperidin-1-yl)ethyl]pyrimidine-4,6-diamine",
             ),
+            // Fusion-letter and composite parent locants keep their hyphen and order.
+            (
+                "CNC12CCCCC1(NCC)CCCC2",
+                "N^4a-ethyl-N^8a-methyldecahydronaphthalene-4a,8a-diamine",
+            ),
+            (
+                "C1(C2CCCCCC(C3CCCCCCCCCCC3)CCCCC2)C(NC)CCCCCCCC(NC)CC1",
+                "N^1^2,N^1^10-dimethyl[1^1,2^1:2^7,3^1-tercyclododecane]-1^2,1^10-diamine",
+            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
