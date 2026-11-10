@@ -998,7 +998,23 @@ impl<'a> StereochemistryHandler<'a> {
                 .find(available)
         };
         if let Some(atom) = atom {
-            if pseudo {
+            // Ligands that differ only in the configuration of other
+            // stereogenic units tie under OPSIN's constitutional rules; the
+            // stereodescriptors rank them (rules 4 and 5, P-92.5 and P-92.6),
+            // so these R/S centres are resolved with full CIP after the rest.
+            let full_cip = pseudo
+                || match apply_stereo_chemistry_to_stereo_centre(
+                    self.state.graph_mut(),
+                    self.atom_stereo_centre_map[&atom],
+                    value,
+                ) {
+                    Err(e) if e == CipOrderingError::UnresolvedTie.into() => true,
+                    other => {
+                        other?;
+                        false
+                    }
+                };
+            if full_cip {
                 // Cage descriptors may already have fixed this centre. Check
                 // its label after all lowercase centres are seeded, preserving
                 // the existing parity even if the descriptor contradicts it.
@@ -1029,9 +1045,6 @@ impl<'a> StereochemistryHandler<'a> {
                         true_stereo_centre: false,
                     });
                 self.pseudo_stereo_centres.push((atom, value.into()));
-            } else {
-                let centre = self.atom_stereo_centre_map[&atom];
-                apply_stereo_chemistry_to_stereo_centre(self.state.graph_mut(), centre, value)?;
             }
             self.set_stereo_group(atom, kind, 1);
             self.not_explicitly_defined_stereo_centre_map.remove(&atom);
@@ -1044,41 +1057,68 @@ impl<'a> StereochemistryHandler<'a> {
     // Provenance: fn StereochemistryHandler::resolve_pseudo_stereo_centres | original
     // Source: ReShiki | crates/opsin/src/stereochemistry_handler.rs::StereochemistryHandler::resolve_pseudo_stereo_centres
     fn resolve_pseudo_stereo_centres(&mut self) -> Result {
-        for (atom, expected) in &self.pseudo_stereo_centres {
-            let labels = crate::modern_cip::atom_labels(self.graph())?;
-            match labels.get(atom).map(String::as_str) {
-                Some(actual) if actual == expected => (),
-                Some("r" | "s") => {
-                    self.state
-                        .graph_mut()
-                        .atom_mut(*atom)
-                        .parity
-                        .as_mut()
-                        .unwrap()
-                        .parity *= -1;
-                }
-                _ => {
-                    return stereo(format!(
-                        "Could not assign pseudoasymmetric {expected} stereochemistry"
-                    ));
-                }
-            }
-        }
-        if !self.pseudo_stereo_centres.is_empty()
-            || !self.preassigned_pseudo_stereo_centres.is_empty()
+        if self.pseudo_stereo_centres.is_empty()
+            && self.preassigned_pseudo_stereo_centres.is_empty()
         {
+            return Ok(());
+        }
+        let count = self.pseudo_stereo_centres.len();
+        let flip = |handler: &mut Self, index: usize| {
+            let atom = handler.pseudo_stereo_centres[index].0;
+            let parity = handler.state.graph_mut().atom_mut(atom).parity.as_mut();
+            parity.unwrap().parity *= -1;
+        };
+        for index in 0..count {
+            let (atom, expected) = &self.pseudo_stereo_centres[index];
+            let mirror = match expected.as_str() {
+                "R" => "S",
+                "S" => "R",
+                "r" => "s",
+                _ => "r",
+            };
             let labels = crate::modern_cip::atom_labels(self.graph())?;
-            for (atom, expected) in self
-                .pseudo_stereo_centres
-                .iter()
-                .chain(&self.preassigned_pseudo_stereo_centres)
-            {
-                if labels.get(atom) != Some(expected) {
-                    return stereo("Contradictory pseudoasymmetric stereochemistry");
+            if labels.get(atom).map(String::as_str) == Some(mirror) {
+                flip(self, index);
+            }
+        }
+        // One pass settles labels that depend only on centres before them.
+        // An inositol's ring carbons each depend on the others, so then try
+        // every parity combination, flipping one centre per step (Gray code).
+        // Each step is a full CIP run, so the search is limited to 2^8 steps.
+        let mut mismatch = self.full_cip_mismatch()?;
+        if mismatch.is_some() && count <= 8 {
+            for step in 1..1usize << count {
+                flip(self, step.trailing_zeros() as usize);
+                mismatch = self.full_cip_mismatch()?;
+                if mismatch.is_none() {
+                    break;
                 }
             }
         }
-        Ok(())
+        mismatch.map_or(Ok(()), stereo)
+    }
+    /// Why the current parities contradict a full-CIP descriptor, if they do.
+    fn full_cip_mismatch(&self) -> Result<Option<String>> {
+        let labels = crate::modern_cip::atom_labels(self.graph())?;
+        for (atom, expected) in self
+            .pseudo_stereo_centres
+            .iter()
+            .chain(&self.preassigned_pseudo_stereo_centres)
+        {
+            let actual = labels.get(atom).map(String::as_str);
+            if actual != Some(expected.as_str()) {
+                return Ok(Some(match (expected.as_str(), actual) {
+                    ("r" | "s", Some("r" | "s")) => {
+                        "Contradictory pseudoasymmetric stereochemistry".into()
+                    }
+                    ("r" | "s", _) => {
+                        format!("Could not assign pseudoasymmetric {expected} stereochemistry")
+                    }
+                    _ => CipOrderingError::UnresolvedTie.to_string(),
+                }));
+            }
+        }
+        Ok(None)
     }
     fn assign_axial_stereo(&mut self, id: NodeId) -> Result {
         let value = self.attr(id, VALUE_ATR);

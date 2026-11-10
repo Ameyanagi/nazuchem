@@ -65,3 +65,89 @@ fn peroxycyanate_esters_preserve_both_oxygens() {
         );
     }
 }
+
+// P-72.2.2.1: "-ide" removes a hydron from the named atom. Where a mancude
+// ring has no hydrogen there, the name needs added hydrogen (P-72.2.2.1.1,
+// pyridin-1(2H)-ide), so the bare names are rejected instead of hydrogenated.
+#[test]
+fn ide_on_a_mancude_ring_atom_without_hydrogen_is_rejected() {
+    let parser = Parser::new().unwrap();
+    for name in [
+        "pyridin-1-ide",
+        "pyrimidin-1-ide",
+        "quinolin-1-ide",
+        "3H-pyrrol-1-ide",
+        "2H-pyrrol-1-ide",
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Failure, "{name}: {result:?}");
+        assert!(
+            result.message.contains("no hydrogen"),
+            "{name}: {}",
+            result.message
+        );
+    }
+    for (name, expected) in [
+        ("pyridin-1(2H)-ide", "[N-]1CC=CC=C1"),
+        ("1,2-dihydropyridin-1-ide", "[N-]1CC=CC=C1"),
+        ("pyridin-2-ide", "N1=[C-]C=CC=C1"),
+        ("1H-pyrrol-1-ide", "[N-]1C=CC=C1"),
+        ("pyrrolide", "[N-]1C=CC=C1"),
+        ("2,3-dihydro-1H-pyrrol-1-ide", "[N-]1CCC=C1"),
+        ("indol-1-ide", "[N-]1C=CC2=CC=CC=C12"),
+        ("2H-pyrazol-2-ide", "N=1[N-]C=CC1"),
+        // P-14.7.1: the cited indicated hydrogen, not pyrazole's default 1H,
+        // places the hydrogen that the unlocanted "-ide" removes.
+        ("2H-pyrazolide", "N=1[N-]C=CC1"),
+        ("pyrazolide", "[N-]1N=CC=C1"),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+}
+
+// P-92.5 (rules 4 and 5): ligands that differ only in the configuration of
+// other stereogenic units are ranked at a deeper sphere. C4 here depends on
+// the r/s centres C3 and C5, and the ring carbons of a cyclohexanehexol each
+// depend on the others (compare P-92.5.2.2, example 3).
+#[test]
+fn centres_ranked_by_other_stereodescriptors_are_assigned() {
+    let parser = Parser::new().unwrap();
+    for (name, expected) in [
+        (
+            "(2R,3r,4R,5s,6R)-3,5-bis[(1S)-1-fluoroethyl]-2,6-difluoroheptane-3,4,5-triol",
+            "F[C@@H](C)[C@@]([C@@H](C)F)([C@@H]([C@]([C@@H](C)F)(O)[C@H](C)F)O)O",
+        ),
+        (
+            "(1R,2R,3S,4S,5R,6S)-cyclohexane-1,2,3,4,5,6-hexol",
+            "[C@@H]1([C@H]([C@H]([C@H]([C@@H]([C@@H]1O)O)O)O)O)O",
+        ),
+        (
+            "(1R,2S,3r,4R,5S,6r)-cyclohexane-1,2,3,4,5,6-hexol",
+            "[C@@H]1([C@H]([C@@H]([C@H]([C@H]([C@@H]1O)O)O)O)O)O",
+        ),
+        (
+            "(1R,2R,3R,4R,5S,6S)-1,2,3,4,5,6-hexachlorocyclohexane",
+            "Cl[C@H]1[C@@H]([C@H]([C@@H]([C@@H]([C@H]1Cl)Cl)Cl)Cl)Cl",
+        ),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+    // No configuration of the six ring carbons gives these labels.
+    let result = parser.parse(
+        "(1R,2R,3R,4R,5R,6R)-cyclohexane-1,2,3,4,5,6-hexol",
+        &ParseOptions::strict(),
+    );
+    assert_eq!(result.status, Status::Failure, "{result:?}");
+}

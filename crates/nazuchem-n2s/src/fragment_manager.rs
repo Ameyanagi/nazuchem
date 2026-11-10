@@ -479,6 +479,47 @@ impl FragmentManager {
 
     pub fn convert_spare_valencies_to_double_bonds(&mut self) -> Result<(), GraphError> {
         for fragment in self.fragments.clone() {
+            // "-ide" removes a hydron from the named atom (P-72.2.2.1). On a
+            // mancude ring atom the charge takes that atom's double bond, so
+            // the rest of the ring keeps an even number of sp2 atoms only if
+            // the atom held the ring's indicated hydrogen (pyrrol-1-ide).
+            // Otherwise (pyridin-1-ide) the name needs added hydrogen,
+            // pyridin-1(2H)-ide (P-72.2.2.1.1), rather than an unnamed one.
+            let atoms = self.graph.fragment(fragment).atoms.clone();
+            let deprotonated: Vec<_> = atoms
+                .iter()
+                .copied()
+                .filter(|&atom| {
+                    let a = self.graph.atom(atom);
+                    a.spare_valency && a.charge < 0 && a.protons_explicitly_added_or_removed < 0
+                })
+                .collect();
+            for &atom in &atoms {
+                crate::fragment_tools::ensure_spare_valency_consistent_with_valency(
+                    &mut self.graph,
+                    atom,
+                    true,
+                )?;
+            }
+            if let Some(&atom) = deprotonated
+                .iter()
+                .find(|&&atom| !self.graph.atom(atom).spare_valency)
+                && atoms
+                    .iter()
+                    .filter(|&&atom| self.graph.atom(atom).spare_valency)
+                    .count()
+                    % 2
+                    == 1
+            {
+                return Err(error(format!(
+                    "Anion at locant {}: the parent hydride has no hydrogen there to remove",
+                    self.graph
+                        .atom(atom)
+                        .locants
+                        .first()
+                        .map_or("?", String::as_str)
+                )));
+            }
             crate::fragment_tools::convert_spare_valencies_to_double_bonds(
                 &mut self.graph,
                 fragment,
