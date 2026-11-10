@@ -171,8 +171,11 @@ jobs:
           pattern: python-*
           path: dist
           merge-multiple: true
+      # OIDC and attestations are the action defaults; no PyPI password/token.
       - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
-        # OIDC and attestations are the action defaults; no PyPI password/token.
+        with:
+          # A re-run after a partial failure skips wheels already on PyPI.
+          skip-existing: true
 
   publish-npm:
     name: Publish npm with provenance
@@ -199,7 +202,8 @@ jobs:
         # npm also needs an existing package: use the environment secret ONLY for 0.1.0.
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
-        run: npm publish npm-dist/nazuchem-package.tgz --access public --provenance --ignore-scripts
+        # "./" makes npm treat the argument as a file; a bare "dir/file.tgz" is read as a GitHub repo.
+        run: npm publish ./npm-dist/nazuchem-package.tgz --access public --provenance --ignore-scripts
 
   github-release:
     name: Create GitHub Release

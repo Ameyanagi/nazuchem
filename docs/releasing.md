@@ -78,11 +78,13 @@ All build and package checks finish before the first registry upload. The
 workflow does not require a prior main-CI result for the commit. Cargo already
 [waits for index availability](https://doc.rust-lang.org/cargo/commands/cargo-publish.html#description)
 after each publication, so dependent crates need no sleeps. A timeout may follow
-a successful upload. On partial crates.io failure, inspect what was uploaded,
+a successful upload. On partial failure, inspect what was uploaded,
 then use **Re-run failed jobs** in the same workflow run. The crates.io job
-checks each exact version in the sparse index and skips versions already
-published. Do not move a published tag or reuse a published
-version.
+skips versions already in the sparse index, and the PyPI job skips files
+already uploaded. A re-run uses the workflow file at the tag, so a workflow
+bug needs a new commit: for 0.1.0, npm failed on a tarball-path bug and the
+`v0.1.0` tag was moved once from `a3afe24` (the source of the published crates
+and wheels) to the fix. Never reuse a published version.
 
 ## Build choices
 
