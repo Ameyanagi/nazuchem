@@ -3126,6 +3126,13 @@ mod tests {
                 "O=C1C=Cc2ccn(C)c21",
                 "1-methylcyclopenta[b]pyrrol-6(1H)-one",
             ),
+            // Controls the issues report as already correct.
+            ("Cn1ccc2ncccc21", "1-methyl-1H-pyrrolo[3,2-b]pyridine"),
+            ("Cn1c2cnccc2c2ccccc21", "9-methyl-9H-pyrido[3,4-b]indole"),
+            (
+                "C[NH+]1C=CC=2C=NC=CC21",
+                "1-methyl-1H-pyrrolo[3,2-c]pyridin-1-ium",
+            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
