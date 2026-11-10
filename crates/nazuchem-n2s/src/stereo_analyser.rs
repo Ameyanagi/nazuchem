@@ -236,7 +236,7 @@ pub fn analyse_atoms_and_bonds(
         if neighbours.len() != 4 {
             continue;
         }
-        // Preserve upstream's first matching pair for each index. Three equal
+        // Preserve upstream's first matching pair for each index. Four equal
         // ligands form three entries and therefore do not qualify.
         let mut pairs = Vec::new();
         for i in 0..4 {
@@ -246,27 +246,31 @@ pub fn analyse_atoms_and_bonds(
                 pairs.push((neighbours[i], neighbours[j]));
             }
         }
+        // Three equal ligands are two overlapping pairs (cubane, adamantane).
+        let three_equal = pairs.len() == 2 && pairs[0].1 == pairs[1].0;
         if matches!(pairs.len(), 1 | 2) {
-            candidates.push((atom, pairs));
+            candidates.push((atom, pairs, three_equal));
         }
     }
     // Equivalent branches also qualify through another such candidate, as
     // in 1,2,3,4,5,6-hexachlorocyclohexane, whose ring carbons are each
     // stereogenic only because of the others (P-92.5.2.2, example 3). Drop
-    // candidates until the remaining set is self-consistent.
+    // candidates until the remaining set is self-consistent. Atoms with
+    // three equal ligands keep upstream's true-centre test.
     loop {
-        let others: Vec<_> = candidates.iter().map(|(atom, _)| *atom).collect();
+        let others: Vec<_> = candidates.iter().map(|(atom, ..)| *atom).collect();
         let before = candidates.len();
-        candidates.retain(|(atom, pairs)| {
+        candidates.retain(|(atom, pairs, three_equal)| {
+            let others = if *three_equal { &[][..] } else { &others };
             pairs.iter().all(|&(first, second)| {
-                branches_have_stereocentre(graph, first, second, *atom, &true_centres, &others)
+                branches_have_stereocentre(graph, first, second, *atom, &true_centres, others)
             })
         });
         if candidates.len() == before {
             break;
         }
     }
-    centres.extend(candidates.into_iter().map(|(atom, _)| StereoCentre {
+    centres.extend(candidates.into_iter().map(|(atom, ..)| StereoCentre {
         atom,
         true_stereo_centre: false,
     }));

@@ -157,4 +157,9 @@ fn centres_ranked_by_other_stereodescriptors_are_assigned() {
         &ParseOptions::strict(),
     );
     assert_eq!(result.status, Status::Failure, "{result:?}");
+    // Bridgeheads with three equal ring branches are not stereogenic.
+    for name in ["(1R,4S)-bicyclo[2.2.2]octane", "(1Xi)-bicyclo[2.2.2]octane"] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Failure, "{name}: {result:?}");
+    }
 }
