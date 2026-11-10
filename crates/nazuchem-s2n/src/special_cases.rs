@@ -3452,7 +3452,9 @@ pub(super) fn try_name_anhydride_component(
                 // citation, lowest at the first point of difference (P-14.5.4).
                 // Enclosing marks, locants with their letters (4a, 1H, N,
                 // 1lambda^4) and stereodescriptors such as (S) or (1r,4r) give no
-                // Roman letters; fusion letters and words such as tert are italic.
+                // Roman letters; fusion letters ([3,2-c], [cd]) and words such as
+                // tert are italic. Remaining ties compare enclosing marks and
+                // punctuation (P-14.6).
                 let order_key = |name: &str| {
                     const ITALIC_WORDS: [&str; 10] = [
                         "tert", "sec", "cis", "trans", "endo", "exo", "syn", "anti", "as", "asym",
@@ -3481,8 +3483,11 @@ pub(super) fn try_name_anhydride_component(
                             i = if descriptor { end + 1 } else { i + 1 };
                         } else if c.is_ascii_digit() {
                             let digits = run(i, char::is_ascii_digit);
-                            let number: u32 =
-                                chars[i..digits].iter().collect::<String>().parse().unwrap();
+                            let number: u32 = chars[i..digits]
+                                .iter()
+                                .collect::<String>()
+                                .parse()
+                                .unwrap_or(u32::MAX);
                             // Letters written onto a locant: 4a, 1H, 3aH, 1lambda.
                             let letters = run(digits, char::is_ascii_alphabetic);
                             let letter = match chars[digits..letters] {
@@ -3494,9 +3499,10 @@ pub(super) fn try_name_anhydride_component(
                         } else if c.is_ascii_alphabetic() {
                             let end = run(i, char::is_ascii_alphabetic);
                             let word: String = chars[i..end].iter().collect();
-                            if word.len() == 1 && c.is_ascii_lowercase()
-                                || ITALIC_WORDS.contains(&word.as_str())
-                            {
+                            // Fusion letters run in alphabetical sequence: c, cd.
+                            let fusion = word.bytes().all(|b| b.is_ascii_lowercase())
+                                && word.as_bytes().windows(2).all(|w| w[1] == w[0] + 1);
+                            if fusion || ITALIC_WORDS.contains(&word.as_str()) {
                                 italic.push_str(&word);
                             } else if !word.contains(|c: char| c.is_ascii_uppercase()) {
                                 roman.push_str(&word);
@@ -3506,7 +3512,21 @@ pub(super) fn try_name_anhydride_component(
                             i += 1;
                         }
                     }
-                    (roman, italic, locants)
+                    let marks: Vec<u8> = chars
+                        .iter()
+                        .map(|c| match c {
+                            '{' | '}' => 1,
+                            '[' | ']' => 2,
+                            '(' | ')' => 3,
+                            '.' => 4,
+                            ',' => 5,
+                            ';' => 6,
+                            ':' => 7,
+                            '-' => 8,
+                            _ => 0,
+                        })
+                        .collect();
+                    (roman, italic, locants, marks)
                 };
                 halves.sort_by_cached_key(|half| order_key(&half.0));
                 format!("{} {} {class}", halves[0].1, halves[1].1)

@@ -1518,6 +1518,22 @@ mod tests {
                 "BrC1=CC=C2C(=N1)C=C(O2)C(=O)OC(=S)C2=C(C=1C=NC=CC1O2)Br",
                 "3-bromofuro[3,2-c]pyridine-2-carbothioic 5-bromofuro[3,2-b]pyridine-2-carboxylic anhydride",
             ),
+            // P-14.5.3: the fusion letters cd are italic ('cyclopentan' before
+            // 'cyclopentap').
+            (
+                "C1(=CC2=C3C(=CC4=CC=CC5=CC=C1C3=C45)C=C2)C(=O)OC(=O)C2CCCC2",
+                "cyclopentanecarboxylic cyclopenta[cd]pyrene-1-carboxylic anhydride",
+            ),
+            // P-14.6: equal alphanumerical characters; a letter is preferred
+            // to an opening parenthesis, whichever half comes first in the input.
+            (
+                "N[SiH](C)c1ccc(cc1)C(=O)OC(=O)c1ccc(cc1)[SiH2]CN",
+                "4-[amino(methyl)silyl]benzoic 4-[(aminomethyl)silyl]benzoic anhydride",
+            ),
+            (
+                "NC[SiH2]c1ccc(cc1)C(=O)OC(=O)c1ccc(cc1)[SiH](C)N",
+                "4-[amino(methyl)silyl]benzoic 4-[(aminomethyl)silyl]benzoic anhydride",
+            ),
             // P-14.5: the indicated hydrogen 1H is a locant ('iodo' before 'pyrrole').
             (
                 "ICC(=O)OC(=O)c1ccc[nH]1",
