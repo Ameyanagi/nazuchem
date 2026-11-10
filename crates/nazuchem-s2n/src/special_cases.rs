@@ -3501,7 +3501,8 @@ pub(super) fn try_name_anhydride_component(
                                 let fusion = word.as_bytes().windows(2).all(|w| w[1] == w[0] + 1);
                                 if fusion || ITALIC_WORDS.contains(&word.as_str()) {
                                     italic.push_str(&word);
-                                } else {
+                                } else if word != "lambda" {
+                                    // The Greek lambda of lambda^4 takes no part.
                                     roman.push_str(&word);
                                 }
                             }
@@ -3512,6 +3513,10 @@ pub(super) fn try_name_anhydride_component(
                                 _ => {}
                             }
                             i += 1;
+                            // The bonding number of lambda^4 is no locant.
+                            if c == '^' {
+                                i = run(i, char::is_ascii_digit);
+                            }
                         }
                         marks.extend(chars[start..i].iter().map(|c| match c {
                             '{' | '}' => 1,
@@ -4269,6 +4274,13 @@ mod tests {
             (
                 "O=C(OC(=O)c1c(C(C)CCC)ccc(S)c1)c1c(C(CC)CC)cc(S)cc1",
                 "2-(pentan-3-yl)-4-sulfanylbenzoic 2-(pentan-2-yl)-5-sulfanylbenzoic anhydride",
+                preferred,
+            ),
+            // P-14.5: Greek letters take no part; lambda^4 gives no Roman
+            // letters ('phosphanyl' before 'sulfanyl').
+            (
+                "C[SH](C)c1ccc(C(=O)OC(=O)c2ccc(P(C)C)cc2)cc1",
+                "4-(dimethylphosphanyl)benzoic 4-(dimethyl-lambda^4-sulfanyl)benzoic anhydride",
                 preferred,
             ),
             // P-14.5: an italic element locant is lower than a numeral.
