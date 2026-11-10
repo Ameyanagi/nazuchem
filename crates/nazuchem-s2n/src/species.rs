@@ -1217,6 +1217,18 @@ mod tests {
                 "2-(1-methylpyridin-1-ium-4-yl)ethan-1-aminium",
             ),
             ("OCC[NH3+]", "2-hydroxyethan-1-aminium"),
+            ("OCC1CC[NH2+]C1", "3-(hydroxymethyl)pyrrolidinium"),
+            // Nitro is a neutral group, not a cationic centre.
+            (
+                "OCc1cc[n+](cc1)c1ccc([N+](=O)[O-])cc1",
+                "4-(hydroxymethyl)-1-(4-nitrophenyl)pyridin-1-ium",
+            ),
+            // P-73.7(c): a cationic N precedes a cationic O before ring
+            // seniority, which would prefer morpholine (P-44.2.1).
+            (
+                "C[NH+]1CCC(CC2C[O+](C)CCN2)CC1",
+                "1-methyl-4-[(1-methylmorpholin-1-ium-3-yl)methyl]piperidin-1-ium",
+            ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
