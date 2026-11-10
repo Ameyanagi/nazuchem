@@ -56,37 +56,61 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
             mol.mark_name(NameStatus::NotPreferred(NameReason::FunctionalClass));
         }
         // An acid, ester, acid halide, amide or hydrazide carbon on an acyclic
-        // hydrazine nitrogen, N-N-C(=X)-Y, outranks a hydrazide (seniority 68)
-        // or any junior principal group (P-41; N is the senior parent atom,
-        // P-44.1.2). Its PIN is built on hydrazine, as in hydrazinecarboxylic
-        // acid or hydrazinecarbohydrazide (P-65.1.2.2.2, P-68.3.1.2.6), not on
-        // formohydrazide or methanone; those names are not generated yet.
+        // hydrazine nitrogen, N-N-C(=X)-Y, takes hydrazine as its parent, as in
+        // hydrazinecarboxylic acid, hydrazinecarboxamide or
+        // hydrazinecarbohydrazide (P-65.1.2.2.2, P-65.1.8.1, P-68.3.1.2.4,
+        // P-68.3.1.2.6). Only the unsubstituted parents are generated. A name
+        // whose parent is that carbon (formohydrazide, formamide, methanone)
+        // is a fallback, and so is a prefix for it when it outranks the
+        // principal group or ties with it, N being the senior parent atom
+        // (P-41, P-44.1.2).
         if !parts.is_substituent
-            && rule
-                .and_then(|rule| rule.seniority.as_deref())
-                .is_some_and(|seniority| seniority[0] >= 68)
+            && !parts
+                .retained_name
+                .as_deref()
+                .is_some_and(|name| name.starts_with("hydrazine"))
         {
+            let principal = rule
+                .and_then(|rule| rule.seniority.as_deref())
+                .map_or(0, |seniority| seniority[0]);
             let cyclic = super::chains::get_cyclic_atoms(mol, &Default::default());
             let symbol = |atom: usize| mol.atoms[&atom].symbol.as_str();
             let single = |a: usize, b: usize| mol.bond_order(a, b) == 1;
+            let hydrazino = |n: usize| {
+                mol.get_neighbors(n)
+                    .iter()
+                    .any(|&t| symbol(t) == "N" && single(n, t) && !cyclic.contains(&t))
+            };
             let hydrazine_carbonyl = mol.atoms.keys().any(|&c| {
                 let around = mol.get_neighbors(c);
+                let Some(&x) = around.iter().find(|&&x| {
+                    mol.bond_order(c, x) == 2 && matches!(symbol(x), "O" | "S" | "Se" | "Te")
+                }) else {
+                    return false;
+                };
+                let parent = parts.parent_atom_ids_by_locant.values().any(|&a| a == c)
+                    || group.atom_ids.contains(&c);
                 symbol(c) == "C"
                     && !cyclic.contains(&c)
-                    && around.iter().any(|&x| {
-                        mol.bond_order(c, x) == 2 && matches!(symbol(x), "O" | "S" | "Se" | "Te")
-                    })
                     && around.iter().any(|&n| {
                         symbol(n) == "N"
                             && single(c, n)
                             && !cyclic.contains(&n)
-                            && mol
-                                .get_neighbors(n)
-                                .iter()
-                                .any(|&t| symbol(t) == "N" && single(n, t) && !cyclic.contains(&t))
-                            && around
-                                .iter()
-                                .any(|&y| y != n && single(c, y) && !matches!(symbol(y), "C" | "H"))
+                            && hydrazino(n)
+                            && around.iter().any(|&y| {
+                                y != n
+                                    && single(c, y)
+                                    && match symbol(y) {
+                                        "C" | "H" => false,
+                                        _ if parent => true,
+                                        // Hydrazide (68), then amide (60) or
+                                        // chalcogen amide (65).
+                                        "N" if hydrazino(y) => principal >= 68,
+                                        "N" => principal >= if symbol(x) == "O" { 60 } else { 65 },
+                                        // Acid, ester or acid halide.
+                                        _ => principal >= 60,
+                                    }
+                            })
                     })
             });
             if hydrazine_carbonyl {
@@ -1310,10 +1334,10 @@ mod tests {
 
     #[test]
     fn hydrazine_carbonyl_acids_are_not_preferred_as_formohydrazides() {
-        // Issue #17. Acids, esters, acid halides and hydrazides on hydrazine
-        // take hydrazine as parent (P-41, P-44.1.2, P-65.1.2.2.2,
-        // P-68.3.1.2.6); the formohydrazide or methanone names are kept but
-        // not preferred until the hydrazine names are generated.
+        // Issue #17. Acids, esters, acid halides, amides and hydrazides on
+        // hydrazine take hydrazine as parent (P-41, P-44.1.2, P-65.1.2.2.2,
+        // P-65.1.8.1, P-68.3.1.2.4, P-68.3.1.2.6); the fallback names are
+        // kept but not preferred until the hydrazine names are generated.
         for (smiles, expected) in [
             // 2-methylhydrazine-1-carboxylic acid
             ("CNNC(=O)O", "1-hydroxy-N'-methylformohydrazide"),
@@ -1337,6 +1361,20 @@ mod tests {
             ("CNNC(=O)OC", "1-methoxy-N'-methylformohydrazide"),
             // hydrazinecarbohydrazide (P-68.3.1.2.6)
             ("NNC(=O)NN", "dihydrazinylmethanone"),
+            // N,1-dimethylhydrazine-1-carboxamide-type semicarbazides and
+            // hydrazinecarboselenoamide (P-68.3.1.2.4)
+            ("NC(=O)N(C)N", "N,1-diamino-N-methylformamide"),
+            ("CNNC(=S)N", "1-(methylhydrazinyl)methanethioamide"),
+            ("NNC(N)=[Se]", "hydrazinylmethaneselenoamide"),
+            // The acid or ester outranks the amide principal group (P-41).
+            (
+                "NC(=O)CCNNC(=O)O",
+                "3-(hydroxycarbonylhydrazinyl)propanamide",
+            ),
+            (
+                "NC(=O)CCNNC(=O)OC",
+                "3-(methoxycarbonylhydrazinyl)propanamide",
+            ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
@@ -1354,6 +1392,11 @@ mod tests {
             ("NNC(N)=O", "hydrazinecarboxamide"),
             ("CC(=O)NNC(C)=O", "N'-acetylacetohydrazide"),
             ("NNC=O", "formohydrazide"),
+            // A senior amide principal group keeps a hydrazide prefix.
+            (
+                "NC(=O)CCNNC(=O)NN",
+                "3-(N'-aminocarbamoylhydrazinyl)propanamide",
+            ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
