@@ -2721,11 +2721,12 @@ mod tests {
                 "O=C1C=Cc2ccc3Sc4ccccc4Sc3c2C1",
                 "benzo[a]thianthren-2(1H)-one",
             ),
-            // P-58.2.2.3: a suffix pair that only removes a double bond
-            // needs no added hydrogen.
+            // P-58.2.3.1.3: fewer indicated hydrogens than suffixes; the
+            // indicated hydrogen takes the lowest mancude position, as in
+            // '1H-cyclopenta[a]naphthalene-1,2(3H)-dione'.
             (
                 "O=C1C=CC(=O)c2c1ccc1Oc3ccccc3Nc21",
-                "12H-benzo[a]phenoxazine-1,4-dione",
+                "4H-benzo[a]phenoxazine-1,4(12H)-dione",
             ),
             // Controls.
             (

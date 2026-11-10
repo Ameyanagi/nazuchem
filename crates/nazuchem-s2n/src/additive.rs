@@ -1076,16 +1076,16 @@ pub(super) fn systematic_suffix_hydrogen_state(
         .iter()
         .filter(|(id, l)| mol.atoms[id].symbol == "C" && plan.indicated_hydrogens.contains(l))
         .count();
-    // A pheno...ine parent (P-25.2.2.3) cites its N-H in the template. With
-    // as many suffixes as indicated hydrogens, the suffixes take them
-    // (P-58.2.3.1.1, '1,2-dihydro-3H-indol-3-one' in P-64.3.1); an N-H not
-    // used by the suffix stays as hydro hydrogen of the parent ('7,14-dihydro').
+    // A pheno...ine parent (P-25.2.2.3) cites its N-H in the template, so its
+    // indicated hydrogen is placed for the suffixes as for any parent
+    // (P-58.2.3.1.1, '1,2-dihydro-3H-indol-3-one' in P-64.3.1; P-58.2.3.1.3);
+    // an N-H not used by them stays as hydro hydrogen ('7,14-dihydro').
     let pheno = plan.ast.component_occurrences.iter().any(|m| {
         super::fusion::registry::fusion_component_registry()
             .spec_for_match(m)
             .is_ok_and(|s| s.parent_hydride_only)
     });
-    if quota > carbon_h && !(pheno && suffix.len() == quota) {
+    if quota > carbon_h && !pheno {
         return Ok(None);
     }
     let state = graph_suffix_hydrogen_state(
