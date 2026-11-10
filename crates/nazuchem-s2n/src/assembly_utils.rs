@@ -16,15 +16,14 @@ pub fn parse_locant(text: &str) -> (u8, usize, String) {
     let digit_count = before.bytes().take_while(u8::is_ascii_digit).count();
     if let Some((primary, secondary)) = before.split_once('^') {
         let n = secondary.bytes().take_while(u8::is_ascii_digit).count();
-        if let (Ok(primary), Ok(secondary_number)) =
-            (primary.parse::<usize>(), secondary[..n].parse::<usize>())
-        {
+        if let Ok(secondary_number) = secondary[..n].parse::<usize>() {
+            let tail = format!("^{secondary_number:020}{}", &secondary[n..]);
             // P-14.3.1: compare composite locants by primary locant, then superscript.
-            return (
-                1,
-                primary,
-                format!("^{secondary_number:020}{}", &secondary[n..]),
-            );
+            if let Ok(primary) = primary.parse::<usize>() {
+                return (1, primary, tail);
+            }
+            // An italic element locant such as N^4 precedes numerals, like N.
+            return (0, 0, format!("{primary}{tail}"));
         }
     }
     if digit_count > 0
@@ -66,7 +65,10 @@ pub fn needs_hyphen(left: &str, right: &str) -> bool {
     }
     if right
         .strip_prefix(['N', 'O', 'S', 'P'])
-        .is_some_and(|tail| tail.trim_start_matches('\'').starts_with([',', '-']))
+        .is_some_and(|tail| {
+            tail.trim_start_matches(|c: char| c == '\'' || c == '^' || c.is_ascii_digit())
+                .starts_with([',', '-'])
+        })
     {
         return true;
     }
