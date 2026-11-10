@@ -63,9 +63,11 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
         // whose parent is that carbon (formohydrazide, formamide, methanone)
         // is a fallback. So is a prefix for it under a junior principal group:
         // an acid, ester or acid halide under an amide (60) or anything
-        // junior, an amide under a hydrazide (68) or junior (P-41), and an
-        // oxo hydrazide tying with a single hydrazide on a parent without N,
-        // since N is the senior parent atom (P-44.1.1, P-44.1.2, P-44.1.2.2).
+        // junior, an amide under a hydrazide (68) or junior, a hydrazide under
+        // a nitrile (70) or junior, amidines (69) being amide analogues (P-41,
+        // P-66.4.1.1), and an oxo hydrazide tying with a single hydrazide on a
+        // parent without N, since N is the senior parent atom (P-44.1.1,
+        // P-44.1.2, P-44.1.2.2).
         if !parts.is_substituent
             && !parts
                 .retained_name
@@ -119,7 +121,7 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
                                         "C" | "H" => false,
                                         _ if parent => true,
                                         "N" if hydrazino(y) => {
-                                            principal > 68
+                                            principal >= 70
                                                 || principal == 68 && tie && symbol(x) == "O"
                                         }
                                         "N" => principal >= 68,
@@ -1430,6 +1432,16 @@ mod tests {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+        }
+        // Amidines and guanidine outrank a hydrazide prefix (P-41,
+        // P-66.4.1.1); this check must not blame their parent.
+        for smiles in ["NC(=N)CCNNC(=O)NN", "N=C(N)NCCNNC(=O)NN"] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_ne!(
+                name.status,
+                NameStatus::NotPreferred(NameReason::UnretainedParent),
+                "{smiles}"
+            );
         }
     }
 }
