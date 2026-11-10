@@ -2707,9 +2707,15 @@ mod tests {
                 "O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3N(C)C2=C1",
                 "14-methyl-7,14-dihydro[1,4]benzothiazino[2,3-b]phenoxazin-2(3H)-one",
             ),
+            // P-58.2.3.1.1: one indicated hydrogen, one suffix, as in
+            // '1,2-dihydro-3H-indol-3-one' (P-64.3.1).
+            (
+                "O=C1CC=C2Nc3cc4ccccc4cc3OC2=C1",
+                "2,12-dihydro-3H-benzo[b]phenoxazin-3-one",
+            ),
             (
                 "O=C1CC=C2N(C)c3cc4ccccc4cc3OC2=C1",
-                "12-methyl-12H-benzo[b]phenoxazin-3(2H)-one",
+                "12-methyl-2,12-dihydro-3H-benzo[b]phenoxazin-3-one",
             ),
             (
                 "O=C1C=Cc2ccc3Sc4ccccc4Sc3c2C1",
