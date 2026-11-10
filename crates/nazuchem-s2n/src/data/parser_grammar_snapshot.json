@@ -39,7 +39,13 @@
       "1,9-phenanthroline",
       "1-benzofuran",
       "1-benzothiophene",
+      "10H-phenoselenazine",
+      "10H-phenotellurazine",
+      "10H-phenothiarsinine",
       "10H-phenothiazine",
+      "10H-phenoxaphosphinine",
+      "10H-phenoxarsinine",
+      "10H-phenoxastibinine",
       "10H-phenoxazine",
       "1H-1,4-benzodiazepine",
       "1H-1,5-benzodiazepine",
@@ -128,6 +134,11 @@
       "indolizine",
       "isoquinoline",
       "[1,2]oxazolo[5,4-b]pyridine",
+      "oxanthrene",
+      "phenoxaselenine",
+      "phenoxatellurine",
+      "selenanthrene",
+      "telluranthrene",
       "tetracene",
       "naphthalene",
       "naphtho[1,2-b]thiophene",
@@ -415,6 +426,51 @@
         "benzothieno"
       ]
     },
+    "10H-phenoselenazine": {
+      "parent_stems": [
+        "phenoselenazin"
+      ],
+      "substituent_stems": [
+        "phenoselenazin"
+      ],
+      "fusion_stems": [
+        "phenoselenazino"
+      ],
+      "derivative_status": "production_safe",
+      "default_indicated_h": [
+        "10"
+      ]
+    },
+    "10H-phenotellurazine": {
+      "parent_stems": [
+        "phenotellurazin"
+      ],
+      "substituent_stems": [
+        "phenotellurazin"
+      ],
+      "fusion_stems": [
+        "phenotellurazino"
+      ],
+      "derivative_status": "production_safe",
+      "default_indicated_h": [
+        "10"
+      ]
+    },
+    "10H-phenothiarsinine": {
+      "parent_stems": [
+        "phenothiarsinin"
+      ],
+      "substituent_stems": [
+        "phenothiarsinin"
+      ],
+      "fusion_stems": [
+        "phenothiarsinino"
+      ],
+      "derivative_status": "production_safe",
+      "default_indicated_h": [
+        "10"
+      ]
+    },
     "10H-phenothiazine": {
       "parent_stems": [
         "phenothiazin"
@@ -426,6 +482,51 @@
       "fusion_stems": [
         "phenothiazino"
       ],
+      "default_indicated_h": [
+        "10"
+      ]
+    },
+    "10H-phenoxaphosphinine": {
+      "parent_stems": [
+        "phenoxaphosphinin"
+      ],
+      "substituent_stems": [
+        "phenoxaphosphinin"
+      ],
+      "fusion_stems": [
+        "phenoxaphosphinino"
+      ],
+      "derivative_status": "production_safe",
+      "default_indicated_h": [
+        "10"
+      ]
+    },
+    "10H-phenoxarsinine": {
+      "parent_stems": [
+        "phenoxarsinin"
+      ],
+      "substituent_stems": [
+        "phenoxarsinin"
+      ],
+      "fusion_stems": [
+        "phenoxarsinino"
+      ],
+      "derivative_status": "production_safe",
+      "default_indicated_h": [
+        "10"
+      ]
+    },
+    "10H-phenoxastibinine": {
+      "parent_stems": [
+        "phenoxastibinin"
+      ],
+      "substituent_stems": [
+        "phenoxastibinin"
+      ],
+      "fusion_stems": [
+        "phenoxastibinino"
+      ],
+      "derivative_status": "production_safe",
       "default_indicated_h": [
         "10"
       ]
@@ -1527,6 +1628,66 @@
         "[1,2]oxazolo[5,4-b]pyridin"
       ],
       "fusion_stems": [],
+      "derivative_status": "production_safe"
+    },
+    "oxanthrene": {
+      "parent_stems": [
+        "oxanthren"
+      ],
+      "substituent_stems": [
+        "oxanthren"
+      ],
+      "fusion_stems": [
+        "oxanthreno"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "phenoxaselenine": {
+      "parent_stems": [
+        "phenoxaselenin"
+      ],
+      "substituent_stems": [
+        "phenoxaselenin"
+      ],
+      "fusion_stems": [
+        "phenoxaselenino"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "phenoxatellurine": {
+      "parent_stems": [
+        "phenoxatellurin"
+      ],
+      "substituent_stems": [
+        "phenoxatellurin"
+      ],
+      "fusion_stems": [
+        "phenoxatellurino"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "selenanthrene": {
+      "parent_stems": [
+        "selenanthren"
+      ],
+      "substituent_stems": [
+        "selenanthren"
+      ],
+      "fusion_stems": [
+        "selenanthreno"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "telluranthrene": {
+      "parent_stems": [
+        "telluranthren"
+      ],
+      "substituent_stems": [
+        "telluranthren"
+      ],
+      "fusion_stems": [
+        "telluranthreno"
+      ],
       "derivative_status": "production_safe"
     },
     "tetracene": {
