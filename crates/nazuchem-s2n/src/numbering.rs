@@ -656,6 +656,27 @@ pub(super) fn chain_orientations_before_stereo(
     }
 }
 
+/// The numbering criteria of the senior chain orientation, without stereo.
+// Provenance: fn chain_preference_before_stereo | adapted
+// Source: openclatura | src/openclatura/numbering.py::number_parent
+// Source: openclatura | src/openclatura/numbering.py::_numbering_preference
+pub(super) fn chain_preference_before_stereo(
+    mol: &Molecule,
+    path: &[usize],
+    principal: &[usize],
+    substituents: &BTreeMap<usize, Vec<String>>,
+) -> NumberingPreference {
+    numbering_preference(
+        mol,
+        &chain_orientations_before_stereo(mol, path, principal, substituents)[0],
+        principal,
+        None,
+        substituents,
+        None,
+        NumberingTopology::default(),
+    )
+}
+
 /// P-14.4(j): after structural numbering ties, prefer R to S and M to P
 /// at the first differing locant. An internal axis is cited once, at its lower
 /// locant; an axis leaving this parent is cited at the parent endpoint.
