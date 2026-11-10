@@ -3015,6 +3015,7 @@ mod tests {
                 "1-[(2R)-butan-2-yl]-4-({4-[(2R)-butan-2-yl]phenyl}sulfanyl)benzene",
                 R::Multiplicative,
             ),
+            // P-16.5.1.1: the compound prefix carboxymethyl is enclosed.
             (
                 "S(CC(=O)O)CC(=O)O",
                 "[(carboxymethyl)sulfanyl]acetic acid",
