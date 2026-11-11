@@ -966,7 +966,8 @@ mod tests {
             ),
             (
                 "CC1=CC=C(C=C1)N2C(=O)C3=C(N=C2SCC(=O)N/N=C\\C4=CC(=C(C=C4)OC(=O)C)OC)SC5=C3CCCC5",
-                "2-methoxy-4-{(Z)-[(2-{[3-(4-methylphenyl)-4-oxo-5,6,7,8-tetrahydro[1]benzothieno[2,3-d]pyrimidin-2-yl]sulfanyl}acetamido)imino]methyl}phenyl acetate",
+                // #16/#29: as for the N-H parent, 4-oxo needs 3,4-dihydro (P-31.2.2, P-32.2).
+                "2-methoxy-4-{(Z)-[(2-{[3-(4-methylphenyl)-4-oxo-3,4,5,6,7,8-hexahydro[1]benzothieno[2,3-d]pyrimidin-2-yl]sulfanyl}acetamido)imino]methyl}phenyl acetate",
             ),
         ] {
             let input = crate::test_support::canonical_smiles(smiles).unwrap();
@@ -1186,7 +1187,9 @@ mod tests {
         for (smiles, expected) in [
             (
                 "CCCC1=NN(C2=C1N=C(NC2=O)C3=C(C=CC(=C3)S(=O)(=O)N4CCN(CC4)C)OCC)C",
-                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-6H-pyrazolo[4,3-d]pyrimidin-7(1H)-one",
+                // #16/#29: the substituted N-1 keeps the parent's indicated hydrogen,
+                // which takes the low locant before added hydrogen (P-31.0, P-58.2.1.1).
+                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-1H-pyrazolo[4,3-d]pyrimidin-7(6H)-one",
             ),
             (
                 "CCCCCN1C(=O)COC2=C1C=C(C(=C2)F)N3C(=O)C4=CC=CC=C4N=N3",
