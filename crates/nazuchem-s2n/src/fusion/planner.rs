@@ -33,9 +33,10 @@ use super::{
         can_use_component_entry_layout, component_entry_layouts, preferred_intrinsic_layouts,
     },
     mancude::{
-        ParentDerivativeOptions, ParentDerivativeState, has_complete_saturated_hydrogenation,
-        indicated_hydrogen_parent_bond_model, parent_derivative_state,
-        protonated_hydrogenation_is_complete, saturated_nitrogen_hydrogen_sites,
+        ParentDerivativeOptions, ParentDerivativeState, all_single,
+        has_complete_saturated_hydrogenation, indicated_hydrogen_parent_bond_model,
+        parent_derivative_state, protonated_hydrogenation_is_complete,
+        saturated_nitrogen_hydrogen_sites,
     },
     model::*,
     numbering::{
@@ -93,6 +94,93 @@ fn plan_uncached(mol: &Molecule, atoms: &AtomSet, spiro_component: bool) -> Plan
     let support = &config.rules.support;
     if atoms.len() < 6 || atoms.iter().any(|a| !mol.atoms.contains_key(a)) {
         return Ok(None);
+    }
+    // P-73.1.1.2 / P-14.4(b): a cation formed by adding a hydron to a
+    // saturated ring N is named from its neutral parent hydride plus -ium, so
+    // plan its indicated and hydro hydrogen on the unsubstituted neutral
+    // parent (ring N substituents become H). Ring atoms with exocyclic
+    // multiple bonds (suffix composition) stay on the charged path below.
+    let protonated: Vec<_> = atoms
+        .iter()
+        .copied()
+        .filter(|&id| {
+            let atom = &mol.atoms[&id];
+            atom.symbol == "N"
+                && atom.charge == 1
+                && atom.total_h_count > 0
+                && atom.total_h_count + mol.degree(id) == 4
+                && all_single(mol, id)
+        })
+        .collect();
+    if !protonated.is_empty()
+        && !spiro_component
+        && atoms.iter().all(|&a| {
+            mol.get_neighbors(a)
+                .iter()
+                .all(|n| atoms.contains(n) || mol.bond_order(a, *n) == 1)
+        })
+    {
+        let mut kept: AtomSet = mol.atoms.keys().copied().collect();
+        for &id in &protonated {
+            kept.retain(|a| atoms.contains(a) || !mol.get_neighbors(id).contains(a));
+        }
+        let mut neutral = mol.subgraph(&kept);
+        for &id in &protonated {
+            let h = 3 - neutral.degree(id);
+            if let Some(atom) = neutral.atoms.get_mut(&id) {
+                atom.charge = 0;
+                atom.total_h_count = h;
+                atom.explicit_h_count = h;
+            }
+        }
+        if let Ok(Some(mut plan)) = plan_uncached(&neutral, atoms, false) {
+            let locants: BTreeMap<_, _> = plan
+                .numbering
+                .abstract_atom_to_locant
+                .iter()
+                .cloned()
+                .collect();
+            let lowest_saturated = atoms
+                .iter()
+                .filter(|&&a| all_single(mol, a))
+                .map(|a| locant_key(&locants[a]))
+                .min();
+            // P-31.2.2: indicated hydrogen takes lower locants than hydro
+            // prefixes. P-25.2.1: a retained neutral parent (quinolizine,
+            // naphthyridine) outranks the planner's systematic fusion name.
+            let lowest_indicated = plan
+                .indicated_hydrogens
+                .iter()
+                .all(|l| lowest_saturated.as_ref() == Some(&locant_key(l)));
+            let retained_parent = !neutral.use_benzoheterocycle_names()
+                || super::super::rules::retained::get_retained_ring(
+                    &neutral,
+                    &atoms.iter().copied().collect::<Vec<_>>(),
+                )
+                .is_none_or(|retained| {
+                    plan.rendered_base_name.ends_with(
+                        retained
+                            .name
+                            .split_once("H-")
+                            .map_or(retained.name.as_str(), |(_, name)| name),
+                    )
+                });
+            if lowest_indicated
+                && retained_parent
+                && let Ok(operations) =
+                    fusion_charge_operations(mol, &plan.abstract_parent_graph, &plan.numbering)
+            {
+                plan.charge_operations = operations;
+                for variant in &mut plan.numbering_variants {
+                    variant.charge_operations = fusion_charge_operations(
+                        mol,
+                        &variant.abstract_parent_graph,
+                        &variant.numbering,
+                    )?;
+                }
+                return Ok(Some(plan));
+            }
+        }
     }
     if (!support.charged_parents && atoms.iter().any(|a| mol.atoms[a].charge != 0))
         || atoms
@@ -1051,16 +1139,24 @@ mod tests {
             "C1=CCC2CC[NH2+]CC2CC1",
             "C1=CC2CCCC2C[NH2+]1",
             "C1=CC2CCCCCC2C[NH2+]1",
-            // P-73.1.1.2: 2H-isoquinoline is not a neutral parent hydride, so
-            // 1,4,4a,5,6,8a-hexahydro-2H-isoquinolin-2-ium is declined.
-            "C1=CC2C[NH2+]CCC2CC1",
             "C1=CCC2CC[NH2+]CCC2CC1",
+            // P-25.2.1: the neutral parent is retained quinolizine, so the
+            // planner's pyrido[1,2-a]pyridine name is not used for the cation.
+            "C1CC[NH+]2CCCCC2C1",
         ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
             let atoms = mol.atoms.keys().copied().collect();
             let error = plan_fusion_parent(&mol, &atoms).unwrap_err();
             assert!(error.contains("protonated"), "{smiles}: {error}");
         }
+        // P-73.1.1.2: the cation cites its neutral parent's hydro prefixes,
+        // 1,2,3,4,4a,5,6,8a-octahydroisoquinolin-2-ium (not 2H-isoquinoline).
+        let mol = read_smiles("C1=CC2C[NH2+]CCC2CC1", &Default::default()).unwrap();
+        let atoms = mol.atoms.keys().copied().collect();
+        let plan = plan_fusion_parent(&mol, &atoms).unwrap().unwrap();
+        assert_eq!(plan.rendered_base_name, "isoquinoline");
+        assert!(plan.indicated_hydrogens.is_empty());
+        assert_eq!(plan.charge_operations.len(), 1);
     }
 
     #[test]
