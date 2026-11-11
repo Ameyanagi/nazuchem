@@ -4390,7 +4390,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/data/fusion_components.json", license = "MIT" },
 ]
 notes = "openclatura registry extended with retained-component status and additional senior components; not byte-identical."
-sha256 = "da3485653a90b3d9a99df6949c59597b21946e27d6ea86faf1ce7e04933872a6"
+sha256 = "f8703fd77c18c34b9fbf4794b9d8f5030abfca1a3a1e40eccfbf190128715f81"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/fusion_composite_bridges.json"
@@ -4453,7 +4453,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "tests/data/parser_xml_resources/hwHeteroAtoms.json", license = "MIT" },
 ]
 notes = "openclatura runtime snapshot derived from six OPSIN XML resources; retained tokens/gates changed; not byte-identical. Unresolved: Underlying OPSIN XML revision is unrecorded in the inherited snapshot; direct XML-to-JSON tree comparison with 2.9.0 differs (normalized tokens, attributes and structure), so no exact OPSIN pin is asserted."
-sha256 = "41a6df6b9580342499c2d3de8632dae144badba3688726677efd4b3f23daf98e"
+sha256 = "b71f5ca587922c0e2c229e5b687917ce3ecf9dbb728659bbfa5853af608ab56f"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/retained_fused_graph_templates.json"
@@ -4464,7 +4464,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "tests/roundtrip/test_retained_fused_production.py", license = "MIT" },
 ]
 notes = "openclatura locanted graph templates expanded from base_templates with local parent/numbering additions; not byte-identical."
-sha256 = "5fc06f4cc3127b074fcf22a82dd9779627ac4da854061eacbdd5ca2b0e123c42"
+sha256 = "b6ea164144d559a0e54d6934d6616027fdb05a53c830af3fb0fb3f0d9ab32de9"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/retained_fused_hydrocarbon_templates.json"
