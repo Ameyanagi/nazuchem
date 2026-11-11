@@ -337,7 +337,7 @@ pub(super) fn protonated_hydrogenation_is_complete(
 
 // Provenance: fn single_bonded_parent_nitrogen | adapted
 // Source: openclatura | src/openclatura/fusion/mancude.py::_single_bonded_parent_nitrogen
-fn single_bonded_parent_nitrogen(mol: &Molecule, atoms: &AtomSet, id: usize) -> bool {
+pub(super) fn single_bonded_parent_nitrogen(mol: &Molecule, atoms: &AtomSet, id: usize) -> bool {
     let atom = &mol.atoms[&id];
     atom.symbol == "N"
         && atom.charge == 0

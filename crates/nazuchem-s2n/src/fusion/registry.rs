@@ -1322,12 +1322,26 @@ fn is_fused_ring_derivative(mol: &Molecule, faces: &[&Face]) -> bool {
         .iter()
         .flat_map(|f| f.atom_cycle.iter().copied())
         .collect();
+    // A ring ketone cited by the '-one' suffix keeps a pheno...ine parent: the
+    // suffix composes its indicated and added hydrogen (P-58.2.2, P-58.2.3.1).
+    let ketone_suffix = std::cell::OnceCell::new();
+    let ketone_suffix = || {
+        *ketone_suffix.get_or_init(|| {
+            let groups = crate::perception::perceive_groups(mol);
+            crate::principal_groups::component_principal_key(mol, &groups, false).as_deref()
+                == Some("ketone")
+        })
+    };
     atoms.iter().any(|&a| {
         let atom = &mol.atoms[&a];
         atom.charge != 0
             || mol.get_neighbors(a).iter().any(|&n| {
                 !atoms.contains(&n)
                     && (mol.get_bond(a, n).is_some_and(|b| b.order == 2)
+                        && !(atom.symbol == "C"
+                            && mol.atoms[&n].symbol == "O"
+                            && mol.atoms[&n].charge == 0
+                            && ketone_suffix())
                         || atom.symbol == "N" && mol.atoms[&n].symbol != "H")
             })
     })
@@ -1984,13 +1998,42 @@ mod tests {
                 .iter()
                 .filter(|c| c.spec.parent_hydride_only)
                 .count(),
-            4
+            15
         );
+        // P-25.2.2.2 and P-25.2.2.3 PINs; P-25.3.2.2.2 turns the final 'e'
+        // into 'o' for the fusion prefix.
         for (name, parent, prefix) in [
             ("10H-phenoxazine", "phenoxazine", "phenoxazino"),
             ("10H-phenothiazine", "phenothiazine", "phenothiazino"),
+            ("10H-phenoselenazine", "phenoselenazine", "phenoselenazino"),
+            (
+                "10H-phenotellurazine",
+                "phenotellurazine",
+                "phenotellurazino",
+            ),
             ("phenoxathiine", "phenoxathiine", "phenoxathiino"),
+            ("phenoxaselenine", "phenoxaselenine", "phenoxaselenino"),
+            ("phenoxatellurine", "phenoxatellurine", "phenoxatellurino"),
+            (
+                "10H-phenoxaphosphinine",
+                "phenoxaphosphinine",
+                "phenoxaphosphinino",
+            ),
+            ("10H-phenoxarsinine", "phenoxarsinine", "phenoxarsinino"),
+            (
+                "10H-phenoxastibinine",
+                "phenoxastibinine",
+                "phenoxastibinino",
+            ),
+            (
+                "10H-phenothiarsinine",
+                "phenothiarsinine",
+                "phenothiarsinino",
+            ),
+            ("oxanthrene", "oxanthrene", "oxanthreno"),
             ("thianthrene", "thianthrene", "thianthreno"),
+            ("selenanthrene", "selenanthrene", "selenanthreno"),
+            ("telluranthrene", "telluranthrene", "telluranthreno"),
         ] {
             let spec = r.get(name).unwrap().spec;
             assert!(spec.pin_component && spec.usable_as_parent && spec.usable_as_attached);
@@ -2010,6 +2053,12 @@ mod tests {
         assert!(key("10H-phenothiazine") < key("phenazine"));
         assert!(key("phenoxathiine") < key("thianthrene"));
         assert!(key("pyridine") < key("phenoxathiine"));
+        // P-25.3.2.4: a senior heteroatom (a), then a greater variety of
+        // heteroatoms (e), decides between the heteranthrenes.
+        assert!(key("phenoxathiine") < key("oxanthrene"));
+        assert!(key("oxanthrene") < key("thianthrene"));
+        assert!(key("thianthrene") < key("selenanthrene"));
+        assert!(key("selenanthrene") < key("telluranthrene"));
     }
     #[test]
     fn parent_hydride_components_are_unregistered_for_fused_ring_derivatives() {
@@ -2021,7 +2070,8 @@ mod tests {
             ("c1ccc2c(c1)N([H])c1cc3cnc4ccccc4c3cc1O2", false),
             ("c1ccc2c(c1)N(C)c1cc3cnc4ccccc4c3cc1O2", true),
             ("c1ccc2c(c1)Nc1cc3c[nH+]c4ccccc4c3cc1O2", true),
-            ("O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", true),
+            // #24: a neutral ketone keeps the pheno...ine parent (P-58.2.3.1).
+            ("O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", false),
             ("N=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", true),
         ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();

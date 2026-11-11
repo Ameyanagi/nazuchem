@@ -300,6 +300,58 @@ pub fn convert_spare_valencies_to_double_bonds(
     let result = convert_spare_inner(graph, fragment);
     if result.is_err() {
         *graph = backup;
+        return result;
+    }
+    // "-ide" removes a hydron from the named atom (P-72.2.2.1). Where a
+    // mancude ring has no hydrogen at that atom (pyridin-1-ide), the double
+    // bonds can only be placed by adding hydrogen the name does not cite;
+    // such names need added hydrogen, pyridin-1(2H)-ide (P-72.2.2.1.1). So
+    // the anion plus its removed hydrons must keep the neutral parent's
+    // hydrogen count. Comparing counts, not sites, still lets an omitted
+    // indicated hydrogen move to the anionic atom (purin-9-ide).
+    let deprotonated: Vec<_> = backup
+        .fragment(fragment)
+        .atoms
+        .iter()
+        .copied()
+        .filter(|&atom| {
+            let a = backup.atom(atom);
+            a.spare_valency && a.charge < 0 && a.protons_explicitly_added_or_removed < 0
+        })
+        .collect();
+    let Some(&first) = deprotonated.first() else {
+        return result;
+    };
+    let mut parent = backup.clone();
+    let mut removed = 0;
+    for &atom in &deprotonated {
+        let a = parent.atom_mut(atom);
+        removed -= a.protons_explicitly_added_or_removed;
+        a.charge -= a.protons_explicitly_added_or_removed;
+        a.protons_explicitly_added_or_removed = 0;
+    }
+    if convert_spare_inner(&mut parent, fragment).is_err() {
+        return result;
+    }
+    let hydrogens = |graph: &Graph| -> i32 {
+        graph
+            .fragment(fragment)
+            .atoms
+            .iter()
+            .map(|&atom| {
+                graph.determine_valency(atom, true)
+                    - graph.incoming_valency(atom)
+                    - graph.atom(atom).out_valency
+            })
+            .sum()
+    };
+    if hydrogens(graph) + removed != hydrogens(&parent) {
+        let locant = backup.atom(first).locants.first().cloned();
+        *graph = backup;
+        return Err(GraphError(format!(
+            "Anion at locant {}: the parent hydride has no hydrogen there to remove",
+            locant.as_deref().unwrap_or("?")
+        )));
     }
     result
 }
@@ -314,6 +366,19 @@ fn convert_spare_inner(graph: &mut Graph, fragment: FragmentId) -> Result<(), Gr
                 .iter()
                 .any(|atom| graph.atom(*atom).spare_valency)
         {
+            // Indicated hydrogen fixes the mancude parent (P-14.7.1) and hydro
+            // prefixes saturate its double bonds (P-31.2.2), so an atom the
+            // cited positions leave without a double-bond partner makes the name
+            // impossible; only an anionic centre needs none. A parent citing no
+            // indicated hydrogen may have omitted it (P-58.2.1.1), which OPSIN
+            // accepts.
+            let a = graph.atom(atom);
+            if a.properties.beside_cited_hydrogen && a.charge >= 0 {
+                return Err(GraphError(format!(
+                    "Hydro prefixes and indicated hydrogen leave atom {} without a double bond",
+                    a.locants.first().map_or("?", String::as_str)
+                )));
+            }
             graph.atom_mut(atom).spare_valency = false;
         }
     }

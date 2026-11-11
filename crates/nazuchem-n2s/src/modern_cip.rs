@@ -358,6 +358,102 @@ mod tests {
         }
     }
 
+    // Issue #43. At C4 the two branches differ only in configuration, so
+    // Rule 4b (like/unlike pairs) ranks them: P-92.1.3, P-92.5.2.1.
+    #[test]
+    fn uppercase_centres_ranked_by_ligand_configuration() {
+        use nazuchem_kernel::smiles;
+
+        let canonical = |text: &str| {
+            let imported = smiles::read(text, &Default::default()).unwrap();
+            smiles::write::write(&imported.prepared.state, Default::default())
+                .unwrap()
+                .text
+        };
+        let parser = Parser::new().unwrap();
+        for (name, expected) in [
+            (
+                "(2R,3R,4R,5S,6R)-2,3,4,5,6-pentahydroxyheptanedioic acid",
+                "O=C(O)[C@H](O)[C@H](O)[C@H](O)[C@H](O)[C@@H](O)C(=O)O",
+            ),
+            (
+                "(2R,3R,4S,5S,6R)-2,3,4,5,6-pentahydroxyheptanedioic acid",
+                "O=C(O)[C@H](O)[C@H](O)[C@@H](O)[C@H](O)[C@@H](O)C(=O)O",
+            ),
+            // The ring cis descriptor is applied before C1 is resolved with
+            // full CIP (#22), so C1 is ranked through C2/C4 (P-92.5); RDKit
+            // labels this structure 1R,2R,4R.
+            (
+                "(1R,2R,4R)-cis-2,4-dichloro-2,4-difluoro-1-ethyl-3-methylcyclobutane",
+                "CC[C@H]1[C@](F)(Cl)[C@H](C)[C@@]1(F)Cl",
+            ),
+        ] {
+            let result = parser.parse(name, &ParseOptions::strict());
+            assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+            let structure = result.structure.unwrap();
+            assert_eq!(
+                canonical(&structure.semantic_cxsmiles().unwrap()),
+                canonical(expected),
+                "{name}"
+            );
+        }
+
+        // An uppercase descriptor on a pseudoasymmetric (P-92.1.1) or
+        // nonstereogenic centre is still rejected.
+        for name in [
+            "(2R,3S,4S)-2,3,4-trihydroxypentanedioic acid",
+            "(2R,3S,4R)-2,3,4-trihydroxypentanedioic acid",
+        ] {
+            let result = parser.parse(name, &ParseOptions::strict());
+            assert_eq!(result.status, Status::Failure, "{name}");
+        }
+
+        // In warning mode a failed centre keeps its previous parity, here
+        // the one inherited from the carbohydrate stem.
+        let options = ParseOptions {
+            warn_rather_than_fail_on_uninterpretable_stereochemistry: true,
+            ..ParseOptions::strict()
+        };
+        let warning = parser.parse("(3R)-ribitol", &options);
+        assert_eq!(warning.status, Status::Warning, "{}", warning.message);
+        let ribitol = parser.parse("ribitol", &ParseOptions::strict());
+        assert_eq!(
+            warning.structure.unwrap().semantic_cxsmiles().unwrap(),
+            ribitol.structure.unwrap().semantic_cxsmiles().unwrap()
+        );
+
+        // C3 and C5 are pseudoasymmetric (enantiomorphic 1-hydroxyethyl
+        // ligands), so 3R and 5S fail. C4 is then ranked only by the C3/C5
+        // configurations that were rolled back, so it must fail as well.
+        let warning = parser.parse(
+            "(2R,3R,4R,5S,6R)-3,5-bis[(1S)-1-hydroxyethyl]heptane-2,3,4,5,6-pentol",
+            &options,
+        );
+        assert_eq!(warning.status, Status::Warning, "{}", warning.message);
+        let structure = warning.structure.unwrap();
+        for locant in ["3", "4", "5"] {
+            let atom = structure
+                .graph
+                .atom_by_locant(structure.fragment, locant)
+                .unwrap();
+            assert!(structure.graph.atom(atom).parity.is_none(), "{locant}");
+        }
+
+        // A repeated descriptor on a reserved ξ centre is not deferred twice,
+        // so the failed C3 is left undefined.
+        let warning = parser.parse(
+            "(2R,3Ξ,3R,3R,4S)-2,3,4-trihydroxypentanedioic acid",
+            &options,
+        );
+        assert_eq!(warning.status, Status::Warning, "{}", warning.message);
+        let structure = warning.structure.unwrap();
+        let atom = structure
+            .graph
+            .atom_by_locant(structure.fragment, "3")
+            .unwrap();
+        assert!(structure.graph.atom(atom).parity.is_none());
+    }
+
     #[test]
     fn lowercase_descriptors_are_not_uppercase_aliases() {
         let parser = Parser::new().unwrap();
