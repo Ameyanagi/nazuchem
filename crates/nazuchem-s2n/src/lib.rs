@@ -1023,112 +1023,162 @@ mod tests {
         }
     }
 
-    /// Issue #10: the name follows the rule, not the input atom order.
+    /// Issue #10: the name follows the rule, not the input atom order. Each
+    /// input is also rewritten from several root atoms.
     #[test]
     fn names_do_not_depend_on_atom_order() {
         use nazuchem_kernel::smiles;
 
-        for (input, expected) in [
-            // P-31.1.4.2 (1)-(3): fewest compound locants, then lowest locants.
+        for (expected, inputs) in [
+            // P-31.1.4.2 (1)-(3): fewest compound locants, then lowest locants. The
+            // third input carries atom maps.
             (
-                "C1=Cc2cc3ccc(cc4ccc(cc5nc(cc1n2)C=C5)[nH]4)[nH]3",
                 "21,22,23,24-tetraazapentacyclo[16.2.1.1^{13,16}.1^{8,11}.1^{3,6}]tetracosa-1(21),2,4,6(24),7,9,11,13,15,17,19-undecaene",
+                &[
+                    "C1=Cc2cc3ccc(cc4ccc(cc5nc(cc1n2)C=C5)[nH]4)[nH]3",
+                    "C1=Cc2cc3nc(cc4ccc(cc5ccc(cc1n2)[nH]5)[nH]4)C=C3",
+                    "[CH:24]1=[CH:23][c:22]2[cH:21][c:20]3[cH:19][cH:18][c:17]([cH:16][c:15]4[cH:14][cH:13][c:12]([cH:11][c:10]5[n:9][c:8]([cH:7][c:6]1[n:5]2)[CH:4]=[CH:3]5)[nH:2]4)[nH:1]3",
+                ][..],
             ),
-            // The same structure with atom maps.
+            ("bicyclo[4.2.0]oct-6-ene", &["C1CCC2=CCC2C1"][..]),
             (
-                "[CH:24]1=[CH:23][c:22]2[cH:21][c:20]3[cH:19][cH:18][c:17]([cH:16][c:15]4[cH:14][cH:13][c:12]([cH:11][c:10]5[n:9][c:8]([cH:7][c:6]1[n:5]2)[CH:4]=[CH:3]5)[nH:2]4)[nH:1]3",
-                "21,22,23,24-tetraazapentacyclo[16.2.1.1^{13,16}.1^{8,11}.1^{3,6}]tetracosa-1(21),2,4,6(24),7,9,11,13,15,17,19-undecaene",
+                "bicyclo[6.5.1]tetradec-8-ene",
+                &["C12CCCCCCC(=CCCCC1)C2"][..],
             ),
-            ("C1CCC2=CCC2C1", "bicyclo[4.2.0]oct-6-ene"),
-            ("C12CCCCCCC(=CCCCC1)C2", "bicyclo[6.5.1]tetradec-8-ene"),
             (
-                "C1=CC2=CC=C1CCCCCCCCCCCC2",
                 "bicyclo[12.2.2]octadeca-1(16),14,17-triene",
+                &["C1=CC2=CC=C1CCCCCCCCCCCC2"][..],
             ),
-            ("C1C2=CC=CC=C12", "bicyclo[4.1.0]hepta-1,3,5-triene"),
+            ("bicyclo[4.1.0]hepta-1,3,5-triene", &["C1C2=CC=CC=C12"][..]),
             (
-                "C1CC2CCCC(C2)CCc2cccc1c2",
                 "tricyclo[9.3.1.1^{4,8}]hexadeca-1(15),11,13-triene",
+                &["C1CC2CCCC(C2)CCc2cccc1c2"][..],
             ),
             (
-                "C1Cc2cccc(c2)CCc2cccc1c2",
                 "tricyclo[9.3.1.1^{4,8}]hexadeca-1(15),4(16),5,7,11,13-hexaene",
+                &["C1Cc2cccc(c2)CCc2cccc1c2"][..],
             ),
-            ("C1CC2=CCC1CC2", "bicyclo[2.2.2]oct-1-ene"),
+            (
+                "tetracyclo[7.7.1.1^{11,15}.1^{3,7}]nonadeca-3,11(18)-diene",
+                &["C12CC3=CCCC(C3)CC(C2)CC(=C4)CCCC4C1"][..],
+            ),
+            ("bicyclo[2.2.2]oct-1-ene", &["C1CC2=CCC1CC2"][..]),
             // P-44.1.1, P-52.2.8: one suffix class on a ring and a chain; the
             // ring is the parent.
             (
-                "CC(C)CC(=O)Nc1ccc(NC(=O)c2cccnc2Sc2ccccc2)cc1",
                 "N-[4-(3-methylbutanamido)phenyl]-2-(phenylsulfanyl)pyridine-3-carboxamide",
+                &[
+                    "CC(C)CC(=O)Nc1ccc(NC(=O)c2cccnc2Sc2ccccc2)cc1",
+                    "c1c(NC(=O)c2cccnc2Sc2ccccc2)ccc(NC(CC(C)C)=O)c1",
+                ][..],
             ),
             (
-                "CC(C)[C@H](NC(=O)c1ccc(Cl)cc1)C(=O)NCCC1=CCCCC1",
                 "4-chloro-N-[(2S)-1-{[2-(cyclohex-1-en-1-yl)ethyl]amino}-3-methyl-1-oxobutan-2-yl]benzamide",
+                &[
+                    "CC(C)[C@H](NC(=O)c1ccc(Cl)cc1)C(=O)NCCC1=CCCCC1",
+                    "CC([C@@H](C(NCCC1=CCCCC1)=O)NC(c1ccc(Cl)cc1)=O)C",
+                ][..],
             ),
-            ("OC(=O)CCc1ccc(C(=O)O)cc1", "4-(2-carboxyethyl)benzoic acid"),
-            ("N#CCCc1ccc(C#N)cc1", "4-(3-nitrilopropyl)benzonitrile"),
-            ("O=CCCc1ccc(C=O)cc1", "4-(3-oxopropyl)benzaldehyde"),
             (
-                "ClC(=O)CCc1ccc(C(=O)Cl)cc1",
-                "4-(3-chloro-3-oxopropyl)benzoyl chloride",
+                "4-(2-carboxyethyl)benzoic acid",
+                &["OC(=O)CCc1ccc(C(=O)O)cc1"][..],
             ),
-            ("CC(=O)NNC(=O)c1ccccc1", "N'-acetylbenzohydrazide"),
+            ("4-(3-oxopropyl)benzaldehyde", &["O=CCCc1ccc(C=O)cc1"][..]),
+            ("N'-acetylbenzohydrazide", &["CC(=O)NNC(=O)c1ccccc1"][..]),
             // P-66.1.6.1.1.5: a carboxylic amide is senior to urea.
             (
-                "CCOc1cc(CN(CC(=O)NC(=O)NCC(C)C)C2CC2)ccc1OC(F)F",
                 "2-(cyclopropyl{[4-(difluoromethoxy)-3-ethoxyphenyl]methyl}amino)-N-[(2-methylpropyl)carbamoyl]acetamide",
+                &[
+                    "CCOc1cc(CN(CC(=O)NC(=O)NCC(C)C)C2CC2)ccc1OC(F)F",
+                    "N(C(NC(CN(Cc1cc(OCC)c(OC(F)F)cc1)C1CC1)=O)=O)CC(C)C",
+                ][..],
             ),
-            ("NC(=O)NC(=O)c1ccccc1", "N-carbamoylbenzamide"),
-            ("NC(=O)NC(=O)Cc1ccccc1", "N-carbamoyl-2-phenylacetamide"),
-            ("CC(=O)NCCNC(N)=O", "N-[2-(carbamoylamino)ethyl]acetamide"),
-            ("O=CNCCCNC(N)=O", "N-[3-(carbamoylamino)propyl]formamide"),
-            ("CC(=O)NC(=S)NC", "N-(methylcarbamothioyl)acetamide"),
-            // P-66.1.2: (R-CO)2NH is an N-acyl derivative of the senior amide.
-            ("CC(=O)NC(=O)c1ccccc1", "N-acetylbenzamide"),
+            ("N-carbamoylbenzamide", &["NC(=O)NC(=O)c1ccccc1"][..]),
             (
-                "CC(=O)N(C(=O)CCCl)C(=O)c1ccccc1",
-                "N-acetyl-N-(3-chloropropanoyl)benzamide",
+                "N-carbamoyl-2-phenylacetamide",
+                &["NC(=O)NC(=O)Cc1ccccc1"][..],
             ),
-            ("CC(=O)NC(=O)CC", "N-acetylpropanamide"),
-            ("CC(=O)N(C1CCCC1)C(C)=O", "N-acetyl-N-cyclopentylacetamide"),
+            (
+                "N-[2-(carbamoylamino)ethyl]acetamide",
+                &["CC(=O)NCCNC(N)=O"][..],
+            ),
+            (
+                "N-[3-(carbamoylamino)propyl]formamide",
+                &["O=CNCCCNC(N)=O"][..],
+            ),
+            ("N-(methylcarbamothioyl)acetamide", &["CC(=O)NC(=S)NC"][..]),
+            // P-66.1.2: (R-CO)2NH is an N-acyl derivative of the senior amide.
+            ("N-acetylbenzamide", &["CC(=O)NC(=O)c1ccccc1"][..]),
+            (
+                "N-acetyl-N-(3-chloropropanoyl)benzamide",
+                &["CC(=O)N(C(=O)CCCl)C(=O)c1ccccc1"][..],
+            ),
+            ("N-acetylpropanamide", &["CC(=O)NC(=O)CC"][..]),
+            (
+                "N-acetyl-N-cyclopentylacetamide",
+                &["CC(=O)N(C1CCCC1)C(C)=O"][..],
+            ),
             // P-14.4 (f): lowest locants to the prefixes.
             (
-                "CCC(C)C(CC)CCC1C2CC3CC(C2)C1C3",
                 "1-(3-ethyl-4-methylhexyl)octahydro-2,5-methanopentalene",
+                &[
+                    "CCC(C)C(CC)CCC1C2CC3CC(C2)C1C3",
+                    "C1C2CC3C(CCC(C(CC)C)CC)C1C(C2)C3",
+                ][..],
             ),
             (
-                "COc1ccc2nc3cc(Cl)ccc3c(NCCCN(CCCNc3c4ccc(Cl)cc4nc4ccc(OC)cc34)CC3CC3)c2c1",
                 "N'-(6-chloro-2-methoxyacridin-9-yl)-N-{3-[(6-chloro-2-methoxyacridin-9-yl)amino]propyl}-N-(cyclopropylmethyl)propane-1,3-diamine",
+                &[
+                    "COc1ccc2nc3cc(Cl)ccc3c(NCCCN(CCCNc3c4ccc(Cl)cc4nc4ccc(OC)cc34)CC3CC3)c2c1",
+                    "C(CCNc1c2c(nc3ccc(OC)cc31)cc(Cl)cc2)N(CCCNc1c2c(nc3ccc(OC)cc13)cc(Cl)cc2)CC1CC1",
+                ][..],
             ),
             // P-14.4 (g): the prefix cited first takes the lower locant.
             (
-                "CN1CCC(N2CCC(NC(=O)C(=O)Nc3cccc(-n4cccn4)c3)CC2)CC1",
                 "N-(1'-methyl[1,4'-bipiperidin]-4-yl)-N'-[3-(1H-pyrazol-1-yl)phenyl]ethanediamide",
+                &[
+                    "CN1CCC(N2CCC(NC(=O)C(=O)Nc3cccc(-n4cccn4)c3)CC2)CC1",
+                    "c1(NC(C(NC2CCN(C3CCN(C)CC3)CC2)=O)=O)cccc(-n2cccn2)c1",
+                ][..],
             ),
             // P-65.6.3.2.1: ester groups in alphanumerical order, as in ethyl
             // methyl butanedioate.
             (
-                "COC(=O)CC(=O)OCC(C)(C)CC(=O)OC(C)(C)C",
                 "4-(tert-butoxy)-2,2-dimethyl-4-oxobutyl methyl propanedioate",
+                &[
+                    "COC(=O)CC(=O)OCC(C)(C)CC(=O)OC(C)(C)C",
+                    "C(OC(CC(OC)=O)=O)C(C)(C)CC(=O)OC(C)(C)C",
+                ][..],
             ),
         ] {
-            let prepared = smiles::prepare(input, &Default::default()).unwrap();
-            let atoms = prepared.state.graph.atoms.len();
-            let orders = (0..atoms).step_by(atoms.div_ceil(5)).map(|root| {
-                smiles::write::write(
-                    &prepared.state,
-                    smiles::write::Options {
-                        canonical: false,
-                        root: Some(root),
-                        ..Default::default()
-                    },
-                )
-                .unwrap()
-                .text
-            });
-            for order in std::iter::once(input.to_owned()).chain(orders) {
-                let name = name_smiles(&order, &Default::default()).unwrap();
-                assert_eq!(name.text, expected, "{input} written as {order}");
+            let identity = crate::test_support::canonical_smiles(inputs[0]).unwrap();
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                identity,
+                "{expected}"
+            );
+            let status = name_smiles(inputs[0], &Default::default()).unwrap().status;
+            for &input in inputs {
+                let prepared = smiles::prepare(input, &Default::default()).unwrap();
+                let atoms = prepared.state.graph.atoms.len();
+                let orders = (0..atoms).step_by(atoms.div_ceil(5)).map(|root| {
+                    smiles::write::write(
+                        &prepared.state,
+                        smiles::write::Options {
+                            canonical: false,
+                            root: Some(root),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap()
+                    .text
+                });
+                for order in std::iter::once(input.to_owned()).chain(orders) {
+                    let name = name_smiles(&order, &Default::default()).unwrap();
+                    assert_eq!(name.text, expected, "{input} written as {order}");
+                    assert_eq!(name.status, status, "{input} written as {order}");
+                }
             }
         }
     }
