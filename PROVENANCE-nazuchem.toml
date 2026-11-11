@@ -6593,6 +6593,7 @@ origin = "mixed"
 license = "MIT AND (MIT OR Apache-2.0)"
 sources = [
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/species.rs", ref = "issue #32", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/exploratory/test_charge_representation_gaps.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/data/parser_xml_resources/simpleGroups.json", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/unit/test_chalcogen_structural_roles.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
@@ -6613,6 +6614,7 @@ parts = [
   { items = ["fn assess_cation_parent"], origin = "original", sources = [
     { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "assess_cation_parent" },
   ] },
+  { items = ["fn cationic_centres"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/species.rs", ref = "issue #32", license = "MIT OR Apache-2.0", symbol = "cationic_centres" }] },
   { items = ["fn neutral_group_atoms"], origin = "original", sources = [
     { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "neutral_group_atoms" },
   ] },
@@ -6649,6 +6651,7 @@ parts = [
   ] },
   { items = ["fn tests::monatomic_cations_are_certified_only_in_salts"], origin = "adapted", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "tests::monatomic_cations_are_certified_only_in_salts" }, { project = "openclatura", path = "tests/unit/test_analysis.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT", symbol = "test_component_shortcuts_are_final_binding_audited" }], notes = "Conservatively adapted exact upstream test inputs/expected names; exact coincidence does not establish independent ancestry. Local harness, assertions, status checks and additional cases remain local extensions. Conservative test-data attribution required by the requested audit rule: shared SMILES/chemical-name literals are attributed even when common chemistry or independent introduction is plausible. Implementation ancestry is uncertain; this decision attributes the test data and does not assert a mechanical port." },
   { items = ["fn tests::mixtures_unbalanced_sets_and_zwitterions_are_refused"], origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "tests::mixtures_unbalanced_sets_and_zwitterions_are_refused" }] },
+  { items = ["fn tests::cationic_ring_is_the_parent"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/species.rs", ref = "issue #32", license = "MIT OR Apache-2.0", symbol = "tests::cationic_ring_is_the_parent" }] },
 ]
 
 [[file]]
@@ -7464,7 +7467,7 @@ sources = [
   { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including the owner decision 2026-11-10 to retain bakeoff_corpus.tsv as a repository-only test fixture with PubChem (NCBI) attribution, excluded from all published packages. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
-sha256 = "488e12c878b92612926d336a9c98dc28dd90c4f6529b528d99bed4eeab062f92"
+sha256 = "0112a3d85acf9fc99d8f2dce0eabe8367c6bd52f1bfba6a13199462bfc0a2a4b"
 
 [[file]]
 path = "crates/nazuchem-ir/docs/cxsmiles.md"
