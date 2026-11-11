@@ -2656,6 +2656,40 @@ mod tests {
                 "c1ccc2c(c1)Nc1cc3Sc4ccccc4Nc3cc1O2",
                 "7,14-dihydro[1,4]benzothiazino[2,3-b]phenoxazine",
             ),
+            // P-25.2.2.2: heteranthrenes (same heteroatoms) are PINs.
+            ("c1ccc2c(c1)Oc1ccccc1O2", "oxanthrene"),
+            ("c1ccc2c(c1)[Se]c1ccccc1[Se]2", "selenanthrene"),
+            ("c1ccc2c(c1)[Te]c1ccccc1[Te]2", "telluranthrene"),
+            // P-25.2.2.3: pheno...ine names (different heteroatoms) are PINs.
+            ("c1ccc2c(c1)Oc1ccccc1[Se]2", "phenoxaselenine"),
+            ("C1=CC=C2C(=C1)OC1=CC=CC=C1[Se]2", "phenoxaselenine"),
+            ("c1ccc2c(c1)Oc1ccccc1[Te]2", "phenoxatellurine"),
+            ("c1ccc2c(c1)Nc1ccccc1[Se]2", "10H-phenoselenazine"),
+            ("[Se]1c2ccccc2Nc2ccccc12", "10H-phenoselenazine"),
+            ("c1ccc2c(c1)Nc1ccccc1[Te]2", "10H-phenotellurazine"),
+            ("c1ccc2c(c1)Pc1ccccc1O2", "10H-phenoxaphosphinine"),
+            ("c1ccc2c(c1)[AsH]c1ccccc1O2", "10H-phenoxarsinine"),
+            ("c1ccc2c(c1)[SbH]c1ccccc1O2", "10H-phenoxastibinine"),
+            ("c1ccc2c(c1)[AsH]c1ccccc1S2", "10H-phenothiarsinine"),
+            // P-25.3.2.4: they are senior parent components in fusion names;
+            // (a) senior heteroatom, (b) more rings.
+            ("c1ccc2c(c1)Oc1ccc3ccccc3c1O2", "benzo[a]oxanthrene"),
+            ("c1ccc2cc3c(cc2c1)Oc1ccccc1O3", "benzo[b]oxanthrene"),
+            (
+                "c1ccc2c(c1)Pc1ccc3ccccc3c1O2",
+                "7H-benzo[c]phenoxaphosphinine",
+            ),
+            (
+                "c1ccc2c(c1)Oc1ccc3[Se]c4ccccc4[Se]c3c1O2",
+                "[1,4]benzodiselenino[2,3-a]oxanthrene",
+            ),
+            ("Cc1ccc2Oc3ccccc3Oc2c1", "2-methyloxanthrene"),
+            ("OC(=O)c1ccc2Oc3ccccc3Oc2c1", "oxanthrene-2-carboxylic acid"),
+            ("CN1c2ccccc2[Se]c2ccccc12", "10-methyl-10H-phenoselenazine"),
+            (
+                "C1CCC2C(C1)Oc1ccccc1O2",
+                "1,2,3,4,4a,10a-hexahydrooxanthrene",
+            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
@@ -2879,6 +2913,38 @@ mod tests {
     }
 
     #[test]
+    fn compound_prefixes_inside_heteroatom_prefixes_are_enclosed() {
+        // P-16.5.1.1, P-29.1.2, P-35.4.1: a compound prefix is enclosed within a larger
+        // prefix, as in (chloromethyl)amino and (methoxyamino)phosphanyl; a simple one is not.
+        for (smiles, expected) in [
+            ("ClCSCC(=O)O", "[(chloromethyl)sulfanyl]acetic acid"),
+            ("ClCNCC(=O)O", "[(chloromethyl)amino]acetic acid"),
+            ("COCSCC(=O)O", "[(methoxymethyl)sulfanyl]acetic acid"),
+            ("C1CC1CNCC(=O)O", "[(cyclopropylmethyl)amino]acetic acid"),
+            ("ClC[Se]CC(=O)O", "[(chloromethyl)selanyl]acetic acid"),
+            ("CONSCC(=O)O", "[(methoxyamino)sulfanyl]acetic acid"),
+            (
+                "ClCN=C1CCCC1C(=O)O",
+                "2-[(chloromethyl)imino]cyclopentane-1-carboxylic acid",
+            ),
+            ("CSCC(=O)O", "(methylsulfanyl)acetic acid"),
+            ("CNCC(=O)O", "(methylamino)acetic acid"),
+            // Formerly declined: (cyclohexylperoxyamino) lost its carbamate contraction.
+            ("COC(=O)NOOC1CCCCC1", "methyl (cyclohexylperoxy)carbamate"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
+        }
+    }
+
+    #[test]
     // Provenance: fn tests::known_departures_keep_their_names_and_report_the_rule_family | adapted
     // Source: ReShiki | src/naming/openclatura/mod.rs::tests::known_departures_keep_their_names_and_report_the_rule_family
     // Source: openclatura | tests/unit/test_chalcogen_functional_groups.py::test_peroxide_linkages_preserve_both_chalcogen_sites
@@ -3024,9 +3090,10 @@ mod tests {
                 "1-[(2R)-butan-2-yl]-4-({4-[(2R)-butan-2-yl]phenyl}sulfanyl)benzene",
                 R::Multiplicative,
             ),
+            // P-16.5.1.1: the compound prefix carboxymethyl is enclosed.
             (
                 "S(CC(=O)O)CC(=O)O",
-                "(carboxymethylsulfanyl)acetic acid",
+                "[(carboxymethyl)sulfanyl]acetic acid",
                 R::Multiplicative,
             ),
         ] {
@@ -3222,7 +3289,6 @@ mod tests {
             "CC(=O)NOC(=O)Cc1nc(C(=O)O)cs1",
             "O=C(O)[C@H](O)[C@@H](O)C(=O)OO",
             "CN(C(=O)[O-])C1(B(O)O)CCC1",
-            "COC(=O)NOOC1CCCCC1",
             "O[N@]1CC12CC2",
             "CN(C)[N@]1CC1(C)CO",
             "C[P@]1CCCC1C",
