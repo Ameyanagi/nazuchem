@@ -1128,12 +1128,12 @@ fn every_n2s_golden_structure_retains_complete_name_results() {
     finish("n2s generated-name golden", &counts, differences, started);
     assert_eq!(records, 1650);
     // Two generated names cite impossible hydro/indicated hydrogen (P-14.7.1, P-31.2.2; #34).
-    assert_n2s_coverage(&counts, (1658, 1646, 0, 12));
+    assert_n2s_coverage(&counts, (1658, 1647, 0, 11));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (1645, 1)
+        (1646, 1)
     );
     counts
         .names
-        .assert_routes(&[("monatomic cation", 1), ("salt", 11)], 1634);
+        .assert_routes(&[("monatomic cation", 1), ("salt", 11)], 1635);
 }
