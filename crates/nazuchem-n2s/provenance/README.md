@@ -70,22 +70,24 @@ The JDK home is `~/.local/opt/jdk-21.0.13+9/Contents/Home` on macOS
 pinned commit, passing `JAVA_HOME` and `PATH` per command:
 
 ```sh
-git -C /path/to/opsin worktree add --detach ../opsin-pinned-42e87ac \
+opsin=/path/to/opsin-pinned-42e87ac
+git -C /path/to/opsin worktree add --detach "$opsin" \
   42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
 JAVA_HOME=~/.local/opt/jdk-21.0.13+9/Contents/Home \
 PATH=~/.local/opt/jdk-21.0.13+9/Contents/Home/bin:~/.local/opt/apache-maven-3.9.16/bin:$PATH \
-  mvn -B -q -f ../opsin-pinned-42e87ac/pom.xml -pl opsin-core -am -DskipTests package
+  mvn -B -q -f "$opsin/pom.xml" -pl opsin-core -am -DskipTests package
 ```
 
-This writes `opsin-core/target/opsin-core-3.0-SNAPSHOT-jar-with-dependencies.jar`.
+This writes `$opsin/opsin-core/target/opsin-core-3.0-SNAPSHOT-jar-with-dependencies.jar`.
 Maven stores build times in the zip entries, so a rebuild never matches the
 oracle's file SHA256 above. The script accepts either that file or a jar whose
 content SHA256 (sorted entry names and uncompressed bytes) is
 `84949d143459a3de91b9d0483910832e70ee26c7a550380a012250a878c09de5`, the value
-two clean builds with Temurin 21.0.13 and Maven 3.9.16 produced. Then run:
+two clean builds with Temurin 21.0.13 and Maven 3.9.16 produced. Then, from
+the nazuchem repository root, run:
 
 ```sh
-OPSIN_JAR=/path/to/opsin-core-3.0-SNAPSHOT-jar-with-dependencies.jar \
+OPSIN_JAR=$opsin/opsin-core/target/opsin-core-3.0-SNAPSHOT-jar-with-dependencies.jar \
 JAVA_HOME=~/.local/opt/jdk-21.0.13+9/Contents/Home \
   uv run --no-project python scripts/regenerate_opsin_grammar.py
 ```
@@ -105,15 +107,17 @@ below, and the `PROVENANCE-nazuchem.toml` hashes of the resources, the manifest
 and this file.
 
 A grammar change (`regexTokens.xml` or the chemical grammar in `regexes.xml`)
-therefore needs the script, then a `native_extensions` entry in `manifest.json`
-naming the change and the automata it alters, written by hand. Dictionary
+therefore needs a `native_extensions` entry in `manifest.json` naming the
+change and the automata it alters, written by hand, and then the script, which
+also pins the edited manifest's hash in the ledger. Dictionary
 tokens added to existing token lists in other XML files do not alter the table,
 but the script still refreshes their hashes and the fingerprint.
 
 When two branches both change the grammar, `.gitattributes` marks
 `automata.bin` binary, so git keeps one side and reports a conflict. Merge the
-grammar XML and any prose by hand, then run the script: it takes either side of
-conflict hunks that differ only in hashes and regenerates everything else.
+grammar XML and any prose by hand, then run the script: it accepts conflict
+hunks that differ only in hashes it regenerates and rewrites those hashes, and
+stops on any other conflict, including one in a hash it does not own.
 `tests/resource_pins.rs` fails in CI while any hash or the fingerprint
 disagrees with the checked resources.
 

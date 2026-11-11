@@ -3,12 +3,13 @@
 Run after editing the grammar XML in crates/nazuchem-n2s/resources/xml (normally
 regexTokens.xml or regexes.xml), or after a merge conflict in the generated files:
 merge the XML and any prose by hand, then rerun. Conflict hunks that differ only in
-hashes are resolved here, and git keeps one side of automata.bin. --check verifies
-without writing. See crates/nazuchem-n2s/provenance/README.md.
+hashes this script regenerates are resolved here, and git keeps one side of
+automata.bin. --check verifies without writing. See crates/nazuchem-n2s/provenance/README.md.
 """
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -35,6 +36,9 @@ DFA_GRAMMAR = ("regexes.xml", "regexes.dtd", "regexTokens.xml", "regexTokenList.
 JAR_SHA256 = "931be2952b290dea62548a3bb4129703078c763576a836ac99d8a54d30083f03"
 JAR_CONTENT_SHA256 = "84949d143459a3de91b9d0483910832e70ee26c7a550380a012250a878c09de5"
 HEX = "[0-9a-f]{64}"
+# Stands in for a conflicted hash until the script rewrites it; any left over belongs
+# to a pin this script does not own.
+UNRESOLVED = "0" * 64
 CONFLICT = re.compile(
     r"<<<<<<< .*?\n(.*?)(?:\|{7} .*?\n.*?)?=======\n(.*?)>>>>>>> .*?\n", re.DOTALL
 )
@@ -86,11 +90,14 @@ def export_dfa(jar, javac, java, out):
 
 
 def read(path):
-    """Read `path`, taking our side of every merge conflict that differs only in hashes."""
+    """Read `path`, marking each hash of a conflict that differs only in hashes."""
 
     def resolve(hunk):
         ours, theirs = hunk.groups()
-        return ours if re.sub(HEX, "", ours) == re.sub(HEX, "", theirs) else hunk[0]
+        if re.sub(HEX, "", ours) != re.sub(HEX, "", theirs):
+            return hunk[0]
+        others = iter(re.findall(HEX, theirs))
+        return re.sub(HEX, lambda m: m[0] if m[0] == next(others) else UNRESOLVED, ours)
 
     text = CONFLICT.sub(resolve, path.read_bytes().decode())
     if "<<<<<<< " in text:
@@ -174,7 +181,7 @@ def main():
     # Hash every resource listed in the manifest, then the fingerprint over them in
     # sorted path order: path, NUL, raw bytes, NUL.
     fingerprint = hashlib.sha256()
-    resources = sorted(re.findall(rf'"(resources/[^"]+)": "{HEX}"', manifest))
+    resources = sorted(json.loads(manifest)["resources"])
     for path in resources:
         data = generated.get(CRATE / path) or (CRATE / path).read_bytes()
         manifest = pin(manifest, f'"{re.escape(path)}": "', sha256(data), MANIFEST)
@@ -195,6 +202,12 @@ def main():
         ledger = pin(ledger, entry, sha256(data), LEDGER)
     generated[LEDGER] = ledger.encode()
 
+    for path, content in generated.items():
+        if UNRESOLVED.encode() in content:
+            raise SystemExit(
+                f"{path.relative_to(ROOT)}: a conflicted hash is not one this script "
+                "regenerates; resolve that conflict by hand."
+            )
     stale = [
         path
         for path, content in generated.items()
