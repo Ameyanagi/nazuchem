@@ -1642,7 +1642,9 @@ mod tests {
             ),
             (
                 "CCCC1=NN(C2=C1N=C(NC2=O)C3=C(C=CC(=C3)S(=O)(=O)N4CCN(CC4)C)OCC)C",
-                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-6H-pyrazolo[4,3-d]pyrimidin-7(1H)-one",
+                // #16/#29: the substituted N-1 keeps the parent's indicated hydrogen,
+                // which takes the low locant before added hydrogen (P-31.0, P-58.2.1.1).
+                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-1H-pyrazolo[4,3-d]pyrimidin-7(6H)-one",
             ),
             (
                 "O=c1c2ccccc2nc2n1CC=C2",
