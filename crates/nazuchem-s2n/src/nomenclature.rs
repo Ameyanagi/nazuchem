@@ -8,53 +8,316 @@
 // Unresolved: Small Rust JSON conversion helpers have no one-to-one upstream function boundary; adapted records their role in the copied registry/schema rather than asserting literal function translation.
 
 //! Nomenclature tables transcribed from Openclatura's checked-in rule registry.
-use serde_json::Value;
+use super::numbering::NumberingCriterion;
+use super::rules::retained::MonocycleSpec;
+use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::Deref;
 use std::sync::LazyLock;
+
+type StringMap = BTreeMap<String, String>;
+type StringSet = BTreeSet<String>;
+
+/// One registry section; it derefs to its typed values.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Section<T> {
+    #[serde(rename = "bluebook_rule")]
+    _bluebook_rule: String,
+    values: T,
+}
+impl<T> Deref for Section<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.values
+    }
+}
+
+/// The whole of `namer_rules.json`. Loading rejects a missing section, a
+/// missing required column and any key that is not declared here.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NamerRules {
+    pub numbering_criteria: Section<NumberingCriteria>,
+    pub single_atom_cations: Section<StringSet>,
+    pub single_atom_anions: Section<StringMap>,
+    pub mononuclear_parent_hydrides: Section<StringMap>,
+    pub retained_homonuclear_chain_names: Section<StringMap>,
+    pub replacement_parent_oxoacid_specs: Section<Vec<OxoacidSpec>>,
+    pub retained_ionic_n_parents: Section<StringMap>,
+    pub saturated_n_ring_ionic_parents: Section<BTreeMap<usize, String>>,
+    pub parent_charge_suffixes: Section<BTreeMap<String, ParentChargeSuffixRule>>,
+    pub replacement_charge_prefixes: Section<StringMap>,
+    pub replacement_charge_states: Section<Vec<ReplacementChargeState>>,
+    pub heteroatom_charge_prefixes: Section<StringMap>,
+    pub alkyl_oxy_prefixes: Section<StringMap>,
+    pub simple_sulfanyl_prefixes: Section<StringSet>,
+    pub simple_selanyl_prefixes: Section<StringSet>,
+    pub retained_sulfonyl_ligand_contractions: Section<Vec<SulfonylLigandContraction>>,
+    pub retained_sulfonyl_group_names: Section<Vec<SulfonylGroupName>>,
+    pub halogen_prefixes: Section<StringMap>,
+    pub halogen_lambda_suffixes: Section<StringMap>,
+    pub retained_ring_elements: Section<StringSet>,
+    pub ring_descriptor_templates: Section<StringMap>,
+    pub polycycle_prefixes: Section<BTreeMap<usize, String>>,
+    pub direct_group_prefixes: Section<StringMap>,
+    pub chain_external_carbonyl_groups: Section<StringSet>,
+    pub prefix_groups_to_skip: Section<StringSet>,
+    pub ester_like_prefix_groups: Section<StringSet>,
+    pub peroxy_ester_groups: Section<StringSet>,
+    pub amide_like_prefix_groups: Section<StringSet>,
+    pub carboxy_prefix_groups: Section<StringSet>,
+    pub cyano_prefix_groups: Section<StringSet>,
+    pub acid_halide_prefixes: Section<StringMap>,
+    pub peroxy_acid_prefix_groups: Section<StringSet>,
+    pub sulfonyl_prefix_groups: Section<StringSet>,
+    pub direct_prefix_groups: Section<StringMap>,
+    pub front_modifier_principal_groups: Section<StringSet>,
+    pub hydrazone_principal_groups: Section<StringSet>,
+    pub chalcogen_elements: Section<BTreeMap<String, ChalcogenElement>>,
+    pub chalcogen_simple_group_keys: Section<Vec<SimpleGroupKey>>,
+    pub chalcogenide_class_names: Section<StringMap>,
+    pub chalcogen_peroxide_class_names: Section<Vec<PeroxideClassName>>,
+    pub chalcogen_peroxol_rules: Section<Vec<PeroxolRule>>,
+    pub chalcogen_standard_acyl_keys: Section<Vec<StandardAcylKey>>,
+    pub chalcogen_standard_peroxy_acyl_keys: Section<Vec<StandardPeroxyAcylKey>>,
+    pub chalcogen_acyl_leaving_groups: Section<BTreeMap<String, AcylLeavingGroup>>,
+    pub chalcogen_central_acid_origins: Section<Vec<CentralAcidOrigin>>,
+    pub chalcogen_rule_policies: Section<ChalcogenRulePolicies>,
+    pub chalcogen_templates: Section<StringMap>,
+    pub functional_groups: Section<BTreeMap<String, FunctionalGroupRow>>,
+    pub retained_substituent_stems: Section<BTreeMap<String, (String, String)>>,
+    pub ambiguous_connection_substituent_stems: Section<StringSet>,
+    pub suffix_nitrogen_markers: Section<Vec<String>>,
+    pub replacement_prefix_order: Section<BTreeMap<String, usize>>,
+    pub unsaturation_order: Section<BTreeMap<String, usize>>,
+    pub substituent_attachment_suffixes: Section<StringMap>,
+    pub postprocess_literal_replacements: Section<Vec<LiteralReplacement>>,
+    pub retained_chain_functional_parents: Section<Vec<ChainFunctionalParent>>,
+    pub retained_principal_citations: Section<Vec<PrincipalCitation>>,
+    pub retained_monocycle_specs: Section<Vec<MonocycleSpec>>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NumberingCriteria {
+    pub chain: Vec<NumberingCriterion>,
+    pub ring: Vec<NumberingCriterion>,
+}
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OxoacidSpec {
+    pub name: String,
+    pub ester_suffix: String,
+    pub central: String,
+    pub single_o: usize,
+    pub double_o: usize,
+    pub charge: Option<i32>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplacementChargeState {
+    pub symbol: String,
+    pub charge: i32,
+    pub valence: usize,
+    pub prefix: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SulfonylLigandContraction {
+    pub ligand_ending: String,
+    pub suffix: String,
+    pub name: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SulfonylGroupName {
+    pub branch: String,
+    pub suffix: String,
+    pub name: String,
+}
+/// Polonium has a rank only; the vocabulary columns are absent for it.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChalcogenElement {
+    pub rank: i64,
+    pub additive_prefix: Option<String>,
+    pub substituent_suffix: Option<String>,
+    pub replacement_infix: Option<String>,
+    pub acyl_center_prefix: Option<String>,
+    pub nitrogen_chalcogenide_citation: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SimpleGroupKey {
+    pub family: String,
+    pub derivative: String,
+    pub element: String,
+    pub key: String,
+    #[serde(default)]
+    pub external: bool,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PeroxideClassName {
+    pub elements: Vec<String>,
+    pub name: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PeroxolRule {
+    pub first: String,
+    pub terminal: String,
+    pub suffix: String,
+    pub rank: i64,
+    pub capabilities: StringSet,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StandardAcylKey {
+    pub derivative: String,
+    pub double_element: String,
+    pub single_element: Option<String>,
+    pub key: String,
+    #[serde(default)]
+    pub external: bool,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StandardPeroxyAcylKey {
+    pub derivative: String,
+    pub key: String,
+    #[serde(default)]
+    pub external: bool,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AcylLeavingGroup {
+    pub word: String,
+    pub prefix: String,
+    pub rank: i64,
+    pub chain_key: String,
+    pub external_key: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CentralAcidOrigin {
+    pub element: String,
+    pub double_bond_count: usize,
+    pub stem: String,
+    pub rank: i64,
+    pub linkage_prefix: String,
+    pub acid_key: Option<String>,
+    pub ester_key: Option<String>,
+    pub amide_key: Option<String>,
+    pub acid_prefix: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChalcogenRulePolicies {
+    pub nitrile_chalcogenide: NitrilePolicy,
+    pub peroxol: RulePolicy,
+    pub acyl: BTreeMap<String, RulePolicy>,
+    pub peroxy_acyl: BTreeMap<String, RulePolicy>,
+    pub anhydride: RulePolicy,
+    pub imide_route: ImideRoutePolicy,
+    pub central_peroxy: BTreeMap<String, RulePolicy>,
+    pub central: BTreeMap<String, RulePolicy>,
+}
+/// The default is the policy of a derivative that has no row: no templates,
+/// no seniority, no families.
+#[derive(Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RulePolicy {
+    pub prefix: Option<String>,
+    pub suffix: Option<String>,
+    pub citation_suffix: Option<String>,
+    pub seniority: Option<i64>,
+    #[serde(default)]
+    pub ranked_seniority: bool,
+    pub families: StringSet,
+    #[serde(default)]
+    pub capabilities: StringSet,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NitrilePolicy {
+    pub prefix: String,
+    pub suffix: String,
+    pub seniority: i64,
+    pub families: StringSet,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ImideRoutePolicy {
+    pub key: String,
+    pub seniority: i64,
+    pub families: StringSet,
+    pub capabilities: StringSet,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FunctionalGroupRow {
+    role: String,
+    prefix: Option<String>,
+    suffix: Option<String>,
+    multi_suffix: Option<MultiSuffix>,
+    seniority: Option<Seniority>,
+    #[serde(default)]
+    suffix_with_locant: bool,
+    needs_locant: bool,
+    #[serde(default)]
+    citation_suffixes: StringMap,
+    families: Option<StringSet>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MultiSuffix {
+    multiplier_positions: Vec<usize>,
+}
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Seniority {
+    Rank(i64),
+    Ranks(Vec<i64>),
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LiteralReplacement {
+    pub pattern: String,
+    pub replacement: String,
+    #[serde(rename = "category")]
+    _category: String,
+    #[serde(rename = "reason")]
+    _reason: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChainFunctionalParent {
+    length: usize,
+    group: String,
+    count: usize,
+    name: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PrincipalCitation {
+    mode: String,
+    name: String,
+    citation: String,
+}
 
 // The immutable embedded registry is checked in with the port and verified by the oracle tests.
 #[allow(clippy::expect_used)]
-pub static ALL_NAMER_RULES: LazyLock<Value> = LazyLock::new(|| {
+pub static NAMER_RULES: LazyLock<NamerRules> = LazyLock::new(|| {
     serde_json::from_str(include_str!("data/namer_rules.json"))
         .expect("checked-in nomenclature data")
 });
-pub fn section(name: &str) -> &'static Value {
-    &ALL_NAMER_RULES[name]["values"]
-}
-// Callers select only fixed schema sections in the immutable embedded registry.
-#[allow(clippy::expect_used)]
-pub fn table_rows(name: &str) -> &'static [Value] {
-    section(name)
-        .as_array()
-        .expect("checked-in table section is an array")
-}
-// This accessor is reserved for required string columns in the immutable rule tables.
-#[allow(clippy::expect_used)]
-pub fn table_string(value: &Value) -> &str {
-    value.as_str().expect("checked-in table column is a string")
-}
-pub fn string_map(name: &str) -> BTreeMap<String, String> {
-    values_string_map(section(name))
-}
-fn values_string_map(value: &Value) -> BTreeMap<String, String> {
-    value
-        .as_object()
-        .into_iter()
-        .flatten()
-        .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_owned())))
-        .collect()
-}
-pub fn string_set(name: &str) -> BTreeSet<String> {
-    values_strings(section(name))
-}
-pub fn values_strings(value: &Value) -> BTreeSet<String> {
-    value
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .map(str::to_owned)
-        .collect()
+pub fn chalcogen_replacement_infix(element: &str) -> Option<&'static str> {
+    NAMER_RULES
+        .chalcogen_elements
+        .get(element)?
+        .replacement_infix
+        .as_deref()
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -130,115 +393,112 @@ const CAPABILITIES: &[&str] = &[
     "urea",
 ];
 fn derived_families(key: &str) -> BTreeSet<String> {
+    let rules = &*NAMER_RULES;
     let mut out = BTreeSet::new();
     for (family, table) in [
-        ("chain_external_carbonyl", "chain_external_carbonyl_groups"),
-        ("prefix_skip", "prefix_groups_to_skip"),
-        ("ester_like", "ester_like_prefix_groups"),
-        ("peroxy_ester", "peroxy_ester_groups"),
-        ("amide_like", "amide_like_prefix_groups"),
-        ("carboxy_prefix", "carboxy_prefix_groups"),
-        ("cyano_prefix", "cyano_prefix_groups"),
-        ("peroxy_acid", "peroxy_acid_prefix_groups"),
-        ("sulfonyl", "sulfonyl_prefix_groups"),
-        ("front_modifier", "front_modifier_principal_groups"),
-        ("hydrazone", "hydrazone_principal_groups"),
+        (
+            "chain_external_carbonyl",
+            &*rules.chain_external_carbonyl_groups,
+        ),
+        ("prefix_skip", &*rules.prefix_groups_to_skip),
+        ("ester_like", &*rules.ester_like_prefix_groups),
+        ("peroxy_ester", &*rules.peroxy_ester_groups),
+        ("amide_like", &*rules.amide_like_prefix_groups),
+        ("carboxy_prefix", &*rules.carboxy_prefix_groups),
+        ("cyano_prefix", &*rules.cyano_prefix_groups),
+        ("peroxy_acid", &*rules.peroxy_acid_prefix_groups),
+        ("sulfonyl", &*rules.sulfonyl_prefix_groups),
+        ("front_modifier", &*rules.front_modifier_principal_groups),
+        ("hydrazone", &*rules.hydrazone_principal_groups),
     ] {
-        if section(table)
-            .as_array()
-            .is_some_and(|a| a.iter().any(|v| v.as_str() == Some(key)))
-        {
+        if table.contains(key) {
             out.insert(family.to_owned());
         }
     }
     for (family, table) in [
-        ("acid_halide", "acid_halide_prefixes"),
-        ("direct_prefix", "direct_prefix_groups"),
-        ("direct_group", "direct_group_prefixes"),
+        ("acid_halide", &*rules.acid_halide_prefixes),
+        ("direct_prefix", &*rules.direct_prefix_groups),
+        ("direct_group", &*rules.direct_group_prefixes),
     ] {
-        if section(table).get(key).is_some() {
+        if table.contains_key(key) {
             out.insert(family.to_owned());
         }
     }
     out
 }
-pub fn rule_from_value(key: &str, row: &Value) -> FunctionalGroupRule {
-    let positions = row["multi_suffix"]["multiplier_positions"]
-        .as_array()
-        .map(|a| {
-            a.iter()
-                .filter_map(Value::as_u64)
-                .map(|x| x as usize)
-                .collect()
-        })
-        .unwrap_or_else(|| vec![0]);
-    let families = row
-        .get("families")
-        .map_or_else(|| derived_families(key), values_strings);
-    let mut capabilities = values_strings(&row["capabilities"]);
-    capabilities.extend(
-        families
-            .iter()
-            .filter(|s| CAPABILITIES.contains(&s.as_str()))
-            .cloned(),
-    );
-    let seniority = row["seniority"].as_i64().map(|x| vec![x]).or_else(|| {
-        row["seniority"]
-            .as_array()
-            .map(|a| a.iter().filter_map(Value::as_i64).collect())
-    });
+fn family_capabilities(families: &BTreeSet<String>) -> impl Iterator<Item = String> {
+    families
+        .iter()
+        .filter(|s| CAPABILITIES.contains(&s.as_str()))
+        .cloned()
+}
+/// A principal-group rule that carries a chalcogen policy's families and
+/// capabilities; the caller fills in the affixes and the seniority.
+pub fn policy_rule(
+    key: &str,
+    families: &BTreeSet<String>,
+    capabilities: &BTreeSet<String>,
+) -> FunctionalGroupRule {
+    let mut capabilities = capabilities.clone();
+    capabilities.extend(family_capabilities(families));
     FunctionalGroupRule {
         key: key.to_owned(),
-        role: row["role"].as_str().unwrap_or("principal").to_owned(),
-        prefix: row["prefix"].as_str().map(str::to_owned),
-        suffix: row["suffix"].as_str().map(str::to_owned),
-        suffix_multiplier_positions: positions,
-        seniority,
-        suffix_with_locant: row["suffix_with_locant"].as_bool().unwrap_or(false),
-        needs_locant: row["needs_locant"].as_bool().unwrap_or(true),
-        families,
+        role: "principal".into(),
+        suffix_multiplier_positions: vec![0],
+        needs_locant: true,
+        families: families.clone(),
         capabilities,
-        citation_suffixes: values_string_map(&row["citation_suffixes"]),
+        ..Default::default()
     }
 }
-// All required fields below belong to the immutable checked-in registry schema.
+// The acid-halide policy belongs to the immutable checked-in registry schema.
 #[allow(clippy::expect_used)]
 fn functional_groups() -> FunctionalGroupRules {
-    let mut by_key = section("functional_groups")
-        .as_object()
-        .expect("functional-group table")
+    let rules = &*NAMER_RULES;
+    let mut by_key = rules
+        .functional_groups
         .iter()
-        .map(|(k, v)| (k.clone(), rule_from_value(k, v)))
+        .map(|(key, row)| {
+            let families = row
+                .families
+                .clone()
+                .unwrap_or_else(|| derived_families(key));
+            let rule = FunctionalGroupRule {
+                key: key.clone(),
+                role: row.role.clone(),
+                prefix: row.prefix.clone(),
+                suffix: row.suffix.clone(),
+                suffix_multiplier_positions: row
+                    .multi_suffix
+                    .as_ref()
+                    .map_or_else(|| vec![0], |m| m.multiplier_positions.clone()),
+                seniority: row.seniority.as_ref().map(|s| match s {
+                    Seniority::Rank(rank) => vec![*rank],
+                    Seniority::Ranks(ranks) => ranks.clone(),
+                }),
+                suffix_with_locant: row.suffix_with_locant,
+                needs_locant: row.needs_locant,
+                capabilities: family_capabilities(&families).collect(),
+                families,
+                citation_suffixes: row.citation_suffixes.clone(),
+            };
+            (key.clone(), rule)
+        })
         .collect::<BTreeMap<_, _>>();
-    let policy = &section("chalcogen_rule_policies")["acyl"]["acid_halide"];
-    for item in section("chalcogen_acyl_leaving_groups")
-        .as_object()
-        .into_iter()
-        .flatten()
-        .map(|(_, v)| v)
-    {
-        for (external, key_field, suffix) in [
-            (false, "chain_key", "oyl"),
-            (true, "external_key", "carbonyl"),
+    let policy = &rules.chalcogen_rule_policies.acyl["acid_halide"];
+    let seniority = policy.seniority.expect("checked-in acyl seniority");
+    for item in rules.chalcogen_acyl_leaving_groups.values() {
+        for (external, key, suffix) in [
+            (false, &item.chain_key, "oyl"),
+            (true, &item.external_key, "carbonyl"),
         ] {
-            let key = table_string(&item[key_field]);
-            let word = table_string(&item["word"]);
-            let prefix = table_string(&item["prefix"]);
-            let mut r = rule_from_value(key, policy);
-            r.role = "principal".into();
-            r.prefix = Some(format!("{prefix}carbonyl"));
-            r.suffix = Some(format!("{suffix} {word}"));
-            r.seniority = Some(vec![
-                policy["seniority"]
-                    .as_i64()
-                    .expect("checked-in acyl seniority"),
-                item["rank"]
-                    .as_i64()
-                    .expect("checked-in leaving-group rank"),
-            ]);
+            let mut r = policy_rule(key, &policy.families, &policy.capabilities);
+            r.prefix = Some(format!("{}carbonyl", item.prefix));
+            r.suffix = Some(format!("{suffix} {}", item.word));
+            r.seniority = Some(vec![seniority, item.rank]);
             r.suffix_multiplier_positions = vec![0, 1];
             r.suffix_with_locant = external;
-            by_key.insert(key.to_owned(), r);
+            by_key.insert(key.clone(), r);
         }
     }
     FunctionalGroupRules { by_key }
@@ -264,16 +524,19 @@ pub struct PrefixRules {
 pub struct ComponentRules {
     pub mononuclear_parent_hydrides: BTreeMap<String, String>,
     pub retained_homonuclear_chain_names: BTreeMap<String, String>,
-    pub replacement_parent_oxoacid_specs: Vec<Value>,
+    pub replacement_parent_oxoacid_specs: Vec<OxoacidSpec>,
 }
 #[derive(Debug, Default)]
 pub struct IonRules {
     pub single_atom_cations: BTreeSet<String>,
     pub single_atom_anions: BTreeMap<String, String>,
 }
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ParentChargeSuffixRule {
     pub suffix: String,
+    #[serde(rename = "reason")]
+    _reason: String,
 }
 #[derive(Debug, Default)]
 pub struct ChargeRules {
@@ -302,106 +565,72 @@ pub struct NomenclatureRegistry {
     pub assembly: AssemblyRules,
     pub functional_groups: FunctionalGroupRules,
 }
-fn rows(name: &str) -> &'static [Value] {
-    section(name)
-        .as_array()
-        .map(Vec::as_slice)
-        .unwrap_or_default()
-}
-fn s(v: &Value, k: &str) -> String {
-    v[k].as_str().unwrap_or_default().to_owned()
-}
-fn usize_map(name: &str) -> BTreeMap<String, usize> {
-    section(name)
-        .as_object()
-        .into_iter()
-        .flatten()
-        .filter_map(|(k, v)| v.as_u64().map(|n| (k.clone(), n as usize)))
-        .collect()
-}
-pub static RULES: LazyLock<NomenclatureRegistry> = LazyLock::new(|| NomenclatureRegistry {
-    functional_groups: functional_groups(),
-    retained: RetainedNameRules {
-        substituent_stems: section("retained_substituent_stems")
-            .as_object()
-            .into_iter()
-            .flatten()
-            .filter_map(|(k, v)| {
-                Some((
-                    k.clone(),
-                    (v[0].as_str()?.to_owned(), v[1].as_str()?.to_owned()),
-                ))
-            })
-            .collect(),
-        chain_functional_parents: rows("retained_chain_functional_parents")
-            .iter()
-            .map(|v| {
-                (
-                    (
-                        v["length"].as_u64().unwrap_or(0) as usize,
-                        s(v, "group"),
-                        v["count"].as_u64().unwrap_or(0) as usize,
-                    ),
-                    s(v, "name"),
-                )
-            })
-            .collect(),
-        principal_citations: rows("retained_principal_citations")
-            .iter()
-            .map(|v| ((s(v, "mode"), s(v, "name")), s(v, "citation")))
-            .collect(),
-    },
-    heteroatoms: HeteroatomRules {
-        alkyl_oxy_prefixes: string_map("alkyl_oxy_prefixes"),
-        simple_sulfanyl_prefixes: string_set("simple_sulfanyl_prefixes"),
-        simple_selanyl_prefixes: string_set("simple_selanyl_prefixes"),
-    },
-    prefixes: PrefixRules {
-        peroxy_ester_groups: string_set("peroxy_ester_groups"),
-        amide_like_groups: string_set("amide_like_prefix_groups"),
-    },
-    components: ComponentRules {
-        mononuclear_parent_hydrides: string_map("mononuclear_parent_hydrides"),
-        retained_homonuclear_chain_names: string_map("retained_homonuclear_chain_names"),
-        replacement_parent_oxoacid_specs: rows("replacement_parent_oxoacid_specs").to_vec(),
-    },
-    ions: IonRules {
-        single_atom_cations: string_set("single_atom_cations"),
-        single_atom_anions: string_map("single_atom_anions"),
-    },
-    charges: ChargeRules {
-        retained_ionic_n_parents: string_map("retained_ionic_n_parents"),
-        saturated_n_ring_ionic_parents: string_map("saturated_n_ring_ionic_parents")
-            .into_iter()
-            .filter_map(|(k, v)| Some((k.parse().ok()?, v)))
-            .collect(),
-        parent_charge_suffixes: section("parent_charge_suffixes")
-            .as_object()
-            .into_iter()
-            .flatten()
-            .map(|(k, v)| {
-                (
-                    k.clone(),
-                    ParentChargeSuffixRule {
-                        suffix: s(v, "suffix"),
-                    },
-                )
-            })
-            .collect(),
-        replacement_charge_prefixes: string_map("replacement_charge_prefixes"),
-        heteroatom_charge_prefixes: string_map("heteroatom_charge_prefixes"),
-    },
-    assembly: AssemblyRules {
-        replacement_prefix_order: usize_map("replacement_prefix_order"),
-        unsaturation_order: usize_map("unsaturation_order"),
-        substituent_attachment_suffixes: string_map("substituent_attachment_suffixes"),
-        ambiguous_connection_substituent_stems: string_set(
-            "ambiguous_connection_substituent_stems",
-        ),
-        suffix_nitrogen_markers: rows("suffix_nitrogen_markers")
-            .iter()
-            .filter_map(Value::as_str)
-            .map(str::to_owned)
-            .collect(),
-    },
+pub static RULES: LazyLock<NomenclatureRegistry> = LazyLock::new(|| {
+    let rules = &*NAMER_RULES;
+    NomenclatureRegistry {
+        functional_groups: functional_groups(),
+        retained: RetainedNameRules {
+            substituent_stems: rules.retained_substituent_stems.clone(),
+            chain_functional_parents: rules
+                .retained_chain_functional_parents
+                .iter()
+                .map(|v| ((v.length, v.group.clone(), v.count), v.name.clone()))
+                .collect(),
+            principal_citations: rules
+                .retained_principal_citations
+                .iter()
+                .map(|v| ((v.mode.clone(), v.name.clone()), v.citation.clone()))
+                .collect(),
+        },
+        heteroatoms: HeteroatomRules {
+            alkyl_oxy_prefixes: rules.alkyl_oxy_prefixes.clone(),
+            simple_sulfanyl_prefixes: rules.simple_sulfanyl_prefixes.clone(),
+            simple_selanyl_prefixes: rules.simple_selanyl_prefixes.clone(),
+        },
+        prefixes: PrefixRules {
+            peroxy_ester_groups: rules.peroxy_ester_groups.clone(),
+            amide_like_groups: rules.amide_like_prefix_groups.clone(),
+        },
+        components: ComponentRules {
+            mononuclear_parent_hydrides: rules.mononuclear_parent_hydrides.clone(),
+            retained_homonuclear_chain_names: rules.retained_homonuclear_chain_names.clone(),
+            replacement_parent_oxoacid_specs: rules.replacement_parent_oxoacid_specs.clone(),
+        },
+        ions: IonRules {
+            single_atom_cations: rules.single_atom_cations.clone(),
+            single_atom_anions: rules.single_atom_anions.clone(),
+        },
+        charges: ChargeRules {
+            retained_ionic_n_parents: rules.retained_ionic_n_parents.clone(),
+            saturated_n_ring_ionic_parents: rules.saturated_n_ring_ionic_parents.clone(),
+            parent_charge_suffixes: rules.parent_charge_suffixes.clone(),
+            replacement_charge_prefixes: rules.replacement_charge_prefixes.clone(),
+            heteroatom_charge_prefixes: rules.heteroatom_charge_prefixes.clone(),
+        },
+        assembly: AssemblyRules {
+            replacement_prefix_order: rules.replacement_prefix_order.clone(),
+            unsaturation_order: rules.unsaturation_order.clone(),
+            substituent_attachment_suffixes: rules.substituent_attachment_suffixes.clone(),
+            ambiguous_connection_substituent_stems: rules
+                .ambiguous_connection_substituent_stems
+                .clone(),
+            suffix_nitrogen_markers: rules.suffix_nitrogen_markers.clone(),
+        },
+    }
 });
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn registry_rows_reject_misspelled_and_missing_columns() {
+        let row = |json: &str| serde_json::from_str::<SimpleGroupKey>(json);
+        let complete =
+            r#"{"family":"hydroxy","derivative":"alcohol","element":"O","key":"alcohol"}"#;
+        assert!(row(complete).is_ok());
+        // A misspelled optional column no longer reads as its default.
+        assert!(row(&complete.replace('}', r#","extrenal":true}"#)).is_err());
+        assert!(row(&complete.replace(r#","key":"alcohol""#, "")).is_err());
+    }
+}

@@ -133,9 +133,9 @@ pub(super) fn name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<Name>, Stri
             }
             status => status,
         };
-        let class = super::nomenclature::section("chalcogenide_class_names")
-            [&mol.atoms[&ch].symbol]
-            .as_str()
+        let class = super::nomenclature::NAMER_RULES
+            .chalcogenide_class_names
+            .get(&mol.atoms[&ch].symbol)
             .ok_or("openclatura: missing chalcogenide class name")?;
         result = Some(Name {
             text: super::nest_enclosing_marks(&format!("{} {locant}-{class}", parent.text)),

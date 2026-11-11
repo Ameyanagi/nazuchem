@@ -10,19 +10,14 @@
 // Local contributions: MIT OR Apache-2.0; see NOTICE and PROVENANCE-nazuchem.toml.
 
 //! Data-backed P-23/P-24 ring descriptor rendering.
-use super::nomenclature::section;
+use super::nomenclature::NAMER_RULES;
 use super::rules::multipliers;
 
-#[allow(
-    clippy::expect_used,
-    reason = "Ring descriptor kinds come from the checked-in registry."
-)]
 // Provenance: fn render_ring_descriptor | adapted
 // Source: openclatura | src/openclatura/ring_renderer.py::render_ring_descriptor
 pub fn render_ring_descriptor(kind: &str, descriptor_numbers: &[usize]) -> String {
-    let template = section("ring_descriptor_templates")[kind]
-        .as_str()
-        .expect("checked-in ring descriptor template");
+    // Ring descriptor kinds come from the checked-in registry.
+    let template = &NAMER_RULES.ring_descriptor_templates[kind];
     let numbers = descriptor_numbers
         .iter()
         .map(usize::to_string)
@@ -41,11 +36,12 @@ pub fn render_von_baeyer_descriptor(bridge_count: usize, descriptor_body: &str) 
 // Provenance: fn von_baeyer_kind | adapted
 // Source: openclatura | src/openclatura/ring_renderer.py::von_baeyer_kind
 pub fn von_baeyer_kind(cycle_count: usize) -> String {
-    section("polycycle_prefixes")[cycle_count.saturating_sub(1).to_string()]
-        .as_str()
+    NAMER_RULES
+        .polycycle_prefixes
+        .get(&cycle_count.saturating_sub(1))
         .map_or_else(
             || format!("{}cyclo", multipliers::basic(cycle_count)),
-            str::to_owned,
+            String::clone,
         )
 }
 
@@ -54,16 +50,11 @@ pub fn von_baeyer_kind(cycle_count: usize) -> String {
 pub fn von_baeyer_cycle_count(descriptor: Option<&str>) -> Option<usize> {
     let prefix = descriptor?.split_once("cyclo[")?.0;
     let rendered_prefix = format!("{prefix}cyclo");
-    section("polycycle_prefixes")
-        .as_object()
-        .and_then(|prefixes| {
-            prefixes.iter().find_map(|(count, rendered)| {
-                if rendered.as_str()? != rendered_prefix {
-                    return None;
-                }
-                Some(count.parse::<usize>().ok()? + 1)
-            })
-        })
+    NAMER_RULES
+        .polycycle_prefixes
+        .iter()
+        .find(|(_, rendered)| **rendered == rendered_prefix)
+        .map(|(count, _)| count + 1)
         .or_else(|| (2..=1000).find(|&count| multipliers::basic(count) == prefix))
 }
 

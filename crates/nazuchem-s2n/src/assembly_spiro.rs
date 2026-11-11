@@ -880,11 +880,11 @@ fn deduplicate_shared_replacements(parts: &mut AssemblyParts, side: &mut SpiroAs
         })
         .map(|(_, _, _, o)| *o)
         .sum();
-    let hydrides = super::nomenclature::section("mononuclear_parent_hydrides");
+    let hydrides = &RULES.components.mononuclear_parent_hydrides;
     if charge == -1
         && other.parent_atom_charges_by_locant.get(&side.side_locant) == Some(&charge)
         && let Some(element) = elements::get(symbol)
-        && let Some(hydride) = hydrides.get(symbol).and_then(|v| v.as_str())
+        && let Some(hydride) = hydrides.get(symbol)
         && bonding == element.standard_valence + 1
         && element
             .mancude_charged_bonding_limits

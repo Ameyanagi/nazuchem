@@ -17,7 +17,7 @@ use super::{
     formatting::{format_center_ligands_by, format_multiplier, strip_outer_parentheses},
     molecule::{AtomSet, Molecule, bond_ids_within},
     namer::{name_subgraph_rendered, name_subgraph_with_upstream},
-    nomenclature::RULES,
+    nomenclature::{ChalcogenElement, NAMER_RULES, RULES},
     perception::{LigandRole, PerceivedGroup},
     subgraph_tools::subgraph_component,
 };
@@ -32,9 +32,15 @@ pub struct PrefixContext<'a> {
 
 // Provenance: fn chalcogen_term | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::_element_data
-fn chalcogen_term(element: &str, field: &str) -> Result<&'static str, String> {
-    super::nomenclature::section("chalcogen_elements")[element][field]
-        .as_str()
+fn chalcogen_term(
+    element: &str,
+    field: &str,
+    column: fn(&'static ChalcogenElement) -> &'static Option<String>,
+) -> Result<&'static str, String> {
+    NAMER_RULES
+        .chalcogen_elements
+        .get(element)
+        .and_then(|e| column(e).as_deref())
         .ok_or_else(|| format!("openclatura: {element} {field} not ported"))
 }
 
@@ -52,7 +58,7 @@ fn element_ligand(branch: RenderedSubstituentName, element: &str) -> Result<Stri
     Ok(super::formatting::format_element_substituent(
         "",
         &branch.text,
-        chalcogen_term(element, "substituent_suffix")?,
+        chalcogen_term(element, "substituent_suffix", |e| &e.substituent_suffix)?,
         false,
     ))
 }
@@ -63,14 +69,11 @@ fn central_linkage_prefix(group: &PerceivedGroup) -> Option<&'static str> {
     let descriptor = group.descriptor.as_ref()?;
     let element = descriptor.central_element.as_deref()?;
     let count = descriptor.ligands_with_role(LigandRole::DoubleBonded).len();
-    super::nomenclature::section("chalcogen_central_acid_origins")
-        .as_array()?
+    NAMER_RULES
+        .chalcogen_central_acid_origins
         .iter()
-        .find(|r| {
-            r["element"].as_str() == Some(element)
-                && r["double_bond_count"].as_u64() == Some(count as u64)
-        })?["linkage_prefix"]
-        .as_str()
+        .find(|r| r.element == element && r.double_bond_count == count)
+        .map(|r| r.linkage_prefix.as_str())
 }
 
 // Provenance: fn descriptor_ester_prefix | adapted
@@ -114,7 +117,9 @@ fn descriptor_ester_prefix(
     let base = if d.family == "central_acid" {
         central_linkage_prefix(group).unwrap_or("")
     } else {
-        chalcogen_term(&doubles[0].element, "acyl_center_prefix")?
+        chalcogen_term(&doubles[0].element, "acyl_center_prefix", |e| {
+            &e.acyl_center_prefix
+        })?
     };
     Ok(Some(format!(
         "({}{base})",
@@ -145,16 +150,13 @@ fn central_chalcogen_linkage_prefix(
     }
     let terminal = bridge[1];
     let terminal_text = if terminal.role == LigandRole::HydrogenBearing {
-        let key = super::nomenclature::section("chalcogen_simple_group_keys")
-            .as_array()
-            .and_then(|rows| {
-                rows.iter().find(|r| {
-                    r["family"].as_str() == Some("hydroxy")
-                        && r["derivative"].as_str() == Some("alcohol")
-                        && r["element"].as_str() == Some(terminal.element.as_str())
-                })
+        let key = NAMER_RULES
+            .chalcogen_simple_group_keys
+            .iter()
+            .find(|r| {
+                r.family == "hydroxy" && r.derivative == "alcohol" && r.element == terminal.element
             })
-            .and_then(|r| r["key"].as_str());
+            .map(|r| r.key.as_str());
         key.and_then(|k| RULES.functional_groups.cited_prefix_for(k))
             .unwrap_or_default()
     } else if matches!(

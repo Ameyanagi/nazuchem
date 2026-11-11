@@ -25,7 +25,7 @@ use super::formatting::{
 };
 use super::molecule::{AtomSet, Molecule};
 use super::namer::{capped_acid_name, name_subgraph_rendered, name_subgraph_with_upstream};
-use super::nomenclature::section;
+use super::nomenclature::NAMER_RULES;
 use super::rules::{elements, multipliers};
 use super::subgraph_tools::subgraph_component;
 use nazuchem_ir::{NameReason, NameStatus};
@@ -167,10 +167,13 @@ fn charged_prefix(symbol: &str, charge: i32, order: usize) -> Option<String> {
         3 => "triple",
         _ => "single",
     };
-    section("heteroatom_charge_prefixes")
-        [format!("{symbol}:{}:{kind}", if charge > 0 { "+" } else { "-" })]
-    .as_str()
-    .map(str::to_owned)
+    NAMER_RULES
+        .heteroatom_charge_prefixes
+        .get(&format!(
+            "{symbol}:{}:{kind}",
+            if charge > 0 { "+" } else { "-" }
+        ))
+        .cloned()
 }
 // Provenance: fn has_balanced_oxo_charges | adapted
 // Source: openclatura | src/openclatura/heteroatom_subgraphs.py::name_halogen_subgraph
@@ -391,31 +394,20 @@ fn acid_sulfonyl(
 // Source: openclatura | src/openclatura/heteroatom_subgraphs.py::sulfonyl_group_name
 fn sulfonyl_group(mol: &Molecule, branch: &str, suffix: &str) -> (String, bool) {
     let b = strip_outer_parentheses(branch);
-    if let Some(rows) = section("retained_sulfonyl_group_names").as_array() {
-        for row in rows {
-            if row["branch"].as_str() == Some(&b)
-                && row["suffix"].as_str() == Some(suffix)
-                && let Some(name) = row["name"].as_str()
-            {
-                if name == "tosyl" {
-                    mol.mark_name(NameStatus::NotPreferred(NameReason::SulfonylPrefix));
-                }
-                return (name.into(), true);
+    for row in NAMER_RULES.retained_sulfonyl_group_names.iter() {
+        if row.branch == b && row.suffix == suffix {
+            if row.name == "tosyl" {
+                mol.mark_name(NameStatus::NotPreferred(NameReason::SulfonylPrefix));
             }
+            return (row.name.clone(), true);
         }
     }
-    if let Some(rows) = section("retained_sulfonyl_ligand_contractions").as_array() {
-        for row in rows {
-            if let (Some(ending), Some(s), Some(name)) = (
-                row["ligand_ending"].as_str(),
-                row["suffix"].as_str(),
-                row["name"].as_str(),
-            ) && s == suffix
-                && let Some(before) = phenylamino_spelling(&b).strip_suffix(ending)
-            {
-                let result = format!("{before}{name}");
-                return (result, before.is_empty());
-            }
+    for row in NAMER_RULES.retained_sulfonyl_ligand_contractions.iter() {
+        if row.suffix == suffix
+            && let Some(before) = phenylamino_spelling(&b).strip_suffix(row.ligand_ending.as_str())
+        {
+            let result = format!("{before}{}", row.name);
+            return (result, before.is_empty());
         }
     }
     // Preferred names cite methanesulfonyl, sulfo, sulfamoyl (P-65.3.2.3);
@@ -1413,10 +1405,11 @@ pub fn name_heteroatom_subgraph(
             }
             let roots = subgraph_neighbors(mol, start, exclude, upstream);
             if roots.is_empty() {
-                section("halogen_prefixes")[symbol]
-                    .as_str()
+                NAMER_RULES
+                    .halogen_prefixes
+                    .get(symbol)
                     .ok_or_else(|| unsupported(symbol))?
-                    .into()
+                    .clone()
             } else {
                 let mut oxo: AtomSet = roots
                     .iter()
@@ -1451,8 +1444,9 @@ pub fn name_heteroatom_subgraph(
                     .map(|b| b.order)
                     .sum::<usize>()
                     + oxo.len();
-                let suffix = section("halogen_lambda_suffixes")[symbol]
-                    .as_str()
+                let suffix = NAMER_RULES
+                    .halogen_lambda_suffixes
+                    .get(symbol)
                     .ok_or_else(|| unsupported(symbol))?;
                 format!("({}lambda^{valence}-{suffix})", center(&ns))
             }

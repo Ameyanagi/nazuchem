@@ -4,7 +4,7 @@
 // Copyright (c) 2026 lamalab-org
 
 //! Retained parent attachment spelling and locant policy.
-use super::nomenclature::section;
+use super::nomenclature::NAMER_RULES;
 #[derive(Clone, Debug)]
 pub struct RetainedParentSpec {
     pub substituent_stem: Option<String>,
@@ -13,17 +13,15 @@ pub struct RetainedParentSpec {
 }
 pub fn retained_parent_spec(name: Option<&str>) -> Option<RetainedParentSpec> {
     let name = name.filter(|n| !n.is_empty())?;
-    let data = &section("retained_substituent_stems")[name];
-    let stem = data[0].as_str().map(str::to_owned);
-    let terminal = data[1].as_str().map(str::to_owned);
+    let data = NAMER_RULES.retained_substituent_stems.get(name);
+    let stem = data.map(|d| d.0.clone());
+    let terminal = data.map(|d| d.1.clone());
     let normalized = stem.as_deref().unwrap_or(name).to_lowercase();
     let normalized = normalized.trim_end_matches('e');
-    let needs_locant = section("ambiguous_connection_substituent_stems")
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(serde_json::Value::as_str)
-        .any(|s| normalized.ends_with(s));
+    let needs_locant = NAMER_RULES
+        .ambiguous_connection_substituent_stems
+        .iter()
+        .any(|s| normalized.ends_with(s.as_str()));
     Some(RetainedParentSpec {
         substituent_stem: stem,
         substituent_terminal: terminal,

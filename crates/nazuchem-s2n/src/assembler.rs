@@ -34,7 +34,7 @@ use super::{
     assembly_utils::{needs_hyphen, parse_locant},
     formatting::format_multiplier,
     fused_ion_templates::{consume_fused_ion_operation, select_fused_ion_operation},
-    nomenclature::section,
+    nomenclature::NAMER_RULES,
 };
 use nazuchem_ir::{NameReason, NameStatus};
 use std::collections::{BTreeMap, BTreeSet};
@@ -200,13 +200,8 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
 // Source: openclatura | src/openclatura/name_postprocessing.py::apply_data_postprocessing
 fn apply_data_postprocessing(name: &str) -> String {
     let mut name = name.to_owned();
-    if let Some(rules) = section("postprocess_literal_replacements").as_array() {
-        for rule in rules {
-            if let (Some(from), Some(to)) = (rule["pattern"].as_str(), rule["replacement"].as_str())
-            {
-                name = name.replace(from, to);
-            }
-        }
+    for rule in NAMER_RULES.postprocess_literal_replacements.iter() {
+        name = name.replace(&rule.pattern, &rule.replacement);
     }
     name
 }
@@ -827,10 +822,7 @@ pub fn assemble_name(parts: &mut AssemblyParts) -> Result<String, String> {
 // Provenance: mod tests | original
 // Source: ReShiki | src/naming/openclatura/assembler.rs::tests
 mod tests {
-    use super::super::{
-        assembly_parts::PrincipalGroupItem,
-        nomenclature::{rule_from_value, section},
-    };
+    use super::super::{assembly_parts::PrincipalGroupItem, nomenclature::policy_rule};
     use super::*;
 
     #[test]
@@ -1320,7 +1312,11 @@ mod tests {
     fn selected_principal_citation_requires_a_suffix_renderer() {
         let mut parts = AssemblyParts::new(2);
         let mut group = PrincipalGroupItem::new("unrendered", vec!["1".into()]);
-        group.resolved_rule = Some(rule_from_value("unrendered", &serde_json::json!({})));
+        group.resolved_rule = Some(policy_rule(
+            "unrendered",
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+        ));
         parts.principal_group = Some(group);
         assert!(assemble_name(&mut parts).is_err());
     }
@@ -1337,13 +1333,13 @@ mod tests {
             ("O", "Se", "methane-OSe-selenoperoxol"),
             ("O", "O", "methaneperoxol"),
         ] {
-            let policy = section("chalcogen_peroxol_rules")
-                .as_array()
-                .unwrap()
+            let policy = NAMER_RULES
+                .chalcogen_peroxol_rules
                 .iter()
-                .find(|r| r["first"] == first && r["terminal"] == terminal)
+                .find(|r| r.first == first && r.terminal == terminal)
                 .unwrap();
-            let mut rule = rule_from_value("dynamic_peroxol", policy);
+            let mut rule = policy_rule("dynamic_peroxol", &BTreeSet::new(), &policy.capabilities);
+            rule.suffix = Some(policy.suffix.clone());
             rule.suffix_with_locant = true;
             let mut parts = AssemblyParts::new(1);
             let mut group = PrincipalGroupItem::new("dynamic_peroxol", vec!["1".into()]);
