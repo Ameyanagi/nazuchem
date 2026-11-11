@@ -188,6 +188,36 @@ pub fn source(
             counts.atropisomer += 1;
         }
     }
+    // Stated unknown (ξ) units have no source parity but must stay unknown.
+    for &id in &structure.unknown_stereo_atoms {
+        let center = index(id)?;
+        let mut expected = graph
+            .neighbours(id)
+            .into_iter()
+            .map(|other| index(other).map(Ref::Atom))
+            .collect::<Result<BTreeSet<_>, _>>()?;
+        if expected.len() == 3 {
+            expected.insert(Ref::LonePair);
+        }
+        if !molecule.stereo.iter().any(|stereo| {
+            matches!(stereo, Stereo::Tetrahedral { center: c, neighbors, winding: Winding::Unknown }
+                if *c == center && neighbors.iter().copied().collect::<BTreeSet<_>>() == expected)
+        }) {
+            return Err("source unknown tetrahedral assertion omitted".into());
+        }
+        counts.tetrahedral += 1;
+    }
+    for &id in &structure.unknown_stereo_bonds {
+        let bond = graph.bond(id);
+        let ends = [index(bond.from)?, index(bond.to)?];
+        if !molecule.stereo.iter().any(|stereo| {
+            matches!(stereo, Stereo::DoubleBond { bond, relation: Relation::Unknown, .. }
+                if molecule.bonds[*bond as usize].atoms.iter().all(|atom| ends.contains(atom)))
+        }) {
+            return Err("source unknown double-bond assertion omitted".into());
+        }
+        counts.double_bond += 1;
+    }
     if counts.tetrahedral + counts.double_bond + counts.atropisomer != molecule.stereo.len() {
         return Err("IR introduced a source-absent stereo assertion".into());
     }

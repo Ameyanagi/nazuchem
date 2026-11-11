@@ -206,6 +206,19 @@ pub fn preprocess(name: &str) -> Result<String, ParsingError> {
             i += 2;
             continue;
         }
+        // P-103.1.3.1 and P-103.3.4 cite ξ like D/L, without locant or
+        // brackets (ξ-alanine, ξ-alanyl). Bracket it for the grammar.
+        if ch == 'ξ'
+            && chars.get(i + 1) == Some(&'-')
+            && replaced
+                .chars()
+                .last()
+                .is_none_or(|c| matches!(c, '-' | ' ' | '(' | '[' | '{'))
+        {
+            replaced.push_str("(ξ)");
+            i += 1;
+            continue;
+        }
         replaced.push(ch);
         i += 1;
     }
