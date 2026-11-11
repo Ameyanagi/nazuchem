@@ -42,17 +42,16 @@ pub(super) fn parent_hydrogen_candidates(
                 .filter(|id| mol.atoms[id].symbol == "N" && mol.atoms[id].charge == -1),
         );
     }
-    if ast.plan_kind == "benzoheterocycle" {
-        // P-58.2.4 applies prefix substitution after parent hydrogen selection.
-        // A neutral N with two single ring bonds retains its N-H role when
-        // the third bond replaces that hydrogen with a substituent.
-        let atoms = locants.keys().copied().collect();
-        candidates.extend(
-            locants
-                .keys()
-                .filter(|&&a| is_added_hydrogen_nitrogen(mol, &atoms, a)),
-        );
-    }
+    // P-58.2.4 applies prefix substitution after parent hydrogen selection,
+    // and a PIN always cites that hydrogen (P-14.7.1). A neutral N with two
+    // single ring bonds retains its N-H role when the third bond replaces
+    // that hydrogen with a substituent. Outside benzo names only aromatic
+    // (pyrrolic) N qualifies; a saturated N may instead be a hydro site.
+    let atoms = locants.keys().copied().collect();
+    candidates.extend(locants.keys().filter(|&&a| {
+        (mol.atoms[&a].is_aromatic || ast.plan_kind == "benzoheterocycle")
+            && single_bonded_parent_nitrogen(mol, &atoms, a)
+    }));
     candidates
 }
 
