@@ -240,7 +240,7 @@ mod tests {
             (
                 "S(CC(=O)O)CC(=O)O",
                 "2,2'-sulfanediyldiacetic acid",
-                "(carboxymethylsulfanyl)acetic acid",
+                "[(carboxymethyl)sulfanyl]acetic acid",
             ),
             (
                 "P(CC(=O)O)(CC(=O)O)CC(=O)O",

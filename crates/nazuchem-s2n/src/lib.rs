@@ -1509,6 +1509,49 @@ mod tests {
     }
 
     #[test]
+    fn polyamine_n_locants_cite_the_parent_locant() {
+        // P-62.2.4.1.1, P-62.2.4.1.2: the parent locant is a superscript on N,
+        // as in the PINs N^1-ethyl-N^3-methylpropane-1,3-diamine and
+        // N^4,2-dimethylpentane-2,4-diamine, never N or N'.
+        for (smiles, expected) in [
+            ("CNCCCNCC", "N^1-ethyl-N^3-methylpropane-1,3-diamine"),
+            ("CC(N)(C)CC(NC)C", "N^4,2-dimethylpentane-2,4-diamine"),
+            ("CN(C)CCCNC", "N^1,N^1,N^3-trimethylpropane-1,3-diamine"),
+            (
+                "CCN(CC)CCCNC",
+                "N^1,N^1-diethyl-N^3-methylpropane-1,3-diamine",
+            ),
+            (
+                "CNCCCCCCCCCCCCNCC",
+                "N^1-ethyl-N^12-methyldodecane-1,12-diamine",
+            ),
+            (
+                "C1CCN(CC1)CCNC2=C(C(=NC=N2)NC3=NC4=CC=CC=C4S3)[N+](=O)[O-]",
+                "N^4-(1,3-benzothiazol-2-yl)-5-nitro-N^6-[2-(piperidin-1-yl)ethyl]pyrimidine-4,6-diamine",
+            ),
+            // Fusion-letter and composite parent locants keep their hyphen and order.
+            (
+                "CNC12CCCCC1(NCC)CCCC2",
+                "N^4a-ethyl-N^8a-methyldecahydronaphthalene-4a,8a-diamine",
+            ),
+            (
+                "C1(C2CCCCCC(C3CCCCCCCCCCC3)CCCCC2)C(NC)CCCCCCCC(NC)CC1",
+                "N^1^2,N^1^10-dimethyl[1^1,2^1:2^7,3^1-tercyclododecane]-1^2,1^10-diamine",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}",
+            );
+        }
+    }
+
+    #[test]
     fn axial_general_names_leave_nuclide_groups_alone() {
         assert_eq!(
             super::general_axial_name("(31P)phosphanium (2M)-2-(2-hydroxyphenyl)benzen-1-olate")
@@ -2634,6 +2677,40 @@ mod tests {
                 "c1ccc2c(c1)Nc1cc3Sc4ccccc4Nc3cc1O2",
                 "7,14-dihydro[1,4]benzothiazino[2,3-b]phenoxazine",
             ),
+            // P-25.2.2.2: heteranthrenes (same heteroatoms) are PINs.
+            ("c1ccc2c(c1)Oc1ccccc1O2", "oxanthrene"),
+            ("c1ccc2c(c1)[Se]c1ccccc1[Se]2", "selenanthrene"),
+            ("c1ccc2c(c1)[Te]c1ccccc1[Te]2", "telluranthrene"),
+            // P-25.2.2.3: pheno...ine names (different heteroatoms) are PINs.
+            ("c1ccc2c(c1)Oc1ccccc1[Se]2", "phenoxaselenine"),
+            ("C1=CC=C2C(=C1)OC1=CC=CC=C1[Se]2", "phenoxaselenine"),
+            ("c1ccc2c(c1)Oc1ccccc1[Te]2", "phenoxatellurine"),
+            ("c1ccc2c(c1)Nc1ccccc1[Se]2", "10H-phenoselenazine"),
+            ("[Se]1c2ccccc2Nc2ccccc12", "10H-phenoselenazine"),
+            ("c1ccc2c(c1)Nc1ccccc1[Te]2", "10H-phenotellurazine"),
+            ("c1ccc2c(c1)Pc1ccccc1O2", "10H-phenoxaphosphinine"),
+            ("c1ccc2c(c1)[AsH]c1ccccc1O2", "10H-phenoxarsinine"),
+            ("c1ccc2c(c1)[SbH]c1ccccc1O2", "10H-phenoxastibinine"),
+            ("c1ccc2c(c1)[AsH]c1ccccc1S2", "10H-phenothiarsinine"),
+            // P-25.3.2.4: they are senior parent components in fusion names;
+            // (a) senior heteroatom, (b) more rings.
+            ("c1ccc2c(c1)Oc1ccc3ccccc3c1O2", "benzo[a]oxanthrene"),
+            ("c1ccc2cc3c(cc2c1)Oc1ccccc1O3", "benzo[b]oxanthrene"),
+            (
+                "c1ccc2c(c1)Pc1ccc3ccccc3c1O2",
+                "7H-benzo[c]phenoxaphosphinine",
+            ),
+            (
+                "c1ccc2c(c1)Oc1ccc3[Se]c4ccccc4[Se]c3c1O2",
+                "[1,4]benzodiselenino[2,3-a]oxanthrene",
+            ),
+            ("Cc1ccc2Oc3ccccc3Oc2c1", "2-methyloxanthrene"),
+            ("OC(=O)c1ccc2Oc3ccccc3Oc2c1", "oxanthrene-2-carboxylic acid"),
+            ("CN1c2ccccc2[Se]c2ccccc12", "10-methyl-10H-phenoselenazine"),
+            (
+                "C1CCC2C(C1)Oc1ccccc1O2",
+                "1,2,3,4,4a,10a-hexahydrooxanthrene",
+            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
@@ -2854,6 +2931,38 @@ mod tests {
             name.status,
             NameStatus::Unverified(NameReason::OpsinFusionLayout)
         );
+    }
+
+    #[test]
+    fn compound_prefixes_inside_heteroatom_prefixes_are_enclosed() {
+        // P-16.5.1.1, P-29.1.2, P-35.4.1: a compound prefix is enclosed within a larger
+        // prefix, as in (chloromethyl)amino and (methoxyamino)phosphanyl; a simple one is not.
+        for (smiles, expected) in [
+            ("ClCSCC(=O)O", "[(chloromethyl)sulfanyl]acetic acid"),
+            ("ClCNCC(=O)O", "[(chloromethyl)amino]acetic acid"),
+            ("COCSCC(=O)O", "[(methoxymethyl)sulfanyl]acetic acid"),
+            ("C1CC1CNCC(=O)O", "[(cyclopropylmethyl)amino]acetic acid"),
+            ("ClC[Se]CC(=O)O", "[(chloromethyl)selanyl]acetic acid"),
+            ("CONSCC(=O)O", "[(methoxyamino)sulfanyl]acetic acid"),
+            (
+                "ClCN=C1CCCC1C(=O)O",
+                "2-[(chloromethyl)imino]cyclopentane-1-carboxylic acid",
+            ),
+            ("CSCC(=O)O", "(methylsulfanyl)acetic acid"),
+            ("CNCC(=O)O", "(methylamino)acetic acid"),
+            // Formerly declined: (cyclohexylperoxyamino) lost its carbamate contraction.
+            ("COC(=O)NOOC1CCCCC1", "methyl (cyclohexylperoxy)carbamate"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
+        }
     }
 
     #[test]
@@ -3132,6 +3241,48 @@ mod tests {
     }
 
     #[test]
+    fn substituted_pyrrolic_nitrogen_keeps_systematic_fusion_indicated_hydrogen() {
+        // #16, #29: a PIN always cites the parent hydride's indicated hydrogen
+        // (P-14.7.1, P-58.2.1.1); substituent prefixes are added after it
+        // (P-58.2.4), so a substituted N-H keeps it, as in 1-methyl-1H-indole.
+        for (smiles, expected) in [
+            ("Cn1ccc2sccc21", "4-methyl-4H-thieno[3,2-b]pyrrole"),
+            ("Cn1cnc2ccncc21", "3-methyl-3H-imidazo[4,5-c]pyridine"),
+            (
+                "Cn1nnc2ccncc21",
+                "3-methyl-3H-[1,2,3]triazolo[4,5-c]pyridine",
+            ),
+            ("Cn1ccc2ccc3ccccc3c21", "1-methyl-1H-benzo[g]indole"),
+            ("Cn1ccc2c1ccc1ccccc12", "3-methyl-3H-benzo[e]indole"),
+            ("Cn1c2ccncc2c2ccccc21", "5-methyl-5H-pyrido[4,3-b]indole"),
+            ("Cn1c2cccnc2c2ccccc21", "5-methyl-5H-pyrido[3,2-b]indole"),
+            ("CN1N=CC=2C1=NC=CC2", "1-methyl-1H-pyrazolo[3,4-b]pyridine"),
+            ("CN1C=CC=2C=NC=CC21", "1-methyl-1H-pyrrolo[3,2-c]pyridine"),
+            (
+                "O=C1C=Cc2ccn(C)c21",
+                "1-methylcyclopenta[b]pyrrol-6(1H)-one",
+            ),
+            // Controls the issues report as already correct.
+            ("Cn1ccc2ncccc21", "1-methyl-1H-pyrrolo[3,2-b]pyridine"),
+            ("Cn1c2cnccc2c2ccccc21", "9-methyl-9H-pyrido[3,4-b]indole"),
+            (
+                "C[NH+]1C=CC=2C=NC=CC21",
+                "1-methyl-1H-pyrrolo[3,2-c]pyridin-1-ium",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
+        }
+    }
+
+    #[test]
     fn angular_oxazole_thiazole_acetic_acid_round_trips() {
         let smiles = "O=C(O)Cc1nc2ccc3ocnc3c2s1";
         let name = name_smiles(smiles, &Default::default()).unwrap().text;
@@ -3206,7 +3357,6 @@ mod tests {
             "CC(=O)NOC(=O)Cc1nc(C(=O)O)cs1",
             "O=C(O)[C@H](O)[C@@H](O)C(=O)OO",
             "CN(C(=O)[O-])C1(B(O)O)CCC1",
-            "COC(=O)NOOC1CCCCC1",
             "O[N@]1CC12CC2",
             "CN(C)[N@]1CC1(C)CO",
             "C[P@]1CCCC1C",
