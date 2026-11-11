@@ -14,7 +14,7 @@ export type NameReason =
   | "amine_oxide_zwitterion" | "principal_group_tie" | "lambda_parent_hydrogen"
   | "spiro_hydrogen" | "isotope_placement" | "boughton_isotope" | "radical_ion"
   | "anion_parent" | "cation_parent" | "ionic_suffix_order" | "salt_ion_order"
-  | "phane" | "relative_ring_stereo" | "endo_exo_stereo" | "unknown_configuration"
+  | "adduct" | "phane" | "relative_ring_stereo" | "endo_exo_stereo" | "unknown_configuration"
   | "axial_alternative";
 
 export type NameStatus = "preferred" | "not_preferred" | "unverified";

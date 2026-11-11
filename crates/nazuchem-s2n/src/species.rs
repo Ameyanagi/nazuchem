@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/species.rs | issue #25
 // Source: ReShiki | src/naming/openclatura/species.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: Nazuchem | crates/nazuchem-s2n/src/species.rs | issue #32
 // Copyright (c) 2026 lamalab-org
@@ -511,6 +512,229 @@ pub(super) fn name_salt(
         text: super::nest_enclosing_marks(&words.join(" ")),
         status,
         alternatives: vec![],
+        omitted_stereo: vec![],
+        omitted_units: 0,
+        verification: None,
+    })
+}
+
+/// P-14.8, P-77.1.3 (1): a set with neutral components, such as a base drawn
+/// with HCl or a hydrate, is named as an adduct: the component names joined by
+/// em dashes, then the ratio. Organic components come first, by seniority of
+/// classes (P-14.8.1, P-41; a salt is ionic, so it leads), then the inorganic
+/// component, then water (P-14.8.2). The hydrohalide form of P-77.1.3 (3) and
+/// the hydrate form of P-14.8.2 are alternatives.
+// Provenance: fn name_adduct | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::name_adduct
+pub(super) fn name_adduct(
+    smiles: &str,
+    style: IsotopeStyle,
+    budget: &nazuchem_kernel::budget::Budget,
+) -> Result<Name, String> {
+    const ORGANIC: u8 = 0;
+    const INORGANIC: u8 = 1;
+    const WATER: u8 = 2;
+    const UNORDERED: u16 = u16::MAX;
+    struct Part {
+        // Formula order: kind, then class seniority (P-41).
+        rank: (u8, u16),
+        hydride: u8,
+        labelled: bool,
+        base: bool,
+        salt: bool,
+        text: String,
+        status: NameStatus,
+        count: usize,
+    }
+    let mut ions = Vec::new();
+    let mut organic_ion = false;
+    // Per neutral component: whether it is organic and has nitrogen, the
+    // element of a mononuclear hydride (0 otherwise), whether it is
+    // isotopically labelled, and its count.
+    let mut neutral = BTreeMap::<&str, (bool, bool, u8, bool, usize)>::new();
+    let mut charged_neutral = false;
+    for component in smiles.split('.') {
+        let atoms = nazuchem_kernel::smiles::prepare(component, budget)
+            .map_err(|e| e.to_string())?
+            .state
+            .graph
+            .atoms;
+        let organic = atoms.iter().any(|a| a.atomic_number == 6);
+        if atoms.iter().map(|a| i32::from(a.charge)).sum::<i32>() == 0 {
+            let nitrogen = atoms.iter().any(|a| a.atomic_number == 7);
+            let mut heavy = atoms.iter().filter(|a| a.atomic_number != 1);
+            let hydride = match (heavy.next(), heavy.next()) {
+                (Some(atom), None) => atom.atomic_number,
+                _ => 0,
+            };
+            // Radicals are the most senior class (P-41) and are not ordered here.
+            if atoms.iter().any(|a| a.radical_electrons != 0) {
+                return Err("Adducts with radical components are unsupported".into());
+            }
+            let labelled = atoms.iter().any(|a| a.isotope != 0);
+            charged_neutral |= atoms.iter().any(|a| a.charge != 0);
+            neutral
+                .entry(component)
+                .or_insert((organic, nitrogen, hydride, labelled, 0))
+                .4 += 1;
+        } else {
+            ions.push(component);
+            organic_ion |= organic;
+        }
+    }
+    if neutral.is_empty() {
+        return name_salt(smiles, style, budget);
+    }
+    let mut parts = Vec::new();
+    if !ions.is_empty() {
+        // How a zwitterion pairs with separate ions is not decided here.
+        if charged_neutral {
+            return Err(
+                "Zwitterions and charge-separated components mixed with ions are unsupported"
+                    .into(),
+            );
+        }
+        let salt = name_salt(&ions.join("."), style, budget)?;
+        parts.push(Part {
+            rank: (if organic_ion { ORGANIC } else { INORGANIC }, 0),
+            hydride: 0,
+            labelled: false,
+            base: false,
+            salt: true,
+            text: salt.text,
+            status: salt.status,
+            count: 1,
+        });
+    }
+    for (component, (organic, nitrogen, hydride, labelled, count)) in neutral {
+        let name = name_smiles_with_style(component, style, budget)?;
+        let rank = if hydride == 8 {
+            (WATER, 0)
+        } else if organic {
+            let mol = super::graph_io::read_smiles(component, budget)?;
+            // A zwitterion is senior to every neutral class (P-41), unlike a
+            // charge-separated neutral group such as nitro.
+            let neutral_groups = neutral_group_atoms(&mol);
+            if mol
+                .atoms
+                .iter()
+                .any(|(i, atom)| atom.charge != 0 && !neutral_groups.contains(i))
+            {
+                return Err("Adducts with zwitterionic components are unsupported".into());
+            }
+            let groups = super::perception::perceive_groups(&mol);
+            let key = super::principal_groups::component_principal_key(&mol, &groups, false);
+            // P-41, Table 4.1: the class of the principal characteristic
+            // group, for the classes whose perceived key is that class alone.
+            let class = match key.as_deref() {
+                Some("carboxylic_acid" | "ring_carboxylic_acid") => 70,
+                Some("sulfonic_acid") => 71,
+                Some("amide" | "ring_amide") => 110,
+                Some("nitrile" | "ring_nitrile") => 140,
+                Some("aldehyde" | "ring_aldehyde") => 150,
+                Some("ketone") => 160,
+                Some("alcohol") => 170,
+                Some("amine") => 190,
+                Some("imine") => 200,
+                // Classes 21 to 43 have no suffix.
+                None => 210,
+                Some(_) => UNORDERED,
+            };
+            (ORGANIC, class)
+        } else {
+            (INORGANIC, 0)
+        };
+        parts.push(Part {
+            rank,
+            hydride,
+            labelled,
+            base: organic && nitrogen,
+            salt: false,
+            text: name.text,
+            status: name.status,
+            count,
+        });
+    }
+    parts.sort_by_key(|a| a.rank);
+    if parts.len() < 2 {
+        return Err("Adduct naming requires at least two different components".into());
+    }
+    // Organic components of one class, or without a characteristic group, are
+    // ordered by the further criteria of P-41 and P-44, which are not covered.
+    let neutral_organic = parts.iter().filter(|p| p.rank.0 == ORGANIC && !p.salt);
+    if neutral_organic.clone().count() > 1 && neutral_organic.clone().any(|p| p.rank.1 == UNORDERED)
+        || parts
+            .windows(2)
+            .any(|pair| pair[0].rank.0 == ORGANIC && pair[0].rank == pair[1].rank)
+    {
+        return Err("Adducts of organic components of the same class are unsupported".into());
+    }
+    // Inorganic components are ordered by the Red Book, which is not covered.
+    if parts.iter().filter(|p| p.rank.0 == INORGANIC).count() > 1 {
+        return Err(
+            "Adducts with more than one inorganic component besides water are unsupported".into(),
+        );
+    }
+    // A mixed adduct has no preferred IUPAC name (P-14.8.2); the class order
+    // of an organic adduct is not certified yet.
+    let mut status = if parts.iter().any(|p| p.rank.0 != ORGANIC) {
+        NameStatus::NotPreferred(NameReason::Adduct)
+    } else {
+        NameStatus::Unverified(NameReason::Adduct)
+    };
+    for part in &parts {
+        if part.status.severity() > status.severity() {
+            status = part.status;
+        }
+    }
+    let multiplied = |n: usize, word: &str| match n {
+        1 => word.to_owned(),
+        n => format!("{}{word}", super::rules::multipliers::basic(n)),
+    };
+    let word = match parts.as_slice() {
+        // P-14.8.2: hydrate with a numerical prefix; hemi and sesqui are also used.
+        [first, water] if water.rank.0 == WATER && !water.labelled => {
+            match (first.count, water.count) {
+                (1, 1) => Some("monohydrate".to_owned()),
+                (1, n) => Some(multiplied(n, "hydrate")),
+                (2, 1) => Some("hemihydrate".to_owned()),
+                (2, 3) => Some("sesquihydrate".to_owned()),
+                _ => None,
+            }
+        }
+        // P-77.1.3 (3): the unaltered name of the organic base, then the hydrohalide.
+        [first, acid] if first.count == 1 && first.base && !acid.labelled => [
+            (9, "hydrofluoride"),
+            (17, "hydrochloride"),
+            (35, "hydrobromide"),
+            (53, "hydroiodide"),
+        ]
+        .iter()
+        .find(|(halogen, _)| *halogen == acid.hydride)
+        .map(|(_, word)| multiplied(acid.count, word)),
+        _ => None,
+    };
+    let alternatives = word
+        .map(|word| nazuchem_ir::AlternativeName {
+            name: format!("{} {word}", parts[0].text),
+            status: NameStatus::NotPreferred(NameReason::Adduct),
+        })
+        .into_iter()
+        .collect();
+    // A binary salt name is enclosed, as in {piperazin-1-ium ...carboxylate}—ethyl
+    // acetate—dichloromethane (1/1/1) (P-14.8.1).
+    let names: Vec<_> = parts
+        .iter()
+        .map(|p| match p.salt {
+            true => super::nest_enclosing_marks(&format!("({})", p.text)),
+            false => p.text.clone(),
+        })
+        .collect();
+    let ratio: Vec<_> = parts.iter().map(|p| p.count.to_string()).collect();
+    Ok(Name {
+        text: format!("{} ({})", names.join("\u{2014}"), ratio.join("/")),
+        status,
+        alternatives,
         omitted_stereo: vec![],
         omitted_units: 0,
         verification: None,
@@ -1280,6 +1504,207 @@ mod tests {
         }
     }
 
+    /// Issue #25. P-14.8.1: adduct names join the components with em dashes
+    /// and cite the ratio; organic components are in order of class seniority
+    /// (P-41) and an enclosed salt leads. P-14.8.2: inorganic components
+    /// follow, water is last, a mixed adduct has no PIN, and a hydrate may be
+    /// cited with a numerical prefix. P-77.1.3 (1), (3): a salt of an organic
+    /// base drawn with the neutral acid is an adduct or a hydrohalide.
+    #[test]
+    // Provenance: fn tests::neutral_components_are_named_as_adducts | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::tests::neutral_components_are_named_as_adducts
+    fn neutral_components_are_named_as_adducts() {
+        let parser = nazuchem_n2s::Parser::new().unwrap();
+        let mixed = NameStatus::NotPreferred(NameReason::Adduct);
+        let organic = NameStatus::Unverified(NameReason::Adduct);
+        for (smiles, expected, status, alternative) in [
+            // P-14.8.2 examples.
+            (
+                "CN1CCC[C@H]1c1cccnc1.Cl",
+                "3-[(2S)-1-methylpyrrolidin-2-yl]pyridine\u{2014}hydrogen chloride (1/1)",
+                mixed,
+                Some("3-[(2S)-1-methylpyrrolidin-2-yl]pyridine hydrochloride"),
+            ),
+            (
+                "NCC(=O)Nc1ccc(OCC)cc1.O",
+                "2-amino-N-(4-ethoxyphenyl)acetamide\u{2014}water (1/1)",
+                mixed,
+                Some("2-amino-N-(4-ethoxyphenyl)acetamide monohydrate"),
+            ),
+            (
+                "OC(=O)C(O)=O.NCCN.OC(=O)C(O)=O.NCCN.O.O.O",
+                "oxalic acid\u{2014}ethane-1,2-diamine\u{2014}water (2/2/3)",
+                mixed,
+                None,
+            ),
+            (
+                "NCc1ccc(cc1)S(=O)(=O)c1ccc(N)cc1.Cl.O",
+                "4-[4-(aminomethyl)benzene-1-sulfonyl]aniline\u{2014}hydrogen chloride\u{2014}water (1/1/1)",
+                mixed,
+                None,
+            ),
+            // P-77.1.3 example (1).
+            (
+                "CN(C)C1SCCN1.CN(C)C1SCCN1.OS(=O)(=O)O",
+                "N,N-dimethyl-1,3-thiazolidin-2-amine\u{2014}sulfuric acid (2/1)",
+                mixed,
+                None,
+            ),
+            // P-77.1.3 (3): hydrohalides.
+            (
+                "Nc1ccccc1.Cl",
+                "aniline\u{2014}hydrogen chloride (1/1)",
+                mixed,
+                Some("aniline hydrochloride"),
+            ),
+            (
+                "CCN.Br",
+                "ethanamine\u{2014}hydrogen bromide (1/1)",
+                mixed,
+                Some("ethanamine hydrobromide"),
+            ),
+            (
+                "C1C=CCC2C1CNC2.I",
+                "2,3,3a,4,7,7a-hexahydro-1H-isoindole\u{2014}hydrogen iodide (1/1)",
+                mixed,
+                Some("2,3,3a,4,7,7a-hexahydro-1H-isoindole hydroiodide"),
+            ),
+            (
+                "NCCN.Cl.Cl",
+                "ethane-1,2-diamine\u{2014}hydrogen chloride (1/2)",
+                mixed,
+                Some("ethane-1,2-diamine dihydrochloride"),
+            ),
+            // The ratio counts the drawn components and is not reduced.
+            (
+                "Nc1ccccc1.Nc1ccccc1.Cl.Cl",
+                "aniline\u{2014}hydrogen chloride (2/2)",
+                mixed,
+                None,
+            ),
+            (
+                "[H]Cl.NCC",
+                "ethanamine\u{2014}hydrogen chloride (1/1)",
+                mixed,
+                Some("ethanamine hydrochloride"),
+            ),
+            // A hydrocarbon is not a base, so it takes no hydrohalide form.
+            (
+                "c1ccccc1.Cl",
+                "benzene\u{2014}hydrogen chloride (1/1)",
+                mixed,
+                None,
+            ),
+            // P-14.8.2: organic components precede inorganic ones.
+            (
+                "CCO.[Na+].[Cl-]",
+                "ethanol\u{2014}(sodium chloride) (1/1)",
+                mixed,
+                None,
+            ),
+            // P-14.8.1: a salt is enclosed; P-14.8.2: hydrates, hemi included.
+            (
+                "CC(=O)[O-].[Na+].O.O.O",
+                "(sodium acetate)\u{2014}water (1/3)",
+                mixed,
+                Some("sodium acetate trihydrate"),
+            ),
+            (
+                "C[NH3+].C[NH3+].O=S(=O)([O-])[O-].O.O",
+                "[bis(methanaminium) sulfate]\u{2014}water (1/2)",
+                mixed,
+                Some("bis(methanaminium) sulfate dihydrate"),
+            ),
+            (
+                "Nc1ccccc1.Nc1ccccc1.O",
+                "aniline\u{2014}water (2/1)",
+                mixed,
+                Some("aniline hemihydrate"),
+            ),
+            // P-14.8.2: labelled water is still last; no hydrate form is given.
+            (
+                "CN.Cl.[18OH2]",
+                "methanamine\u{2014}hydrogen chloride\u{2014}(18O)water (1/1/1)",
+                mixed,
+                None,
+            ),
+            // P-14.8.1 examples: organic adducts in order of class seniority.
+            (
+                "CCO.c1ccncc1",
+                "ethanol\u{2014}pyridine (1/1)",
+                organic,
+                None,
+            ),
+            (
+                "Oc1cccc2cccnc12.OC(=O)c1ccc(cc1)[N+]([O-])=O",
+                "4-nitrobenzoic acid\u{2014}quinolin-8-ol (1/1)",
+                organic,
+                None,
+            ),
+            (
+                "CC(N)=O.CC#N",
+                "acetamide\u{2014}acetonitrile (1/1)",
+                organic,
+                None,
+            ),
+            // P-77.1.3 (1): organic acids are senior to amines (P-41).
+            (
+                "Nc1ccccc1.OC=O",
+                "formic acid\u{2014}aniline (1/1)",
+                organic,
+                None,
+            ),
+            (
+                "Nc1ccccc1.Cc1ccc(S(=O)(=O)O)cc1",
+                "4-methylbenzene-1-sulfonic acid\u{2014}aniline (1/1)",
+                organic,
+                None,
+            ),
+            (
+                "Nc1ccccc1.OC(=O)C(F)(F)F",
+                "trifluoroacetic acid\u{2014}aniline (1/1)",
+                organic,
+                None,
+            ),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default())
+                .unwrap_or_else(|e| panic!("{smiles}: {e}"));
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, status, "{smiles}");
+            let alternatives: Vec<_> = name.alternatives.iter().map(|a| &*a.name).collect();
+            assert_eq!(alternatives, Vec::from_iter(alternative), "{smiles}");
+            assert!(name.alternatives.iter().all(|a| a.status == mixed));
+            for text in std::iter::once(expected).chain(alternative) {
+                let parsed = parser.parse(text, &nazuchem_n2s::ParseOptions::strict());
+                assert_eq!(
+                    parsed.status,
+                    nazuchem_n2s::Status::Success,
+                    "{text}: {}",
+                    parsed.message
+                );
+                let reconstructed = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
+                crate::test_support::verify_identity(smiles, &reconstructed)
+                    .unwrap_or_else(|e| panic!("{smiles} -> {text} -> {reconstructed}: {e}"));
+            }
+        }
+        // Identical molecules are no adduct, and the Red Book order of several
+        // inorganic components is not covered.
+        for smiles in [
+            "O.O",
+            "Nc1ccccc1.Cl.Br",
+            "[NH3+]CC(=O)[O-].[Na+].[Cl-]",
+            "[NH3+]CC(=O)[O-].CC(=O)O",
+            "[CH3].Cl",
+            // Classes whose order is not covered: an ester and an anhydride.
+            "CS(=O)(=O)OC.CC(=O)OC(C)=O",
+            // Same class: the further P-41 and P-44 criteria are not covered.
+            "ClCCl.c1ccncc1",
+            "Oc1cccc(O)c1O.Oc1cccc2cccnc12",
+        ] {
+            assert!(super::super::name_smiles(smiles, &Default::default()).is_err());
+        }
+    }
+
     /// A salt takes its strongest ion assessment (Preferred < Unverified <
     /// NotPreferred; ties keep the first ion's reason in citation order), so a
     /// known departure is never masked by an unchecked ion (P-77.1.1, P-77.2.1).
@@ -1439,12 +1864,7 @@ mod tests {
     // Provenance: fn tests::mixtures_unbalanced_sets_and_zwitterions_are_refused | original
     // Source: ReShiki | src/naming/openclatura/species.rs::tests::mixtures_unbalanced_sets_and_zwitterions_are_refused
     fn mixtures_unbalanced_sets_and_zwitterions_are_refused() {
-        for smiles in [
-            "C.C",
-            "CCO.[Na+].[Cl-]",
-            "[Na+].[Na+].[Cl-]",
-            "[NH3+]CC(=O)[O-].[Na+].[Cl-]",
-        ] {
+        for smiles in ["C.C", "[Na+].[Na+].[Cl-]", "[NH3+]CC(=O)[O-].[Na+].[Cl-]"] {
             assert!(
                 super::super::name_smiles(smiles, &Default::default()).is_err(),
                 "{smiles}"
