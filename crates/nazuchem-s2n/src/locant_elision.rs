@@ -224,6 +224,10 @@ pub fn substituent_locant_set_is_unique(
         || parts.principal_group.is_some()
         || !parts.unsaturations.is_empty()
         || !parts.a_prefixes.is_empty()
+        // P-14.3.3, P-15.4.1.2: skeletal locants in the parent name
+        // (1,3,5-triazine) are essential, so all locants are cited.
+        || super::assembly_parent::parent_stem_and_terminal(parts)
+            .is_ok_and(|(stem, _)| stem.contains(|c: char| c.is_ascii_digit()))
     {
         return false;
     }
@@ -1497,6 +1501,15 @@ mod tests {
                 "2,2,4,4,6,6-hexafluoro-1,3,5-trioxane",
             ),
             ("Fc1c(F)c(F)nc(F)c1F", "pentafluoropyridine"),
+            // Nazuchem issue #20, P-14.3.3, P-15.4.1.2: skeletal locants in the
+            // parent name are essential, so prefix locants are cited even when
+            // P-14.3.4.3 or P-14.3.4.5 would omit them (P-12.2:
+            // 2-methyl-1,3,5,2,4,6-trioxatrisilinane).
+            ("ClC1=NC(Cl)=NC(Cl)=N1", "2,4,6-trichloro-1,3,5-triazine"),
+            ("Clc1ncncn1", "2-chloro-1,3,5-triazine"),
+            ("ClC1=NC(Cl)=NN=C1Cl", "3,5,6-trichloro-1,2,4-triazine"),
+            ("Clc1nsnc1Cl", "3,4-dichloro-1,2,5-thiadiazole"),
+            ("Clc1nc(Cl)c(Cl)nc1Cl", "tetrachloropyrazine"),
             (
                 "ClC(Cl)=C(Cl)C(Cl)=C(Cl)Cl",
                 "1,1,2,3,4,4-hexachlorobuta-1,3-diene",

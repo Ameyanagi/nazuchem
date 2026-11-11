@@ -228,13 +228,7 @@ pub fn audit_fusion_plan(
             .iter()
             .filter_map(|(&id, l)| {
                 let a = &mol.atoms[&id];
-                (indicated_hydrogens.contains(l)
-                    && a.symbol == "N"
-                    && a.charge == 0
-                    && (a.total_h_count == 1
-                        || ast.plan_kind == "benzoheterocycle"
-                            && mancude::is_added_hydrogen_nitrogen(mol, parent_atoms, id)))
-                .then_some(id)
+                (indicated_hydrogens.contains(l) && a.symbol == "N" && a.charge == 0).then_some(id)
             })
             .collect();
         let carbon_candidates = intrinsic_carbon_candidate_atoms(ast, &specs, mol)?;
@@ -2553,8 +2547,8 @@ fn has_consistent_derivative_operations(
                     && neighbors.iter().all(|n| {
                         atoms.contains(n) && mol.get_bond(*id, *n).is_some_and(|b| b.order == 1)
                     }))
-                    || ast.plan_kind == "benzoheterocycle"
-                        && mancude::is_added_hydrogen_nitrogen(mol, &atoms, *id))
+                    || (a.is_aromatic || ast.plan_kind == "benzoheterocycle")
+                        && mancude::single_bonded_parent_nitrogen(mol, &atoms, *id))
                 && single_assignment(*id)
         })
         .collect();

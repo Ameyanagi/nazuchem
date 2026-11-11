@@ -1400,7 +1400,7 @@ fn simple_central_parent_hydride_name(
     mol: &Molecule,
     atoms: &AtomSet,
 ) -> Result<Option<StructuralParentName>, String> {
-    let centers: Vec<_> = atoms
+    let mut centers: Vec<_> = atoms
         .iter()
         .copied()
         .filter(|i| {
@@ -1416,6 +1416,14 @@ fn simple_central_parent_hydride_name(
                         && matches!(mol.atoms[i].symbol.as_str(), "O" | "S" | "Se" | "Te"))
         })
         .collect();
+    // P-41, P-73.1.2: a cation outranks every neutral class, so a cationic
+    // chalcogen centre is the parent over neutral heteroatoms such as an amine.
+    if centers.len() > 1 {
+        centers.retain(|i| {
+            mol.atoms[i].charge == 1
+                && matches!(mol.atoms[i].symbol.as_str(), "O" | "S" | "Se" | "Te")
+        });
+    }
     if centers.len() != 1 {
         return Ok(None);
     }
@@ -1443,17 +1451,36 @@ fn simple_central_parent_hydride_name(
             .any(|&n| is_chalcogen(n) && mol.atoms[&n].charge == -1 && mol.degree(n) == 1);
     // P-73.1.1.1/.2: protonated chalcogen hydrides retain the systematic
     // oxidanium, sulfanium, selanium or tellanium parent, including remaining
-    // hydrogens.
+    // hydrogens. P-73.1.2.1: ylidene and ylidyne ligands substitute the same
+    // parent, as in ethyl(propan-2-ylidene)oxidanium.
     // Other ionic or radical centers require the ordinary parent selection.
     // The isotope adapter needs atom locants, which this shortcut lacks.
     let chalcogen_onium = !mol.is_isotope_parent()
         && a.charge == 1
         && matches!(a.symbol.as_str(), "O" | "S" | "Se" | "Te")
-        && mol.get_neighbors(c).len() + a.total_h_count.max(a.explicit_h_count) == 3
         && mol
             .get_neighbors(c)
             .iter()
-            .all(|n| mol.atoms[n].is_carbon() && mol.bond_order(c, *n) == 1)
+            .map(|n| mol.bond_order(c, *n))
+            .sum::<usize>()
+            + a.total_h_count.max(a.explicit_h_count)
+            == 3
+        // A heteroatom on an ylidene or ylidyne carbon can need a retained
+        // parent such as uronium (P-73.1.2.2) or meet prefixes that assume a
+        // single attachment, so those keep the ordinary route.
+        && mol.get_neighbors(c).iter().all(|&n| {
+            mol.atoms[&n].is_carbon()
+                && (mol.bond_order(c, n) == 1
+                    || mol
+                        .get_neighbors(n)
+                        .iter()
+                        .all(|&m| m == c || mol.atoms[&m].is_carbon()))
+        })
+        // Ligand names cannot carry E/Z of a double bond at the centre.
+        && !mol
+            .bonds
+            .values()
+            .any(|b| (b.u == c || b.v == c) && b.stereo.is_some())
         && mol
             .atoms
             .values()
@@ -1492,7 +1519,10 @@ fn simple_central_parent_hydride_name(
             continue;
         }
         let mut name = central_ligand_name(mol, atoms, c, n)?;
-        if name.is_empty() && hydrocarbyl && mol.atoms[&n].is_carbon() && mol.bond_order(c, n) == 1
+        if name.is_empty()
+            && hydrocarbyl
+            && mol.atoms[&n].is_carbon()
+            && (chalcogen_onium || mol.bond_order(c, n) == 1)
         {
             let ligand = component_atoms_until_blocked(mol, atoms, n, &set([c]));
             if !ligand.is_empty()
@@ -3881,16 +3911,51 @@ mod tests {
             ("C[O+](C)c1ccccc1", "dimethyl(phenyl)oxidanium"),
             ("C[O+](C)CC(=O)O", "(carboxymethyl)di(methyl)oxidanium"),
             ("C[O+](C)C(C)=O", "acetyldi(methyl)oxidanium"),
+            // Issue #18. P-73.1.1.1, P-73.1.2.1: ylidene and ylidyne ligands
+            // (ethylideneoxidanium, ethyl(propan-2-ylidene)oxidanium,
+            // ethylidyneoxidanium are the Blue Book PINs).
+            ("C=[O+]C", "methyl(methylidene)oxidanium"),
+            ("CC=[O+]C", "ethylidene(methyl)oxidanium"),
+            ("CC=[OH+]", "ethylideneoxidanium"),
+            ("CC(C)=[O+]CC", "ethyl(propan-2-ylidene)oxidanium"),
+            ("CC#[O+]", "ethylidyneoxidanium"),
+            ("C1CCCCC1=[O+]C", "cyclohexylidene(methyl)oxidanium"),
+            ("C=[S+]C", "methyl(methylidene)sulfanium"),
+            ("CC=[Se+]C", "ethylidene(methyl)selanium"),
+            ("NCC=[OH+]", "(2-aminoethylidene)oxidanium"),
+            // Issue #18. P-41, P-73.1.2: the cation outranks a neutral amine or
+            // other heteroatom centre, which becomes a prefix.
+            (
+                "C[O+](C)CCN(C)C",
+                "[2-(dimethylamino)ethyl]di(methyl)oxidanium",
+            ),
+            ("C=[O+]CCN", "(2-aminoethyl)(methylidene)oxidanium"),
+            ("C[O+](C)C1CCNCC1", "dimethyl(piperidin-4-yl)oxidanium"),
+            (
+                "C[S+](C)CCN(C)C",
+                "[2-(dimethylamino)ethyl]di(methyl)sulfanium",
+            ),
         ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
             let result = simple_central_parent_hydride_name(&mol, &all_atoms(&mol))
                 .unwrap()
                 .unwrap();
-            assert_eq!(result.name, expected, "{smiles}");
+            // Enclosing marks are normalized to brackets after this shortcut.
+            assert_eq!(
+                result.name,
+                expected.replace('[', "(").replace(']', ")"),
+                "{smiles}"
+            );
             assert!(result.certified, "{smiles}");
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = nazuchem_n2s::Parser::new()
+                .unwrap()
+                .parse(&name.text, &nazuchem_n2s::ParseOptions::strict());
+            let reconstructed = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
+            crate::test_support::verify_identity(smiles, &reconstructed)
+                .unwrap_or_else(|error| panic!("{smiles} -> {expected}: {error}"));
         }
     }
 
@@ -3899,7 +3964,14 @@ mod tests {
         for smiles in [
             "C[S+]1CCCC1",
             "C[O+]1CCCC1",
-            "C=[O+]C",
+            // The ligand names cannot carry E/Z of the C=O+ bond.
+            "C/C=[O+]/C",
+            // P-73.1.2.2: protonated (thio)urea is named from uronium.
+            "[OH+]=C(N)N",
+            "[SH+]=C(N)N",
+            // Methanethioyl would cite a single bond to the centre.
+            "S=C=[OH+]",
+            "C[O+](C)CC[S+](C)C",
             "C[S+](C)[CH2-]",
             "C[S+](C)C[O-]",
             "C[S+](C)CCCCCC[N+](C)(C)C",
