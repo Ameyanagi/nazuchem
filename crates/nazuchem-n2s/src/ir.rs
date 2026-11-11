@@ -103,6 +103,16 @@ impl Structure {
                 protected.extend(graph.neighbours(bond.to));
             }
         }
+        // Stated unknown configurations keep the same identities as defined ones.
+        for &id in &self.unknown_stereo_atoms {
+            protected.insert(id);
+            protected.extend(graph.neighbours(id));
+        }
+        for &id in &self.unknown_stereo_bonds {
+            let bond = graph.bond(id);
+            protected.extend(graph.neighbours(bond.from));
+            protected.extend(graph.neighbours(bond.to));
+        }
         if let Some(points) = &fragment.polymer_attachment_points {
             protected.extend(points.iter().copied());
         }
@@ -277,6 +287,21 @@ impl Structure {
                 groups.entry(kind).or_default().push(stereo_index);
             }
         }
+        for &id in &self.unknown_stereo_atoms {
+            let mut neighbors = [Ref::LonePair; 4];
+            let atoms = graph.neighbours(id);
+            if !(3..=4).contains(&atoms.len()) {
+                return Err(invalid("Unknown stereocentre is not tetrahedral"));
+            }
+            for (target, atom) in neighbors.iter_mut().zip(atoms) {
+                *target = Ref::Atom(index(atom)?);
+            }
+            stereo.push(Stereo::Tetrahedral {
+                center: index(id)?,
+                neighbors,
+                winding: Winding::Unknown,
+            });
+        }
         for &id in &fragment.bonds {
             let bond = graph.bond(id);
             let Some(configuration) = &bond.stereo else {
@@ -299,6 +324,27 @@ impl Structure {
                     BondStereoValue::Cis => Relation::Cis,
                     BondStereoValue::Trans => Relation::Trans,
                 },
+            });
+        }
+        for &id in &self.unknown_stereo_bonds {
+            let bond = graph.bond(id);
+            let substituent = |end: AtomId, partner: AtomId| {
+                graph
+                    .neighbours(end)
+                    .into_iter()
+                    .find(|&other| other != partner)
+                    .ok_or_else(|| invalid("Unknown double bond end has no substituent"))
+                    .and_then(index)
+            };
+            stereo.push(Stereo::DoubleBond {
+                bond: *bond_indices
+                    .get(&id)
+                    .ok_or_else(|| invalid("Folded stereo bond"))?,
+                refs: [
+                    substituent(bond.from, bond.to)?,
+                    substituent(bond.to, bond.from)?,
+                ],
+                relation: Relation::Unknown,
             });
         }
         for &id in &fragment.bonds {
@@ -513,6 +559,8 @@ mod tests {
             graph,
             fragment,
             principal_parent_atoms: vec![carbon],
+            unknown_stereo_atoms: Vec::new(),
+            unknown_stereo_bonds: Vec::new(),
         };
         let molecule = structure.to_ir().unwrap();
         assert_eq!(molecule.atoms.len(), 2);
@@ -540,6 +588,8 @@ mod tests {
             graph,
             fragment,
             principal_parent_atoms: Vec::new(),
+            unknown_stereo_atoms: Vec::new(),
+            unknown_stereo_bonds: Vec::new(),
         };
         let molecule = structure.to_ir().unwrap();
         assert_eq!(molecule.atoms[0].label, None);
@@ -582,6 +632,8 @@ mod tests {
                 graph,
                 fragment,
                 principal_parent_atoms,
+                unknown_stereo_atoms: Vec::new(),
+                unknown_stereo_bonds: Vec::new(),
             };
             let (molecule, source_atoms) = structure.to_ir_with_atom_mapping().unwrap();
             assert_eq!(
@@ -685,6 +737,8 @@ mod tests {
             graph,
             fragment,
             principal_parent_atoms: vec![carbon],
+            unknown_stereo_atoms: Vec::new(),
+            unknown_stereo_bonds: Vec::new(),
         };
         let (molecule, sources) = structure.to_ir_with_atom_mapping().unwrap();
         let first_index = sources.iter().position(|&id| id == first).unwrap();
@@ -769,6 +823,8 @@ mod tests {
                 graph,
                 fragment,
                 principal_parent_atoms: Vec::new(),
+                unknown_stereo_atoms: Vec::new(),
+                unknown_stereo_bonds: Vec::new(),
             };
             let (molecule, sources) = structure.to_ir_with_atom_mapping().unwrap();
             let hydrogen = sources.iter().position(|&id| id == hydrogen).unwrap() as u32;
@@ -1044,6 +1100,8 @@ mod tests {
                 graph,
                 fragment,
                 principal_parent_atoms: Vec::new(),
+                unknown_stereo_atoms: Vec::new(),
+                unknown_stereo_bonds: Vec::new(),
             };
             let molecule = structure.to_ir().unwrap();
             let source_index = crate::smiles::semantic_atom_order(&structure.graph, fragment)

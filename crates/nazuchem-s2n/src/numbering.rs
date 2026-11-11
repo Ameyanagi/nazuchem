@@ -142,7 +142,7 @@ impl NumberingTopology {
 #[derive(Clone, Debug)]
 pub struct NumberingPreference {
     pub free_valence: Vec<usize>,
-    pub skeletal_anions: Vec<usize>,
+    pub skeletal_ions: Vec<usize>,
     pub principal: Vec<usize>,
     pub hetero_by_priority: Vec<Vec<usize>>,
     pub indicated_hydrogen: Vec<usize>,
@@ -157,7 +157,7 @@ pub struct NumberingPreference {
 #[derive(Clone, Copy)]
 enum NumberingCriterion {
     FreeValence,
-    SkeletalAnions,
+    SkeletalIons,
     Principal,
     HeteroByPriority,
     IndicatedHydrogen,
@@ -197,13 +197,15 @@ fn numbering_criteria(parent_kind: &str) -> Vec<NumberingCriterion> {
         )
         .collect();
     // P-72.6.3: substituent free valences precede anionic centres, which
-    // precede characteristic suffixes (P-72.5.3, P-74.1.1). Fixed heteroatom
-    // and indicated-hydrogen numbering keeps its existing priority.
+    // precede characteristic suffixes (P-72.5.3, P-74.1.1). Skeletal
+    // cationic centres of a cation take the same place (P-73.6, P-73.5.3.2,
+    // P-75.2). Fixed heteroatom and indicated-hydrogen numbering keeps its
+    // existing priority.
     if let Some(principal) = criteria
         .iter()
         .position(|criterion| matches!(criterion, NumberingCriterion::Principal))
     {
-        criteria.insert(principal, NumberingCriterion::SkeletalAnions);
+        criteria.insert(principal, NumberingCriterion::SkeletalIons);
         criteria.insert(principal, NumberingCriterion::FreeValence);
     }
     criteria
@@ -235,7 +237,7 @@ impl NumberingPreference {
     fn criterion(&self, criterion: NumberingCriterion) -> Criterion<'_> {
         match criterion {
             NumberingCriterion::FreeValence => Criterion::Flat(&self.free_valence),
-            NumberingCriterion::SkeletalAnions => Criterion::Flat(&self.skeletal_anions),
+            NumberingCriterion::SkeletalIons => Criterion::Flat(&self.skeletal_ions),
             NumberingCriterion::Principal => Criterion::Flat(&self.principal),
             NumberingCriterion::HeteroByPriority => Criterion::Nested(&self.hetero_by_priority),
             NumberingCriterion::IndicatedHydrogen => Criterion::Flat(&self.indicated_hydrogen),
@@ -379,6 +381,7 @@ pub fn choose_parent_numbering(
     proven_hydrogen_locants: Option<&ProvenHydrogenLocants>,
 ) -> (Vec<usize>, Option<BTreeMap<usize, String>>) {
     if !locant_maps.is_empty() {
+        let cations = super::species::cationic_centres(mol);
         type MapScore = (
             Vec<Vec<LocantKey>>,
             Vec<LocantKey>,
@@ -400,12 +403,14 @@ pub fn choose_parent_numbering(
                 .filter(|idx| map.contains_key(idx))
                 .map(value)
                 .collect();
-            let mut skeletal_anions: Vec<_> = map
+            let mut skeletal_ions: Vec<_> = map
                 .keys()
-                .filter(|idx| mol.atoms.get(idx).is_some_and(|atom| atom.charge < 0))
+                .filter(|idx| {
+                    cations.contains(idx) || mol.atoms.get(idx).is_some_and(|atom| atom.charge < 0)
+                })
                 .map(value)
                 .collect();
-            skeletal_anions.sort();
+            skeletal_ions.sort();
             let mut principal: Vec<_> = principal_atoms
                 .iter()
                 .filter(|idx| map.contains_key(idx))
@@ -522,7 +527,7 @@ pub fn choose_parent_numbering(
                 junction,
                 indicated,
                 free_valence,
-                skeletal_anions,
+                skeletal_ions,
                 principal,
                 (hydro, unsaturation),
                 subst,
@@ -572,11 +577,19 @@ fn numbering_preference(
     topology: NumberingTopology,
 ) -> NumberingPreference {
     let free_valence = get_atom_locants(path, &root.into_iter().collect());
-    let skeletal_anions = get_atom_locants(
+    // Group perception runs only for a path that carries a positive charge.
+    let cations = if path.iter().any(|i| mol.atoms[i].charge > 0) {
+        super::species::cationic_centres(mol)
+    } else {
+        Default::default()
+    };
+    let skeletal_ions = get_atom_locants(
         path,
         &path
             .iter()
-            .filter(|idx| mol.atoms.get(idx).is_some_and(|atom| atom.charge < 0))
+            .filter(|idx| {
+                cations.contains(idx) || mol.atoms.get(idx).is_some_and(|atom| atom.charge < 0)
+            })
             .copied()
             .collect(),
     );
@@ -625,7 +638,7 @@ fn numbering_preference(
     let stereochemistry = stereochemistry_preference(mol, path, true);
     NumberingPreference {
         free_valence,
-        skeletal_anions,
+        skeletal_ions,
         principal,
         hetero_by_priority,
         indicated_hydrogen,
@@ -700,6 +713,27 @@ pub(super) fn chain_orientations_before_stereo(
         Ordering::Greater => vec![reversed],
         Ordering::Equal => vec![path.to_vec(), reversed],
     }
+}
+
+/// The numbering criteria of the senior chain orientation, without stereo.
+// Provenance: fn chain_preference_before_stereo | adapted
+// Source: openclatura | src/openclatura/numbering.py::number_parent
+// Source: openclatura | src/openclatura/numbering.py::_numbering_preference
+pub(super) fn chain_preference_before_stereo(
+    mol: &Molecule,
+    path: &[usize],
+    principal: &[usize],
+    substituents: &BTreeMap<usize, Vec<String>>,
+) -> NumberingPreference {
+    numbering_preference(
+        mol,
+        &chain_orientations_before_stereo(mol, path, principal, substituents)[0],
+        principal,
+        None,
+        substituents,
+        None,
+        NumberingTopology::default(),
+    )
 }
 
 /// P-14.4(j): after structural numbering ties, prefer R to S and M to P

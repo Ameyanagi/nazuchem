@@ -1549,6 +1549,7 @@ mod tests {
         parts.anion_suffix = Some(AnionSuffix {
             locants: vec!["1".into(), "4".into()],
             cite_locants: true,
+            uide: false,
         });
         assert_eq!(rendered_parent(&parts), "piperazine-1,4-diide");
         // A cationic characteristic suffix remains after the skeletal anion;
@@ -1560,6 +1561,7 @@ mod tests {
         parts.anion_suffix = Some(AnionSuffix {
             locants: vec!["1".into()],
             cite_locants: true,
+            uide: false,
         });
         parts.principal_group = Some(PrincipalGroupItem::new("aminium", vec!["3".into()]));
         assert_eq!(rendered_parent(&parts), "propan-1-id-3-aminium");
@@ -1582,6 +1584,7 @@ mod tests {
         parts.anion_suffix = Some(AnionSuffix {
             locants: vec!["2".into()],
             cite_locants: true,
+            uide: false,
         });
         assert_eq!(rendered_parent(&parts), "propan-2-id-2-yl");
 
@@ -1590,6 +1593,7 @@ mod tests {
         parts.anion_suffix = Some(AnionSuffix {
             locants: vec!["1".into()],
             cite_locants: false,
+            uide: false,
         });
         assert_eq!(rendered_parent(&parts), "methanidyl");
 
@@ -1620,6 +1624,7 @@ mod tests {
         parts.anion_suffix = Some(AnionSuffix {
             locants: vec!["1".into()],
             cite_locants: true,
+            uide: false,
         });
         assert_eq!(rendered_parent(&parts), "pyrazol-2-ium-1-ide");
 

@@ -87,6 +87,8 @@ pub struct ParentChargeItem {
 pub struct AnionSuffix {
     pub locants: Vec<String>,
     pub cite_locants: bool,
+    /// P-72.3: the centres carry an added hydride ("uide"), not a lost hydron.
+    pub uide: bool,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum RetainedAnionName {

@@ -9,6 +9,7 @@
 // Source: openclatura | src/openclatura/heterocumulene_roles.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/heteroatom_subgraphs.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs | issue #8
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura heteroatom recursive renderer consolidated across role modules with local charge/acyl extensions.
@@ -308,7 +309,9 @@ pub fn format_amino_from_branches(
         {
             return format!("{n}amino");
         }
-        return if is_complex_prefix(&n) || is_compound_prefix(&n) {
+        // X-amino + amino stays unenclosed so the retained hydrazinyl
+        // rewrite (namer_rules: aminoamino) still applies.
+        return if is_complex_prefix(&n) || (is_compound_prefix(&n) && !n.ends_with("amino")) {
             format!("(({n})amino)")
         } else {
             format!("({n}amino)")
@@ -676,6 +679,56 @@ fn name_oxygen(
     Ok(b.into_oxy_prefix())
 }
 
+/// P-73.6 method (1): the preferred prefix for a substituted cationic
+/// nitrogen adds 'yl' or 'ylidene' to the cation name, e.g.
+/// (N,N-dimethylmethanaminiumyl) (P-74.1.3) and N-methylmethanaminiumylidene
+/// (P-73.6), both as corrected in 2020. `None` when the cation is not named
+/// with the 'aminium' suffix (e.g. anilinium), or when the nitrogen continues
+/// an N-N chain whose PIN keeps the hydrazine parent (P-74.2.1.3); callers keep
+/// the unverified ammonio/iminio prefix.
+// Provenance: fn aminium_prefix | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs::aminium_prefix
+pub(super) fn aminium_prefix(
+    mol: &Molecule,
+    start: usize,
+    exclude: &AtomSet,
+    upstream: Option<usize>,
+) -> Result<Option<String>, String> {
+    let order = upstream_bond_order(mol, start, upstream);
+    let atoms = subgraph_component(mol, start, &with_atoms(exclude, upstream));
+    if !matches!(order, 1 | 2)
+        || mol.atoms[&start].charge != 1
+        || upstream.is_some_and(|up| mol.atoms[&up].symbol == "N")
+        || atoms.len() == 1
+        || mol
+            .get_neighbors(start)
+            .iter()
+            .any(|n| atoms.contains(n) && mol.bond_order(start, *n) != 1)
+        || atoms
+            .iter()
+            .any(|i| *i != start && mol.atoms[i].charge != 0)
+    {
+        return Ok(None);
+    }
+    let mut cation = mol.subgraph(&atoms);
+    let nitrogen = cation.atoms.get_mut(&start).ok_or("nitrogen")?;
+    nitrogen.total_h_count += order;
+    nitrogen.explicit_h_count += order;
+    let ending = if order == 2 {
+        "aminiumylidene"
+    } else {
+        "aminiumyl"
+    };
+    let prefix = mol.candidate(|| {
+        Ok(super::component_namer::name_component(&cation, &atoms)
+            .ok()
+            .and_then(|name| Some(format!("({}{ending})", name.strip_suffix("aminium")?))))
+    })?;
+    // A failed attempt cannot hide exhausted naming resources.
+    mol.spend_naming_work(0)?;
+    Ok(prefix)
+}
+
 // Provenance: fn name_nitrogen | adapted
 // Source: openclatura | src/openclatura/heteroatom_subgraphs.py::name_nitrogen_subgraph
 fn name_nitrogen(
@@ -832,6 +885,9 @@ fn name_nitrogen(
         return Ok(name);
     }
     mol.set_name_status(status);
+    if let Some(prefix) = aminium_prefix(mol, start, exclude, upstream)? {
+        return Ok(prefix);
+    }
     let mut names = Vec::new();
     for &n in &roots {
         let oxygen = double_bonded_neighbors(mol, n, "O");
@@ -974,7 +1030,7 @@ fn sulfur_imide_branch(
         "sulfinyl"
     };
     // P-72.6.1: –S(=O)₂O⁻ and –S(=O)O⁻ take the acid-anion prefixes sulfonato
-    // and sulfinato. The OPSIN port neutralizes oxidosulfinyl to –SH(=O)=O.
+    // and sulfinato.
     if name == "oxido" {
         return Ok(Some(
             if oxygen.len() == 2 {
@@ -1875,29 +1931,31 @@ mod tests {
                 "C[N+](C)(C)C",
                 1,
                 0,
-                "(trimethylammonio)",
-                NameStatus::Unverified(NameReason::CationPrefix),
+                // P-73.6, P-74.1.3 (2020 correction)
+                "(N,N-dimethylmethanaminiumyl)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
             ),
             (
                 "C[NH2+]C",
                 1,
                 0,
-                "(methylammonio)",
-                NameStatus::Unverified(NameReason::CationPrefix),
+                "(methanaminiumyl)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
             ),
             (
                 "C[NH+](C)C",
                 1,
                 0,
-                "(dimethylammonio)",
-                NameStatus::Unverified(NameReason::CationPrefix),
+                "(N-methylmethanaminiumyl)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
             ),
             (
                 "C=[N+](C)C",
                 1,
                 0,
-                "(dimethyliminio)",
-                NameStatus::Unverified(NameReason::CationPrefix),
+                // P-73.6 (2020 correction)
+                "(N-methylmethanaminiumylidene)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
             ),
             (
                 "C[NH2+]c1ccccc1",
@@ -1924,11 +1982,8 @@ mod tests {
             assert_eq!(mol.name_status(), status, "{smiles}");
         }
         let name = crate::name_smiles("C[N+](C)(C)CC(=O)[O-]", &Default::default())?;
-        assert_eq!(name.text, "(trimethylammonio)acetate");
-        assert_eq!(
-            name.status,
-            NameStatus::Unverified(NameReason::CationPrefix)
-        );
+        assert_eq!(name.text, "(N,N-dimethylmethanaminiumyl)acetate");
+        assert_eq!(name.status, NameStatus::Preferred);
         Ok(())
     }
 

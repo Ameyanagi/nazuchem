@@ -423,58 +423,132 @@ fn assert_names_statuses_and_structures(cases: &[Case]) {
 }
 
 #[test]
-// Provenance: fn heterospiro_cross_component_hydrogen_allocation_stays_unverified | original
+// Provenance: fn heterospiro_hydrogen_is_allocated_across_both_components | original
 // Source: ReShiki | src/naming/openclatura/heterospiro_tests.rs::heterospiro_cross_component_hydrogen_allocation_stays_unverified
-fn heterospiro_cross_component_hydrogen_allocation_stays_unverified() {
-    assert_names_statuses_and_structures(&[(
-        "two fused suffix contexts need joint P-58.2.3.1 allocation",
-        "O=C1Cc2ccccc2C12CCC(=O)c1ccccc12",
-        "2-oxospiro[2,3-dihydro-1H-indene-1,1'-1,2,3,4-tetrahydronaphthalene]-4'-one",
-        NameStatus::Unverified(NameReason::SpiroHydrogen),
-    )]);
+fn heterospiro_hydrogen_is_allocated_across_both_components() {
+    assert_names_statuses_and_structures(&[
+        (
+            // P-58.2.3.1.3: one indicated H for two suffixes takes the lowest
+            // locant (2'H); both ketones then get added hydrogen (P-58.2.2).
+            "one indicated hydrogen, a ketone on each fused component",
+            "O=C1Cc2ccccc2C12CCC(=O)c1ccccc12",
+            "2'H-spiro[indene-1,1'-naphthalene]-2,4'(3H,3'H)-dione",
+            NameStatus::Preferred,
+        ),
+        (
+            // P-58.2.2: no indicated H; added hydrogen on both components.
+            "added hydrogen on both fused components",
+            "O=C1COC2(CC(=O)c3ccccc23)c2ccccc12",
+            "spiro[[2]benzopyran-1,1'-indene]-3',4(2'H,3H)-dione",
+            NameStatus::Preferred,
+        ),
+        (
+            // P-58.2.3.1.1: the indicated H accommodates the single ketone.
+            "indicated hydrogen moves to the ketone",
+            "O=C1CCC2(CCCCC2)c2ccccc12",
+            "2',3'-dihydro-4'H-spiro[cyclohexane-1,1'-naphthalen]-4'-one",
+            NameStatus::Preferred,
+        ),
+        (
+            // P-24.5.1, P-31.2.3.3.3: hydro prefixes on both fused components.
+            "hydro prefixes on both fused components",
+            "C1CC2(CCc3ccccc23)c2ccccc2C1",
+            "2,3,3',4'-tetrahydro-2'H-spiro[indene-1,1'-naphthalene]",
+            NameStatus::Preferred,
+        ),
+    ]);
 }
 
 #[test]
-// Provenance: fn heterospiro_parent_descriptors_keep_fallback_names | original
+// Provenance: fn heterospiro_lambda_descriptors_precede_spiro | original
 // Source: ReShiki | src/naming/openclatura/heterospiro_tests.rs::heterospiro_parent_descriptors_keep_fallback_names
-fn heterospiro_parent_descriptors_keep_fallback_names() {
+fn heterospiro_lambda_descriptors_precede_spiro() {
+    // P-24.8.4.1: the lambda symbol is cited in front of `spiro`, after
+    // indicated hydrogen; P-64.4.2: ring S(O)/S(O)2 take the suffix `one`.
     assert_names_statuses_and_structures(&[
         (
             "sulfone",
             "O=S1(=O)CCC2(C1)c1ccccc1-c1ccccc12",
-            "spiro[1lambda^6-thiolane-3,9'-fluorene]-1,1-dione",
-            NameStatus::Unverified(NameReason::SpiroHydrogen),
+            "1'lambda^6-spiro[fluorene-9,3'-thiolane]-1',1'-dione",
+            NameStatus::Preferred,
         ),
         (
             "sulfoxide",
             "O=S1CCC2(C1)c1ccccc1-c1ccccc12",
-            "spiro[1lambda^4-thiolane-3,9'-fluorene]-1-one",
-            NameStatus::Unverified(NameReason::SpiroHydrogen),
+            "1'lambda^4-spiro[fluorene-9,3'-thiolan]-1'-one",
+            NameStatus::Preferred,
         ),
         (
             "phospholane oxide",
             "O=P1CCC2(C1)c1ccccc1-c1ccccc12",
-            "spiro[1lambda^5-phospholane-3,9'-fluorene]-1-one",
+            "1'lambda^5-spiro[fluorene-9,3'-phospholan]-1'-one",
+            NameStatus::Preferred,
+        ),
+        (
+            "indicated hydrogen precedes the lambda descriptor",
+            "O=S1(=O)CCC2(C1)OCc1ccccc12",
+            "3H-1'lambda^6-spiro[[2]benzofuran-1,3'-thiolane]-1',1'-dione",
+            NameStatus::Preferred,
+        ),
+        (
+            "a lambda atom in the fused component keeps the fallback",
+            "O=S1(=O)Cc3ccccc3C12CCCCC2",
+            "spiro[2lambda^6-benzothiophene-1,1'-cyclohexane]-2,2(3H)-dione",
             NameStatus::Unverified(NameReason::SpiroHydrogen),
         ),
     ]);
 }
 
 #[test]
-// Provenance: fn heterospiro_substituents_keep_spelling_and_downgrade_hydrogen | original
+// Provenance: fn heterospiro_substituent_prefixes_and_junior_groups | original
 // Source: ReShiki | src/naming/openclatura/heterospiro_tests.rs::heterospiro_substituents_keep_spelling_and_downgrade_hydrogen
-fn heterospiro_substituents_keep_spelling_and_downgrade_hydrogen() {
+fn heterospiro_substituent_prefixes_and_junior_groups() {
     assert_names_statuses_and_structures(&[
         (
+            // P-24.5.1: the spiro atom is numbered before the free valence;
+            // P-31.2.3.3.3: hydro prefixes modify the mancude spiro system.
             "spiro substituent on furan",
             "c1ccoc1C1CCC2(CC1)CCc1ccccc12",
-            "2-[spiro[cyclohexane-4,1'-(2,3-dihydro-1H-indene)]-1-yl]furan",
-            NameStatus::Unverified(NameReason::SpiroHydrogen),
+            "2-(2',3'-dihydrospiro[cyclohexane-1,1'-inden]-4-yl)furan",
+            NameStatus::Preferred,
         ),
         (
             "spiro substituent on ethanone",
             "CC(=O)C1CCC2(CC1)CCc1ccccc12",
-            "1-[spiro[cyclohexane-4,1'-(2,3-dihydro-1H-indene)]-1-yl]ethan-1-one",
+            "1-(2',3'-dihydrospiro[cyclohexane-1,1'-inden]-4-yl)ethan-1-one",
+            NameStatus::Preferred,
+        ),
+        (
+            // P-58.2.3.1.1: indicated hydrogen accommodates the free valence.
+            "free valence on the fused component",
+            "c1ccoc1C1CCc2ccccc2C11CCCCC1",
+            "2-(3',4'-dihydro-2'H-spiro[cyclohexane-1,1'-naphthalen]-2'-yl)furan",
+            NameStatus::Preferred,
+        ),
+        (
+            "free valence on a mancude atom",
+            "c1ccoc1C1=CC2(CCCCC2)c2ccccc12",
+            "2-(spiro[cyclohexane-1,1'-inden]-3'-yl)furan",
+            NameStatus::Preferred,
+        ),
+        (
+            "free valence on the heteromonocycle",
+            "CC(=O)N1CCC2(CC1)OCc1ccccc12",
+            "1-(3H-spiro[[2]benzofuran-1,4'-piperidin]-1'-yl)ethan-1-one",
+            NameStatus::Preferred,
+        ),
+        (
+            // P-58.2.4: a ketone of the prefix is cited as oxo; P-29.2: the
+            // free valence takes the lower locant.
+            "monocycle ketone inside a spiro substituent",
+            "OC(=O)CC1CCC(=O)C2(C1)CCc1ccccc12",
+            "(6-oxo-2',3'-dihydrospiro[cyclohexane-1,1'-inden]-3-yl)acetic acid",
+            NameStatus::Preferred,
+        ),
+        (
+            "fused ketone inside a spiro substituent stays unverified",
+            "OC(=O)CC1CCC2(CC1)CC(=O)c1ccccc12",
+            "[3'-oxospiro[cyclohexane-1,1'-(2,3-dihydro-1H-indene)]-4-yl]acetic acid",
             NameStatus::Unverified(NameReason::SpiroHydrogen),
         ),
         (
@@ -490,10 +564,18 @@ fn heterospiro_substituents_keep_spelling_and_downgrade_hydrogen() {
             NameStatus::Preferred,
         ),
         (
-            "mixed alcohol and ketone remains outside composition",
+            // P-41: the ketone is the principal characteristic group; the
+            // alcohol is cited as a prefix. P-58.2.2: added hydrogen 2'H.
+            "alcohol and ketone on different components",
             "OC1CCC2(CC1)CC(=O)c1ccccc12",
-            "spiro[cyclohexane-1,1'-1,2-dihydro-3H-indene]-4-ol-3'-one",
-            NameStatus::Unverified(NameReason::SpiroHydrogen),
+            "4-hydroxyspiro[cyclohexane-1,1'-inden]-3'(2'H)-one",
+            NameStatus::Preferred,
+        ),
+        (
+            "alcohol on the fused component, ketone on the monocycle",
+            "O=C1CCC2(CC1)CC(O)c1ccccc12",
+            "3'-hydroxy-2',3'-dihydrospiro[cyclohexane-1,1'-inden]-4-one",
+            NameStatus::Preferred,
         ),
     ]);
 }
