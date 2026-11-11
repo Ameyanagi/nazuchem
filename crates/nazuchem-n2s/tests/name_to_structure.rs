@@ -65,3 +65,94 @@ fn peroxycyanate_esters_preserve_both_oxygens() {
         );
     }
 }
+
+#[test]
+fn cited_indicated_hydrogen_rejects_hydro_prefixes_that_strand_an_atom() {
+    // P-14.7.1, P-31.2.2: once indicated hydrogen is cited, hydro prefixes that
+    // leave a ring atom without a double-bond partner describe no structure.
+    let parser = Parser::new().unwrap();
+    for name in [
+        "3a,4,7,7a-tetrahydro-2H-isoindole",
+        "3a,4,7,7a-tetrahydro-2H-isoindol-2-ium",
+        "4,5-dihydro-2H-imidazole",
+        // P-73.1.1.2: adding hydrons does not supply the missing hydro prefixes.
+        "4,5-dihydro-2H-imidazole-1,3-diium",
+        "4,6-dihydro-1H-indene",
+        "hexahydro-1H,6H-pyrrolo[3,4-b]pyridine",
+        // The spiro junction replaces the cited atom.
+        "spiro[4,5-dihydro-2H-imidazole-2,1'-cyclopentane]",
+        "spiro[cyclopentane-1,2'-4,5-dihydro-2H-imidazole]",
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Failure, "{name}");
+        assert!(
+            result.message.contains("without a double bond"),
+            "{name}: {}",
+            result.message
+        );
+    }
+    // Valid combinations; P-58.2.1.1 lets indicated hydrogen be omitted.
+    for (name, expected) in [
+        (
+            "2,3,3a,4,7,7a-hexahydro-1H-isoindol-2-ium",
+            "C1[NH2+]CC2CC=CCC12",
+        ),
+        ("3a,4,7,7a-tetrahydro-1H-isoindole", "C1N=CC2CC=CCC12"),
+        ("1,3-dihydroisoindole", "C1NCC2=CC=CC=C12"),
+        ("1,3-dihydro-2H-isoindole", "C1NCC2=CC=CC=C12"),
+        ("octahydro-1H-pyrrolo[3,4-b]pyridine", "N1C2C(CCC1)CNC2"),
+        ("pyrimidine-2,4(1H,3H)-dione", "N1C(NC(C=C1)=O)=O"),
+        // P-14.7.2: added hydrogen is not the parent's indicated hydrogen.
+        ("4,5-dihydroimidazol-2(3H)-one", "N1C(NCC1)=O"),
+        ("4,5-dihydro-1H-imidazol-2(3H)-one", "N1C(NCC1)=O"),
+        // Indicated hydrogen cited in one spiro component only.
+        (
+            "spiro[1,3-dihydroisoindole-1,2'-2,3-dihydro-1H-indene]",
+            "C1C2(CC3=CC=CC=C13)NCC1=CC=CC=C12",
+        ),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+}
+
+// Issue #33. P-72.6.2: oxido is –O⁻; P-72.6.1: –S(=O)O⁻ is sulfinato. On an S/P
+// that already has =O/=S, oxido stays anionic instead of becoming a second oxo.
+#[test]
+fn oxido_on_sulfinyl_like_groups_keeps_its_charge() {
+    let parser = Parser::new().unwrap();
+    for (name, expected) in [
+        (
+            "[methyl(oxidosulfinyl)amino]benzene",
+            "CN(S(=O)[O-])C1=CC=CC=C1",
+        ),
+        // The structure-to-name spelling of the same anion.
+        (
+            "[methyl(sulfinato)amino]benzene",
+            "CN(S(=O)[O-])C1=CC=CC=C1",
+        ),
+        ("oxidosulfinylbenzene", "[O-]S(=O)C1=CC=CC=C1"),
+        ("oxidophosphinylbenzene", "[O-]P(=O)C1=CC=CC=C1"),
+        ("oxidosulfinothioylbenzene", "[O-]S(=S)C1=CC=CC=C1"),
+        // Without an existing =O/=S the upstream oxido-to-oxo reading is kept.
+        ("1-oxidothiolane", "O=S1CCCC1"),
+        // An =O made from one oxido must not keep the next oxido anionic.
+        ("1,1-dioxidothiolane", "O=S1(CCCC1)=O"),
+        ("1,1-dioxidothiomorpholine", "O=S1(CCNCC1)=O"),
+        ("1-oxido-1-sulfidothiolane", "O=S1(CCCC1)=S"),
+        ("dimethyl(oxido)sulfur", "CS(=O)C"),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+}
