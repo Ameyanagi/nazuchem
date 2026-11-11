@@ -7470,7 +7470,7 @@ sources = [
   { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including the owner decision 2026-11-10 to retain bakeoff_corpus.tsv as a repository-only test fixture with PubChem (NCBI) attribution, excluded from all published packages. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
-sha256 = "0112a3d85acf9fc99d8f2dce0eabe8367c6bd52f1bfba6a13199462bfc0a2a4b"
+sha256 = "2429aa9374330f26cebece0f65c3618820f10b47d58439269b86ebb3a4af481e"
 
 [[file]]
 path = "crates/nazuchem-ir/docs/cxsmiles.md"
