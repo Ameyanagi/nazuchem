@@ -2477,7 +2477,7 @@ pub fn render_fusion_name_parts(
             pieces.push(combine_rendered_descriptors(
                 &joined
                     .iter()
-                    .map(|d| render_descriptor(d, false))
+                    .map(|d| render_descriptor(d, false, &specs))
                     .collect::<Vec<_>>(),
                 joined.iter().any(|d| d.kind == FusionJoinKind::HigherOrder),
                 false,
@@ -2547,7 +2547,8 @@ pub fn render_fusion_name_parts(
                         d,
                         descriptors.len() == 1
                             && node.children.is_empty()
-                            && omit_attached_locants(self.registry, &spec.key, d.kind),
+                            && omit_attached_locants(self.registry, spec, d.kind),
+                        self.specs,
                     )
                 })
                 .collect::<Vec<_>>();
@@ -2603,10 +2604,10 @@ pub fn render_fusion_name_parts(
                         .ok_or("multiplicative member has no descriptor")?;
                     let omit = omit_attached_locants(
                         self.registry,
-                        &self.specs[&member.occurrence_id].key,
+                        &self.specs[&member.occurrence_id],
                         descriptor.kind,
                     );
-                    texts.push(render_descriptor(descriptor, omit));
+                    texts.push(render_descriptor(descriptor, omit, self.specs));
                     higher |= descriptor.kind == FusionJoinKind::HigherOrder;
                     side_only &= omit;
                 }
@@ -2667,49 +2668,90 @@ fn combine_rendered_descriptors(
     side_only: bool,
 ) -> String {
     let interiors: Vec<_> = descriptors.iter().map(|d| &d[1..d.len() - 1]).collect();
-    let separator = if higher_order {
-        ";"
-    } else if side_only {
-        ","
-    } else {
-        ":"
+    // P-25.3.8.2: terminal benzo rings cited by host locants alone are
+    // separated by a colon ('dibenzo[4,5:6,7]cycloocta[1,2-c]furan').
+    let separator = match (higher_order, side_only) {
+        (true, false) => ";",
+        (false, true) => ",",
+        _ => ":",
     };
     format!("[{}]", interiors.join(separator))
 }
 // Provenance: fn render_descriptor | adapted
 // Source: openclatura | src/openclatura/fusion/descriptor.py::_render_descriptor
-fn render_descriptor(descriptor: &FusionDescriptor, omit: bool) -> String {
-    if omit
-        && matches!(
-            descriptor.kind,
-            FusionJoinKind::Ortho | FusionJoinKind::OrthoPeri
-        )
-        && !descriptor.parent_sides.is_empty()
-    {
-        format!(
+fn render_descriptor(
+    descriptor: &FusionDescriptor,
+    omit: bool,
+    specs: &BTreeMap<usize, FusionComponentSpec>,
+) -> String {
+    // P-25.3.8.4: an ortho- and peri-fusion omits the locants of the fusion
+    // carbon atoms inside its path ('naphtho[2,1,8-def]quinoline', purine's
+    // C4 too); both ends stay cited ('naphtho[1,8a]azirine').
+    let fusion_carbon = |l: &ComponentLocant| {
+        specs.get(&l.component_id).is_some_and(|s| {
+            s.atoms()
+                .iter()
+                .any(|a| a.locant == l.text && a.fusion && a.symbol == "C")
+        })
+    };
+    let peri = |locants: &[ComponentLocant]| -> Vec<ComponentLocant> {
+        let last = locants.len().saturating_sub(1);
+        locants
+            .iter()
+            .enumerate()
+            .filter(|&(i, l)| i == 0 || i == last || !fusion_carbon(l))
+            .map(|(_, l)| l.clone())
+            .collect()
+    };
+    let descriptor = FusionDescriptor {
+        attached_locants: peri(&descriptor.attached_locants),
+        parent_locants: peri(&descriptor.parent_locants),
+        ..descriptor.clone()
+    };
+    if !omit {
+        return descriptor.render();
+    }
+    if descriptor.kind == FusionJoinKind::HigherOrder {
+        // P-25.3.8.2: a terminal monocyclic hydrocarbon cites only the host
+        // locants ('benzo[4,5]cyclohepta[1,2,3-de]naphthalene').
+        return format!(
             "[{}]",
             descriptor
-                .parent_sides
+                .parent_locants
                 .iter()
                 .map(ToString::to_string)
-                .collect::<String>()
-        )
-    } else {
-        descriptor.render()
+                .collect::<Vec<_>>()
+                .join(",")
+        );
     }
+    if descriptor.parent_sides.is_empty() {
+        return descriptor.render();
+    }
+    format!(
+        "[{}]",
+        descriptor
+            .parent_sides
+            .iter()
+            .map(ToString::to_string)
+            .collect::<String>()
+    )
 }
 // Provenance: fn omit_attached_locants | adapted
 // Source: openclatura | src/openclatura/fusion/descriptor.py::_omit_attached_locants
 fn omit_attached_locants(
     registry: &FusionComponentRegistry,
-    key: &str,
+    spec: &FusionComponentSpec,
     kind: FusionJoinKind,
 ) -> bool {
-    registry.get(key).is_some_and(|component| match kind {
-        FusionJoinKind::Ortho => component.omit_attached_locants,
-        FusionJoinKind::OrthoPeri => component.omit_ortho_peri_attached_locants,
-        FusionJoinKind::HigherOrder => false,
-    })
+    let component = registry.get(&spec.key);
+    match kind {
+        FusionJoinKind::Ortho => component.is_some_and(|c| c.omit_attached_locants),
+        FusionJoinKind::OrthoPeri => component.is_some_and(|c| c.omit_ortho_peri_attached_locants),
+        // P-25.3.8.2: a terminal monocyclic hydrocarbon component.
+        FusionJoinKind::HigherOrder => {
+            spec.rings.len() == 1 && spec.atoms().iter().all(|a| a.symbol == "C")
+        }
+    }
 }
 
 #[cfg(test)]
@@ -2849,7 +2891,15 @@ mod tests {
             kind: FusionJoinKind::HigherOrder,
             ..Default::default()
         };
-        assert_eq!(render_descriptor(&descriptor, true), "[1',2':3,4]");
+        assert_eq!(
+            render_descriptor(&descriptor, false, &BTreeMap::new()),
+            "[1',2':3,4]"
+        );
+        // P-25.3.8.2: a terminal monocyclic hydrocarbon cites only the host.
+        assert_eq!(
+            render_descriptor(&descriptor, true, &BTreeMap::new()),
+            "[3,4]"
+        );
         assert_eq!(
             combine_rendered_descriptors(&[descriptor.render(), "[2',3':4,5]".into()], true, false),
             "[1',2':3,4;2',3':4,5]"
@@ -3034,7 +3084,7 @@ mod tests {
         );
         assert_eq!(
             render_fusion_name(&ast, registry).unwrap(),
-            "benzo[1',2':3,4]pyrano[2,3-e]benzo[1',2':5,6]pyrano[2,3-b]pyridine"
+            "benzo[3,4]pyrano[2,3-e]benzo[5,6]pyrano[2,3-b]pyridine"
         );
     }
 
@@ -3072,7 +3122,7 @@ mod tests {
         order_rendering_fixture(&mut ast);
         assert_eq!(
             render_fusion_name(&ast, registry).unwrap(),
-            "cyclohepta[e]dibenzo[1',2':4,5;1'',2'':5,6]pyrano[2,3-b]pyridine"
+            "cyclohepta[e]dibenzo[4,5:5,6]pyrano[2,3-b]pyridine"
         );
 
         let mut ast = rendering_fixture(
@@ -3401,5 +3451,49 @@ mod tests {
         }
         crate::test_support::verify_identity(&graphs[0], &graphs[1])?;
         Ok(())
+    }
+
+    #[test]
+    fn terminal_hydrocarbon_and_peri_fusion_carbon_locants_are_omitted() {
+        use nazuchem_ir::NameStatus;
+        // #3: P-25.3.8.2 omits the own locants of a terminal monocyclic
+        // hydrocarbon component; P-25.3.8.4 omits the peripheral fusion carbon
+        // locants inside an ortho- and peri-fusion path.
+        for (smiles, expected) in [
+            (
+                "CCOC(=O)N1CCC(=C2C3=C(CCC4=C2N=CC=C4)C=C(C=C3)Cl)CC1",
+                "ethyl 4-(8-chloro-5,6-dihydrobenzo[5,6]cyclohepta[1,2-b]pyridin-11-ylidene)piperidine-1-carboxylate",
+            ),
+            (
+                "Nc1ncnc2sc3c(c12)CCC3",
+                "6,7-dihydro-5H-cyclopenta[4,5]thieno[2,3-d]pyrimidin-4-amine",
+            ),
+            (
+                "C1=CC2=C3C4=C(C2C=C1)C1C=CC=CC1=C4c1ccccc13",
+                "4a,4c-dihydrodibenzo[2,3:4,5]pentaleno[1,6-ab]indene",
+            ),
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        // P-25.3.8.4 example, a fusion carbon with a numeric locant (purine C4)
+        // and a kept ortho-fusion end; these layouts are not verified as preferred.
+        for (smiles, expected) in [
+            (
+                "N1=CC=C2C3=C4C(=CC=C13)C=CC=C4C=C2",
+                "naphtho[2,1,8-def]quinoline",
+            ),
+            (
+                "N1CN2C3C(NCN3CC4NCCNC24)C1",
+                "decahydropurino[3,9-ab]pteridine",
+            ),
+            ("N1=C2C13C=CC=CC3=CC=C2", "naphtho[1,8a-b]azirine"),
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+        }
     }
 }
