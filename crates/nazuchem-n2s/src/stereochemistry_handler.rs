@@ -604,6 +604,7 @@ impl<'a> StereochemistryHandler<'a> {
                 return structure(message);
             }
         }
+        let mut deferred_qualifiers = BTreeSet::new();
         for id in global {
             // At the front of the name the qualifier covers the configured
             // centres of its molecule (below); it does not configure another.
@@ -615,6 +616,7 @@ impl<'a> StereochemistryHandler<'a> {
                     })
             }) {
                 self.arena.detach(id);
+                deferred_qualifiers.insert(id);
                 continue;
             }
             let result = self.match_stereochemistry(id);
@@ -632,6 +634,22 @@ impl<'a> StereochemistryHandler<'a> {
         // descriptor set leaves starred and RS/SR centres as written; a
         // standalone qualifier replaces every group, as upstream does.
         for (kind, molecule, standalone) in leading_groups {
+            // rac/rel need at least one defined centre; ξ alone leaves nothing
+            // to group (#14, #36). A qualifier that was applied as a group is
+            // already checked when ξ clears it, so only a deferred one is.
+            if standalone.is_some_and(|id| deferred_qualifiers.contains(&id))
+                && !molecule
+                    .iter()
+                    .any(|atom| self.graph().atom(*atom).parity.is_some())
+                && self
+                    .state
+                    .unknown_stereo_atoms
+                    .iter()
+                    .any(|atom| molecule.contains(atom))
+            {
+                self.warning_or_error(stereo(RAC_REL_XI))?;
+                continue;
+            }
             // Stereo groups hold atom parities only.
             if self.graph().bonds.iter().any(|bond| {
                 bond.active && bond.axial_stereo.is_some() && molecule.contains(&bond.from)

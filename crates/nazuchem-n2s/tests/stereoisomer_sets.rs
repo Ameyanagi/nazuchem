@@ -355,6 +355,31 @@ fn leading_rel_rac_stops_at_the_molecular_entity() {
         let result = Parser::new().unwrap().parse(name, &options);
         assert_eq!(result.status, Status::Warning, "{name}");
     }
+    // rac/rel need at least one defined centre: a leading qualifier over
+    // only ξ centres is refused (P-93.1.3; #14, #36).
+    for name in ["(rac)-N-acetyl-(ξ)-alanine", "(rel)-N-acetyl-(ξ)-alanine"] {
+        let result = Parser::new().unwrap().parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Failure, "{name}: {}", result.message);
+        assert!(
+            result.message.contains("defined stereocentre"),
+            "{name}: {}",
+            result.message
+        );
+    }
+    // Warning mode reports the conflict once, also when ξ clears a group
+    // that a descriptor set had already applied.
+    let mut options = ParseOptions::strict();
+    options.warn_rather_than_fail_on_uninterpretable_stereochemistry = true;
+    for name in ["(rac)-N-acetyl-(ξ)-alanine", "rac-(2R,2xi)-butan-2-ol"] {
+        let result = Parser::new().unwrap().parse(name, &options);
+        assert_eq!(result.status, Status::Warning, "{name}: {}", result.message);
+        let conflicts = result
+            .warnings
+            .iter()
+            .filter(|warning| warning.message.contains("defined stereocentre"))
+            .count();
+        assert_eq!(conflicts, 1, "{name}: {:?}", result.warnings);
+    }
 }
 
 #[test]
