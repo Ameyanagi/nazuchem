@@ -5,6 +5,7 @@
 // Source: openclatura | src/openclatura/molecule.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/ComponentGenerator.java | 42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
 // Source: ReShiki | src/naming/openclatura/polycycle_topology.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
+// Source: Nazuchem | crates/nazuchem-s2n/src/polycycle_topology.rs | issue 2
 // Source: openclatura | tests/integration/test_fusion_carbon_derivative_migration.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_fused_bonds.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -725,62 +726,55 @@ fn parse_von_baeyer_descriptor(descriptor: &str) -> Option<ParsedVonBaeyer> {
     })
 }
 
-/// Rebuild every primary and secondary bridge from the descriptor's locants.
-// Provenance: fn audit_von_baeyer_descriptor | adapted
-// Source: openclatura | src/openclatura/polycycle_topology.py::audit_von_baeyer_descriptor
-pub fn audit_von_baeyer_descriptor(descriptor: &str, path: &[usize], edges: &EdgeSet) -> bool {
-    let Some(ParsedVonBaeyer {
-        count,
-        base,
-        bridges,
-    }) = parse_von_baeyer_descriptor(descriptor)
-    else {
-        return false;
-    };
+/// Order descriptors of one ring system by the von Baeyer selection rules;
+/// the lowest key is preferred. P-23.2.1: largest main ring; P-23.2.4: largest
+/// main bridge; P-23.2.6.2.1: most symmetric division of the main ring;
+/// P-23.2.6.2.2 and P-23.2.6.2.3: longest independent secondary bridges and
+/// fewest dependent bridges; P-23.2.6.2.4 and P-23.2.6.2.5: lowest superscript
+/// locants as a set, then in order of citation.
+// Provenance: fn von_baeyer_descriptor_rank | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/polycycle_topology.rs::von_baeyer_descriptor_rank
+pub fn von_baeyer_descriptor_rank(descriptor: &str) -> Option<impl Ord + use<>> {
+    let ParsedVonBaeyer { base, bridges, .. } = parse_von_baeyer_descriptor(descriptor)?;
     let base_count = base.iter().sum::<usize>() + 2;
-    if count != bridges.len() + 2
-        || base_count + bridges.iter().map(|(length, _)| length).sum::<usize>() != path.len()
-    {
-        return false;
-    }
-    let path_atoms: AtomSet = path.iter().copied().collect();
-    if path_atoms.len() != path.len()
-        || path_atoms != edges.iter().flat_map(|&(u, v)| [u, v]).collect()
-    {
-        return false;
-    }
-    let mut expected = EdgeSet::new();
-    let mut valid = true;
-    let mut edge = |first: usize, second: usize| {
-        if let (Some(u), Some(v)) = (atom_at_locant(path, first), atom_at_locant(path, second)) {
-            expected.insert(normalize_edge(u, v));
-        } else {
-            valid = false;
-        }
-    };
-    append_bicyclo_edges(&mut edge, base);
-    let mut next = base_count + 1;
-    for (length, [first, second]) in bridges {
-        if length == 0 {
-            edge(first, second);
-        } else {
-            if (next..next + length).contains(&first) || (next..next + length).contains(&second) {
-                return false;
-            }
-            append_bridge(&mut edge, first, second, next, length);
-            next += length;
-        }
-    }
-    valid && next == path.len() + 1 && expected == *edges
+    // A dependent bridge ranks after every independent one, whatever its length.
+    let independent: Vec<_> = bridges
+        .iter()
+        .map(|&(length, [_, high])| {
+            std::cmp::Reverse(if high > base_count { 0 } else { length + 1 })
+        })
+        .collect();
+    let cited: Vec<_> = bridges.iter().flat_map(|(_, locants)| *locants).collect();
+    let mut set = cited.clone();
+    set.sort_unstable();
+    Some((
+        std::cmp::Reverse(base[0] + base[1]),
+        std::cmp::Reverse(base[2]),
+        base[0].abs_diff(base[1]),
+        independent,
+        set,
+        cited,
+    ))
 }
 
-/// Rebuild the numbered graph read by OPSIN, which numbers positive secondary
-/// bridges from their higher attachment locant and orders them by attachments.
-/// Upstream's own audit instead numbers from the lower attachment locant.
-// Provenance: fn audit_von_baeyer_opsin_reading | adapted
+// Provenance: fn von_baeyer_main_sizes | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/polycycle_topology.rs::von_baeyer_main_sizes
+pub fn von_baeyer_main_sizes(descriptor: &str) -> Option<(usize, usize)> {
+    let base = parse_von_baeyer_descriptor(descriptor)?.base;
+    Some((base[0] + base[1], base[2]))
+}
+
+/// Rebuild every primary and secondary bridge from the descriptor's locants.
+/// P-23.2.6.3: independent secondary bridges are numbered before dependent
+/// ones, the bridge at the highest-numbered bridgehead first, each from the
+/// atom next to its higher-numbered bridgehead; P-23.2.6.4 settles ties by the
+/// other bridgehead, then the longer bridge. OPSIN reads descriptors the same way.
+/// Upstream's audit numbered bridges in cited order from the lower locant.
+// Provenance: fn audit_von_baeyer_descriptor | adapted
+// Source: openclatura | src/openclatura/polycycle_topology.py::audit_von_baeyer_descriptor
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/ComponentGenerator.java::processVonBaeyerSystem
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/ComponentGenerator.java::VonBaeyerSecondaryBridgeSort
-pub fn audit_von_baeyer_opsin_reading(descriptor: &str, path: &[usize], edges: &EdgeSet) -> bool {
+pub fn audit_von_baeyer_descriptor(descriptor: &str, path: &[usize], edges: &EdgeSet) -> bool {
     let Some(ParsedVonBaeyer {
         count,
         base,
@@ -964,6 +958,8 @@ mod tests {
     }
 
     #[test]
+    // P-23.2.6.3: a secondary bridge is numbered from its higher-numbered
+    // bridgehead, and the bridge at the highest-numbered bridgehead comes first.
     fn opsin_audit_detects_secondary_bridge_direction_and_order() {
         let mol = read_smiles("OCC1C=C2CC(Cl)C1CCC1CCCCCCC2CCCCC1", &Default::default()).unwrap();
         let path = [
@@ -971,16 +967,13 @@ mod tests {
         ];
         let edges = edges_within_atoms(&mol, &path.iter().copied().collect());
         let descriptor = "tricyclo[6.6.5.2^{9,12}]";
-        assert!(audit_von_baeyer_descriptor(descriptor, &path, &edges));
-        assert!(!audit_von_baeyer_opsin_reading(descriptor, &path, &edges));
+        assert!(!audit_von_baeyer_descriptor(descriptor, &path, &edges));
         let mut reversed = path;
         reversed[19..].reverse();
-        assert!(audit_von_baeyer_opsin_reading(
-            descriptor, &reversed, &edges
-        ));
+        assert!(audit_von_baeyer_descriptor(descriptor, &reversed, &edges));
 
-        // Even one-atom bridges change identity if their descriptor order
-        // differs from OPSIN's descending attachment-locant order.
+        // Even one-atom bridges change identity if they are not numbered in
+        // descending order of their higher bridgehead.
         let path: Vec<_> = (0..10).collect();
         let mut edges = EdgeSet::new();
         let mut edge = |a, b| {
@@ -990,13 +983,10 @@ mod tests {
         append_bridge(&mut edge, 2, 5, 9, 1);
         append_bridge(&mut edge, 3, 6, 10, 1);
         let descriptor = "tetracyclo[3.2.1.1^{2,5}.1^{3,6}]";
-        assert!(audit_von_baeyer_descriptor(descriptor, &path, &edges));
-        assert!(!audit_von_baeyer_opsin_reading(descriptor, &path, &edges));
+        assert!(!audit_von_baeyer_descriptor(descriptor, &path, &edges));
         let mut reordered = path;
         reordered.swap(8, 9);
-        assert!(audit_von_baeyer_opsin_reading(
-            descriptor, &reordered, &edges
-        ));
+        assert!(audit_von_baeyer_descriptor(descriptor, &reordered, &edges));
     }
 
     #[test]
@@ -1009,12 +999,12 @@ mod tests {
         append_bicyclo_edges(&mut edge, [3, 2, 1]);
         append_bridge(&mut edge, 5, 2, 9, 1);
         append_bridge(&mut edge, 9, 3, 10, 1);
-        assert!(audit_von_baeyer_opsin_reading(
+        assert!(audit_von_baeyer_descriptor(
             "tetracyclo[3.2.1.1^{2,5}.1^{3,9}]",
             &path,
             &edges,
         ));
-        assert!(!audit_von_baeyer_opsin_reading(
+        assert!(!audit_von_baeyer_descriptor(
             "tetracyclo[3.2.1.1^{2,10}.1^{3,9}]",
             &path,
             &edges,

@@ -428,22 +428,28 @@ fn legacy_from_candidate(
             .enumerate()
             .map(|(i, &atom)| (atom, i + 1))
             .collect();
+        // P-23.2.6.3: the bridge at the highest-numbered bridgehead is numbered
+        // first, each from the atom next to its higher-numbered bridgehead;
+        // P-23.2.6.4: then the higher other bridgehead, then the longer bridge.
         let mut extras: Vec<_> = bridges[1..]
             .iter()
             .filter(|bridge| !bridge.nodes.is_empty())
+            .map(|bridge| {
+                let mut ends = bridge.endpoints;
+                ends.sort_by_key(|end| std::cmp::Reverse(base.get(end).copied().unwrap_or(1)));
+                (bridge, ends)
+            })
             .collect();
-        extras.sort_by_key(|bridge| {
-            secondary_numbering_key(
+        extras.sort_by_key(|(bridge, ends)| {
+            std::cmp::Reverse((
+                base.get(&ends[0]).copied().unwrap_or(1),
+                base.get(&ends[1]).copied().unwrap_or(1),
                 bridge.nodes.len(),
-                *base.get(&bridge.endpoints[0]).unwrap_or(&1),
-                *base.get(&bridge.endpoints[1]).unwrap_or(&1),
-            )
+            ))
         });
         let mut visited: AtomSet = path.iter().copied().collect();
-        for bridge in extras {
-            for atom in
-                bridge_interior_path(adj, &bridge.nodes, bridge.endpoints[0], bridge.endpoints[1])
-            {
+        for (bridge, [high, low]) in extras {
+            for atom in bridge_interior_path(adj, &bridge.nodes, high, low) {
                 if visited.insert(atom) {
                     path.push(atom);
                 }
@@ -467,7 +473,11 @@ fn legacy_from_candidate(
                 (bridge.nodes.len(), a.min(b), a.max(b))
             })
             .collect();
-        chords.sort_by_key(|&(length, low, high)| secondary_numbering_key(length, low, high));
+        // P-23.2.6.1.2 and P-23.2.6.1.3: independent bridges before dependent
+        // ones, each group in decreasing length; P-23.2.6.2.5: then low locants.
+        chords.sort_by_key(|&(length, low, high)| {
+            (high > base.len(), std::cmp::Reverse(length), low, high)
+        });
         let mut body = format!("[{}.{}.{}", primary[0], primary[1], primary[2]);
         let mut preference = Vec::new();
         for (length, low, high) in chords {
@@ -475,8 +485,11 @@ fn legacy_from_candidate(
             body.push_str(&format!(".{length}^{{{low},{high}}}"));
         }
         body.push(']');
+        // P-23.2.6.2.4 before P-23.2.6.2.5: low locants as a set, then as cited.
+        let mut set = preference.clone();
+        set.sort_unstable();
         orientations.push((
-            preference,
+            (set, preference),
             render_von_baeyer_descriptor(bridges.len(), &body),
             path,
         ));
@@ -489,24 +502,6 @@ fn legacy_from_candidate(
             paths: vec![path],
         })
         .collect()
-}
-
-// Provenance: fn secondary_numbering_key | adapted
-// Source: openclatura | src/openclatura/chains.py::_secondary_bridge_numbering_key
-fn secondary_numbering_key(
-    length: usize,
-    first: usize,
-    second: usize,
-) -> (
-    std::cmp::Reverse<usize>,
-    std::cmp::Reverse<usize>,
-    std::cmp::Reverse<usize>,
-) {
-    (
-        std::cmp::Reverse(length),
-        std::cmp::Reverse(first.max(second)),
-        std::cmp::Reverse(first.min(second)),
-    )
 }
 
 #[derive(Clone, Debug)]
@@ -695,31 +690,47 @@ fn build_candidate(
         .enumerate()
         .map(|(i, &atom)| (atom, i + 1))
         .collect();
+    // P-23.2.6.3: the bridge at the highest-numbered bridgehead is numbered
+    // first, each from the atom next to its higher-numbered bridgehead;
+    // P-23.2.6.4: then the higher other bridgehead, then the longer bridge.
+    // Every bridge with atoms links two atoms of the main ring or main bridge.
+    let mut numbered: Vec<_> = secondary
+        .iter_mut()
+        .filter(|bridge| bridge.length > 0)
+        .collect();
+    for bridge in &mut numbered {
+        if locants[&bridge.attachments[0]] < locants[&bridge.attachments[1]] {
+            bridge.attachments.reverse();
+            bridge.atoms.reverse();
+        }
+    }
+    numbered.sort_by_key(|bridge| {
+        std::cmp::Reverse((
+            locants[&bridge.attachments[0]],
+            locants[&bridge.attachments[1]],
+            bridge.length,
+        ))
+    });
+    for bridge in numbered {
+        path.extend(&bridge.atoms);
+    }
+    locants = path
+        .iter()
+        .enumerate()
+        .map(|(i, &atom)| (atom, i + 1))
+        .collect();
+    for bridge in &mut secondary {
+        bridge.attachments.sort_by_key(|atom| locants[atom]);
+    }
+    // P-23.2.6.1.2 and P-23.2.6.1.3: independent bridges before dependent
+    // ones, each group in decreasing length.
     secondary.sort_by_key(|bridge| {
         (
             bridge.dependent,
             std::cmp::Reverse(bridge.length),
-            bridge.attachments,
+            bridge.attachments.map(|atom| locants[&atom]),
         )
     });
-    for bridge in &mut secondary {
-        if !bridge
-            .attachments
-            .iter()
-            .all(|atom| locants.contains_key(atom))
-        {
-            return None;
-        }
-        bridge.attachments.sort_by_key(|atom| locants[atom]);
-        if bridge.length > 0 {
-            path.extend(&bridge.atoms);
-        }
-        locants = path
-            .iter()
-            .enumerate()
-            .map(|(i, &atom)| (atom, i + 1))
-            .collect();
-    }
     let lengths = [first.len() - 2, second.len() - 2, main.len() - 2];
     let mut parts: Vec<_> = lengths.iter().map(usize::to_string).collect();
     for bridge in &secondary {
@@ -959,20 +970,20 @@ mod tests {
             ),
             (
                 "C=CC1=COC2CC3C2C2CC1C32",
-                "tetracyclo[7.1.1.0^{3,10}.0^{2,5}]",
+                "tetracyclo[7.1.1.0^{2,5}.0^{3,10}]",
             ),
             (
                 "O=[N+]([O-])[C@]12C[C@@H]3CC[C@H](CO1)C[C@@H]32",
-                "tricyclo[4.2.2.0^{3,9}]",
+                "tricyclo[4.2.2.0^{3,8}]",
             ),
             (
                 "CCC1=C2CCC3=C1[C@H](C3)[C@H](C#N)C2",
-                "tricyclo[4.2.2.0^{3,9}]",
+                "tricyclo[4.2.2.0^{3,8}]",
             ),
-            ("CC1CC2=C3CC1CCC=C3C2", "tricyclo[5.2.2.0^{3,10}]"),
+            ("CC1CC2=C3CC1CCC=C3C2", "tricyclo[5.2.2.0^{3,9}]"),
             (
                 "FC1C2CCC3C=PC4C=C4C1CCC(C3)O2",
-                "tetracyclo[8.4.1.1^{4,13}.0^{5,7}]",
+                "tetracyclo[8.4.1.1^{7,12}.0^{2,4}]",
             ),
             (
                 "CCC12CC3(N)C4CCC(C4)C(B1C(C)C)C23",

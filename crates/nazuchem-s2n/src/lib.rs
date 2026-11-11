@@ -2637,17 +2637,17 @@ mod tests {
             ),
             (
                 "c1ccc2c(c1)N(C)c1cc3Sc4ccccc4Nc3cc1O2",
-                "11-methyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1,3(12),5,7,9,13,16,18,20-nonaene",
+                "11-methyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{3,12}.0^{5,10}.0^{16,21}]docosa-1,3(12),5,7,9,13,16,18,20-nonaene",
                 fallback,
             ),
             (
                 "c1ccc2c(c1)Nc1cc3Sc4ccccc4N(C)c3cc1O2",
-                "22-methyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1(14),2,5,7,9,12,16,18,20-nonaene",
+                "22-methyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{3,12}.0^{5,10}.0^{16,21}]docosa-1(14),2,5,7,9,12,16,18,20-nonaene",
                 fallback,
             ),
             (
                 "c1ccc2c(c1)N(C)c1cc3Sc4ccccc4N(C)c3cc1O2",
-                "11,22-dimethyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1(14),2,5,7,9,12,16,18,20-nonaene",
+                "11,22-dimethyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{3,12}.0^{5,10}.0^{16,21}]docosa-1(14),2,5,7,9,12,16,18,20-nonaene",
                 fallback,
             ),
             (
@@ -2687,27 +2687,27 @@ mod tests {
             ),
             (
                 "O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1",
-                "4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1,3(12),5,9,13,16,18,20-octaen-8-one",
+                "4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{3,12}.0^{5,10}.0^{16,21}]docosa-1,3(12),5,9,13,16,18,20-octaen-8-one",
                 fallback,
             ),
             (
                 "O=C1CC=C2Oc3cc4N(C)c5ccccc5Sc4cc3NC2=C1",
-                "22-methyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1,3(12),5,9,13,16,18,20-octaen-8-one",
+                "22-methyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{3,12}.0^{5,10}.0^{16,21}]docosa-1,3(12),5,9,13,16,18,20-octaen-8-one",
                 fallback,
             ),
             (
                 "O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3N(C)C2=C1",
-                "11-methyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1,3(12),5,9,13,16,18,20-octaen-8-one",
+                "11-methyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{3,12}.0^{5,10}.0^{16,21}]docosa-1,3(12),5,9,13,16,18,20-octaen-8-one",
                 fallback,
             ),
             (
                 "O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3[N+](C)(C)C2=C1",
-                "11,11-dimethyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1,3(12),5,9,13,16,18,20-octaen-11-ium-8-one",
+                "11,11-dimethyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{3,12}.0^{5,10}.0^{16,21}]docosa-1,3(12),5,9,13,16,18,20-octaen-11-ium-8-one",
                 fallback,
             ),
             (
                 "O=C1CC=C2Oc3cc4[N+](C)(C)c5ccccc5Sc4cc3NC2=C1",
-                "22,22-dimethyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{16,21}.0^{3,12}.0^{5,10}]docosa-1(14),2,5,9,12,16,18,20-octaen-22-ium-8-one",
+                "22,22-dimethyl-4-oxa-15-thia-11,22-diazapentacyclo[12.8.0.0^{3,12}.0^{5,10}.0^{16,21}]docosa-1(14),2,5,9,12,16,18,20-octaen-22-ium-8-one",
                 fallback,
             ),
             (
@@ -2848,7 +2848,7 @@ mod tests {
         for (smiles, expected, reason) in [
             (
                 "C1=CN=C2C=CC=C3C2=C1C=C1C2=C(C3)C=CC=C2C=C1",
-                "17-azapentacyclo[10.7.1.1^{3,6}.0^{10,21}.0^{16,20}]henicosa-1(19),2,4,6(21),7,9,12(20),13,15,17-decaene",
+                "17-azapentacyclo[10.7.1.1^{3,6}.0^{16,20}.0^{10,21}]henicosa-1(19),2,4,6(21),7,9,12(20),13,15,17-decaene",
                 R::VonBaeyerFusionFallback,
             ),
             (

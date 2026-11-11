@@ -1030,7 +1030,7 @@ fn every_n2s_structure_oracle_structure_retains_complete_name_results() {
     assert_n2s_coverage(&counts, (2624, 2535, 70, 19));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (2293, 312)
+        (2339, 266)
     );
     counts
         .names
