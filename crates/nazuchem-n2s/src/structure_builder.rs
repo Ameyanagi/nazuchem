@@ -7,6 +7,7 @@
 // Copyright 2017 Daniel Lowe
 // Changes: Rust ownership, arena/container and error-handling adaptation; integrated native changes are documented in PORTING.md.
 // Changes: Validate stoichiometric graph expansion before cloning components.
+// Changes: Chalcogen locants on anhydride acids and peroxide substituents choose the bridge end (issue #26).
 
 //! OPSIN word-rule assembly and finalization.
 //! Port of `StructureBuilder.java`, OPSIN 2.9.0, b91b610af5ab07560fedb20730d7aef46bb2bca0.
@@ -467,14 +468,31 @@ impl Builder<'_> {
         let centre = self.first_atom(linker)?;
         if self.assembly.graph().fragment(linker).out_atoms.len() == 1 {
             let outgoing = self.assembly.graph_mut().remove_out_atom(linker, 0).atom;
+            let locants = [words[0], words[1]].map(|w| self.assembly.attr(w, "locant"));
+            // P-63.3.2: a substituent's chalcogen locant names the bridge atom
+            // it bonds to ("Se-ethyl S-methyl selenothioperoxide"); component
+            // processing gave two written substituents on a mixed bridge them.
+            let (mut to_outgoing, mut to_centre) = (a, b);
+            let symbol = |atom| Some(self.assembly.graph().atom(atom).element.symbol().to_owned());
+            let (start, end) = (symbol(centre), symbol(outgoing));
+            if same && start != end {
+                return Err(error(
+                    "A mixed chalcogen bridge within one substituent is ambiguous",
+                ));
+            }
+            if locants == [start.clone(), end.clone()] {
+                std::mem::swap(&mut to_outgoing, &mut to_centre);
+            } else if locants != [None, None] && locants != [end, start] {
+                return Err(error("Locants do not match the divalent functional group"));
+            }
             self.assembly
                 .state
                 .fragment_manager
-                .create_bond(a, outgoing, 1)?;
+                .create_bond(to_outgoing, outgoing, 1)?;
             self.assembly
                 .state
                 .fragment_manager
-                .create_bond(b, centre, 1)?;
+                .create_bond(to_centre, centre, 1)?;
         } else if a != b {
             self.assembly
                 .state
@@ -1157,6 +1175,18 @@ impl Builder<'_> {
         for node in locants {
             self.assembly.arena.detach(node);
         }
+        // P-65.7.4: on a mixed bridge such as thioperoxy (S, O), an acid's
+        // chalcogen locant names the bridge atom bonded to it.
+        let symbols: Vec<_> = smiles
+            .char_indices()
+            .filter(|(_, c)| c.is_ascii_uppercase())
+            .map(|(i, _)| {
+                let lower = smiles[i + 1..].starts_with(|c: char| c.is_ascii_lowercase());
+                smiles[i..i + 1 + usize::from(lower)].to_owned()
+            })
+            .collect();
+        let (first, last) = (symbols.first().cloned(), symbols.last().cloned());
+        let mixed = first != last;
         self.assembly.resolve_word_or_bracket(words[0])?;
         let mut one = self.results(words[0])?;
         if one.functional_atoms.is_empty() {
@@ -1171,7 +1201,11 @@ impl Builder<'_> {
             if two.functional_atoms.is_empty() {
                 return Err(error("Cannot find functionalAtom to form anhydride"));
             }
+            let acid_locants = [words[0], words[1]].map(|w| self.assembly.attr(w, "locant"));
             if count > 1 {
+                if mixed {
+                    return Err(error("Unsupported or invalid anhydride"));
+                }
                 for i in (0..count).rev() {
                     if two.functional_atoms.is_empty() {
                         return Err(error("Cannot find functionalAtom to form anhydride"));
@@ -1189,9 +1223,20 @@ impl Builder<'_> {
                 if one.functional_atoms.len() != 1 && two.functional_atoms.len() != 1 {
                     return Err(error("Invalid anhydride description"));
                 }
+                // The bridge's first atom bonds to `one`; component processing
+                // gave both acids locants on a mixed bridge.
+                if acid_locants == [last.clone(), first.clone()] {
+                    std::mem::swap(&mut one, &mut two);
+                } else if acid_locants != [None, None] && acid_locants != [first, last] {
+                    return Err(error("Anhydride locants do not match its bridge"));
+                }
                 self.link_anhydride_results(&smiles, &mut one, &mut two)?;
             }
         } else if one.functional_atoms.len() > 1 {
+            // A mixed bridge within one acid has no stated orientation.
+            if mixed {
+                return Err(error("Unsupported or invalid anhydride"));
+            }
             if one.functional_atoms.len() == 2 {
                 if count != 1 || locant.is_some() {
                     return Err(error("Unsupported or invalid anhydride"));

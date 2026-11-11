@@ -199,7 +199,9 @@ fn lowest_equivalent_map(
     search
         .best
         .map(|(_, map)| map)
-        .ok_or_else(|| "openclatura: isotope equivalent-numbering proof failed".into())
+        .ok_or_else(|| {
+            "openclatura: an isotope label outside the parent hydride, on a substituent prefix or characteristic group, is not supported".into()
+        })
 }
 
 fn site_locant(
@@ -584,6 +586,18 @@ mod tests {
                 "{smiles}"
             );
         }
+    }
+
+    #[test]
+    fn labels_on_substituent_prefixes_decline_with_their_cause() {
+        // Issue #27: a descriptor inside the prefix, (1,1-2H2)ethyl, is not composed.
+        let error = name_smiles(
+            "[2H]C([2H])(C)N1C=CC=C1",
+            IsotopeStyle::Iupac,
+            &Default::default(),
+        )
+        .unwrap_err();
+        assert!(error.contains("outside the parent hydride"), "{error}");
     }
 
     #[test]

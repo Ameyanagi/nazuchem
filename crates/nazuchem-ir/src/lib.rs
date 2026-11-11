@@ -106,6 +106,7 @@ pub enum NameReason {
     CationParent,
     IonicSuffixOrder,
     SaltIonOrder,
+    Adduct,
     Phane,
     RelativeRingStereo,
     EndoExoStereo,
@@ -151,6 +152,7 @@ pub const NAME_REASONS: &[NameReason] = &[
     NameReason::CationParent,
     NameReason::IonicSuffixOrder,
     NameReason::SaltIonOrder,
+    NameReason::Adduct,
     NameReason::Phane,
     NameReason::RelativeRingStereo,
     NameReason::EndoExoStereo,
@@ -274,6 +276,9 @@ impl NameReason {
             }
             Self::SaltIonOrder => {
                 "The order of the ions in this salt has not been verified: P-14.5 orders them by their Roman letters, then locants, leaving out stereo and isotope descriptors, and this name has descriptors or spellings that the ordering does not yet cover."
+            }
+            Self::Adduct => {
+                "Names a set with neutral components, such as a base with an acid or a hydrate, as an adduct or in the hydrochloride or hydrate form of general nomenclature. A mixed organic–inorganic adduct has no preferred IUPAC name (P-14.8.2), and the preferred name of a salt of an organic base cites the cation and the anion (P-77.1.1, P-77.1.3). For an adduct of organic compounds only, the order of the components by seniority of classes (P-14.8.1, P-41) has not been verified."
             }
             Self::AnionParent => {
                 "The anionic parent, suffix or retained-name choice for this anion has not been verified (P-72.7, P-72.2.2.2.1, P-72.2.2.2.2); for example, methoxide is preferred to methanolate."

@@ -147,7 +147,10 @@ pub fn parent_charge_suffix(parts: &AssemblyParts) -> String {
         )
     };
     let anion = parts.anion_suffix.as_ref().map_or_else(String::new, |op| {
-        spelling::anion_suffix(if op.cite_locants { &op.locants } else { &[] })
+        spelling::anion_suffix(
+            if op.cite_locants { &op.locants } else { &[] },
+            if op.uide { "uide" } else { "ide" },
+        )
     });
     // P-74.1.1: cationic suffixes precede anionic suffixes, irrespective of locants.
     spelling::join(&cation, &anion)

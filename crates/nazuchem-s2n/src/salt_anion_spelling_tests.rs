@@ -64,7 +64,7 @@ fn salt_anion_spelling_matrix() {
         (
             "B9d",
             "C[N+](C)(C)CC[O-]",
-            "2-(trimethylammonio)ethan-1-olate",
+            "2-(N,N-dimethylmethanaminiumyl)ethan-1-olate",
             NameStatus::Unverified(NameReason::AnionParent),
         ),
         (

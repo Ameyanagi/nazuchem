@@ -398,7 +398,7 @@ fn amine_oxides_preserve_other_charge_and_retained_name_families() {
         (
             "C17 betaine",
             "C[N+](C)(C)CC[O-]",
-            "2-(trimethylammonio)ethan-1-olate",
+            "2-(N,N-dimethylmethanaminiumyl)ethan-1-olate",
             NameStatus::Unverified(NameReason::AnionParent),
         ),
         (

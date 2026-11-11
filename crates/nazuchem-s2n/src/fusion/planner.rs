@@ -95,6 +95,84 @@ fn plan_uncached(mol: &Molecule, atoms: &AtomSet, spiro_component: bool) -> Plan
     if atoms.len() < 6 || atoms.iter().any(|a| !mol.atoms.contains_key(a)) {
         return Ok(None);
     }
+    // P-58.2.4, P-72.2.2.1, P-73.1.1.2: substituents, '-ide' and '-ium' are
+    // added to the neutral parent hydride, so an N-substituted, anionic or
+    // quaternary ring N keeps the indicated or hydro hydrogen of its N-H
+    // parent. Plan that parent; only a pheno...ine parent component
+    // (P-25.2.2.3) needs this, other parents compose it on the input.
+    let n_h_sites: Vec<_> = atoms
+        .iter()
+        .copied()
+        .filter(|&id| {
+            let atom = &mol.atoms[&id];
+            let exocyclic = mol
+                .get_neighbors(id)
+                .iter()
+                .filter(|n| !atoms.contains(n))
+                .count();
+            atom.symbol == "N"
+                && atom.total_h_count == 0
+                && all_single(mol, id)
+                && mol.degree(id) == exocyclic + 2
+                && exocyclic as i32 == 1 + atom.charge
+        })
+        .collect();
+    // An ion whose ring also carries a suffix group cites it as a prefix
+    // (P-73.1.2.1, '2,2-dimethyl-1,3-dioxo-...-2-ium'); that is not composed here.
+    let ring_suffix = atoms.iter().any(|&a| {
+        mol.get_neighbors(a)
+            .iter()
+            .any(|n| !atoms.contains(n) && mol.bond_order(a, *n) > 1)
+    });
+    if !n_h_sites.is_empty()
+        && !(ring_suffix && n_h_sites.iter().any(|id| mol.atoms[id].charge != 0))
+    {
+        let mut kept: AtomSet = mol.atoms.keys().copied().collect();
+        for &id in &n_h_sites {
+            kept.retain(|a| atoms.contains(a) || !mol.get_neighbors(id).contains(a));
+        }
+        let mut parent = mol.subgraph(&kept);
+        for &id in &n_h_sites {
+            if let Some(atom) = parent.atoms.get_mut(&id) {
+                atom.charge = 0;
+                atom.total_h_count = 1;
+                atom.explicit_h_count = 1;
+            }
+        }
+        // An ion at a hydro N is named with added hydrogen instead
+        // ('pyridin-1(2H)-ide', P-72.2.2.1.1), which is not composed here: an
+        // ionic N must carry the parent's only indicated hydrogen.
+        let charged: Vec<_> = n_h_sites
+            .iter()
+            .filter(|id| mol.atoms[id].charge != 0)
+            .collect();
+        if let Ok(Some(mut plan)) = plan_uncached(&parent, atoms, spiro_component)
+            && plan.ast.component_occurrences.iter().any(|m| {
+                fusion_component_registry()
+                    .spec_for_match(m)
+                    .is_ok_and(|s| s.parent_hydride_only)
+            })
+            && (charged.is_empty()
+                || plan.indicated_hydrogens.len() == 1
+                    && charged.iter().all(|id| {
+                        plan.numbering
+                            .abstract_atom_to_locant
+                            .iter()
+                            .any(|(a, l)| a == *id && plan.indicated_hydrogens.contains(l))
+                    }))
+        {
+            plan.charge_operations =
+                fusion_charge_operations(mol, &plan.abstract_parent_graph, &plan.numbering)?;
+            for variant in &mut plan.numbering_variants {
+                variant.charge_operations = fusion_charge_operations(
+                    mol,
+                    &variant.abstract_parent_graph,
+                    &variant.numbering,
+                )?;
+            }
+            return Ok(Some(plan));
+        }
+    }
     // P-73.1.1.2 / P-14.4(b): a cation formed by adding a hydron to a
     // saturated ring N is named from its neutral parent hydride plus -ium, so
     // plan its indicated and hydro hydrogen on the unsubstituted neutral

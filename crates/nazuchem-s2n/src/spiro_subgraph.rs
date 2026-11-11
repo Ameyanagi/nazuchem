@@ -67,11 +67,6 @@ pub(super) fn heterogeneous_spiro_junction(mol: &Molecule) -> Option<usize> {
     let (index, second, junction) = pair?;
     let first = &blocks[index];
     let skeleton = first.union(second).copied().collect();
-    if super::heterospiro::has_nonstandard_bonding(mol, &skeleton) {
-        // Identity recovery cannot carry lambda descriptors into the new core.
-        // Keep the original numbering as well as its descriptor-bearing name.
-        return None;
-    }
     let groups = super::principal_groups::component_groups(mol, &skeleton);
     if super::principal_groups::component_principal_key(mol, &groups, false)
         .is_some_and(|key| key != "ketone")
@@ -87,6 +82,14 @@ pub(super) fn heterogeneous_spiro_junction(mol: &Molecule) -> Option<usize> {
             > atoms.len()
     };
     if !polycyclic(first) && !polycyclic(second) {
+        return None;
+    }
+    // P-24.8.4.1 cites the lambda descriptors of a monocycle before `spiro`.
+    // A fused component keeps its descriptor-bearing name and numbering.
+    if [first, second]
+        .into_iter()
+        .any(|atoms| polycyclic(atoms) && super::heterospiro::has_nonstandard_bonding(mol, atoms))
+    {
         return None;
     }
     // Explicit monocycle unsaturation belongs outside the spiro bracket
