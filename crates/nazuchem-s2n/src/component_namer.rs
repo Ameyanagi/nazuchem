@@ -310,8 +310,32 @@ fn component_pipeline(
             return Err("openclatura: principal group attachment is not unique".into());
         }
     }
+    let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
     if principal_atom.is_none() {
         demote_neutral_suffixes_for_skeletal_anion(mol, component_atoms, &mut groups);
+        // P-41, P-70.2: a cation is senior to every neutral class, so a ring
+        // cationic centre makes neutral characteristic groups prefixes, as in
+        // 2,2-dimethyl-1,3-dioxo-2,3-dihydro-1H-isoindol-2-ium (P-73.1.2.1).
+        // Chain candidates are carbon paths, so only a ring centre can enter
+        // the parent here; an acyclic onium centre such as a sulfaniumyl
+        // prefix stays unverified (species::assess_cation_parent).
+        if super::species::cationic_centres(mol)
+            .iter()
+            .any(|i| component_atoms.contains(i) && cyclic.contains(i))
+        {
+            for group in &mut groups {
+                // The attachment may itself be cationic; cationic suffixes
+                // such as -aminium remain principal candidates.
+                if group
+                    .atom_ids()
+                    .iter()
+                    .filter(|&&i| i != group.attachment_carbon)
+                    .all(|i| mol.atoms[i].charge == 0)
+                {
+                    group.is_principal_candidate = false;
+                }
+            }
+        }
     }
     let mut key = component_principal_key(mol, &groups, as_prefix);
     if principal_atom.is_none()
@@ -330,7 +354,6 @@ fn component_pipeline(
         .copied()
         .filter(|i| !component_atoms.contains(i))
         .collect();
-    let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
     // The isotope adapter cannot place labels on carboxy carbons outside the
     // parent chain, so it keeps the carbonyl-inclusive parent.
     let external = if projection.is_none()

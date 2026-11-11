@@ -9,6 +9,7 @@
 // Source: openclatura | tests/data/parser_xml_resources/suffixes.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/data/parser_xml_resources/carboxylicAcids.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_spiro_composed_parent_families.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/rules/multipliers.rs | issue #21
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Inherited openclatura numerical-term constants/generation plus original suffix-specific elision and compound-anion multiplication.
@@ -181,6 +182,74 @@ mod tests {
             (1000, "one", "kilione"),
         ] {
             assert_eq!(suffix(count, ending), expected, "{count} {ending}");
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::parser_reads_every_generated_multiplier | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/rules/multipliers.rs::tests::parser_reads_every_generated_multiplier
+    // Issue #21. P-14.2.1 basic and P-14.2.2 "kis" terms through 1000, and von Baeyer
+    // ring counts (P-23.1.9) above the tabulated prefixes.
+    // https://iupac.qmul.ac.uk/BlueBook/P1.html#140201
+    // https://iupac.qmul.ac.uk/BlueBook/P1.html#140202
+    // https://iupac.qmul.ac.uk/BlueBook/P2.html#230109
+    fn parser_reads_every_generated_multiplier() {
+        let parser = nazuchem_n2s::Parser::new().unwrap();
+        let options = nazuchem_n2s::ParseOptions::default();
+        let reads = |name: &str, tag: &str, count: usize| {
+            parser.parse_trees(name, &options).is_ok_and(|trees| {
+                trees.iter().any(|tree| {
+                    tree.arena
+                        .descendants_named(tree.root, tag)
+                        .into_iter()
+                        .any(|id| tree.arena[id].attribute("value") == Some(&count.to_string()))
+                })
+            })
+        };
+        for count in 2..=1000 {
+            let name = format!("{}fluoroethane", basic(count));
+            assert!(reads(&name, "multiplier", count), "{name}");
+            let name = format!("{}(chloromethyl)ethane", complex_(count));
+            assert!(reads(&name, "multiplier", count), "{name}");
+            if count > 10 {
+                let name = format!(
+                    "{}[2.2.1]heptane",
+                    crate::ring_renderer::von_baeyer_kind(count)
+                );
+                assert!(reads(&name, "multiplier", count), "{name}");
+            }
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::generated_large_multiplier_names_round_trip | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/rules/multipliers.rs::tests::generated_large_multiplier_names_round_trip
+    // Issue #21: hexaconta = 60 and hecta = 100 (P-14.2.1), hentriacontakis = 31
+    // (P-14.2.2) and icosacyclo = 20 rings (P-23.1.9).
+    // https://iupac.qmul.ac.uk/BlueBook/P1.html#140201
+    // https://iupac.qmul.ac.uk/BlueBook/P1.html#140202
+    // https://iupac.qmul.ac.uk/BlueBook/P2.html#230109
+    fn generated_large_multiplier_names_round_trip() {
+        let perfluoro = |ring: usize| format!("FC1(F){}C1(F)F", "C(F)(F)".repeat(ring - 2));
+        // A saturated ladder of 20 fused cyclobutanes.
+        let top: String = (10..30).map(|i| format!("C%{i}")).collect();
+        let bottom: String = (10..30).rev().map(|i| format!("C%{i}")).collect();
+        for (smiles, prefix) in [
+            (perfluoro(30), "hexacontafluorocyclotriacontane"),
+            (perfluoro(50), "hectafluorocyclopentacontane"),
+            (
+                format!("C1(CCCl){}1", "C(CCCl)".repeat(30)),
+                "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31-hentriacontakis(2-chloroethyl)cyclohentriacontane",
+            ),
+            (format!("{top}CC{bottom}"), "icosacyclo[20.20.0."),
+        ] {
+            let name = crate::name_smiles(&smiles, &Default::default()).unwrap();
+            assert!(name.text.starts_with(prefix), "{}", name.text);
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                crate::test_support::canonical_smiles(&smiles).unwrap()
+            );
         }
     }
 }

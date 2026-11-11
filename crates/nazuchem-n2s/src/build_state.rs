@@ -14,7 +14,7 @@
 use crate::{
     Budget, ParseOptions, ParseWarning, ParsingError, WarningKind,
     fragment_manager::FragmentManager,
-    graph::{AtomId, FragmentId, Graph, GraphError},
+    graph::{AtomId, BondId, FragmentId, Graph, GraphError},
     parse_tree::{Arena, NodeId},
     word_rules_omitted_space::{FragmentFacts, OmittedSpaceContext, OutAtomFacts},
 };
@@ -30,6 +30,10 @@ pub struct BuildState {
     pub current_word_rule: Option<String>,
     pub warnings: Vec<ParseWarning>,
     pub(crate) principal_parent_atoms: Vec<AtomId>,
+    /// Amino-acid centres configured by an explicit D/L prefix.
+    pub(crate) dl_defined_atoms: Vec<AtomId>,
+    pub(crate) unknown_stereo_atoms: Vec<AtomId>,
+    pub(crate) unknown_stereo_bonds: Vec<BondId>,
 }
 
 // Provenance: impl BuildState | adapted
@@ -52,6 +56,9 @@ impl BuildState {
             current_word_rule: None,
             warnings: Vec::new(),
             principal_parent_atoms: Vec::new(),
+            dl_defined_atoms: Vec::new(),
+            unknown_stereo_atoms: Vec::new(),
+            unknown_stereo_bonds: Vec::new(),
         }
     }
     pub fn graph(&self) -> &Graph {

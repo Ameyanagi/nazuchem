@@ -43,6 +43,82 @@ fn parser_upstream_cases() {
     );
 }
 
+/// Issue #25, Blue Book P-14.8.1: an enclosed salt is one adduct component,
+/// as in {piperazin-1-ium ...carboxylate}—ethyl acetate—dichloromethane (1/1/1).
+/// Its ions stay balanced by the salt name itself.
+#[test]
+fn enclosed_salt_is_one_adduct_component() {
+    let parser = Parser::new().unwrap();
+    for (name, expected) in [
+        (
+            "(sodium acetate)\u{2014}water (1/3)",
+            "sodium acetate trihydrate",
+        ),
+        (
+            "[bis(methanaminium) sulfate]\u{2014}water (1/2)",
+            "bis(methanaminium) sulfate dihydrate",
+        ),
+        (
+            "(calcium chloride)\u{2014}water (1/2)",
+            "calcium chloride dihydrate",
+        ),
+        (
+            "(ammonium sulfate)\u{2014}water (1/2)",
+            "ammonium sulfate dihydrate",
+        ),
+        (
+            "{piperazin-1-ium benzoate}\u{2014}ethyl acetate\u{2014}dichloromethane (1/1/1)",
+            "piperazin-1-ium benzoate; ethyl acetate; dichloromethane",
+        ),
+    ] {
+        let formula = |text: &str| {
+            let result = parser.parse(text, &ParseOptions::strict());
+            assert_eq!(result.status, nazuchem_n2s::Status::Success, "{text}");
+            let smiles = result.structure.unwrap().semantic_cxsmiles().unwrap();
+            let mut components: Vec<_> = smiles.split('.').map(str::to_owned).collect();
+            components.sort();
+            components
+        };
+        assert_eq!(formula(name), formula(expected), "{name}");
+    }
+    assert_eq!(
+        parser
+            .parse(
+                "(calcium chloride)\u{2014}water (1/2)",
+                &ParseOptions::strict()
+            )
+            .structure
+            .unwrap()
+            .semantic_cxsmiles()
+            .unwrap()
+            .matches("[Cl-]")
+            .count(),
+        2
+    );
+    // Charges are balanced over the whole name, so a repeated salt or a
+    // second salt is not read.
+    for name in [
+        "(calcium chloride)\u{2014}water (2/1)",
+        "(calcium chloride)\u{2014}(sodium acetate)\u{2014}water (1/1/1)",
+    ] {
+        assert!(
+            parser.parse_trees(name, &ParseOptions::default()).is_err(),
+            "{name}"
+        );
+    }
+    // The ratio still counts unenclosed words.
+    assert!(
+        parser
+            .parse_trees(
+                "sodium acetate\u{2014}water (1/3)",
+                &ParseOptions::default()
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("3 components but 2 ratios")
+    );
+}
+
 #[test]
 fn upstream_component_ratio_examples_and_precise_mismatch() {
     assert_eq!(process_stoichiometry_indication("(1:2)").unwrap(), [1, 2]);
