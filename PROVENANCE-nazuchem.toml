@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "8514b9b3505e8d3dd1b14f02d317c0bac4d4852535f3d97b6de76243dd381597"
+sha256 = "d3c54f9b07de64dc17377b00ef85b40dcb45c05d75dd40a5882606c086155453"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1270,7 +1270,7 @@ sources = [
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "crates/opsin/resources/xml/regexTokens.xml", license = "MIT" },
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "crates/opsin/provenance/ExportDfa.java.txt", license = "MIT" },
 ]
-notes = "Generated OPSINDFA v2 table for the pinned OPSIN grammar, including two native token-69/token-reversed-69 overrides. Derived data, not a byte-copy of an upstream tracked file. Exporter and checked grammar establish its claimed lineage; manifest hash and aggregate fingerprint verify current identity. Unresolved: No pristine export comparison or JAR regeneration was executed; the claim that only two DFA entries differ from the pinned unmodified JAR is documented, not independently reproduced by this read-only source audit."
+notes = "Generated OPSINDFA v2 table for the pinned OPSIN grammar, including two native token-69/token-reversed-69 overrides. Derived data, not a byte-copy of an upstream tracked file. Exporter and checked grammar establish its claimed lineage; manifest hash and aggregate fingerprint verify current identity. Reproduced 2026-11-11: scripts/regenerate_opsin_grammar.py with a jar rebuilt from the pinned commit (Temurin 21.0.13, Maven 3.9.16) regenerates this file byte for byte, and a pristine export without the regexTokens.xml override differs in token-69 and token-reversed-69 only."
 sha256 = "47d46837e25862c4ac175ef5d51be26faf8f66e7ce19028a8b084d8768fdfdd6"
 
 [[file]]
