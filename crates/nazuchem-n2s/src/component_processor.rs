@@ -5,6 +5,7 @@
 // Copyright Daniel Lowe and OPSIN contributors; MIT (see LICENSE).
 // Copyright 2017 Daniel Lowe
 // Changes: Validate parsed integer ranges and relative atom offsets before construction.
+// Changes: Chalcogen locants on anhydride acids and peroxide substituents choose the bridge end (issue #26).
 
 //! Structure-aware component processing from OPSIN 2.9.0.
 //! Source: `ComponentProcessor.java`, commit b91b610af5ab07560fedb20730d7aef46bb2bca0.
@@ -1266,6 +1267,7 @@ impl<'a> ComponentProcessor<'a> {
         if atoms.is_empty() {
             return Ok(false);
         }
+        self.state.dl_defined_atoms.extend(&atoms);
         if value == "dl" {
             self.state.racemic_group_count += 1;
             for atom in atoms {
@@ -3679,6 +3681,51 @@ impl ComponentProcessor<'_> {
             self.state.current_word_rule = arena[rule].attribute(WORDRULE_ATR).map(str::to_owned);
             if arena[word].attribute(TYPE_ATR) == Some("functionalTerm") {
                 continue;
+            }
+            // P-65.7.4 and P-63.3.2: in "S-acetic O-propanoic thioperoxyanhydride"
+            // and "Se-ethyl S-methyl selenothioperoxide" two different chalcogen
+            // locants before the two words name the mixed-bridge atom bonded
+            // to each; the structure builder reads them from the words.
+            // Without them two written words could face the bridge either way.
+            // Other leading locants, as in "acetic S-methylcysteine anhydride",
+            // stay with their substituents.
+            let rule_words = arena.children_named(rule, WORD_EL);
+            if matches!(
+                self.state.current_word_rule.as_deref(),
+                Some("anhydride" | "divalentFunctionalGroup")
+            ) && rule_words.len() == 3
+                && arena
+                    .descendants_named(rule_words[2], FUNCTIONALGROUP_EL)
+                    .first()
+                    .and_then(|&group| arena[group].attribute(VALUE_ATR))
+                    .is_some_and(|bridge| {
+                        matches!(
+                            bridge.trim_end_matches('-'),
+                            "SO" | "[Se|2]O" | "[Te|2]O" | "[Se|2]S" | "[Te|2]S" | "[Se|2][Te|2]"
+                        )
+                    })
+                && arena[rule_words[0]].attribute(LOCANT_ATR).is_none()
+            {
+                let leading = |w: NodeId| {
+                    let first = *arena[w].children.first()?;
+                    let locant = *arena[first].children.first()?;
+                    (arena[locant].name == LOCANT_EL
+                        && matches!(arena.value(locant).as_str(), "O" | "S" | "Se" | "Te"))
+                    .then_some(locant)
+                };
+                let (Some(a), Some(b)) = (leading(rule_words[0]), leading(rule_words[1])) else {
+                    return Err(error(
+                        "Element locants are needed to place two words on a mixed chalcogen bridge",
+                    ));
+                };
+                if arena.value(a) == arena.value(b) {
+                    return Err(error("Mixed chalcogen bridge locants must differ"));
+                }
+                for (w, locant) in [(rule_words[0], a), (rule_words[1], b)] {
+                    let value = arena.value(locant);
+                    arena[w].set_attribute(LOCANT_ATR, &value);
+                    arena.detach(locant);
+                }
             }
             let roots = arena.descendants_named(word, ROOT_EL);
             if roots.len() > 1 {

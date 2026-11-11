@@ -325,20 +325,13 @@ fn ir_unknown_salts_preserve_legacy_rejections_without_dropping_components() {
         let error = molecule_to_name(&molecule).unwrap_err();
         assert_eq!(error.kind(), ErrorKind::Naming);
         assert_eq!(error, expected, "{smiles}");
-        if with_neutral_component {
-            // Admission of the unspecified mixture fails before the later
-            // connectedness check for rendering unknown stereo descriptors.
-            assert!(
-                error
-                    .to_string()
-                    .contains("neutral components and mixtures")
-            );
-        } else {
-            assert_eq!(
-                error.to_string(),
-                "Openclatura requires a single connected molecule"
-            );
-        }
+        // The unspecified baseline is admitted as a salt or, with the neutral
+        // component, as an adduct; rendering unknown stereo descriptors then
+        // requires one connected graph.
+        assert_eq!(
+            error.to_string(),
+            "Openclatura requires a single connected molecule"
+        );
         assert_eq!(molecule, original, "{smiles}");
     }
 }

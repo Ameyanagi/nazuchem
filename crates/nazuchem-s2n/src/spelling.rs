@@ -39,11 +39,11 @@ pub(super) fn join(head: &str, tail: &str) -> String {
 // Provenance: fn anion_suffix | adapted
 // Source: openclatura | src/openclatura/suffix_stack.py::_operation_text
 // Source: openclatura | src/openclatura/suffix_stack.py::suffix_operation_spelling
-pub(super) fn anion_suffix(locants: &[String]) -> String {
+pub(super) fn anion_suffix(locants: &[String], suffix: &str) -> String {
     let suffix = if locants.len() > 1 {
-        format!("{}ide", multipliers::basic(locants.len()))
+        format!("{}{suffix}", multipliers::basic(locants.len()))
     } else {
-        "ide".into()
+        suffix.into()
     };
     if !locants.is_empty() {
         format!("-{}-{suffix}", locants.join(","))
@@ -107,7 +107,7 @@ mod tests {
             (vec![], "ide"),
         ] {
             let locants = locants.into_iter().map(str::to_owned).collect::<Vec<_>>();
-            assert_eq!(anion_suffix(&locants), expected);
+            assert_eq!(anion_suffix(&locants, "ide"), expected);
         }
     }
 }

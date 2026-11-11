@@ -1296,7 +1296,7 @@
             0
           ]
         },
-        "seniority": 60,
+        "seniority": [60, 1],
         "suffix_with_locant": false,
         "needs_locant": true,
         "families": ["amide_like", "urea"]
@@ -1310,7 +1310,7 @@
             0
           ]
         },
-        "seniority": 60,
+        "seniority": [60, 2],
         "suffix_with_locant": false,
         "needs_locant": true,
         "families": ["amide_like", "urea"]

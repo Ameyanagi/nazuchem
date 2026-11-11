@@ -6,6 +6,7 @@
 
 //! Typed composition of independently proved fused parents with path bridges and spiro sides.
 use super::super::{
+    additive::name_indicated_hydrogen_locants,
     assembly_utils::needs_hyphen,
     chains::canonical_ranks,
     graph_kernel::connected_components,
@@ -32,11 +33,14 @@ use super::{
     faces::cached_bounded_face_model,
     indicated_hydrogen::component_h_locants,
     mancude::{
-        ParentDerivativeOptions, ParentDerivativeState, UnsaturationOperation,
+        ParentDerivativeOptions, ParentDerivativeState, UnsaturationOperation, parent_degree,
         parent_derivative_state,
     },
-    model::{ComparisonKey, FusionParentPlan, ParentBondModel},
-    numbering::retained_template_parent_bond_model,
+    model::{ComparisonKey, FusionGraph, FusionParentPlan, ParentBondModel},
+    numbering::{
+        parent_bond_graph, parent_bond_model, parent_pi_capable_atom_ids,
+        retained_template_parent_bond_model,
+    },
     planner::plan_fusion_parent,
     registry::fusion_component_registry,
     rules::fusion_ring_size_gate,
@@ -459,8 +463,26 @@ pub fn plan_bridged_fusion_wrapper_with_options(
                     else {
                         continue;
                     };
-                    let rendered_name =
-                        render_bridge_name(&selected_parent, &operations, &bridge_unsaturation);
+                    let mut selected_parent = selected_parent;
+                    let mut derivative_state = derivative_state;
+                    let indicated = if bridge_unsaturation.is_empty() {
+                        fusion_bridgehead_hydrogens(
+                            mol,
+                            &parent_atoms,
+                            &entries,
+                            &operations,
+                            &mut selected_parent,
+                            &mut derivative_state,
+                        )?
+                    } else {
+                        None
+                    };
+                    let rendered_name = render_bridge_name(
+                        &selected_parent,
+                        &operations,
+                        &bridge_unsaturation,
+                        indicated.as_deref(),
+                    );
                     let rank = wrapper_rank(
                         parent_atoms.len(),
                         &operations,
@@ -1406,11 +1428,18 @@ fn render_bridge_name(
     parent: &WrapperParentPlan,
     operations: &[NondetachableBridgeOperation],
     unsaturation: &[UnsaturationOperation],
+    bridged_indicated: Option<&[String]>,
 ) -> String {
-    let parent_name = parent.hydrogenation.as_ref().map_or_else(
+    let mut parent_name = parent.hydrogenation.as_ref().map_or_else(
         || parent.name().to_owned(),
         RetainedHydrogenationPolicy::parent_name,
     );
+    if bridged_indicated.is_some()
+        && !name_indicated_hydrogen_locants(Some(&parent_name)).is_empty()
+        && let Some((_, mancude)) = parent_name.split_once('-')
+    {
+        parent_name = mancude.to_owned();
+    }
     // P-31.2.1: dehydro precedes hydro; both precede the bridge prefixes.
     let mut dehydro = String::new();
     if !unsaturation.is_empty() {
@@ -1450,7 +1479,162 @@ fn render_bridge_name(
         .map_or(name.clone(), |hydrogenation| {
             hydrogenation.render_with_parent(&name)
         });
-    format!("{dehydro}{name}")
+    // P-25.7.1.3.3: indicated hydrogen of the bridged system is cited at the
+    // front of the complete name.
+    let indicated = bridged_indicated
+        .filter(|locants| !locants.is_empty())
+        .map_or_else(String::new, |locants| {
+            format!(
+                "{}-",
+                locants
+                    .iter()
+                    .map(|l| format!("{l}H"))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
+        });
+    format!("{dehydro}{indicated}{name}")
+}
+
+fn perfectly_paired(graph: &FusionGraph) -> Result<bool, String> {
+    Ok(parent_pi_capable_atom_ids(graph)?.len()
+        == 2 * parent_bond_model(graph)?.maximum_non_cumulative_double_bonds)
+}
+
+fn lowest_indicated_atoms(
+    graph: &mut FusionGraph,
+    candidates: &[usize],
+    count: usize,
+) -> Result<Option<Vec<usize>>, String> {
+    if count == 0 {
+        return Ok(perfectly_paired(graph)?.then(Vec::new));
+    }
+    for (index, &atom) in candidates.iter().enumerate() {
+        let Some(site) = graph.atoms.iter().position(|site| site.id == atom) else {
+            continue;
+        };
+        graph.atoms[site].forced_single = true;
+        let rest = lowest_indicated_atoms(graph, &candidates[index + 1..], count - 1)?;
+        graph.atoms[site].forced_single = false;
+        if let Some(mut rest) = rest {
+            rest.insert(0, atom);
+            return Ok(Some(rest));
+        }
+    }
+    Ok(None)
+}
+
+/// P-25.4.3.4.1: the maximum number of noncumulative double bonds is assigned
+/// after the bridge is inserted. A bridge attached at a fusion atom saturates
+/// that atom, so the hydro positions and the indicated hydrogen are those of
+/// the bridged system, not of the unbridged parent. Returns the indicated
+/// hydrogen locants of the bridged system when the state was rebased.
+fn fusion_bridgehead_hydrogens(
+    mol: &Molecule,
+    parent_atoms: &AtomSet,
+    locants: &LocantMap,
+    operations: &[NondetachableBridgeOperation],
+    parent: &mut WrapperParentPlan,
+    state: &mut ParentDerivativeState,
+) -> Result<Option<Vec<String>>, String> {
+    let bridgeheads: AtomSet = operations
+        .iter()
+        .flat_map(|o| [o.endpoint_atom_ids.0, o.endpoint_atom_ids.1])
+        .filter(|&atom| parent_degree(mol, parent_atoms, atom) == 3)
+        .collect();
+    if bridgeheads.is_empty() || parent.hydrogenation.is_some() {
+        return Ok(None);
+    }
+    let named = name_indicated_hydrogen_locants(Some(parent.name()));
+    let Some(metadata) = parent.hydride.hydride_metadata.as_mut() else {
+        return Ok(None);
+    };
+    let declared: BTreeSet<String> = metadata.default_indicated_h.iter().cloned().collect();
+    let mut graph = parent_bond_graph(mol, parent_atoms);
+    // The unbridged parent must be named as its mancude ring system (not as a
+    // hydro derivative such as indane) with exactly its own indicated hydrogen.
+    if (!named.is_empty() && named != declared)
+        || metadata.indicated_hydrogen_count
+            + 2 * parent_bond_model(&graph)?.maximum_non_cumulative_double_bonds
+            != parent_pi_capable_atom_ids(&graph)?.len()
+    {
+        return Ok(None);
+    }
+    for site in &mut graph.atoms {
+        site.forced_single |= bridgeheads.contains(&site.id);
+    }
+    let mut saturated: Vec<usize> = parent_pi_capable_atom_ids(&graph)?
+        .into_iter()
+        .filter(|&atom| {
+            mol.get_neighbors(atom)
+                .iter()
+                .all(|&n| !parent_atoms.contains(&n) || mol.bond_order(atom, n) == 1)
+        })
+        .collect();
+    saturated.sort_by_key(|atom| locant_key(&locants[atom]));
+    // Only a plain hydro/indicated-hydrogen state is rebased: the atoms it
+    // cites, with any indicated hydrogen the parent name leaves implicit, must
+    // be exactly the saturated atoms of the bridged system.
+    let cited: AtomSet = locants
+        .iter()
+        .filter(|(_, locant)| declared.contains(*locant))
+        .map(|(&atom, _)| atom)
+        .chain(
+            state
+                .hydro_operations
+                .iter()
+                .flat_map(|o| o.atom_ids.iter().copied()),
+        )
+        .collect();
+    if !state.bond_delta.added_hydrogen_operations.is_empty()
+        || !state.bond_delta.intrinsic_hydro_operations.is_empty()
+        || !bridgeheads.is_subset(&cited)
+        || cited
+            .difference(&bridgeheads)
+            .any(|atom| !saturated.contains(atom))
+        || saturated.len() + bridgeheads.len() + declared.len()
+            != cited.len() + metadata.indicated_hydrogen_count
+    {
+        return Ok(None);
+    }
+    let model = parent_bond_model(&graph)?;
+    let quota = parent_pi_capable_atom_ids(&graph)?
+        .len()
+        .saturating_sub(2 * model.maximum_non_cumulative_double_bonds);
+    // P-14.4 (b), P-31.2.1: indicated hydrogen receives the lowest locants consistent
+    // with the structure.
+    let Some(indicated) = lowest_indicated_atoms(&mut graph, &saturated, quota)? else {
+        return Ok(None);
+    };
+    let hydro: Vec<usize> = saturated
+        .iter()
+        .copied()
+        .filter(|atom| !indicated.contains(atom))
+        .collect();
+    let indicated: Vec<String> = indicated.iter().map(|a| locants[a].clone()).collect();
+    let mut operation = state.hydro_operations.first().cloned().unwrap_or_default();
+    operation.key = "additive_hydrogen".into();
+    operation.operation_kind = "additive_hydrogen".into();
+    operation.locants = hydro.iter().map(|a| locants[a].clone()).collect();
+    operation.atom_ids = hydro;
+    state.hydro_operations = if operation.atom_ids.is_empty() {
+        Vec::new()
+    } else {
+        vec![operation]
+    };
+    state
+        .bond_delta
+        .hydrogenated_edges
+        .retain(|(u, v)| !bridgeheads.contains(u) && !bridgeheads.contains(v));
+    metadata.mancude_double_bonds = model.maximum_non_cumulative_double_bonds;
+    metadata.indicated_hydrogen_count = indicated.len();
+    metadata.default_indicated_h = indicated.clone();
+    metadata.inherent_saturated_locants = indicated
+        .iter()
+        .cloned()
+        .chain(bridgeheads.iter().map(|a| locants[a].clone()))
+        .collect();
+    Ok(Some(indicated))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1983,6 +2167,49 @@ mod tests {
             name_smiles(smiles, &Default::default()).unwrap_err(),
             expected
         );
+    }
+    #[test]
+    fn fusion_atom_bridgeheads_use_the_bridged_system_hydrogen_state() {
+        // #28. P-25.4.3.4.1: the maximum number of noncumulative double bonds
+        // is assigned after the bridge is inserted, so a bridge at a fusion
+        // atom changes the hydro count and the need for indicated hydrogen.
+        // P-25.7.1.3.3: that indicated hydrogen is cited at the front of the
+        // complete name (the first two rows are its examples).
+        // P-14.4 (b), P-31.2.1: indicated hydrogen takes the lowest locants.
+        for (smiles, expected) in [
+            ("C1C=CC23C=CC=C(C=C12)CC3", "1H-3a,7-ethanoazulene"),
+            ("O1CC=CC23C=CC(C=C12)CC3", "2H,7H-4a,7-ethano-1-benzopyran"),
+            (
+                "O1CCCC23CCC(CC12)CC3",
+                "hexahydro-2H,5H-4a,7-ethano-1-benzopyran",
+            ),
+            ("C1NCC23CCC(CC12)O3", "octahydro-3a,6-epoxyisoindole"),
+            (
+                "N1C=CC23CCC(CC12)CC3",
+                "1,4,5,6,7,7a-hexahydro-3a,6-ethanoindole",
+            ),
+            (
+                "C1=CC=C2C(=C1)C=CC34C2=CC=C(C3)CC4",
+                "1H-2,10a-ethanophenanthrene",
+            ),
+            (
+                "C1C2CCC3C4CCCCC4CCC13CC2",
+                "dodecahydro-1H-2,10a-ethanophenanthrene",
+            ),
+            (
+                "CCC(CO)N1C(C23CC(C(O2)C(C3C1=O)C(=O)NC)Br)C(=O)NCC4=CC=CC=C4",
+                "N-benzyl-5-bromo-2-(1-hydroxybutan-2-yl)-N'-methyl-1-oxooctahydro-3a,6-epoxyisoindole-3,7-dicarboxamide",
+            ),
+            (
+                "C=C1C(=O)[C@@]23CC[C@H]4[C@H](C(=O)O)CCC[C@@]4(C)[C@@H]2[C@@H](O)C[C@@H]1C3",
+                "(2S,4S,4aS,4bR,8R,8aS,10aR)-4-hydroxy-4b-methyl-12-methylidene-11-oxododecahydro-1H-2,10a-ethanophenanthrene-8-carboxylic acid",
+            ),
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
     }
     #[test]
     fn removal_enumeration_counts_before_filter_and_preserves_size_order() {

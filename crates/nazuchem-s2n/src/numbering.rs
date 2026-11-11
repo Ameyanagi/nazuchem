@@ -9,9 +9,10 @@
 // Source: openclatura | tests/data/parser_xml_resources/simpleSubstituents.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_rules_tables.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/data/parser_xml_resources/alkanes.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/numbering.rs | issue 10
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
-// Changes: Openclatura parent-numbering criteria extended with local skeletal-anion and late modifier priorities.
+// Changes: Openclatura parent-numbering criteria extended with local skeletal-anion, von Baeyer compound-locant and late modifier priorities.
 // Local contributions: MIT OR Apache-2.0; see NOTICE and PROVENANCE-nazuchem.toml.
 
 //! Parent numbering criteria ported from Python `numbering.py`.
@@ -33,6 +34,8 @@ pub struct NumberingTopology {
     pub is_bicycle: bool,
     pub is_spiro: bool,
     pub is_polycycle: bool,
+    /// The parent is named by a von Baeyer descriptor (P-23.2).
+    pub is_von_baeyer: bool,
 }
 
 /// Contextual numbering criteria and final tie breakers.
@@ -139,7 +142,7 @@ impl NumberingTopology {
 #[derive(Clone, Debug)]
 pub struct NumberingPreference {
     pub free_valence: Vec<usize>,
-    pub skeletal_anions: Vec<usize>,
+    pub skeletal_ions: Vec<usize>,
     pub principal: Vec<usize>,
     pub hetero_by_priority: Vec<Vec<usize>>,
     pub indicated_hydrogen: Vec<usize>,
@@ -154,7 +157,7 @@ pub struct NumberingPreference {
 #[derive(Clone, Copy)]
 enum NumberingCriterion {
     FreeValence,
-    SkeletalAnions,
+    SkeletalIons,
     Principal,
     HeteroByPriority,
     IndicatedHydrogen,
@@ -194,13 +197,15 @@ fn numbering_criteria(parent_kind: &str) -> Vec<NumberingCriterion> {
         )
         .collect();
     // P-72.6.3: substituent free valences precede anionic centres, which
-    // precede characteristic suffixes (P-72.5.3, P-74.1.1). Fixed heteroatom
-    // and indicated-hydrogen numbering keeps its existing priority.
+    // precede characteristic suffixes (P-72.5.3, P-74.1.1). Skeletal
+    // cationic centres of a cation take the same place (P-73.6, P-73.5.3.2,
+    // P-75.2). Fixed heteroatom and indicated-hydrogen numbering keeps its
+    // existing priority.
     if let Some(principal) = criteria
         .iter()
         .position(|criterion| matches!(criterion, NumberingCriterion::Principal))
     {
-        criteria.insert(principal, NumberingCriterion::SkeletalAnions);
+        criteria.insert(principal, NumberingCriterion::SkeletalIons);
         criteria.insert(principal, NumberingCriterion::FreeValence);
     }
     criteria
@@ -232,7 +237,7 @@ impl NumberingPreference {
     fn criterion(&self, criterion: NumberingCriterion) -> Criterion<'_> {
         match criterion {
             NumberingCriterion::FreeValence => Criterion::Flat(&self.free_valence),
-            NumberingCriterion::SkeletalAnions => Criterion::Flat(&self.skeletal_anions),
+            NumberingCriterion::SkeletalIons => Criterion::Flat(&self.skeletal_ions),
             NumberingCriterion::Principal => Criterion::Flat(&self.principal),
             NumberingCriterion::HeteroByPriority => Criterion::Nested(&self.hetero_by_priority),
             NumberingCriterion::IndicatedHydrogen => Criterion::Flat(&self.indicated_hydrogen),
@@ -376,6 +381,7 @@ pub fn choose_parent_numbering(
     proven_hydrogen_locants: Option<&ProvenHydrogenLocants>,
 ) -> (Vec<usize>, Option<BTreeMap<usize, String>>) {
     if !locant_maps.is_empty() {
+        let cations = super::species::cationic_centres(mol);
         type MapScore = (
             Vec<Vec<LocantKey>>,
             Vec<LocantKey>,
@@ -383,7 +389,7 @@ pub fn choose_parent_numbering(
             Vec<LocantKey>,
             Vec<LocantKey>,
             Vec<LocantKey>,
-            Vec<LocantKey>,
+            (Vec<LocantKey>, Vec<usize>),
             Vec<LocantKey>,
             Vec<(String, LocantKey)>,
             Vec<(LocantKey, usize)>,
@@ -397,12 +403,14 @@ pub fn choose_parent_numbering(
                 .filter(|idx| map.contains_key(idx))
                 .map(value)
                 .collect();
-            let mut skeletal_anions: Vec<_> = map
+            let mut skeletal_ions: Vec<_> = map
                 .keys()
-                .filter(|idx| mol.atoms.get(idx).is_some_and(|atom| atom.charge < 0))
+                .filter(|idx| {
+                    cations.contains(idx) || mol.atoms.get(idx).is_some_and(|atom| atom.charge < 0)
+                })
                 .map(value)
                 .collect();
-            skeletal_anions.sort();
+            skeletal_ions.sort();
             let mut principal: Vec<_> = principal_atoms
                 .iter()
                 .filter(|idx| map.contains_key(idx))
@@ -443,10 +451,12 @@ pub fn choose_parent_numbering(
                 .collect();
             subst.sort();
             let ring: AtomSet = map.keys().copied().collect();
+            // A von Baeyer name cites 'ene' locants, never hydro prefixes.
             let mut hydro: Vec<_> = ring
                 .iter()
                 .filter(|&&idx| {
-                    mol.atoms.contains_key(&idx)
+                    !topology.is_von_baeyer
+                        && mol.atoms.contains_key(&idx)
                         && retained::is_saturated_ring_site(mol, idx, &ring)
                 })
                 .map(value)
@@ -505,6 +515,11 @@ pub fn choose_parent_numbering(
                 .collect();
             stereo.sort();
             path.sort_by_key(value);
+            let unsaturation = if topology.is_von_baeyer {
+                von_baeyer_bond_locants(mol, &path)
+            } else {
+                Vec::new()
+            };
             // Other retained/fused maps do not score atom stereo. Axial
             // descriptors are scored on every map.
             (
@@ -512,9 +527,9 @@ pub fn choose_parent_numbering(
                 junction,
                 indicated,
                 free_valence,
-                skeletal_anions,
+                skeletal_ions,
                 principal,
-                hydro,
+                (hydro, unsaturation),
                 subst,
                 citation,
                 stereo,
@@ -562,11 +577,19 @@ fn numbering_preference(
     topology: NumberingTopology,
 ) -> NumberingPreference {
     let free_valence = get_atom_locants(path, &root.into_iter().collect());
-    let skeletal_anions = get_atom_locants(
+    // Group perception runs only for a path that carries a positive charge.
+    let cations = if path.iter().any(|i| mol.atoms[i].charge > 0) {
+        super::species::cationic_centres(mol)
+    } else {
+        Default::default()
+    };
+    let skeletal_ions = get_atom_locants(
         path,
         &path
             .iter()
-            .filter(|idx| mol.atoms.get(idx).is_some_and(|atom| atom.charge < 0))
+            .filter(|idx| {
+                cations.contains(idx) || mol.atoms.get(idx).is_some_and(|atom| atom.charge < 0)
+            })
             .copied()
             .collect(),
     );
@@ -608,11 +631,14 @@ fn numbering_preference(
         .chain(unsaturation.iter().copied())
         .collect();
     substituent_and_unsaturation.sort();
+    if topology.is_von_baeyer {
+        unsaturation = von_baeyer_bond_locants(mol, path);
+    }
     let substituent_citation = substituent_citation_locants(path, substituents);
     let stereochemistry = stereochemistry_preference(mol, path, true);
     NumberingPreference {
         free_valence,
-        skeletal_anions,
+        skeletal_ions,
         principal,
         hetero_by_priority,
         indicated_hydrogen,
@@ -623,6 +649,39 @@ fn numbering_preference(
         substituent_citation,
         stereochemistry,
     }
+}
+
+/// P-31.1.4.2 and P-31.1.4.3: a von Baeyer numbering has (1) the fewest
+/// compound locants, (2) the lowest multiple-bond then double-bond locants,
+/// ignoring those in parentheses, and (3) the lowest locants including them.
+// Provenance: fn von_baeyer_bond_locants | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/numbering.rs::von_baeyer_bond_locants
+fn von_baeyer_bond_locants(mol: &Molecule, path: &[usize]) -> Vec<usize> {
+    let locants: BTreeMap<_, _> = path.iter().enumerate().map(|(i, &a)| (a, i + 1)).collect();
+    let (mut compound, mut multiple, mut double, mut all) = (0, vec![], vec![], vec![]);
+    for bond in mol.bonds.values().filter(|bond| bond.order > 1) {
+        let (Some(&u), Some(&v)) = (locants.get(&bond.u), locants.get(&bond.v)) else {
+            continue;
+        };
+        let (low, high) = (u.min(v), u.max(v));
+        multiple.push(low);
+        all.push(low);
+        if bond.order == 2 {
+            double.push(low);
+        }
+        if high != low + 1 {
+            compound += 1;
+            all.push(high);
+        }
+    }
+    multiple.sort_unstable();
+    double.sort_unstable();
+    all.sort_unstable();
+    std::iter::once(compound)
+        .chain(multiple)
+        .chain(double)
+        .chain(all)
+        .collect()
 }
 
 /// Keep every chain orientation permitted by criteria preceding stereo.
@@ -654,6 +713,27 @@ pub(super) fn chain_orientations_before_stereo(
         Ordering::Greater => vec![reversed],
         Ordering::Equal => vec![path.to_vec(), reversed],
     }
+}
+
+/// The numbering criteria of the senior chain orientation, without stereo.
+// Provenance: fn chain_preference_before_stereo | adapted
+// Source: openclatura | src/openclatura/numbering.py::number_parent
+// Source: openclatura | src/openclatura/numbering.py::_numbering_preference
+pub(super) fn chain_preference_before_stereo(
+    mol: &Molecule,
+    path: &[usize],
+    principal: &[usize],
+    substituents: &BTreeMap<usize, Vec<String>>,
+) -> NumberingPreference {
+    numbering_preference(
+        mol,
+        &chain_orientations_before_stereo(mol, path, principal, substituents)[0],
+        principal,
+        None,
+        substituents,
+        None,
+        NumberingTopology::default(),
+    )
 }
 
 /// P-14.4(j): after structural numbering ties, prefer R to S and M to P
