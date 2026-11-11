@@ -227,6 +227,7 @@ pub fn analyse_atoms_and_bonds(
             true_stereo_centre: true,
         })
         .collect();
+    let mut candidates = Vec::new();
     for atom in potential
         .into_iter()
         .filter(|atom| !true_centres.contains(atom))
@@ -235,33 +236,44 @@ pub fn analyse_atoms_and_bonds(
         if neighbours.len() != 4 {
             continue;
         }
-        // Preserve upstream's first matching pair for each index. Three equal
+        // Preserve upstream's first matching pair for each index. Four equal
         // ligands form three entries and therefore do not qualify.
         let mut pairs = Vec::new();
         for i in 0..4 {
             if let Some(j) =
                 (i + 1..4).find(|j| environments[&neighbours[i]] == environments[&neighbours[*j]])
             {
-                pairs.push((i, j));
+                pairs.push((neighbours[i], neighbours[j]));
             }
         }
-        if matches!(pairs.len(), 1 | 2)
-            && pairs.iter().all(|(i, j)| {
-                branches_have_true_stereocentre(
-                    graph,
-                    neighbours[*i],
-                    neighbours[*j],
-                    atom,
-                    &true_centres,
-                )
-            })
-        {
-            centres.push(StereoCentre {
-                atom,
-                true_stereo_centre: false,
-            });
+        // Three equal ligands are two overlapping pairs (cubane, adamantane).
+        let three_equal = pairs.len() == 2 && pairs[0].1 == pairs[1].0;
+        if matches!(pairs.len(), 1 | 2) {
+            candidates.push((atom, pairs, three_equal));
         }
     }
+    // Equivalent branches also qualify through another such candidate, as
+    // in 1,2,3,4,5,6-hexachlorocyclohexane, whose ring carbons are each
+    // stereogenic only because of the others (P-92.5.2.2, example 3). Drop
+    // candidates until the remaining set is self-consistent. Atoms with
+    // three equal ligands keep upstream's true-centre test.
+    loop {
+        let others: Vec<_> = candidates.iter().map(|(atom, ..)| *atom).collect();
+        let before = candidates.len();
+        candidates.retain(|(atom, pairs, three_equal)| {
+            let others = if *three_equal { &[][..] } else { &others };
+            pairs.iter().all(|&(first, second)| {
+                branches_have_stereocentre(graph, first, second, *atom, &true_centres, others)
+            })
+        });
+        if candidates.len() == before {
+            break;
+        }
+    }
+    centres.extend(candidates.into_iter().map(|(atom, ..)| StereoCentre {
+        atom,
+        true_stereo_centre: false,
+    }));
     let stereo_bonds = bonds
         .iter()
         .copied()
@@ -308,12 +320,13 @@ fn assign_group_colours(groups: &[Vec<usize>], colours: &mut [usize]) {
     }
 }
 
-fn branches_have_true_stereocentre(
+fn branches_have_stereocentre(
     graph: &Graph,
     first: AtomId,
     second: AtomId,
     central: AtomId,
     true_centres: &[AtomId],
+    candidates: &[AtomId],
 ) -> bool {
     let mut visited = HashSet::from([central]);
     let mut queue = VecDeque::from([first, second]);
@@ -326,6 +339,11 @@ fn branches_have_true_stereocentre(
             if queue.contains(&atom) {
                 queue.retain(|other| *other != atom);
                 continue;
+            }
+            // A candidate where the branches meet (norbornane's other
+            // bridgehead) lies on their mirror plane and cannot tell them apart.
+            if candidates.contains(&atom) {
+                return true;
             }
             for neighbour in graph.neighbours(atom) {
                 if !visited.contains(&neighbour) {

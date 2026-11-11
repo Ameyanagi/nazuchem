@@ -78,7 +78,7 @@ use std::sync::{Arc, OnceLock};
 pub const UPSTREAM_VERSION: &str = "3.0-SNAPSHOT";
 pub const UPSTREAM_COMMIT: &str = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91";
 pub const RESOURCE_FINGERPRINT: &str =
-    "98d000d1426c1fe6a6a205ddb4e7bfb3e931190e4555afa083f3992060f4fb42";
+    "2943b86103bd26b7ee15e189251b779d080939f01ed81f464523a759828d0601";
 pub const PORT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Axial stereochemistry in the atom order of the accompanying SMILES.
@@ -103,6 +103,10 @@ pub struct Structure {
     pub fragment: graph::FragmentId,
     /// Parent-group atoms captured before word-rule assembly, excluding suffix atoms.
     pub principal_parent_atoms: Vec<graph::AtomId>,
+    /// Stereocentres and double bonds a ξ/Ξ descriptor marked as configuration
+    /// unknown (P-91.2.1.2.1). The graph leaves them unspecified; IR records them.
+    pub unknown_stereo_atoms: Vec<graph::AtomId>,
+    pub unknown_stereo_bonds: Vec<graph::BondId>,
 }
 
 // Provenance: impl Structure | adapted

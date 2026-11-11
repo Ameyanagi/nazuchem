@@ -314,8 +314,40 @@ impl<'a> SuffixApplier<'a> {
                                         protons,
                                     );
                                 } else {
+                                    // Ring atoms that keep a hydrogen in the parent
+                                    // hydride. Hydrogen named on the parent
+                                    // (2H-pyrazolide) is applied only after
+                                    // suffixes, and named indicated hydrogen
+                                    // replaces the group's default (1H).
+                                    let graph = &self.state.fragment_manager.graph;
+                                    let named: Vec<_> = arena[suffix]
+                                        .parent
+                                        .map(|parent| arena[parent].children.clone())
+                                        .unwrap_or_default()
+                                        .into_iter()
+                                        .filter(|&child| {
+                                            matches!(
+                                                arena[child].name.as_str(),
+                                                INDICATEDHYDROGEN_EL | ADDEDHYDROGEN_EL | HYDRO_EL
+                                            )
+                                        })
+                                        .collect();
+                                    let mut hydrogenated: Vec<_> = named
+                                        .iter()
+                                        .filter_map(|&child| {
+                                            graph.atom_by_locant(
+                                                fragment,
+                                                arena[child].attribute(LOCANT_ATR)?,
+                                            )
+                                        })
+                                        .collect();
+                                    if named.iter().all(|&child| arena[child].name == HYDRO_EL) {
+                                        hydrogenated
+                                            .extend(&graph.fragment(fragment).indicated_hydrogens);
+                                    }
                                     self.apply_unlocanted_charge_modification(
                                         &original_atoms,
+                                        &hydrogenated,
                                         charge,
                                         protons,
                                         &fragment_token_text,
@@ -757,6 +789,7 @@ impl<'a> SuffixApplier<'a> {
     fn apply_unlocanted_charge_modification(
         &mut self,
         atoms: &[AtomId],
+        hydrogenated: &[AtomId],
         charge_change: i32,
         proton_change: i32,
         token_text: &str,
@@ -801,12 +834,7 @@ impl<'a> SuffixApplier<'a> {
                 } else {
                     0
                 };
-                if a.spare_valency
-                    && !graph
-                        .fragment(a.fragment)
-                        .indicated_hydrogens
-                        .contains(&atom)
-                {
+                if a.spare_valency && !hydrogenated.contains(&atom) {
                     hydrogens -= 1;
                 }
                 if hydrogens < 1 {

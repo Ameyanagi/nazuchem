@@ -8,13 +8,17 @@ affects parsing or structures is ported through the pinned main commit,
 including phane nomenclature (see `../PORTING.md`).
 `../LICENSE` is an unmodified upstream copy. `manifest.json` records every
 XML/DTD file, migrated table, exporter and fixture hash. The seven DTD files
-and 36 XML files are byte-equal to the pinned main checkout. The native
+and 34 XML files are byte-equal to the pinned main checkout. The native
 `regexTokens.xml` extensions permit a locant before an axial descriptor and
-recognize unlocanted Xi/xi stereodescriptors. Native dictionary additions to
-`suffixes.xml`, `suffixRules.xml`, `suffixApplicability.xml` and
-`functionalTerms.xml` read chalcogen peroxy acids, peroxols, tellanal,
-mixed-chalcogen peroxyanhydrides and peroxide class names; they add tokens to
-existing token lists and leave the DFA tables unchanged. `native_extensions` in
+recognize unlocanted Xi/xi stereodescriptors. The native `multipliers.xml`
+additions supply the composite P-14.2 numerical terms. The native
+`inlineSuffixes.xml`, `suffixApplicability.xml` and `suffixRules.xml`
+extensions add the `aminiumyl` and `aminiumylidene` substituent suffixes
+(IUPAC P-73.6). Native dictionary additions to `suffixes.xml`,
+`suffixRules.xml`, `suffixApplicability.xml` and `functionalTerms.xml` read
+chalcogen peroxy acids, peroxols, tellanal, mixed-chalcogen peroxyanhydrides
+and peroxide class names. These additions only add dictionary tokens to
+existing token lists, so the DFA tables are unchanged. `native_extensions` in
 the manifest records these changes.
 
 The development oracle is the main build
@@ -138,7 +142,7 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`98d000d1426c1fe6a6a205ddb4e7bfb3e931190e4555afa083f3992060f4fb42`.
+`2943b86103bd26b7ee15e189251b779d080939f01ed81f464523a759828d0601`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph

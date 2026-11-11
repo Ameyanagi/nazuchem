@@ -27,8 +27,10 @@ use nazuchem_ir::{NameReason, NameStatus};
 // Test provenance: upstream inputs/expected names with local assertions and extensions;
 // exact matches are conservatively adapted; independent ancestry is not established.
 fn ion_spelling_matrix() {
-    // Only unsubstituted cationic N prefixes use azaniumyl/azaniumylidene.
-    // Substituted N keeps the accepted ammonio/iminio alternative and CationPrefix.
+    // Unsubstituted cationic N prefixes use azaniumyl/azaniumylidene. P-73.6
+    // method (1) and its 2020 corrections (P-73.6, P-74.1.3) name a
+    // substituted one from its aminium cation: N,N-dimethylmethanaminiumyl.
+    // Cations not named with 'aminium' (anilinium) keep ammonio/CationPrefix.
     let parser = nazuchem_n2s::Parser::new().unwrap();
     let mut failures = Vec::new();
     for (row, smiles, expected, status) in [
@@ -41,8 +43,8 @@ fn ion_spelling_matrix() {
         (
             "A2",
             "C[N+](C)(C)CC(=O)[O-]",
-            "(trimethylammonio)acetate",
-            NameStatus::Unverified(NameReason::CationPrefix),
+            "(N,N-dimethylmethanaminiumyl)acetate",
+            NameStatus::Preferred,
         ),
         (
             "A3",
@@ -65,13 +67,13 @@ fn ion_spelling_matrix() {
         (
             "A6",
             "C[N+](C)(C)CCC(=O)[O-]",
-            "3-(trimethylammonio)propanoate",
-            NameStatus::Unverified(NameReason::CationPrefix),
+            "3-(N,N-dimethylmethanaminiumyl)propanoate",
+            NameStatus::Preferred,
         ),
         (
             "A7",
             "C[N+](C)(C)CC[O-]",
-            "2-(trimethylammonio)ethan-1-olate",
+            "2-(N,N-dimethylmethanaminiumyl)ethan-1-olate",
             NameStatus::Unverified(NameReason::AnionParent),
         ),
         (
@@ -150,14 +152,51 @@ fn ion_spelling_matrix() {
         (
             "A21",
             "C[NH2+]CC(=O)[O-]",
-            "(methylammonio)acetate",
-            NameStatus::Unverified(NameReason::CationPrefix),
+            "(methanaminiumyl)acetate",
+            NameStatus::Preferred,
         ),
         (
             "A22",
             "C[NH+](C)CC(=O)[O-]",
-            "(dimethylammonio)acetate",
-            NameStatus::Unverified(NameReason::CationPrefix),
+            "(N-methylmethanaminiumyl)acetate",
+            NameStatus::Preferred,
+        ),
+        // P-62.2.2.1(1) via P-73.6: the senior N-substituent is the aminium parent.
+        (
+            "A23",
+            "CC[N+](C)(CCC)CC(=O)[O-]",
+            "(N-ethyl-N-methylpropan-1-aminiumyl)acetate",
+            NameStatus::Preferred,
+        ),
+        (
+            "A24",
+            "[O-]C(=O)C[NH2+]C1CCCCC1",
+            "(cyclohexanaminiumyl)acetate",
+            NameStatus::Preferred,
+        ),
+        (
+            "A25",
+            "[O-]C(=O)C[N+](CCl)(CCl)C",
+            "[1-chloro-N-(chloromethyl)-N-methylmethanaminiumyl]acetate",
+            NameStatus::Preferred,
+        ),
+        (
+            "A26",
+            "C[C@H](CC)[NH2+]CC(=O)[O-]",
+            "[(2R)-butan-2-aminiumyl]acetate",
+            NameStatus::Preferred,
+        ),
+        (
+            "A27",
+            "[O-]C(=O)c1ccc(C[N+](C)(C)CCO)cc1",
+            "4-[(2-hydroxy-N,N-dimethylethan-1-aminiumyl)methyl]benzoate",
+            NameStatus::Preferred,
+        ),
+        (
+            "A28",
+            "[O-]C(=O)C[NH2+]Cc1ccccc1",
+            "(1-phenylmethanaminiumyl)acetate",
+            NameStatus::Preferred,
         ),
         (
             "control methanaminium",
@@ -246,14 +285,71 @@ fn ion_spelling_matrix() {
         (
             "control substituted iminium prefix",
             "C[N+](C)=CC(=O)[O-]",
-            "(dimethyliminio)acetate",
-            NameStatus::Unverified(NameReason::CationPrefix),
+            "(N-methylmethanaminiumylidene)acetate",
+            NameStatus::Preferred,
         ),
         (
             "control phenylammonio prefix",
             "[O-]C(=O)C[NH2+]c1ccccc1",
             "(phenylammonio)acetate",
             NameStatus::Unverified(NameReason::CationPrefix),
+        ),
+        // P-73.1.1.2: a hydron added to a ring N keeps the neutral parent's
+        // indicated and hydro hydrogen; P-31.2.2: indicated H takes the
+        // lowest locant (2,3-dihydro-1H-isoindole, P-31.2.3.3.1).
+        (
+            "#30 N-methylisoindolinium",
+            "C[NH+]1Cc2ccccc2C1",
+            "2-methyl-2,3-dihydro-1H-isoindol-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#30 isoindolinium",
+            "[NH2+]1Cc2ccccc2C1",
+            "2,3-dihydro-1H-isoindol-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#31 tetrahydropyrazinobenzimidazolium",
+            "C[NH+]1CCN2C(=NC3=CC=CC=C32)C1",
+            "2-methyl-1,2,3,4-tetrahydropyrazino[1,2-a][1,3]benzimidazol-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#31 hexahydroisoindolium",
+            "C1C=CCC2C1C[NH2+]C2",
+            "2,3,3a,4,7,7a-hexahydro-1H-isoindol-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#31 hexahydroisoindolium chloride",
+            "C1C=CCC2C1C[NH2+]C2.[Cl-]",
+            "2,3,3a,4,7,7a-hexahydro-1H-isoindol-2-ium chloride",
+            NameStatus::Unverified(NameReason::UnauditedPath),
+        ),
+        (
+            "#31 N-methyltetrahydroisoquinolinium",
+            "C[NH+]1CCc2ccccc2C1",
+            "2-methyl-1,2,3,4-tetrahydroisoquinolin-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#31 octahydroisoquinolinium",
+            "C1=CC2C[NH2+]CCC2CC1",
+            "1,2,3,4,4a,5,6,8a-octahydroisoquinolin-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#31 two protonated ring N",
+            "[NH2+]1CCc2cc3c(cc2C1)C[NH2+]CC3",
+            "1,2,3,4,6,7,8,9-octahydropyrido[4,3-g]isoquinoline-2,8-diium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#30 substituted isoindolinium",
+            "Clc1ccc2C[NH+](C)Cc2c1",
+            "5-chloro-2-methyl-2,3-dihydro-1H-isoindol-2-ium",
+            NameStatus::Preferred,
         ),
         (
             "control nitrobenzene",

@@ -64,6 +64,14 @@ fn ascii_xi_normalization_recognizes_descriptors_without_changing_word_text() {
         ("5XIcholestane", "5xicholestane"),
         ("(Ξ,ξ,Xi,xI)", "(Xi,xI,xi,xi)"),
         ("OXIME", "OXIME"),
+        // P-103.1.3.1/P-103.3.4: unbracketed ξ in the D/L position.
+        ("ξ-alanine", "(xI)-alanine"),
+        (
+            "N-acetyl-ξ-alanyl-L-alanine",
+            "N-acetyl-(xI)-alanyl-L-alanine",
+        ),
+        ("(ξ)-alanine", "(xI)-alanine"),
+        ("5ξ-cholestane", "5xI-cholestane"),
         ("THIOOXIME", "THIOOXIME"),
         ("XIPAMIDE", "XIPAMIDE"),
         (

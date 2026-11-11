@@ -38,10 +38,10 @@
     "resources/xml/index.xml": "4136936b17eb922c2c55f939aaf6881f5dc809da255991e37292fd720582766a",
     "resources/xml/infixes.xml": "0fcda75b010b706b09ae9f34008066c3e4072ba015edb3db8f6fe2306266c81c",
     "resources/xml/inlineChargeSuffixes.xml": "f8b604af4f329f86ac541a36b54f635b4a975c0e480ed8f030f0343d9e4eea7a",
-    "resources/xml/inlineSuffixes.xml": "9d5ce3bc345dd15ed6a8be0a6b46a22007b1801c190519164f45369eb0c37a9c",
+    "resources/xml/inlineSuffixes.xml": "c39af1385995f32b01930836b13de5cd5c290d650d5acaa18fbcff05c6d81be3",
     "resources/xml/miscTokens.xml": "c46a740d8d94b45a07aa1327891183430809809ed119b86fed8e374967649709",
     "resources/xml/multiRadicalSubstituents.xml": "dba08d1e2367d5253080bee04f9edcb964da7a4b215ecb10953be4d04524b683",
-    "resources/xml/multipliers.xml": "c2401556d2111cf7dbd94a2e6d6ec5dc96bdee999373a892bbdd08d62e62ed12",
+    "resources/xml/multipliers.xml": "08030f378924bf9e5662eb808957817474acc0c3bd46c3a347fdaf5bcf356994",
     "resources/xml/naturalProducts.xml": "8f1f01cff9111d391b25d9e04222dd2a90f8ac1580ada348badc6643ff6d582b",
     "resources/xml/nonCarboxylicAcids.xml": "732921fafe01c2d19c4793d83b91f6bec6f7d05ce7cf47fa2b01a70e691be30a",
     "resources/xml/phanes.xml": "09a2c3d671b2fe77f585eb0b721ce49729fa403973b57f2d2bff0a4a8069adb4",
@@ -54,10 +54,10 @@
     "resources/xml/simpleSubstituents.xml": "41348a77f2135ad2047f836b52ca2c5db983bcb26c44e04e1694818d24066876",
     "resources/xml/substituents.xml": "41a7f584e7d532dd21526bacd4078d34f8b8ec2df6b833b6f5347b63e3164a35",
     "resources/xml/suffixApplicability.dtd": "50e57c6484ac2ec522cb6ca30e33d25288a74a036ad03432a40db1bb59787c16",
-    "resources/xml/suffixApplicability.xml": "ae10a2465c97ede1655ce3abc68824f69ceadaf6400505422a3a3ac305d9aed4",
+    "resources/xml/suffixApplicability.xml": "6a5be89a80a09276b28abaf971fa6cce6a2929ad902c910e0c1e227e8de2a66d",
     "resources/xml/suffixPrefix.xml": "5428dbc34ce8e458f81e36ccf456023284bcf8b822d2ada7de5b41e248a7d1c5",
     "resources/xml/suffixRules.dtd": "307af66d255095c9d117493c8bddf5e2b9dcc4741e998e7dd7fdcb38304d4daf",
-    "resources/xml/suffixRules.xml": "dd2dd6181b47475eec8ce7774e9a38537f90261b4af0a8478b4ae0cb8939ba43",
+    "resources/xml/suffixRules.xml": "d92e6896feb730c5ce66712d6fdffa396ecccdbcebbdf3255496e8713c1a8b10",
     "resources/xml/suffixes.xml": "cd22e16bc15df9f62675583d9f0061eb4c3d6e0d81a0dfc1a15ff7dc68424f35",
     "resources/xml/tokenFiles.dtd": "3acb49df364b02a65ea20aef8d33758b047fa1426289be3811386a7450e57355",
     "resources/xml/tokenLists.dtd": "35ab7b9c52960ea27aa715dd73f1fadb5fc5c5e9081f8fdd9dd8967fdad96100",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "98d000d1426c1fe6a6a205ddb4e7bfb3e931190e4555afa083f3992060f4fb42"
+    "sha256": "2943b86103bd26b7ee15e189251b779d080939f01ed81f464523a759828d0601"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",
@@ -281,6 +281,15 @@
       "grammar": "Unlocanted Xi/xi in stereochemPossibilities; graph interpretation keeps the case of xi",
       "automata": ["token-69", "token-reversed-69"],
       "exporter": "ExportDfa.java.txt with the checked regexTokens.xml resource override; all other DFA entries retained"
+    },
+    "p14_composite_multipliers": {
+      "tokens": "multipliers.xml basic 51-1000, group 31-1000 and VonBaeyer 21-1000 composite numerical terms (IUPAC 2013 P-14.2.1, P-14.2.2) plus the icosa VonBaeyer spelling",
+      "automata": []
+    },
+    "aminiumyl_suffixes": {
+      "grammar": "aminiumyl and aminiumylidene inline suffix tokens (IUPAC P-73.6 method (1)) with suffixApplicability and suffixRules entries for standard groups",
+      "automata": [],
+      "exporter": "None; dictionary tokens of the existing inline-suffix symbol, DFA table unchanged"
     },
     "chalcogen_peroxy_names": {
       "resources": ["suffixes.xml", "suffixRules.xml", "suffixApplicability.xml", "functionalTerms.xml"],

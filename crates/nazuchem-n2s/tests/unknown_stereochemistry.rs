@@ -582,3 +582,205 @@ fn ascii_xi_keeps_its_historical_meaning_on_true_centres() {
         );
     }
 }
+
+/// Source atoms of the IR entries with stated unknown configuration; a double
+/// bond is reported by its first atom.
+fn unknown_ir_atoms(structure: &nazuchem_n2s::Structure) -> Vec<nazuchem_n2s::graph::AtomId> {
+    use nazuchem_ir::{Relation, Stereo, Winding};
+    let (molecule, source) = structure.to_ir_with_atom_mapping().unwrap();
+    molecule
+        .stereo
+        .iter()
+        .filter_map(|stereo| match stereo {
+            Stereo::Tetrahedral {
+                center,
+                winding: Winding::Unknown,
+                ..
+            } => Some(source[*center as usize]),
+            Stereo::DoubleBond {
+                bond,
+                relation: Relation::Unknown,
+                ..
+            } => Some(source[molecule.bonds[*bond as usize].atoms[0] as usize]),
+            _ => None,
+        })
+        .collect()
+}
+
+// Issue #36, P-91.2.1.2.1: ξ/Ξ state an unknown configuration, which IR v1
+// records as `unknown` instead of dropping it as unspecified.
+#[test]
+fn xi_targets_are_unknown_in_ir() {
+    let parser = Parser::new().unwrap();
+    for (name, locants) in [
+        ("(2xi)-butan-2-ol", &["2"][..]),
+        ("(2Ξ)-butan-2-ol", &["2"]),
+        ("(2Ξ,3R)-3-chlorobutan-2-ol", &["2"]),
+        ("(1ξ,4ξ)-cyclohexane-1,4-diol", &["1", "4"]),
+        ("(5ξ)-cholestane", &["5"]),
+        ("(2Ξ)-but-2-ene", &["2"]),
+        ("(2xi)-but-2-ene", &["2"]),
+    ] {
+        let structure = parsed(&parser, name);
+        let mut expected: Vec<_> = locants
+            .iter()
+            .map(|locant| {
+                structure
+                    .graph
+                    .atom_by_locant(structure.fragment, locant)
+                    .unwrap()
+            })
+            .collect();
+        let mut actual = unknown_ir_atoms(&structure);
+        expected.sort();
+        actual.sort();
+        assert_eq!(actual, expected, "{name}");
+    }
+    let (molecule, _) = parsed(&parser, "(2Ξ,3R)-3-chlorobutan-2-ol")
+        .to_ir_with_atom_mapping()
+        .unwrap();
+    assert_eq!(molecule.stereo.len(), 2, "the defined 3R centre is kept");
+    // Rejected descriptors leave no unknown entry behind.
+    let warn = ParseOptions {
+        warn_rather_than_fail_on_uninterpretable_stereochemistry: true,
+        ..ParseOptions::strict()
+    };
+    let result = parser.parse("(2ξ)-but-2-ene", &warn);
+    assert_eq!(result.status, Status::Warning, "{}", result.message);
+    assert!(unknown_ir_atoms(&result.structure.unwrap()).is_empty());
+    assert!(unknown_ir_atoms(&parsed(&parser, "butan-2-ol")).is_empty());
+}
+
+// Issue #14, P-103.1.3.1: ξ replaces D/L at the α-carbon of an amino acid.
+#[test]
+fn amino_acid_xi_leaves_the_alpha_carbon_unknown() {
+    let parser = Parser::new().unwrap();
+    for (name, smiles) in [
+        ("ξ-alanine", "CC(N)C(=O)O"),
+        ("(ξ)-alanine", "CC(N)C(=O)O"),
+        ("(Ξ)-alanine", "CC(N)C(=O)O"),
+        ("N-acetyl-ξ-alanine", "CC(=O)NC(C)C(=O)O"),
+        ("ξ-alanine methyl ester", "COC(=O)C(C)N"),
+        // Templates without a predefined α configuration.
+        ("ξ-phenylglycine", "NC(c1ccccc1)C(=O)O"),
+        ("ξ-allylglycine", "NC(CC=C)C(=O)O"),
+    ] {
+        let structure = parsed(&parser, name);
+        assert_eq!(
+            canonical(&structure.semantic_cxsmiles().unwrap()),
+            canonical(smiles),
+            "{name}"
+        );
+        let alpha = structure
+            .graph
+            .atom_by_locant(structure.fragment, "alpha")
+            .unwrap();
+        assert_eq!(unknown_ir_atoms(&structure), [alpha], "{name}");
+    }
+}
+
+// Issue #14, P-103.3.4: in a peptide, ξ marks only the residue it precedes.
+#[test]
+fn peptide_xi_marks_only_its_residue() {
+    let parser = Parser::new().unwrap();
+    for (name, smiles, unknown) in [
+        ("ξ-alanyl-L-alanine", "NC(C)C(=O)N[C@@H](C)C(=O)O", 1),
+        ("ξ-alanyl-alanine", "NC(C)C(=O)N[C@@H](C)C(=O)O", 1),
+        ("L-alanyl-ξ-alanine", "N[C@@H](C)C(=O)NC(C)C(=O)O", 1),
+        ("ξ-alanyl-ξ-alanine", "NC(C)C(=O)NC(C)C(=O)O", 2),
+        // Multiplied residues carry primed α locants.
+        (
+            "N,N-bis(ξ-alanyl)glycine",
+            "OC(=O)CN(C(=O)C(C)N)C(=O)C(C)N",
+            2,
+        ),
+    ] {
+        let structure = parsed(&parser, name);
+        assert_eq!(
+            canonical(&structure.semantic_cxsmiles().unwrap()),
+            canonical(smiles),
+            "{name}"
+        );
+        assert_eq!(unknown_ir_atoms(&structure).len(), unknown, "{name}");
+    }
+}
+
+// Issue #14: ξ cannot be combined with rac/rel (P-93.1.2, P-93.1.3), with an
+// explicit D/L (P-103.1.3.1), with a second template centre whose
+// configuration is tied to D/L (P-103.1.3.2), or with an achiral centre.
+#[test]
+fn amino_acid_xi_conflicts_are_refused() {
+    let parser = Parser::new().unwrap();
+    for name in [
+        "rac-(ξ)-alanine",
+        "rel-(ξ)-alanine",
+        "(rac)-N-acetyl-(ξ)-alanine",
+        "rac-(ξ)-alanyl-DL-alanine",
+        "rac-(2Ξ,3E)-pent-3-en-2-ol",
+        "rel-(2Ξ,3E)-pent-3-en-2-ol",
+        // P-103.3.4: ξ never moves to another residue.
+        "(ξ)-L-alanyl-alanine",
+        "ξ-glycyl-alanine",
+        "D-(ξ)-alanine",
+        "(ξ)-D-alanine",
+        "(ξ)-L-alanine",
+        "(xi)-L-alanine",
+        "(2Ξ)-L-alanine",
+        "(ξ)-d-aspart-1-yl-L-alanine",
+        "(ξ)-d-alpha-aspartyl-L-alanine",
+        "(ξ)-threonine",
+        "(ξ)-allothreonine",
+        "(ξ)-isoleucine",
+        "(ξ)-alloisoleucine",
+        "(ξ)-cystine",
+        "(ξ)-cystathionine",
+        "(ξ)-lanthionine",
+        "(ξ)-beta-homoalanine",
+        "2-methyl-(ξ)-alanine",
+        "2-methyl-(xi)-alanine",
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Failure, "{name}: {}", result.message);
+    }
+}
+
+// P-93.1.2/P-93.1.3: rac-/rel- survives on the centres that ξ leaves defined.
+#[test]
+fn rac_rel_with_xi_keeps_the_remaining_group() {
+    let parser = Parser::new().unwrap();
+    for name in [
+        "(rac)-(5xi)-cholestane",
+        "(rel)-(5ξ)-cholestane",
+        "rac-(2R,3Ξ)-3-chlorobutan-2-ol",
+    ] {
+        let structure = parsed(&parser, name);
+        assert_eq!(unknown_ir_atoms(&structure).len(), 1, "{name}");
+        assert!(
+            structure.graph.atoms.iter().any(|atom| atom
+                .parity
+                .as_ref()
+                .is_some_and(|parity| parity.stereo_group.kind
+                    != nazuchem_n2s::graph::StereoGroupType::Absolute)),
+            "{name}"
+        );
+    }
+}
+
+// Issue #14: ASCII xi keeps its generic handling where Greek ξ is refused.
+#[test]
+fn ascii_xi_keeps_amino_acid_handling() {
+    let parser = Parser::new().unwrap();
+    for (name, smiles) in [
+        ("(xi)-beta-homoalanine", "NC(C)CC(=O)O"),
+        ("(xi)-dopa", "NC(Cc1ccc(O)c(O)c1)C(=O)O"),
+        ("(xi)-threonine", "NC([C@H](O)C)C(=O)O"),
+    ] {
+        let structure = parsed(&parser, name);
+        assert_eq!(
+            canonical(&structure.semantic_cxsmiles().unwrap()),
+            canonical(smiles),
+            "{name}"
+        );
+        assert_eq!(unknown_ir_atoms(&structure).len(), 1, "{name}");
+    }
+}
