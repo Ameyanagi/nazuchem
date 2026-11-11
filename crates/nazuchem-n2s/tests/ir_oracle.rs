@@ -434,7 +434,8 @@ fn every_frozen_generated_name_parse_passes_through_ir() {
     }
     finish("generated-name golden", &counts, differences);
     assert_eq!(records, 1650);
-    counts.assert_baseline(1650, 1609, 0, 41);
+    // Two generated names cite impossible hydro/indicated hydrogen (P-14.7.1, P-31.2.2; #34).
+    counts.assert_baseline(1650, 1607, 0, 43);
     assert_eq!(
         counts.axial, 0,
         "frozen generated names contain no axial structures"
