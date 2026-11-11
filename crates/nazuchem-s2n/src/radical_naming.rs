@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
 // Source: ReShiki | src/naming/openclatura/radical_naming.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
+// Source: Nazuchem | crates/nazuchem-s2n/src/radical_naming.rs | issue #27
 // Copyright (c) 2026 lamalab-org
 // Source: openclatura | tests/exploratory/test_parenthesis_functions_direct.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -37,7 +38,7 @@ pub(super) fn name_radical(mol: &Molecule) -> Result<Option<Name>, String> {
         .filter(|atom| atom.radical_electrons != 0)
         .collect();
     if centers.is_empty() {
-        return Ok(None);
+        return Ok(ylium(mol));
     }
     if mol.atoms.values().any(|atom| atom.charge != 0) {
         return Err("openclatura: radical ions are not supported".into());
@@ -67,6 +68,26 @@ pub(super) fn name_radical(mol: &Molecule) -> Result<Option<Name>, String> {
             "C" if carbon_parent(mol, center.idx, center.radical_electrons == 1) => {
                 substituent_radical(mol, center.idx, center.radical_electrons)?
             }
+            // P-71.2.1.2: any position of a parent hydride, so an arene carbon
+            // keeps the ring as parent and cites everything else as prefixes.
+            "C" if center.radical_electrons == 1 && center.is_aromatic => {
+                substituent_radical(mol, center.idx, 1)?
+            }
+            // P-71.2.1.1 silyl and P-71.2.1.2 boranyl, with substituent prefixes.
+            "Si" | "B"
+                if center.radical_electrons == 1
+                    && mononuclear_center(mol, center.idx)
+                    && center.element().is_some_and(|e| {
+                        mol.degree(center.idx) + center.total_h_count + 1 == e.standard_valence
+                    }) =>
+            {
+                let name = substituent_radical(mol, center.idx, 1)?;
+                // P-71.2.1.2: boranyl, not the boryl prefix.
+                match name.strip_suffix("boryl") {
+                    Some(stem) => format!("{stem}boranyl"),
+                    None => name,
+                }
+            }
             "N" => amine_radical(mol, center.idx, center.radical_electrons)?,
             "O" | "S" | "Se" if center.radical_electrons == 1 => {
                 chalcogen_radical(mol, center.idx)?
@@ -82,6 +103,23 @@ pub(super) fn name_radical(mol: &Molecule) -> Result<Option<Name>, String> {
         omitted_units: 0,
         verification: None,
     }))
+}
+
+/// A singly bonded centre whose molecule has no second parent-hydride
+/// heteroatom: disilanyl, disiloxanyl and the like need their own parent.
+// Provenance: fn mononuclear_center | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/radical_naming.rs::mononuclear_center
+fn mononuclear_center(mol: &Molecule, center: usize) -> bool {
+    mol.get_neighbors(center)
+        .iter()
+        .all(|&n| mol.bond_order(center, n) == 1)
+        && mol.atoms.values().all(|atom| {
+            atom.idx == center
+                || matches!(
+                    atom.symbol.as_str(),
+                    "C" | "N" | "O" | "S" | "F" | "Cl" | "Br" | "I"
+                )
+        })
 }
 
 /// Only hydrocarbons and a carbonyl at the free carbon are audited here.
@@ -130,6 +168,10 @@ fn substituent_radical(mol: &Molecule, root: usize, order: usize) -> Result<Stri
     for atom in attached.atoms.values_mut() {
         atom.radical_electrons = 0;
     }
+    // The cation centre of an ylium name is the same free valence.
+    if let Some(atom) = attached.atoms.get_mut(&root) {
+        atom.charge = 0;
+    }
     let parent = attached.atoms.keys().next_back().copied().unwrap_or(0) + 1;
     let bond = attached.bonds.keys().next_back().copied().unwrap_or(0) + 1;
     let mut atom = Atom::new(parent, "C");
@@ -142,10 +184,51 @@ fn substituent_radical(mol: &Molecule, root: usize, order: usize) -> Result<Stri
         &AtomSet::from([parent]),
         Some(parent),
     )?;
-    // P-71.2.1.2: 2-methylpropan-2-yl (PIN), not the tert-butyl prefix.
+    // P-71.2.1.2: 2-methylpropan-2-yl (PIN), not the tert-butyl prefix; the
+    // "yl" suffix goes on a parent hydride, which the benzyl prefix is not.
     Ok(match strip_outer_parentheses(&name).as_str() {
         "tert-butyl" => "2-methylpropan-2-yl".into(),
+        "benzyl" => "phenylmethyl".into(),
         name => name.into(),
+    })
+}
+
+/// P-73.2.2.1: a carbon or silicon cation formed by loss of hydride is named
+/// like the radical at that position, with "ylium" for "yl" (propan-2-ylium,
+/// triphenylsilylium). A cationic centre is senior to every other class
+/// present here (P-41), so the rest of the structure is cited as prefixes.
+/// Centres with multiple bonds (furan-2-ylium, P-73.2.3.1 acylium) decline.
+// Provenance: fn ylium | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/radical_naming.rs::ylium
+fn ylium(mol: &Molecule) -> Option<Name> {
+    let mut charged = mol.atoms.values().filter(|atom| atom.charge != 0);
+    let (Some(center), None) = (charged.next(), charged.next()) else {
+        return None;
+    };
+    if center.charge != 1
+        || !matches!(center.symbol.as_str(), "C" | "Si")
+        || center.is_aromatic
+        || mol.degree(center.idx) + center.total_h_count != 3
+        || !(mononuclear_center(mol, center.idx)
+            || center.is_carbon()
+                && mol
+                    .get_neighbors(center.idx)
+                    .iter()
+                    .all(|&n| mol.bond_order(center.idx, n) == 1))
+        || mol.atoms.values().any(|atom| atom.has_stereo())
+        || mol.bonds.values().any(|bond| bond.stereo.is_some())
+        || super::graph_io::get_connected_components(mol).len() != 1
+    {
+        return None;
+    }
+    let name = substituent_radical(mol, center.idx, 1).ok()?;
+    name.ends_with("yl").then(|| Name {
+        text: super::nest_enclosing_marks(&format!("{name}ium")),
+        status: mol.name_status(),
+        alternatives: vec![],
+        omitted_stereo: vec![],
+        omitted_units: 0,
+        verification: None,
     })
 }
 
@@ -450,6 +533,83 @@ mod tests {
             ("C[Se]", "methylselanyl"),
         ] {
             roundtrip(smiles, name)?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    // Provenance: fn tests::silyl_boranyl_and_substituted_aryl_radicals_roundtrip | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/radical_naming.rs::tests::silyl_boranyl_and_substituted_aryl_radicals_roundtrip
+    fn silyl_boranyl_and_substituted_aryl_radicals_roundtrip() -> Result<(), String> {
+        // Issue #27. P-71.2.1.1: silyl; P-71.2.1.2: boranyl (not boryl) and
+        // "yl" at any position of a parent hydride, other groups as prefixes.
+        for (smiles, name) in [
+            ("[SiH3]", "silyl"),
+            ("C[Si](C)C", "trimethylsilyl"),
+            (
+                "CCCCO[Si](OCCCC)OCC(CC)CC=C",
+                "dibutoxy[(2-ethylpent-4-en-1-yl)oxy]silyl",
+            ),
+            ("[BH2]", "boranyl"),
+            ("C[B]C", "dimethylboranyl"),
+            ("[B]1C2C1C=CC2", "6-borabicyclo[3.1.0]hex-2-en-6-yl"),
+            ("C1CC1COC2=CC=[C]C=C2", "4-(cyclopropylmethoxy)phenyl"),
+            ("Oc1cc[c]cc1", "4-hydroxyphenyl"),
+            ("c1cc[c]nc1", "pyridin-2-yl"),
+        ] {
+            roundtrip(smiles, name)?;
+        }
+        // Disilanyl, disiloxanyl and silylidene parents are not composed.
+        for smiles in ["[SiH3][SiH2]", "C[Si](C)O[Si](C)(C)C", "C[Si]C"] {
+            assert!(
+                super::super::name_smiles(smiles, &Default::default()).is_err(),
+                "{smiles}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    // Provenance: fn tests::hydride_loss_cations_take_ylium_and_roundtrip | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/radical_naming.rs::tests::hydride_loss_cations_take_ylium_and_roundtrip
+    fn hydride_loss_cations_take_ylium_and_roundtrip() -> Result<(), String> {
+        // Issue #27. P-73.2.2.1.1: methylium, propylium, cyclobutylium,
+        // triphenylsilylium; P-73.2.2.1.2: "ylium" at any position
+        // (cyclopenta-2,4-dien-1-ylium), other groups as prefixes.
+        for (smiles, name) in [
+            ("[CH3+]", "methylium"),
+            ("[SiH3+]", "silylium"),
+            ("CC[CH2+]", "propylium"),
+            ("C[CH+]C", "propan-2-ylium"),
+            ("C[C+](C)C", "2-methylpropan-2-ylium"),
+            ("[CH+]1CCC1", "cyclobutylium"),
+            ("[CH+]1C=CC=C1", "cyclopenta-2,4-dien-1-ylium"),
+            ("C1CC2CCC1[CH+]2", "bicyclo[2.2.1]heptan-7-ylium"),
+            (
+                "CC(C)C[C+](C)CC(C)C(C)C",
+                "2,4,6,7-tetramethyloctan-4-ylium",
+            ),
+            ("[CH2+]c1ccccc1", "phenylmethylium"),
+            ("OC(=O)C[CH+]C", "1-carboxypropan-2-ylium"),
+            ("c1ccccc1[Si+](c1ccccc1)c1ccccc1", "triphenylsilylium"),
+        ] {
+            roundtrip(smiles, name)?;
+        }
+        assert_eq!(
+            super::super::name_smiles("C[C+](C)C.[Cl-]", &Default::default())?.text,
+            "2-methylpropan-2-ylium chloride"
+        );
+        // Multiply bonded centres, a second charge and polysilanes still decline.
+        for smiles in [
+            "C[C+]=O",
+            "[c+]1ccccc1",
+            "C[N+](C)(C)C[CH+]C",
+            "C[Si+](C)[Si](C)(C)C",
+        ] {
+            assert!(
+                super::super::name_smiles(smiles, &Default::default()).is_err(),
+                "{smiles}"
+            );
         }
         Ok(())
     }

@@ -1495,7 +1495,17 @@ fn simple_central_parent_hydride_name(
                 .get_neighbors(c)
                 .iter()
                 .all(|n| mol.atoms[n].is_carbon());
-    if a.charge != 0 && !oxide && !onium {
+    // P-72.3: a hydride added to the neutral hydride gives the suffix "uide"
+    // (tetramethylboranuide).
+    let uide = a.charge == -1
+        && senior
+        && mol
+            .get_neighbors(c)
+            .iter()
+            .all(|&n| atoms.contains(&n) && mol.bond_order(c, n) == 1 && mol.atoms[&n].charge == 0)
+        && elements::get(&a.symbol)
+            .is_some_and(|e| e.standard_valence + 1 == mol.degree(c) + a.total_h_count);
+    if a.charge != 0 && !oxide && !onium && !uide {
         return Ok(None);
     }
     let hydrocarbyl = chalcogen_onium || senior && !has_principal_group(mol, atoms);
@@ -1561,12 +1571,13 @@ fn simple_central_parent_hydride_name(
         + a.total_h_count.max(a.explicit_h_count)
         + usize::from(oxide)
         - if class_oxide { 2 } else { 0 };
-    let lambda = if onium || elements::get(&a.symbol).is_some_and(|e| e.standard_valence == valence)
-    {
-        String::new()
-    } else {
-        format!("lambda{valence}-")
-    };
+    let lambda =
+        if onium || uide || elements::get(&a.symbol).is_some_and(|e| e.standard_valence == valence)
+        {
+            String::new()
+        } else {
+            format!("lambda{valence}-")
+        };
     let mut parent = format!(
         "{lambda}{}",
         RULES.components.mononuclear_parent_hydrides[&a.symbol]
@@ -1590,6 +1601,9 @@ fn simple_central_parent_hydride_name(
             parent.pop();
         }
         parent.push_str("ium");
+    } else if uide {
+        parent.pop();
+        parent.push_str("uide");
     }
     if a.symbol == "N" || a.symbol == "S" && !onium && lambda.is_empty() {
         // Methyl-only amines and sulfides take substitutive names (P-62.2.2.1, P-63.2.5).

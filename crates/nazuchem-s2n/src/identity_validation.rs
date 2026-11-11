@@ -57,6 +57,7 @@ pub fn validate_input(mol: &Molecule) -> Result<(), String> {
                     | ("O", 1, 3)
                     | ("P", 1, 4)
                     | ("H", -1 | 1, 0)
+                    | ("C" | "Si", 1, 3)
             )
         {
             return Err(format!(
@@ -251,8 +252,6 @@ mod tests {
     // exact matches are conservatively adapted; independent ancestry is not established.
     fn public_entry_declines_unrepresented_charge_states() {
         for smiles in [
-            "[CH3+]",
-            "C1C[CH+]1",
             "C[NH+2]C",
             "C[Si-](C)(C)C",
             "[Mg+]",
@@ -261,7 +260,6 @@ mod tests {
             "COC(=O)C1CC(C(=O)[O-])NC(C(N)=S)C1",
             "CCC[PH-]",
             "CCC[As-](C)",
-            "CCC[Sb-](C)(C)C",
             "CCC[SH2-]",
             "CCC[TeH2-]",
             "CCC[ClH+]",
