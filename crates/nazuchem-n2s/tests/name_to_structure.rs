@@ -120,3 +120,39 @@ fn cited_indicated_hydrogen_rejects_hydro_prefixes_that_strand_an_atom() {
         );
     }
 }
+
+// Issue #33. P-72.6.2: oxido is –O⁻; P-72.6.1: –S(=O)O⁻ is sulfinato. On an S/P
+// that already has =O/=S, oxido stays anionic instead of becoming a second oxo.
+#[test]
+fn oxido_on_sulfinyl_like_groups_keeps_its_charge() {
+    let parser = Parser::new().unwrap();
+    for (name, expected) in [
+        (
+            "[methyl(oxidosulfinyl)amino]benzene",
+            "CN(S(=O)[O-])C1=CC=CC=C1",
+        ),
+        // The structure-to-name spelling of the same anion.
+        (
+            "[methyl(sulfinato)amino]benzene",
+            "CN(S(=O)[O-])C1=CC=CC=C1",
+        ),
+        ("oxidosulfinylbenzene", "[O-]S(=O)C1=CC=CC=C1"),
+        ("oxidophosphinylbenzene", "[O-]P(=O)C1=CC=CC=C1"),
+        ("oxidosulfinothioylbenzene", "[O-]S(=S)C1=CC=CC=C1"),
+        // Without an existing =O/=S the upstream oxido-to-oxo reading is kept.
+        ("1-oxidothiolane", "O=S1CCCC1"),
+        // An =O made from one oxido must not keep the next oxido anionic.
+        ("1,1-dioxidothiolane", "O=S1(CCCC1)=O"),
+        ("1,1-dioxidothiomorpholine", "O=S1(CCNCC1)=O"),
+        ("1-oxido-1-sulfidothiolane", "O=S1(CCCC1)=S"),
+        ("dimethyl(oxido)sulfur", "CS(=O)C"),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+}

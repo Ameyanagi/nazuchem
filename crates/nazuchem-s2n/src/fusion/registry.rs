@@ -1984,13 +1984,42 @@ mod tests {
                 .iter()
                 .filter(|c| c.spec.parent_hydride_only)
                 .count(),
-            4
+            15
         );
+        // P-25.2.2.2 and P-25.2.2.3 PINs; P-25.3.2.2.2 turns the final 'e'
+        // into 'o' for the fusion prefix.
         for (name, parent, prefix) in [
             ("10H-phenoxazine", "phenoxazine", "phenoxazino"),
             ("10H-phenothiazine", "phenothiazine", "phenothiazino"),
+            ("10H-phenoselenazine", "phenoselenazine", "phenoselenazino"),
+            (
+                "10H-phenotellurazine",
+                "phenotellurazine",
+                "phenotellurazino",
+            ),
             ("phenoxathiine", "phenoxathiine", "phenoxathiino"),
+            ("phenoxaselenine", "phenoxaselenine", "phenoxaselenino"),
+            ("phenoxatellurine", "phenoxatellurine", "phenoxatellurino"),
+            (
+                "10H-phenoxaphosphinine",
+                "phenoxaphosphinine",
+                "phenoxaphosphinino",
+            ),
+            ("10H-phenoxarsinine", "phenoxarsinine", "phenoxarsinino"),
+            (
+                "10H-phenoxastibinine",
+                "phenoxastibinine",
+                "phenoxastibinino",
+            ),
+            (
+                "10H-phenothiarsinine",
+                "phenothiarsinine",
+                "phenothiarsinino",
+            ),
+            ("oxanthrene", "oxanthrene", "oxanthreno"),
             ("thianthrene", "thianthrene", "thianthreno"),
+            ("selenanthrene", "selenanthrene", "selenanthreno"),
+            ("telluranthrene", "telluranthrene", "telluranthreno"),
         ] {
             let spec = r.get(name).unwrap().spec;
             assert!(spec.pin_component && spec.usable_as_parent && spec.usable_as_attached);
@@ -2010,6 +2039,12 @@ mod tests {
         assert!(key("10H-phenothiazine") < key("phenazine"));
         assert!(key("phenoxathiine") < key("thianthrene"));
         assert!(key("pyridine") < key("phenoxathiine"));
+        // P-25.3.2.4: a senior heteroatom (a), then a greater variety of
+        // heteroatoms (e), decides between the heteranthrenes.
+        assert!(key("phenoxathiine") < key("oxanthrene"));
+        assert!(key("oxanthrene") < key("thianthrene"));
+        assert!(key("thianthrene") < key("selenanthrene"));
+        assert!(key("selenanthrene") < key("telluranthrene"));
     }
     #[test]
     fn parent_hydride_components_are_unregistered_for_fused_ring_derivatives() {
