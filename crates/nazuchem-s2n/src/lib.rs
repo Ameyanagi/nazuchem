@@ -1235,7 +1235,7 @@ mod tests {
             ("CC(=O)OC(C)=O", "acetic anhydride", NameStatus::Preferred),
             (
                 "CC(=O)OC(=O)CCC(=O)OC(C)=O",
-                "4-(acetyloxy)-4-oxobutanoic acetic anhydride",
+                "acetic 4-(acetyloxy)-4-oxobutanoic anhydride",
                 NameStatus::Unverified(NameReason::UnauditedPath),
             ),
             (
