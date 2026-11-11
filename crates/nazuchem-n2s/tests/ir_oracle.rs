@@ -434,7 +434,7 @@ fn every_frozen_generated_name_parse_passes_through_ir() {
     }
     finish("generated-name golden", &counts, differences);
     assert_eq!(records, 1650);
-    counts.assert_baseline(1650, 1609, 0, 41);
+    counts.assert_baseline(1650, 1610, 0, 40);
     assert_eq!(
         counts.axial, 0,
         "frozen generated names contain no axial structures"
