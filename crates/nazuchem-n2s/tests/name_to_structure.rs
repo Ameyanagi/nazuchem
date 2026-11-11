@@ -66,6 +66,126 @@ fn peroxycyanate_esters_preserve_both_oxygens() {
     }
 }
 
+// P-72.2.2.1: "-ide" removes a hydron from the named atom. Where a mancude
+// ring has no hydrogen there, the name needs added hydrogen (P-72.2.2.1.1,
+// pyridin-1(2H)-ide), so the bare names are rejected instead of hydrogenated.
+#[test]
+fn ide_on_a_mancude_ring_atom_without_hydrogen_is_rejected() {
+    let parser = Parser::new().unwrap();
+    for name in [
+        "pyridin-1-ide",
+        "pyrimidin-1-ide",
+        "quinolin-1-ide",
+        "3H-pyrrol-1-ide",
+        "2H-pyrrol-1-ide",
+        "pyrazine-1,4-diide",
+        "perchloropyridin-1-ide",
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Failure, "{name}: {result:?}");
+        assert!(
+            result.message.contains("no hydrogen")
+                // P-14.7.1: the cited indicated hydrogen check (#34) can
+                // reject 3H-/2H-pyrrol-1-ide first.
+                || result.message.contains("without a double bond"),
+            "{name}: {}",
+            result.message
+        );
+    }
+    for (name, expected) in [
+        ("pyridin-1(2H)-ide", "[N-]1CC=CC=C1"),
+        ("1,2-dihydropyridin-1-ide", "[N-]1CC=CC=C1"),
+        ("pyridin-2-ide", "N1=[C-]C=CC=C1"),
+        ("1H-pyrrol-1-ide", "[N-]1C=CC=C1"),
+        ("pyrrolide", "[N-]1C=CC=C1"),
+        ("2,3-dihydro-1H-pyrrol-1-ide", "[N-]1CCC=C1"),
+        ("indol-1-ide", "[N-]1C=CC2=CC=CC=C12"),
+        ("2H-pyrazol-2-ide", "N=1[N-]C=CC1"),
+        // P-14.7.1: the cited indicated hydrogen, not pyrazole's default 1H,
+        // places the hydrogen that the unlocanted "-ide" removes.
+        ("2H-pyrazolide", "N=1[N-]C=CC1"),
+        ("pyrazolide", "[N-]1N=CC=C1"),
+        ("uracil-1-ide", "[N-]1C(=O)NC(=O)C=C1"),
+        ("uracil-3-ide", "N1C(=O)[N-]C(=O)C=C1"),
+        ("perchloropyrrol-1-ide", "ClC=1[N-]C(=C(C1Cl)Cl)Cl"),
+        // Omitted indicated hydrogen may sit on the anionic atom (9H-purine).
+        ("purin-9-ide", "N1=CN=C2[N-]C=NC2=C1"),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+}
+
+// P-92.5 and P-92.6 (rules 4 and 5): ligands that differ only in the
+// configuration of other stereogenic units are ranked at a deeper sphere. C4
+// here depends on the r/s centres C3 and C5, and the ring carbons of a
+// cyclohexanehexol each depend on the others (compare P-92.5.2.2, example 3).
+#[test]
+fn centres_ranked_by_other_stereodescriptors_are_assigned() {
+    let parser = Parser::new().unwrap();
+    for (name, expected) in [
+        (
+            "(2R,3r,4R,5s,6R)-3,5-bis[(1S)-1-fluoroethyl]-2,6-difluoroheptane-3,4,5-triol",
+            "F[C@@H](C)[C@@]([C@@H](C)F)([C@@H]([C@]([C@@H](C)F)(O)[C@H](C)F)O)O",
+        ),
+        (
+            "(1R,2R,3S,4S,5R,6S)-cyclohexane-1,2,3,4,5,6-hexol",
+            "[C@@H]1([C@H]([C@H]([C@H]([C@@H]([C@@H]1O)O)O)O)O)O",
+        ),
+        (
+            "(1R,2S,3r,4R,5S,6r)-cyclohexane-1,2,3,4,5,6-hexol",
+            "[C@@H]1([C@H]([C@@H]([C@H]([C@H]([C@@H]1O)O)O)O)O)O",
+        ),
+        (
+            "(1R,2R,3R,4R,5S,6S)-1,2,3,4,5,6-hexachlorocyclohexane",
+            "Cl[C@H]1[C@@H]([C@H]([C@@H]([C@@H]([C@H]1Cl)Cl)Cl)Cl)Cl",
+        ),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+    // No configuration of the six ring carbons gives these labels.
+    let result = parser.parse(
+        "(1R,2R,3R,4R,5R,6R)-cyclohexane-1,2,3,4,5,6-hexol",
+        &ParseOptions::strict(),
+    );
+    assert_eq!(result.status, Status::Failure, "{result:?}");
+    // C3 is ranked by C2 and C4 and is also fixed by its endo descriptor
+    // (P-93.5.2.2.1); only the label that agrees with endo is accepted.
+    let endo = |c3: &str| format!("(1S,2R,3{c3},4R,5R)-bicyclo[3.2.1]octane-2,3-endo,4-triol");
+    let result = parser.parse(&endo("S"), &ParseOptions::strict());
+    assert_eq!(result.status, Status::Success, "{}", result.message);
+    let result = parser.parse(&endo("R"), &ParseOptions::strict());
+    assert_eq!(result.status, Status::Failure, "{result:?}");
+    // In warning mode a failed centre keeps the configuration it had.
+    let options = ParseOptions {
+        warn_rather_than_fail_on_uninterpretable_stereochemistry: true,
+        ..ParseOptions::strict()
+    };
+    let warning = parser.parse("(3R)-ribitol", &options);
+    assert_eq!(warning.status, Status::Warning, "{}", warning.message);
+    let ribitol = parser.parse("ribitol", &ParseOptions::strict());
+    assert_eq!(
+        warning.structure.unwrap().semantic_cxsmiles().unwrap(),
+        ribitol.structure.unwrap().semantic_cxsmiles().unwrap()
+    );
+    // Bridgeheads with three equal ring branches are not stereogenic.
+    for name in ["(1R,4S)-bicyclo[2.2.2]octane", "(1Xi)-bicyclo[2.2.2]octane"] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Failure, "{name}: {result:?}");
+    }
+}
+
 #[test]
 fn cited_indicated_hydrogen_rejects_hydro_prefixes_that_strand_an_atom() {
     // P-14.7.1, P-31.2.2: once indicated hydrogen is cited, hydro prefixes that
