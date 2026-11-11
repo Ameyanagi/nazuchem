@@ -1033,6 +1033,31 @@ fn qualifiers_on_non_cip_descriptors_are_retained_for_cage_scope_checks() {
 }
 
 #[test]
+fn cage_scope_refusal_names_the_qualified_descriptors() {
+    // #46: endo/exo give relative configuration only (P-93.5.2.2.1), and
+    // rel- covers the whole molecule (P-93.1.2.1, P-101.8.3). That is not yet
+    // applied across an ester's words or to alpha/beta, so name the part.
+    for (name, part) in [
+        (
+            "rel-(3alpha,5alpha)-cholestan-3-yl (1R)-bicyclo[2.2.1]heptane-2-exo-carboxylate",
+            ": 3alpha (rel), 5alpha (rel)",
+        ),
+        (
+            "rac-(3alpha,5alpha)-cholestan-3-yl (1R)-bicyclo[2.2.1]heptane-2-exo-carboxylate",
+            ": 3alpha (rac), 5alpha (rac)",
+        ),
+        (
+            "(2R*)-butan-2-yl (1R)-bicyclo[2.2.1]heptane-2-exo-carboxylate",
+            ": 2R* (rel)",
+        ),
+    ] {
+        assert_group_scope_refused(name);
+        let result = Parser::new().unwrap().parse(name, &ParseOptions::strict());
+        assert!(result.message.ends_with(part), "{name}: {}", result.message);
+    }
+}
+
+#[test]
 fn grouped_stereo_without_cage_descriptors_is_unchanged() {
     for prefix in ["rel", "rac"] {
         parse(&format!(
