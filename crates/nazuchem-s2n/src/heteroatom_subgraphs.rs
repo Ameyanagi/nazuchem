@@ -308,7 +308,9 @@ pub fn format_amino_from_branches(
         {
             return format!("{n}amino");
         }
-        return if is_complex_prefix(&n) || is_compound_prefix(&n) {
+        // X-amino + amino stays unenclosed so the retained hydrazinyl
+        // rewrite (namer_rules: aminoamino) still applies.
+        return if is_complex_prefix(&n) || (is_compound_prefix(&n) && !n.ends_with("amino")) {
             format!("(({n})amino)")
         } else {
             format!("({n}amino)")

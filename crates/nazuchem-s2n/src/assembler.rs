@@ -55,6 +55,85 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
         if rule.is_some_and(|rule| rule.families.contains("hydrazone")) {
             mol.mark_name(NameStatus::NotPreferred(NameReason::FunctionalClass));
         }
+        // An acid, ester, acid halide, amide or hydrazide carbon on an acyclic
+        // hydrazine nitrogen, N-N-C(=X)-Y, takes hydrazine as its parent, as in
+        // hydrazinecarboxylic acid, hydrazinecarboxamide or
+        // hydrazinecarbohydrazide (P-65.1.2.2.2, P-65.1.8.1, P-68.3.1.2.4,
+        // P-68.3.1.2.6). Only the unsubstituted parents are generated. A name
+        // whose parent is that carbon (formohydrazide, formamide, methanone)
+        // is a fallback. So is a prefix for it under a junior principal group:
+        // an acid, ester or acid halide under an amide (60) or anything
+        // junior, an amide under a hydrazide (68) or junior, a hydrazide under
+        // a nitrile (70) or junior, amidines (69) being amide analogues (P-41,
+        // P-66.4.1.1), and an oxo hydrazide tying with a single hydrazide on a
+        // parent without N, since N is the senior parent atom (P-44.1.1,
+        // P-44.1.2, P-44.1.2.2).
+        if !parts.is_substituent
+            && !parts
+                .retained_name
+                .as_deref()
+                .is_some_and(|name| name.starts_with("hydrazine"))
+        {
+            let principal = rule
+                .and_then(|rule| rule.seniority.as_deref())
+                .map_or(0, |seniority| seniority[0]);
+            let tie = group.locants.len() == 1
+                && !parts
+                    .parent_atom_symbols_by_locant
+                    .values()
+                    .any(|symbol| symbol == "N");
+            let cyclic = super::chains::get_cyclic_atoms(mol, &Default::default());
+            let symbol = |atom: usize| mol.atoms[&atom].symbol.as_str();
+            let single = |a: usize, b: usize| mol.bond_order(a, b) == 1;
+            // Nitroso and nitro nitrogens do not extend the chain (P-61.5.2).
+            let hydrazino = |n: usize| {
+                mol.get_neighbors(n).iter().any(|&t| {
+                    symbol(t) == "N"
+                        && single(n, t)
+                        && !cyclic.contains(&t)
+                        && mol.atoms[&t].charge == 0
+                        && !mol
+                            .get_neighbors(t)
+                            .iter()
+                            .any(|&o| symbol(o) == "O" && mol.bond_order(t, o) == 2)
+                })
+            };
+            let hydrazine_carbonyl = mol.atoms.keys().any(|&c| {
+                let around = mol.get_neighbors(c);
+                let Some(&x) = around.iter().find(|&&x| {
+                    mol.bond_order(c, x) == 2 && matches!(symbol(x), "O" | "S" | "Se" | "Te")
+                }) else {
+                    return false;
+                };
+                let parent = parts.parent_atom_ids_by_locant.values().any(|&a| a == c)
+                    || group.atom_ids.contains(&c);
+                symbol(c) == "C"
+                    && !cyclic.contains(&c)
+                    && around.iter().any(|&n| {
+                        symbol(n) == "N"
+                            && single(c, n)
+                            && !cyclic.contains(&n)
+                            && hydrazino(n)
+                            && around.iter().any(|&y| {
+                                y != n
+                                    && single(c, y)
+                                    && match symbol(y) {
+                                        "C" | "H" => false,
+                                        _ if parent => true,
+                                        "N" if hydrazino(y) => {
+                                            principal >= 70
+                                                || principal == 68 && tie && symbol(x) == "O"
+                                        }
+                                        "N" => principal >= 68,
+                                        _ => principal >= 60,
+                                    }
+                            })
+                    })
+            });
+            if hydrazine_carbonyl {
+                mol.mark_name(NameStatus::NotPreferred(NameReason::UnretainedParent));
+            }
+        }
         // Formonitrile and acetonitrile oxide are retained (P-66.5.4.1);
         // substituted formonitrile oxide stays systematic (P-65.1.8).
         if !parts.is_ring
@@ -1270,6 +1349,102 @@ mod tests {
             group.resolved_rule = Some(rule);
             parts.principal_group = Some(group);
             assert_eq!(assemble_name(&mut parts).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn hydrazine_carbonyl_acids_are_not_preferred_as_formohydrazides() {
+        // Issue #17. Acids, esters, acid halides, amides and hydrazides on
+        // hydrazine take hydrazine as parent (P-41, P-44.1.2, P-65.1.2.2.2,
+        // P-65.1.8.1, P-68.3.1.2.4, P-68.3.1.2.6); the fallback names are
+        // kept but not preferred until the hydrazine names are generated.
+        for (smiles, expected) in [
+            // 2-methylhydrazine-1-carboxylic acid
+            ("CNNC(=O)O", "1-hydroxy-N'-methylformohydrazide"),
+            // 1-methylhydrazine-1-carboxylic acid
+            ("OC(=O)N(C)N", "1-hydroxy-N-methylformohydrazide"),
+            // hydrazine-1,2-dicarboxylic acid
+            (
+                "OC(=O)NNC(=O)O",
+                "1-hydroxy-N'-(hydroxycarbonyl)formohydrazide",
+            ),
+            // 2-acetylhydrazine-1-carboxylic acid
+            ("CC(=O)NNC(=O)O", "N'-(hydroxycarbonyl)acetohydrazide"),
+            // hydrazinecarboperoxoic acid (P-65.1.4.1)
+            ("NNC(=O)OO", "1-hydroperoxyformohydrazide"),
+            // hydrazinecarbothioic O-acid and S-acid (P-65.1.5.1)
+            ("NNC(=S)O", "hydroxymethanethiohydrazide"),
+            ("NNC(=O)S", "1-sulfanylformohydrazide"),
+            // hydrazinecarbonyl chloride (P-65.5.1)
+            ("NNC(=O)Cl", "1-chloroformohydrazide"),
+            // methyl 2-methylhydrazine-1-carboxylate
+            ("CNNC(=O)OC", "1-methoxy-N'-methylformohydrazide"),
+            // hydrazinecarbohydrazide (P-68.3.1.2.6)
+            ("NNC(=O)NN", "dihydrazinylmethanone"),
+            // N,1-dimethylhydrazine-1-carboxamide-type semicarbazides and
+            // hydrazinecarboselenoamide (P-68.3.1.2.4)
+            ("NC(=O)N(C)N", "N,1-diamino-N-methylformamide"),
+            ("CNNC(=S)N", "1-(methylhydrazinyl)methanethioamide"),
+            ("NNC(N)=[Se]", "hydrazinylmethaneselenoamide"),
+            // The acid or ester outranks the amide principal group (P-41).
+            (
+                "NC(=O)CCNNC(=O)O",
+                "3-(hydroxycarbonylhydrazinyl)propanamide",
+            ),
+            (
+                "NC(=O)CCNNC(=O)OC",
+                "3-(methoxycarbonylhydrazinyl)propanamide",
+            ),
+            // Equal hydrazides: N outranks C as parent atom (P-44.1.2),
+            // giving 2-acetylhydrazine-1-carbohydrazide.
+            ("CC(=O)NNC(=O)NN", "N'-aminocarbamoylacetohydrazide"),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(
+                name.status,
+                NameStatus::NotPreferred(NameReason::UnretainedParent),
+                "{smiles}"
+            );
+        }
+        // The unsubstituted parents are generated and stay preferred, as do
+        // ordinary acylhydrazides.
+        for (smiles, expected) in [
+            ("NNC(=O)O", "hydrazinecarboxylic acid"),
+            ("NNC(=O)OC", "methyl hydrazinecarboxylate"),
+            ("NNC(N)=O", "hydrazinecarboxamide"),
+            ("CC(=O)NNC(C)=O", "N'-acetylacetohydrazide"),
+            ("NNC=O", "formohydrazide"),
+            // A senior principal group, or two of an equal one (P-44.1.1),
+            // keeps the prefix.
+            (
+                "OC(=O)CCNNC(=O)OC",
+                "3-(methoxycarbonylhydrazinyl)propanoic acid",
+            ),
+            (
+                "NC(=O)C(NNC(=O)N)C(N)=O",
+                "2-(N'-carbamoylhydrazinyl)propanediamide",
+            ),
+            (
+                "NC(=O)CCNNC(=O)NN",
+                "3-(N'-aminocarbamoylhydrazinyl)propanamide",
+            ),
+            // A nitroso nitrogen is not a hydrazine nitrogen (P-61.5.2).
+            ("NC(=O)N(C)N=O", "N-methyl-N-nitrosourea"),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+        }
+        // Amidines and guanidine outrank a hydrazide prefix (P-41,
+        // P-66.4.1.1); this check must not blame their parent.
+        for smiles in ["NC(=N)CCNNC(=O)NN", "N=C(N)NCCNNC(=O)NN"] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_ne!(
+                name.status,
+                NameStatus::NotPreferred(NameReason::UnretainedParent),
+                "{smiles}"
+            );
         }
     }
 }
