@@ -15,6 +15,12 @@ pub fn parse_locant(text: &str) -> (u8, usize, String) {
     let before = text.split('(').next().unwrap_or(text);
     let digit_count = before.bytes().take_while(u8::is_ascii_digit).count();
     if let Some((primary, secondary)) = before.split_once('^') {
+        // An italic element locant such as N^4 precedes numerals, like N; its
+        // superscript is a parent locant, compared as one (P-62.2.4.1.1).
+        if primary.starts_with(|c: char| c.is_ascii_uppercase()) {
+            let (_, number, tail) = parse_locant(secondary);
+            return (0, 0, format!("{primary}^{number:020}{tail}"));
+        }
         let n = secondary.bytes().take_while(u8::is_ascii_digit).count();
         if let (Ok(primary), Ok(secondary_number)) =
             (primary.parse::<usize>(), secondary[..n].parse::<usize>())
@@ -66,7 +72,13 @@ pub fn needs_hyphen(left: &str, right: &str) -> bool {
     }
     if right
         .strip_prefix(['N', 'O', 'S', 'P'])
-        .is_some_and(|tail| tail.trim_start_matches('\'').starts_with([',', '-']))
+        .is_some_and(|tail| {
+            // N', N^4 or N^4a: a superscript parent locant may carry a fusion letter.
+            tail.trim_start_matches(|c: char| {
+                matches!(c, '\'' | '^') || c.is_ascii_digit() || c.is_ascii_lowercase()
+            })
+            .starts_with([',', '-'])
+        })
     {
         return true;
     }
@@ -125,6 +137,16 @@ mod tests {
         let mut composite = ["2^1", "1^10", "1^2", "2^2"];
         composite.sort_by_key(|locant| parse_locant(locant));
         assert_eq!(composite, ["1^2", "1^10", "2^1", "2^2"]);
+    }
+
+    #[test]
+    fn superscript_n_locants_precede_numerals_in_parent_locant_order() {
+        // P-62.2.4.1.1, P-62.2.4.1.2: N^4,2-dimethylpentane-2,4-diamine.
+        let mut locants = ["2", "N^12", "N^1^10", "N^4a", "N^4", "N^1^2"];
+        locants.sort_by_key(|locant| parse_locant(locant));
+        assert_eq!(locants, ["N^1^2", "N^1^10", "N^4", "N^4a", "N^12", "2"]);
+        assert!(needs_hyphen("ethyl", "N^4a-methyl"));
+        assert!(needs_hyphen("ethyl", "N^1^10,N^1^2-dimethyl"));
     }
 
     #[test]
