@@ -3215,6 +3215,48 @@ mod tests {
     }
 
     #[test]
+    fn substituted_pyrrolic_nitrogen_keeps_systematic_fusion_indicated_hydrogen() {
+        // #16, #29: a PIN always cites the parent hydride's indicated hydrogen
+        // (P-14.7.1, P-58.2.1.1); substituent prefixes are added after it
+        // (P-58.2.4), so a substituted N-H keeps it, as in 1-methyl-1H-indole.
+        for (smiles, expected) in [
+            ("Cn1ccc2sccc21", "4-methyl-4H-thieno[3,2-b]pyrrole"),
+            ("Cn1cnc2ccncc21", "3-methyl-3H-imidazo[4,5-c]pyridine"),
+            (
+                "Cn1nnc2ccncc21",
+                "3-methyl-3H-[1,2,3]triazolo[4,5-c]pyridine",
+            ),
+            ("Cn1ccc2ccc3ccccc3c21", "1-methyl-1H-benzo[g]indole"),
+            ("Cn1ccc2c1ccc1ccccc12", "3-methyl-3H-benzo[e]indole"),
+            ("Cn1c2ccncc2c2ccccc21", "5-methyl-5H-pyrido[4,3-b]indole"),
+            ("Cn1c2cccnc2c2ccccc21", "5-methyl-5H-pyrido[3,2-b]indole"),
+            ("CN1N=CC=2C1=NC=CC2", "1-methyl-1H-pyrazolo[3,4-b]pyridine"),
+            ("CN1C=CC=2C=NC=CC21", "1-methyl-1H-pyrrolo[3,2-c]pyridine"),
+            (
+                "O=C1C=Cc2ccn(C)c21",
+                "1-methylcyclopenta[b]pyrrol-6(1H)-one",
+            ),
+            // Controls the issues report as already correct.
+            ("Cn1ccc2ncccc21", "1-methyl-1H-pyrrolo[3,2-b]pyridine"),
+            ("Cn1c2cnccc2c2ccccc21", "9-methyl-9H-pyrido[3,4-b]indole"),
+            (
+                "C[NH+]1C=CC=2C=NC=CC21",
+                "1-methyl-1H-pyrrolo[3,2-c]pyridin-1-ium",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
+        }
+    }
+
+    #[test]
     fn angular_oxazole_thiazole_acetic_acid_round_trips() {
         let smiles = "O=C(O)Cc1nc2ccc3ocnc3c2s1";
         let name = name_smiles(smiles, &Default::default()).unwrap().text;
