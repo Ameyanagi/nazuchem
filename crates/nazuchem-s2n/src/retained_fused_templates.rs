@@ -178,11 +178,12 @@ static ALL_TEMPLATES: LazyLock<Vec<RetainedGraphTemplate>> = LazyLock::new(|| {
     let mut templates: Vec<_> = retained_graph_template_rows()
         .map(retained_graph_template_from_data)
         .collect();
-    // P-25.1.2.6: polyhelicenes start at six rings; P-25.8.2 lists them up to nine.
+    // P-25.1.2.6: polyhelicenes start at six rings. Their inner fusion atoms
+    // take the letters a to z, which allows 27 rings.
     for (family, minimum, maximum) in [
         ("acenes", 4, 9),
         ("polyaphenes", 5, 10),
-        ("helicenes", 6, 9),
+        ("helicenes", 6, 27),
     ] {
         for count in minimum..=maximum {
             let generated = generated_series_template(family, count);
@@ -423,13 +424,8 @@ pub fn match_retained_graph_templates_with_options(
             && key.edge_degrees.values().sum::<usize>() + 1 == key.size + count
             && key.degrees.keys().all(|d| matches!(d, 2 | 3))
         {
-            // A helicene's inner fusion atoms take letters a to z: 27 rings at most.
-            for (family, eager, maximum) in [
-                ("acenes", 9, 1000),
-                ("polyaphenes", 10, 1000),
-                ("helicenes", 9, 27),
-            ] {
-                if count > eager && count <= maximum {
+            for (family, eager) in [("acenes", 9), ("polyaphenes", 10)] {
+                if count > eager {
                     let t = generated_series_template(family, count);
                     if retained_graph_template_topology_key(&t) == key
                         && !candidates.iter().any(|c| c.name == t.name)

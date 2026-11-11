@@ -30,6 +30,8 @@ type OrderedAdjacency = BTreeMap<usize, Vec<usize>>;
 pub struct DescriptorPaths {
     pub descriptor: Option<String>,
     pub paths: Vec<Vec<usize>>,
+    /// Atoms in the main ring, and in the longest unbranched bridge across it.
+    pub main_sizes: (usize, usize),
 }
 
 const MAIN_RING_WALK_STATES: usize = 2_000_000;
@@ -290,6 +292,7 @@ pub fn descriptor_candidates(atoms: &AtomSet, edges: &EdgeSet) -> Vec<Descriptor
         return vec![DescriptorPaths {
             descriptor: None,
             paths: vec![atoms.iter().copied().collect()],
+            main_sizes: (0, 0),
         }];
     }
     let mut candidates = Vec::new();
@@ -371,6 +374,7 @@ pub fn descriptor_candidates(atoms: &AtomSet, edges: &EdgeSet) -> Vec<Descriptor
         return vec![DescriptorPaths {
             descriptor: None,
             paths: vec![largest[0].clone()],
+            main_sizes: (0, 0),
         }];
     }
     candidates.sort_by_key(|candidate| candidate.0);
@@ -495,11 +499,19 @@ fn legacy_from_candidate(
         ));
     }
     orientations.sort_by(|a, b| a.0.cmp(&b.0));
+    // A bridge is unbranched (P-23.1.2) when each of its atoms has two neighbours.
+    let unbranched = bridges
+        .iter()
+        .filter(|bridge| bridge.nodes.iter().all(|node| adj[node].len() == 2))
+        .map(|bridge| bridge.nodes.len())
+        .max()
+        .unwrap_or(0);
     orientations
         .into_iter()
         .map(|(_, descriptor, path)| DescriptorPaths {
             descriptor: Some(descriptor),
             paths: vec![path],
+            main_sizes: (ring.len(), unbranched),
         })
         .collect()
 }

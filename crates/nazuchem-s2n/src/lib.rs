@@ -3134,6 +3134,15 @@ mod tests {
                 "c1ccc2c(c1)ccc1ccc3c(Cl)cc4ccc5ccccc5c4c3c12",
                 "8-chlorohexahelicene",
             ),
+            // Hydro prefixes are kept at every ring count.
+            (
+                "C1Cc2ccc3ccc4ccc5ccc6ccccc6c5c4c3c2C=C1",
+                "3,4-dihydrohexahelicene",
+            ),
+            (
+                "C1Cc2ccc3ccc4ccc5ccc6ccc7ccc8ccc9ccc%10ccccc%10c9c8c7c6c5c4c3c2C=C1",
+                "3,4-dihydrodecahelicene",
+            ),
             // Five rings are not a helicene.
             (
                 "c1ccc2c(c1)ccc1ccc3ccc4ccccc4c3c12",

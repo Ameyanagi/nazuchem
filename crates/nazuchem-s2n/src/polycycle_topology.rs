@@ -761,7 +761,7 @@ pub fn von_baeyer_descriptor_rank(descriptor: &str) -> Option<impl Ord + use<>> 
 // Source: Nazuchem | crates/nazuchem-s2n/src/polycycle_topology.rs::von_baeyer_main_sizes
 pub fn von_baeyer_main_sizes(descriptor: &str) -> Option<(usize, usize)> {
     let base = parse_von_baeyer_descriptor(descriptor)?.base;
-    Some((base[0] + base[1], base[2]))
+    Some((base[0] + base[1] + 2, base[2]))
 }
 
 /// Rebuild every primary and secondary bridge from the descriptor's locants.

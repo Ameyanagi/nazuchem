@@ -93,6 +93,7 @@ pub fn polyspiro_or_von_baeyer_candidate(
     let original: Vec<_> = atoms.iter().copied().collect();
     let mut legacy_descriptor = None;
     let mut legacy_paths = vec![original.clone()];
+    let mut legacy_main_sizes = (0, 0);
     for (ordering_index, ordered) in [canonical, original].into_iter().enumerate() {
         let ids: BTreeMap<_, _> = ordered
             .iter()
@@ -110,10 +111,16 @@ pub fn polyspiro_or_von_baeyer_candidate(
             .collect();
         let mut accepted_descriptor = None;
         let mut accepted = Vec::new();
-        for (index, DescriptorPaths { descriptor, paths }) in
-            descriptor_candidates(&canonical_atoms, &canonical_edges)
-                .into_iter()
-                .enumerate()
+        for (
+            index,
+            DescriptorPaths {
+                descriptor,
+                paths,
+                main_sizes,
+            },
+        ) in descriptor_candidates(&canonical_atoms, &canonical_edges)
+            .into_iter()
+            .enumerate()
         {
             let restored: Vec<Vec<_>> = paths
                 .iter()
@@ -122,6 +129,7 @@ pub fn polyspiro_or_von_baeyer_candidate(
             if index == 0 && ordering_index == 0 {
                 legacy_descriptor = descriptor.clone();
                 legacy_paths = restored.clone();
+                legacy_main_sizes = main_sizes;
             }
             if index >= 256 {
                 break;
@@ -163,12 +171,13 @@ pub fn polyspiro_or_von_baeyer_candidate(
     if !atoms.iter().any(|atom| mol.atoms[atom].symbol == "Si") {
         let candidates = super::von_baeyer::find_von_baeyer_candidates(mol, atoms, edges);
         // P-23.2.1 and P-23.2.4: the main ring and main bridge are as large as
-        // possible, which the main-ring search found. Smaller ones here mean the
-        // preferred descriptor needs a dependent bridge with atoms, which is not ported.
-        if let Some(first) = candidates.first().filter(|first| {
-            von_baeyer_main_sizes(&first.descriptor)
-                >= legacy_descriptor.as_deref().and_then(von_baeyer_main_sizes)
-        }) {
+        // possible. The main-ring search found a largest ring and its longest
+        // unbranched bridge; anything smaller here means the preferred descriptor
+        // needs a dependent bridge with atoms, which is not ported.
+        if let Some(first) = candidates
+            .first()
+            .filter(|first| von_baeyer_main_sizes(&first.descriptor) >= Some(legacy_main_sizes))
+        {
             let descriptor = first.descriptor.clone();
             let mut numberings = if legacy_descriptor.as_deref() == Some(&descriptor) {
                 audited_von_baeyer_numberings(&descriptor, &legacy_paths, edges)

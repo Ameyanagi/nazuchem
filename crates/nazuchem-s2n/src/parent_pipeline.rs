@@ -1479,6 +1479,12 @@ mod tests {
                 "C12C3C4C3C2C2C4C21",
                 "pentacyclo[3.3.0.0^{2,4}.0^{3,7}.0^{6,8}]octane",
             ),
+            // P-23.1.2 and P-23.1.7: a branched group across the main ring is a
+            // main bridge and an independent secondary bridge.
+            (
+                "C1CCCCCC2CCCCCCC3CCCCCCC1CCC(CC2)CC3",
+                "tricyclo[13.6.5.2^{8,24}]octacosane",
+            ),
             // P-23.2.6.2.4: superscript locants as low as possible as a set.
             (
                 "OCC1C=C2CC(Cl)C1CCC1CCCCCCC2CCCCC1",
