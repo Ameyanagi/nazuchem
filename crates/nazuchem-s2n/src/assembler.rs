@@ -878,7 +878,8 @@ mod tests {
             ),
             (
                 "O=C(O)Cc1ccc2c(c1)CC=CC21CCNCC1",
-                "(5,8-dihydrospiro[naphthalene-5,4'-piperidine]-2-yl)acetic acid",
+                // P-24.5.1, P-29.2: the spiro atom is numbered before the free valence.
+                "(4H-spiro[naphthalene-1,4'-piperidin]-6-yl)acetic acid",
             ),
             (
                 "C1OC2(CCCC2)c2ccccc21",
