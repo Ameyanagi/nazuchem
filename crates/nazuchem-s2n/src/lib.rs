@@ -2773,6 +2773,40 @@ mod tests {
                 "c1ccc2c(c1)Nc1cc3Sc4ccccc4Nc3cc1O2",
                 "7,14-dihydro[1,4]benzothiazino[2,3-b]phenoxazine",
             ),
+            // P-25.2.2.2: heteranthrenes (same heteroatoms) are PINs.
+            ("c1ccc2c(c1)Oc1ccccc1O2", "oxanthrene"),
+            ("c1ccc2c(c1)[Se]c1ccccc1[Se]2", "selenanthrene"),
+            ("c1ccc2c(c1)[Te]c1ccccc1[Te]2", "telluranthrene"),
+            // P-25.2.2.3: pheno...ine names (different heteroatoms) are PINs.
+            ("c1ccc2c(c1)Oc1ccccc1[Se]2", "phenoxaselenine"),
+            ("C1=CC=C2C(=C1)OC1=CC=CC=C1[Se]2", "phenoxaselenine"),
+            ("c1ccc2c(c1)Oc1ccccc1[Te]2", "phenoxatellurine"),
+            ("c1ccc2c(c1)Nc1ccccc1[Se]2", "10H-phenoselenazine"),
+            ("[Se]1c2ccccc2Nc2ccccc12", "10H-phenoselenazine"),
+            ("c1ccc2c(c1)Nc1ccccc1[Te]2", "10H-phenotellurazine"),
+            ("c1ccc2c(c1)Pc1ccccc1O2", "10H-phenoxaphosphinine"),
+            ("c1ccc2c(c1)[AsH]c1ccccc1O2", "10H-phenoxarsinine"),
+            ("c1ccc2c(c1)[SbH]c1ccccc1O2", "10H-phenoxastibinine"),
+            ("c1ccc2c(c1)[AsH]c1ccccc1S2", "10H-phenothiarsinine"),
+            // P-25.3.2.4: they are senior parent components in fusion names;
+            // (a) senior heteroatom, (b) more rings.
+            ("c1ccc2c(c1)Oc1ccc3ccccc3c1O2", "benzo[a]oxanthrene"),
+            ("c1ccc2cc3c(cc2c1)Oc1ccccc1O3", "benzo[b]oxanthrene"),
+            (
+                "c1ccc2c(c1)Pc1ccc3ccccc3c1O2",
+                "7H-benzo[c]phenoxaphosphinine",
+            ),
+            (
+                "c1ccc2c(c1)Oc1ccc3[Se]c4ccccc4[Se]c3c1O2",
+                "[1,4]benzodiselenino[2,3-a]oxanthrene",
+            ),
+            ("Cc1ccc2Oc3ccccc3Oc2c1", "2-methyloxanthrene"),
+            ("OC(=O)c1ccc2Oc3ccccc3Oc2c1", "oxanthrene-2-carboxylic acid"),
+            ("CN1c2ccccc2[Se]c2ccccc12", "10-methyl-10H-phenoselenazine"),
+            (
+                "C1CCC2C(C1)Oc1ccccc1O2",
+                "1,2,3,4,4a,10a-hexahydrooxanthrene",
+            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
