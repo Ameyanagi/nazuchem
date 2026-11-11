@@ -586,7 +586,10 @@ fn path_assembly(
         }
         _ => bracket_depth == 0 && byte.is_ascii_digit(),
     });
+    // "bi" directly before the multiplied fusion prefix of dibenzofuran,
+    // dibenzothiophene or dibenz[a,h]anthracene reads as two multipliers.
     let parent = if locanted_parent
+        || parent.starts_with("dibenz")
         || path.len() == 2
             && (parent.starts_with("cyclo")
                 || parent.starts_with("bicyclo")

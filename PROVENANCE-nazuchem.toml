@@ -4390,7 +4390,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/data/fusion_components.json", license = "MIT" },
 ]
 notes = "openclatura registry extended with retained-component status and additional senior components; not byte-identical."
-sha256 = "da3485653a90b3d9a99df6949c59597b21946e27d6ea86faf1ce7e04933872a6"
+sha256 = "7bf3a45b4fe768584589e52455a65d37fcc0aa56d74bd5da7274124df397a0ae"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/fusion_composite_bridges.json"
@@ -7462,7 +7462,7 @@ sources = [
   { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including the owner decision 2026-11-10 to retain bakeoff_corpus.tsv as a repository-only test fixture with PubChem (NCBI) attribution, excluded from all published packages. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
-sha256 = "8731317af36837df5ef47ed7a6455fcef53eb8a291f5bdc14cdde38400b2a540"
+sha256 = "d3ad747ba8aa2ee7d78195134be21d7dc244b7c6002e1500615e12a4b7ad28eb"
 
 [[file]]
 path = "crates/nazuchem-ir/docs/cxsmiles.md"

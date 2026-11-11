@@ -2628,7 +2628,19 @@ pub fn render_fusion_name_parts(
         omit_join: omit_monocyclic_join,
     };
     let mut pieces = renderer.children(root)?;
-    pieces.push(parent_component_name(&specs[&root.occurrence_id]));
+    // P-25.3.1.3: heteroatom locants of the base component are enclosed in
+    // square brackets ('furo[3,4-f][1]benzofuran').
+    let parent = parent_component_name(&specs[&root.occurrence_id]);
+    pieces.push(match parent.split_once('-') {
+        Some((locants, stem))
+            if locants
+                .split(',')
+                .all(|l| !l.is_empty() && l.bytes().all(|b| b.is_ascii_digit())) =>
+        {
+            format!("[{locants}]{stem}")
+        }
+        _ => parent,
+    });
     Ok(pieces)
 }
 // Provenance: fn parent_component_name | adapted
@@ -2793,6 +2805,28 @@ mod tests {
             "benzo[b]pyridine"
         );
         assert_eq!(ast.joins[0].interface.ordered_input_edges, vec![(1, 2)]);
+        // #28. P-25.3.8.1: benzo omits its own locants, peri-fused or not
+        // ('cyclopropa[de]anthracene'). P-25.3.4.1.2: identical components are
+        // separated by a comma when letters only are present. P-25.3.1.3:
+        // heteroatom locants of the base component stand in square brackets.
+        for (smiles, expected) in [
+            ("O1CC2=CC=CC3=C2C1=CC=C3", "2H-benzo[cd][1]benzofuran"),
+            ("S1CC2=CC=CC3=C2C1=CC=C3", "2H-benzo[cd][1]benzothiophene"),
+            ("c1cc2cccc3c2c(c1)C=N3", "benzo[cd]indole"),
+            (
+                "C1OC2c3ccccc3C=C3C=CC=C1C23",
+                "10b,10c-dihydro-2H-dibenzo[cd,g][1]benzofuran",
+            ),
+            (
+                "C[C@@H]1[C@H]2C(=CC(=O)C3=C(C4=C(C=CC=C4OC)[C@]([C@@]23C)(O1)OC)[N+]#N)C",
+                "(2R,2aS,10bR,10cS)-7,10b-dimethoxy-2,3,10c-trimethyl-5-oxo-2,2a,10b,10c-tetrahydrodibenzo[cd,g][1]benzofuran-6-diazonium",
+            ),
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
     }
 
     #[test]

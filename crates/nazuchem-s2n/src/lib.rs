@@ -2505,6 +2505,16 @@ mod tests {
         for (smiles, expected) in [
             ("c1ccc2c(c1)ccc(n2)-c1ccc2ccccc2n1", "2,2'-biquinoline"),
             ("c1ccc2c(c1)oc(c2)-c1cc2ccccc2o1", "2,2'-bi(1-benzofuran)"),
+            // #28, P-28.2.1: parentheses keep "bi" apart from the "di" of
+            // the multiplied fusion prefix.
+            (
+                "c1ccc2c(c1)oc1cc(ccc12)-c1cccc2c1oc1ccccc12",
+                "3,4'-bi(dibenzofuran)",
+            ),
+            (
+                "c1ccc2c(c1)sc1cc(ccc12)-c1cccc2c1sc1ccccc12",
+                "3,4'-bi(dibenzothiophene)",
+            ),
             (
                 "c1ccc2c(-c3c[nH]c4ccccc34)c[nH]c2c1",
                 "1H,1'H-3,3'-biindole",
