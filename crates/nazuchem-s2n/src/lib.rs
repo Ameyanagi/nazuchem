@@ -2836,8 +2836,6 @@ mod tests {
     }
 
     #[test]
-    // Provenance: fn tests::compound_prefixes_inside_heteroatom_prefixes_are_enclosed | original
-    // Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs::tests::compound_prefixes_inside_heteroatom_prefixes_are_enclosed
     fn compound_prefixes_inside_heteroatom_prefixes_are_enclosed() {
         // P-16.5.1.1, P-29.1.2, P-35.4.1: a compound prefix is enclosed within a larger
         // prefix, as in (chloromethyl)amino and (methoxyamino)phosphanyl; a simple one is not.

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs | issue #45
 // Source: openclatura | src/openclatura/formatting.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/formatting.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/exploratory/test_parenthesis_functions_direct.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
