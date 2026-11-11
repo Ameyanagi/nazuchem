@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs | issue #45
 // Source: openclatura | src/openclatura/formatting.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/formatting.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/exploratory/test_parenthesis_functions_direct.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -64,6 +65,20 @@ pub fn is_composite_prefix(name: &str) -> bool {
         }
     }
     name.contains("yl")
+}
+/// P-16.5.1.1: a compound prefix (P-29.1.2), a simple prefix that carries a
+/// substituent prefix such as chloromethyl, cyclopropylmethyl or methoxyamino,
+/// is enclosed when it substitutes another prefix, as in [(chloromethyl)sulfanyl]
+/// or (methoxyamino)phosphanyl (P-35.4.1).
+// Provenance: fn is_compound_prefix | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::is_compound_prefix
+pub fn is_compound_prefix(name: &str) -> bool {
+    is_composite_prefix(name)
+        || name
+            .strip_suffix("amino")
+            .is_some_and(|stem| !stem.is_empty())
+        || stems::terminal_stem(name)
+            .is_some_and(|s| name != format!("{s}yl") && name != format!("cyclo{s}yl"))
 }
 // Provenance: fn needs_complex_multiplier | adapted
 // Source: openclatura | src/openclatura/formatting.py::needs_complex_multiplier
@@ -249,7 +264,7 @@ pub fn format_element_substituent(
             .iter()
             .any(|end| stem.ends_with(end))
     });
-    if is_complex_prefix(&branch) || names_hydride {
+    if is_complex_prefix(&branch) || is_compound_prefix(&branch) || names_hydride {
         format!("({stereo_prefix}({branch}){suffix})")
     } else {
         format!("({stereo_prefix}{branch}{suffix})")

@@ -366,6 +366,19 @@ fn convert_spare_inner(graph: &mut Graph, fragment: FragmentId) -> Result<(), Gr
                 .iter()
                 .any(|atom| graph.atom(*atom).spare_valency)
         {
+            // Indicated hydrogen fixes the mancude parent (P-14.7.1) and hydro
+            // prefixes saturate its double bonds (P-31.2.2), so an atom the
+            // cited positions leave without a double-bond partner makes the name
+            // impossible; only an anionic centre needs none. A parent citing no
+            // indicated hydrogen may have omitted it (P-58.2.1.1), which OPSIN
+            // accepts.
+            let a = graph.atom(atom);
+            if a.properties.beside_cited_hydrogen && a.charge >= 0 {
+                return Err(GraphError(format!(
+                    "Hydro prefixes and indicated hydrogen leave atom {} without a double bond",
+                    a.locants.first().map_or("?", String::as_str)
+                )));
+            }
             graph.atom_mut(atom).spare_valency = false;
         }
     }
