@@ -687,11 +687,14 @@ impl<'a> StereochemistryHandler<'a> {
         // Disconnected components (salt ions, stoichiometric partners) are
         // separate molecular entities, so a relative or racemic set cannot
         // correlate them (P-93.1.2, P-93.1.3): give each component its own group.
+        // A parity on a non-stereocentre, such as the one 2-methylalanine
+        // inherits from its alanine template, is removed afterwards, so it
+        // must not claim a group number (#84).
         let grouped: Vec<_> = self
             .graph()
             .atoms
             .iter()
-            .filter(|atom| atom.active)
+            .filter(|atom| atom.active && self.atom_stereo_centre_map.contains_key(&atom.id))
             .filter_map(|atom| Some((atom.id, atom.parity.as_ref()?.stereo_group)))
             .filter(|(_, group)| {
                 matches!(

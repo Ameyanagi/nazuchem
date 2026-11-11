@@ -699,3 +699,30 @@ fn starred_and_racemic_sets_on_separate_components_get_separate_groups() {
         assert_eq!(written, expected, "{name}");
     }
 }
+
+#[test]
+fn rel_or_rac_on_an_ion_without_stereocentres_adds_no_group() {
+    // #84: rel/rac give the configuration of one molecule relative to its own
+    // stereogenic units (P-93.1.2, P-93.1.3). 2-Methylalanine has none, so its
+    // (rel) or (rac) adds no group; the parity its alanine template carried
+    // must not claim group 1 ahead of the cation.
+    for (name, expected) in [
+        (
+            "rel-(2R)-alaninium (rel)-2-methylalaninate",
+            "CC(N)(C)C(=O)[O-].[NH3+][C@H](C)C(=O)O |o1:8|",
+        ),
+        (
+            "rac-(2R)-alaninium (rac)-2-methylalaninate",
+            "CC(N)(C)C(=O)[O-].[NH3+][C@H](C)C(=O)O |r|",
+        ),
+        (
+            "(2R*)-butan-2-aminium (rel)-2-methylalaninate",
+            "CC(N)(C)C(=O)[O-].C[C@H](CC)[NH3+] |o1:8|",
+        ),
+    ] {
+        let result = Parser::new().unwrap().parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        let written = result.structure.unwrap().semantic_cxsmiles().unwrap();
+        assert_eq!(written, expected, "{name}");
+    }
+}
