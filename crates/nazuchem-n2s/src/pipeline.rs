@@ -100,6 +100,8 @@ fn interpret_candidate(
             graph: state.fragment_manager.graph,
             fragment,
             principal_parent_atoms: state.principal_parent_atoms,
+            unknown_stereo_atoms: state.unknown_stereo_atoms,
+            unknown_stereo_bonds: state.unknown_stereo_bonds,
         },
         state.warnings,
     ))

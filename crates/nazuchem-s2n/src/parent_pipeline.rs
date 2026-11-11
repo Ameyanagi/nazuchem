@@ -257,7 +257,15 @@ pub fn build_parent_assembly_plan(
         substituents,
         retained_name,
         locant_maps,
-        &NumberingModifiers::default(),
+        &NumberingModifiers {
+            // P-24.5.1: a substituent prefix numbers the spiro atom of its
+            // parent before the free valence.
+            spiro_junction: root
+                .filter(|_| selection.is_ring)
+                .and_then(|_| super::spiro_subgraph::heterogeneous_spiro_junction(mol))
+                .filter(|junction| selection.atom_set().contains(junction)),
+            ..Default::default()
+        },
     )
 }
 

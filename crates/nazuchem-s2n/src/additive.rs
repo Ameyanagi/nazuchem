@@ -1076,17 +1076,48 @@ pub(super) fn systematic_suffix_hydrogen_state(
         .iter()
         .filter(|(id, l)| mol.atoms[id].symbol == "C" && plan.indicated_hydrogens.contains(l))
         .count();
-    if quota > carbon_h {
+    // A pheno...ine parent (P-25.2.2.3) cites its N-H in the template, so its
+    // indicated hydrogen is placed for the suffixes as for any parent
+    // (P-58.2.3.1.1, '1,2-dihydro-3H-indol-3-one' in P-64.3.1; P-58.2.3.1.3);
+    // an N-H not used by them stays as hydro hydrogen ('7,14-dihydro').
+    let pheno = plan.ast.component_occurrences.iter().any(|m| {
+        super::fusion::registry::fusion_component_registry()
+            .spec_for_match(m)
+            .is_ok_and(|s| s.parent_hydride_only)
+    });
+    if quota > carbon_h && !pheno {
         return Ok(None);
     }
-    graph_suffix_hydrogen_state(
+    let state = graph_suffix_hydrogen_state(
         mol,
         &plan.abstract_parent_graph,
         suffix,
         suffix,
         locants,
         None,
-    )
+    )?;
+    Ok(state.map(|(mut indicated, model, state)| {
+        if pheno {
+            let cited: BTreeSet<_> = state
+                .hydro_operations
+                .iter()
+                .chain(&state.bond_delta.added_hydrogen_operations)
+                .flat_map(|op| &op.locants)
+                .chain(&indicated)
+                .cloned()
+                .collect();
+            for (id, locant) in locants {
+                if mol.atoms[id].symbol == "N"
+                    && plan.indicated_hydrogens.contains(locant)
+                    && !cited.contains(locant)
+                {
+                    indicated.push(locant.clone());
+                }
+            }
+            indicated.sort_by_key(|l| parse_locant(l));
+        }
+        (indicated, model, state)
+    }))
 }
 
 // Provenance: fn parent_pi_atoms | adapted
@@ -1136,13 +1167,39 @@ pub(super) fn graph_suffix_hydrogen_state(
         // A site isolated from pi bonding by the junction still needs indicated
         // H (benzofuran C2 next to spiro C3). Inherently saturated sites, such
         // as carbon between two oxygens, remain outside the parent pi set.
-        let mut component = graph.clone();
-        for atom in &mut component.atoms {
-            if atom.id == junction {
-                atom.forced_single = false;
+        // Each spiro component is completed on its own: the junction can
+        // join the pi system of one component only.
+        let mut capable = AtomSet::new();
+        let mut seen = AtomSet::from([junction]);
+        for start in graph.atoms.iter().map(|atom| atom.id) {
+            let mut side = AtomSet::from([start]);
+            let mut pending = vec![start];
+            while let Some(id) = pending.pop() {
+                if !seen.insert(id) {
+                    continue;
+                }
+                for &(a, b) in graph.bonds.iter().map(|bond| &bond.atoms) {
+                    let next = if a == id { b } else { a };
+                    if (a == id || b == id) && side.insert(next) && next != junction {
+                        pending.push(next);
+                    }
+                }
             }
+            if side.len() == 1 {
+                continue;
+            }
+            let mut component = graph.clone();
+            component.atoms.retain(|atom| side.contains(&atom.id));
+            component
+                .bonds
+                .retain(|bond| side.contains(&bond.atoms.0) && side.contains(&bond.atoms.1));
+            for atom in &mut component.atoms {
+                if atom.id == junction {
+                    atom.forced_single = false;
+                }
+            }
+            capable.extend(parent_pi_atoms(&numbering::parent_bond_model(&component)?));
         }
-        let mut capable = parent_pi_atoms(&numbering::parent_bond_model(&component)?);
         capable.remove(&junction);
         capable
     } else {
@@ -1611,7 +1668,9 @@ mod tests {
             ),
             (
                 "CCCC1=NN(C2=C1N=C(NC2=O)C3=C(C=CC(=C3)S(=O)(=O)N4CCN(CC4)C)OCC)C",
-                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-6H-pyrazolo[4,3-d]pyrimidin-7(1H)-one",
+                // #16/#29: the substituted N-1 keeps the parent's indicated hydrogen,
+                // which takes the low locant before added hydrogen (P-31.0, P-58.2.1.1).
+                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-1H-pyrazolo[4,3-d]pyrimidin-7(6H)-one",
             ),
             (
                 "O=c1c2ccccc2nc2n1CC=C2",
@@ -1729,17 +1788,16 @@ mod tests {
     }
 
     #[test]
-    fn projected_spiro_components_keep_unverified_hydrogen_fallback() {
+    fn spiro_components_share_one_hydrogen_allocation() {
+        // P-58.2.3.1.3: the single indicated hydrogen takes the lowest locant
+        // (2'H); the three ketones get added hydrogen (P-58.2.2.2).
         let smiles = "CC1C2C(C(=O)N(C2=O)C3=CC=CC=C3OC)C4(N1)C5=CC=CC=C5N(C4=O)CCBr";
         let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
         assert_eq!(
             name.text,
-            "1-(2-bromoethyl)-5'-(2-methoxyphenyl)-3'-methyl-2-oxospiro[2,3-dihydro-1H-indole-3,1'-2H-pyrrolo[3,4-c]pyrrole]-4',6'(3'H,3a'H,6a'H)-dione"
+            "1-(2-bromoethyl)-5'-(2-methoxyphenyl)-3'-methyl-3'a,6'a-dihydro-2'H-spiro[indole-3,1'-pyrrolo[3,4-c]pyrrole]-2,4',6'(1H,3'H,5'H)-trione"
         );
-        assert_eq!(
-            name.status,
-            nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::SpiroHydrogen)
-        );
+        assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred);
         let parsed = nazuchem_n2s::Parser::new()
             .unwrap()
             .parse(&name.text, &nazuchem_n2s::ParseOptions::strict());
