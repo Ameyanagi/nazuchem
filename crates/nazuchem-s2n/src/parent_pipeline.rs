@@ -674,7 +674,7 @@ fn build_parent_parts(
         && parent_hydride.is_none()
         && let Some(descriptor) = selection.polycycle_descriptor.as_deref()
         && super::ring_renderer::is_von_baeyer_descriptor(Some(descriptor))
-        && !super::polycycle_topology::audit_von_baeyer_opsin_reading(
+        && !super::polycycle_topology::audit_von_baeyer_descriptor(
             descriptor,
             numbered_path,
             &super::polycycle_topology::edges_within_atoms(
@@ -1378,7 +1378,7 @@ mod tests {
             ),
             (
                 "C12=C3C4=C1[C@@H]1[C@H]2[C@H]3N41",
-                "(2S,3s,8R)-1-azapentacyclo[4.2.0.0^{3,8}.0^{4,7}.0^{2,5}]octa-4(7),5-diene",
+                "(2S,3s,8R)-1-azapentacyclo[4.2.0.0^{2,5}.0^{3,8}.0^{4,7}]octa-4(7),5-diene",
                 vec![(5, "s")],
             ),
         ] {
@@ -1431,15 +1431,97 @@ mod tests {
     }
 
     #[test]
-    fn secondary_bridge_reading_disagreement_declines_with_or_without_stereo() {
+    fn secondary_bridges_follow_blue_book_numbering_and_citation() {
+        for (smiles, expected) in [
+            // P-23.2.5.2: the bridge is numbered from the higher bridgehead (5).
+            ("C12C3CCC(C(CC1)CC2)CC3", "tricyclo[4.2.2.2^{2,5}]dodecane"),
+            (
+                "ClC1C2COC(C3CCC2CC3)C1",
+                "11-chloro-3-oxatricyclo[4.2.2.2^{2,5}]dodecane",
+            ),
+            (
+                "ClC1CC2COC1C1CCC2CC1",
+                "12-chloro-3-oxatricyclo[4.2.2.2^{2,5}]dodecane",
+            ),
+            // P-23.2.6.3: the bridge at the highest bridgehead is numbered first.
+            (
+                "C12C3CCC(C(C4CCC1CC4)CC2)CC3",
+                "tetracyclo[4.4.2.2^{2,5}.2^{7,10}]hexadecane",
+            ),
+            (
+                "C12C3CCCC(C(C4CCC1C4)CC2)CC3",
+                "tetracyclo[5.4.2.2^{2,6}.1^{8,11}]hexadecane",
+            ),
+            (
+                "ClC1C2CCC1C1C3CCCC(C2CC1)CC3",
+                "14-chlorotetracyclo[5.4.2.2^{2,6}.1^{8,11}]hexadecane",
+            ),
+            (
+                "ClC1C2CCCC(C3C4CCC(C2CC3)C4)C1",
+                "15-chlorotetracyclo[5.4.2.2^{2,6}.1^{8,11}]hexadecane",
+            ),
+            // P-23.2.6.4.1: at one bridgehead, the higher other bridgehead first.
+            (
+                "C12C3C4CCC(CC(CCC1)CCC2)(CC4)C3",
+                "tetracyclo[6.3.3.2^{3,6}.1^{2,6}]heptadecane",
+            ),
+            (
+                "C12C3C4CCC(CC(CCC1)CCC2)(C4)CC3",
+                "tetracyclo[6.3.3.2^{2,6}.1^{3,6}]heptadecane",
+            ),
+            // P-23.2.6.4.2: between the same bridgeheads, the longer bridge first.
+            (
+                "ClC1C23CCCC(CC4CCCCC(C2)CCC4)(C1)C3",
+                "17-chlorotetracyclo[7.4.3.2^{3,7}.1^{3,7}]nonadecane",
+            ),
+            (
+                "ClC1C23CCCC1(CC1CCCCC(C2)CCC1)CC3",
+                "19-chlorotetracyclo[7.4.3.2^{3,7}.1^{3,7}]nonadecane",
+            ),
+            // P-23.2.6.2.5: superscript locants as low as possible as cited.
+            (
+                "C12C3CCCC(C(C4CCCC1C4)CC2)CC3",
+                "tetracyclo[5.5.2.2^{2,6}.1^{8,12}]heptadecane",
+            ),
+            (
+                "C12C3C4C3C2C2C4C21",
+                "pentacyclo[3.3.0.0^{2,4}.0^{3,7}.0^{6,8}]octane",
+            ),
+            // P-23.1.2 and P-23.1.7: a branched group across the main ring is a
+            // main bridge and an independent secondary bridge.
+            (
+                "C1CCCCCC2CCCCCCC3CCCCCCC1CCC(CC2)CC3",
+                "tricyclo[13.6.5.2^{8,24}]octacosane",
+            ),
+            // P-23.2.6.2.4: superscript locants as low as possible as a set.
+            (
+                "OCC1C=C2CC(Cl)C1CCC1CCCCCCC2CCCCC1",
+                "(20-chlorotricyclo[6.6.5.2^{2,5}]henicos-2-en-4-yl)methanol",
+            ),
+            (
+                "OC[C@@H]1C=C2C[C@H](Cl)[C@H]1CC[C@@H]1CCCCCC[C@@H]2CCCCC1",
+                "[(1R,4R,5S,8R,20S)-20-chlorotricyclo[6.6.5.2^{2,5}]henicos-2-en-4-yl]methanol",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap().text;
+            assert_eq!(name, expected, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{name}",
+            );
+        }
+        // P-23.2.1 and P-23.2.4: the preferred descriptors, tetracyclo[8.6.6.5^{2,9}.1^{23,26}]
+        // and pentacyclo[13.7.4.3^{3,8}.0^{18,20}.1^{13,28}], need a dependent bridge with
+        // atoms; a smaller main bridge or main ring is not offered instead.
         for smiles in [
-            "OC[C@@H]1C=C2C[C@H](Cl)[C@H]1CC[C@@H]1CCCCCC[C@@H]2CCCCC1",
-            "OC[C@H]1C=C2C[C@H](Cl)[C@H]1CC[C@@H]1CCCCCC[C@@H]2CCCCC1",
-            "OCC1C=C2CC(Cl)C1CCC1CCCCCCC2CCCCC1",
+            "C12C3CCCCCCC(C(CCCCCC1)CCCCCC2)C2CCC(C3)C2",
+            "C12CC3CCCCC4CCCCC(CC(CCC5CC5CC1)CCCC2)CC(C4)C3",
         ] {
             assert_eq!(
                 name_smiles(smiles, &Default::default()).unwrap_err(),
-                "openclatura: secondary-bridge numbering disagrees with OPSIN reading",
+                "openclatura: polycyclic parent has no audited descriptor",
                 "{smiles}",
             );
         }

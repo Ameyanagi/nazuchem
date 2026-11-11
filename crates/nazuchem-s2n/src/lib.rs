@@ -3023,7 +3023,7 @@ mod tests {
         for (smiles, expected, reason) in [
             (
                 "C1=CN=C2C=CC=C3C2=C1C=C1C2=C(C3)C=CC=C2C=C1",
-                "17-azapentacyclo[10.7.1.1^{3,6}.0^{10,21}.0^{16,20}]henicosa-1(19),2,4,6(21),7,9,12(20),13,15,17-decaene",
+                "17-azapentacyclo[10.7.1.1^{3,6}.0^{16,20}.0^{10,21}]henicosa-1(19),2,4,6(21),7,9,12(20),13,15,17-decaene",
                 R::VonBaeyerFusionFallback,
             ),
             (
@@ -3283,6 +3283,63 @@ mod tests {
                 .as_deref(),
             Ok("spiro[[1,3]benzodioxole-2,1'-cyclopentane]"),
         );
+    }
+
+    #[test]
+    fn polyhelicenes_take_their_retained_names() {
+        for (smiles, expected) in [
+            // P-25.1.2.6: six or more helically ortho-fused benzene rings.
+            ("c1ccc2c(c1)ccc1ccc3ccc4ccc5ccccc5c4c3c12", "hexahelicene"),
+            (
+                "c1ccc2c(c1)ccc1ccc3ccc4ccc5ccc6ccccc6c5c4c3c12",
+                "heptahelicene",
+            ),
+            (
+                "c1ccc2c(c1)ccc1ccc3ccc4ccc5ccc6ccc7ccc8ccc9ccccc9c8c7c6c5c4c3c12",
+                "decahelicene",
+            ),
+            // P-25.3.3.1.1: numbering starts at the inner CH of a terminal ring.
+            (
+                "Clc1cccc2ccc3ccc4ccc5ccc6ccccc6c5c4c3c12",
+                "1-chlorohexahelicene",
+            ),
+            (
+                "c1ccc2c(c1)ccc1ccc3ccc4ccc5ccc(Cl)cc5c4c3c12",
+                "2-chlorohexahelicene",
+            ),
+            (
+                "c1ccc2c(c1)ccc1ccc3ccc4cc(Cl)c5ccccc5c4c3c12",
+                "5-chlorohexahelicene",
+            ),
+            (
+                "c1ccc2c(c1)ccc1ccc3c(Cl)cc4ccc5ccccc5c4c3c12",
+                "8-chlorohexahelicene",
+            ),
+            // Hydro prefixes are kept at every ring count.
+            (
+                "C1Cc2ccc3ccc4ccc5ccc6ccccc6c5c4c3c2C=C1",
+                "3,4-dihydrohexahelicene",
+            ),
+            (
+                "C1Cc2ccc3ccc4ccc5ccc6ccc7ccc8ccc9ccc%10ccccc%10c9c8c7c6c5c4c3c2C=C1",
+                "3,4-dihydrodecahelicene",
+            ),
+            // Five rings are not a helicene.
+            (
+                "c1ccc2c(c1)ccc1ccc3ccc4ccccc4c3c12",
+                "dibenzo[c,g]phenanthrene",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
+        }
     }
 
     #[test]

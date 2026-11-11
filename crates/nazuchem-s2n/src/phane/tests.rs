@@ -140,21 +140,12 @@ fn mixed_attachment_sets_follow_amplificant_seniority() -> Result<(), String> {
 }
 
 #[test]
-// Provenance: fn failed_ordinary_name_falls_back_to_unverified_phane | original
-// Source: ReShiki | src/naming/openclatura/phane/tests.rs::failed_ordinary_name_falls_back_to_unverified_phane
-fn failed_ordinary_name_falls_back_to_unverified_phane() -> Result<(), String> {
-    let named = super::super::name_smiles(PARA, &Default::default())?;
-    assert_eq!(named.text, "1,4(1,4)-dibenzenacyclohexaphane");
-    assert_eq!(named.status, NameStatus::Unverified(NameReason::Phane));
-    assert!(named.alternatives.is_empty());
-    round_trip(PARA, &named.text)
-}
-
-#[test]
 // Provenance: fn ordinary_names_with_phane_alternatives_are_never_preferred | original
 // Source: ReShiki | src/naming/openclatura/phane/tests.rs::ordinary_names_with_phane_alternatives_are_never_preferred
 fn ordinary_names_with_phane_alternatives_are_never_preferred() -> Result<(), String> {
-    for smiles in [META] {
+    // PARA has a von Baeyer name now that its two-atom secondary bridge is
+    // numbered from the higher bridgehead (P-23.2.5.2).
+    for smiles in [META, PARA] {
         let named = super::super::name_smiles(smiles, &Default::default())?;
         assert_eq!(named.status, NameStatus::NotPreferred(NameReason::Phane));
         assert_eq!(named.alternatives.len(), 1);

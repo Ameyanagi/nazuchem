@@ -1046,7 +1046,7 @@ fn every_n2s_structure_oracle_structure_retains_complete_name_results() {
     assert_n2s_coverage(&counts, (2624, 2535, 70, 19));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (2315, 290)
+        (2361, 244)
     );
     counts
         .names
@@ -1128,12 +1128,12 @@ fn every_n2s_golden_structure_retains_complete_name_results() {
     finish("n2s generated-name golden", &counts, differences, started);
     assert_eq!(records, 1650);
     // Two generated names cite impossible hydro/indicated hydrogen (P-14.7.1, P-31.2.2; #34).
-    assert_n2s_coverage(&counts, (1658, 1647, 0, 11));
+    assert_n2s_coverage(&counts, (1659, 1648, 0, 11));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (1646, 1)
+        (1647, 1)
     );
     counts
         .names
-        .assert_routes(&[("monatomic cation", 1), ("salt", 11)], 1635);
+        .assert_routes(&[("monatomic cation", 1), ("salt", 11)], 1636);
 }
