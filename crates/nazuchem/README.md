@@ -82,7 +82,8 @@ preserves it. Stereo groups may contain only known configurations.
 according to the pinned OPSIN 3.0-SNAPSHOT revision; it does not cover every
 chemical name or promise newer OPSIN behavior. `s2n` names chains,
 monocycles, retained and systematic fused parents, spiro and von Baeyer ring
-systems, supported ions and charge-balanced salts. It also names supported
+systems, supported ions and charge-balanced salts, and adducts of these with
+neutral components such as acids and water. It also names supported
 neutral mono-/diradicals and radical ions when a closed-shell neutral parent
 can be recovered from one charge and one unpaired electron on the same atom
 or the two ends of a broken pi bond.
@@ -91,7 +92,7 @@ or the two ends of a broken pi bond.
 atoms after import; IR input has the same 1–512 atom limit. Naming also retains
 the native atom-map admission ceiling of 2,147,483,639, although IR JSON can
 store the full `u32` range. It rejects CXSMILES extensions, reaction SMILES, allene and
-coordination stereo classes, mixtures, neutral components mixed with ions,
+coordination stereo classes, zwitterions mixed with ions,
 and isotope-labelled neutral radicals. Unsupported chemistry or naming paths
 return `Err`; comprehensive IUPAC coverage is not claimed. A successful name
 includes a preference assessment and is not necessarily the preferred IUPAC

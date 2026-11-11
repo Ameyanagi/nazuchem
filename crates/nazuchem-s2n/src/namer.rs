@@ -546,12 +546,16 @@ fn name_subgraph_rendered_except_stereo(
             &plan.locant_map,
         )?;
     }
-    if super::heterospiro::needs_hydrogen_proof(mol, &parts) {
-        mol.mark_name(nazuchem_ir::NameStatus::Unverified(
-            nazuchem_ir::NameReason::SpiroHydrogen,
-        ));
-    }
-    let raw = super::assembler::assemble_name_raw(&mut parts)?;
+    let raw = if let Some((name, _)) = super::heterospiro::compose(mol, &parts)? {
+        name
+    } else {
+        if super::heterospiro::needs_hydrogen_proof(mol, &parts) {
+            mol.mark_name(nazuchem_ir::NameStatus::Unverified(
+                nazuchem_ir::NameReason::SpiroHydrogen,
+            ));
+        }
+        super::assembler::assemble_name_raw(&mut parts)?
+    };
     let mut represented: AtomSet = parts
         .a_prefixes
         .iter()

@@ -1400,7 +1400,7 @@ fn simple_central_parent_hydride_name(
     mol: &Molecule,
     atoms: &AtomSet,
 ) -> Result<Option<StructuralParentName>, String> {
-    let centers: Vec<_> = atoms
+    let mut centers: Vec<_> = atoms
         .iter()
         .copied()
         .filter(|i| {
@@ -1416,6 +1416,14 @@ fn simple_central_parent_hydride_name(
                         && matches!(mol.atoms[i].symbol.as_str(), "O" | "S" | "Se" | "Te"))
         })
         .collect();
+    // P-41, P-73.1.2: a cation outranks every neutral class, so a cationic
+    // chalcogen centre is the parent over neutral heteroatoms such as an amine.
+    if centers.len() > 1 {
+        centers.retain(|i| {
+            mol.atoms[i].charge == 1
+                && matches!(mol.atoms[i].symbol.as_str(), "O" | "S" | "Se" | "Te")
+        });
+    }
     if centers.len() != 1 {
         return Ok(None);
     }
@@ -1443,17 +1451,36 @@ fn simple_central_parent_hydride_name(
             .any(|&n| is_chalcogen(n) && mol.atoms[&n].charge == -1 && mol.degree(n) == 1);
     // P-73.1.1.1/.2: protonated chalcogen hydrides retain the systematic
     // oxidanium, sulfanium, selanium or tellanium parent, including remaining
-    // hydrogens.
+    // hydrogens. P-73.1.2.1: ylidene and ylidyne ligands substitute the same
+    // parent, as in ethyl(propan-2-ylidene)oxidanium.
     // Other ionic or radical centers require the ordinary parent selection.
     // The isotope adapter needs atom locants, which this shortcut lacks.
     let chalcogen_onium = !mol.is_isotope_parent()
         && a.charge == 1
         && matches!(a.symbol.as_str(), "O" | "S" | "Se" | "Te")
-        && mol.get_neighbors(c).len() + a.total_h_count.max(a.explicit_h_count) == 3
         && mol
             .get_neighbors(c)
             .iter()
-            .all(|n| mol.atoms[n].is_carbon() && mol.bond_order(c, *n) == 1)
+            .map(|n| mol.bond_order(c, *n))
+            .sum::<usize>()
+            + a.total_h_count.max(a.explicit_h_count)
+            == 3
+        // A heteroatom on an ylidene or ylidyne carbon can need a retained
+        // parent such as uronium (P-73.1.2.2) or meet prefixes that assume a
+        // single attachment, so those keep the ordinary route.
+        && mol.get_neighbors(c).iter().all(|&n| {
+            mol.atoms[&n].is_carbon()
+                && (mol.bond_order(c, n) == 1
+                    || mol
+                        .get_neighbors(n)
+                        .iter()
+                        .all(|&m| m == c || mol.atoms[&m].is_carbon()))
+        })
+        // Ligand names cannot carry E/Z of a double bond at the centre.
+        && !mol
+            .bonds
+            .values()
+            .any(|b| (b.u == c || b.v == c) && b.stereo.is_some())
         && mol
             .atoms
             .values()
@@ -1492,7 +1519,10 @@ fn simple_central_parent_hydride_name(
             continue;
         }
         let mut name = central_ligand_name(mol, atoms, c, n)?;
-        if name.is_empty() && hydrocarbyl && mol.atoms[&n].is_carbon() && mol.bond_order(c, n) == 1
+        if name.is_empty()
+            && hydrocarbyl
+            && mol.atoms[&n].is_carbon()
+            && (chalcogen_onium || mol.bond_order(c, n) == 1)
         {
             let ligand = component_atoms_until_blocked(mol, atoms, n, &set([c]));
             if !ligand.is_empty()
@@ -3412,7 +3442,133 @@ pub(super) fn try_name_anhydride_component(
                     halves[0].1 = format!("{}-{}", mol.atoms[&path[1]].symbol, halves[0].1);
                     halves[1].1 = format!("{}-{}", mol.atoms[&path[2]].symbol, halves[1].1);
                 }
-                halves.sort_by(|a, b| a.0.cmp(&b.0));
+                // P-65.7.2 cites the acids in alphabetical order, the
+                // alphanumerical order of P-14.5: nonitalic Roman letters first,
+                // then italic letters (P-14.5.3), then the locants, lowest at
+                // the first point of difference (P-14.5.4): first those outside
+                // enclosing marks, then all, in order of citation, with element
+                // locants (N) before numerals. Locant letters (4a, 1H, 1lambda)
+                // and stereodescriptors such as (S) or (1r,4r) give no Roman
+                // letters; fusion letters ([3,2-c], [cd]) and words such as tert
+                // are italic. Remaining ties compare enclosing marks and
+                // punctuation, stereodescriptors excluded (P-14.6).
+                let order_key = |name: &str| {
+                    const ITALIC_WORDS: [&str; 10] = [
+                        "tert", "sec", "cis", "trans", "endo", "exo", "syn", "anti", "as", "asym",
+                    ];
+                    let chars: Vec<char> = name.chars().collect();
+                    let (mut roman, mut italic) = (String::new(), String::new());
+                    let (mut locants, mut marks) = (Vec::new(), Vec::new());
+                    let (mut depth, mut i) = (0usize, 0);
+                    while i < chars.len() {
+                        let c = chars[i];
+                        let run = |from: usize, f: fn(&char) -> bool| {
+                            from + chars[from..].iter().take_while(|c| f(c)).count()
+                        };
+                        if c == '(' {
+                            // A descriptor such as (S), (2E) or (1r,4r) has a
+                            // letter, no hyphen and no word of two letters; it
+                            // is dropped with its hyphen.
+                            let end = chars[i..]
+                                .iter()
+                                .position(|&c| c == ')')
+                                .map_or(chars.len(), |n| i + n);
+                            let inner = &chars[i + 1..end];
+                            if inner.iter().any(char::is_ascii_alphabetic)
+                                && !inner.contains(&'-')
+                                && !inner
+                                    .windows(2)
+                                    .any(|w| w.iter().all(char::is_ascii_lowercase))
+                            {
+                                i = end + 1 + usize::from(chars.get(end + 1) == Some(&'-'));
+                                continue;
+                            }
+                        }
+                        let start = i;
+                        if c.is_ascii_digit() {
+                            let digits = run(i, char::is_ascii_digit);
+                            let number: u32 = chars[i..digits]
+                                .iter()
+                                .collect::<String>()
+                                .parse()
+                                .unwrap_or(u32::MAX);
+                            // Letters and primes written onto a locant: 4a, 3'a,
+                            // 1H, 3aH, 1lambda.
+                            i = run(digits, |c| c.is_ascii_alphabetic() || *c == '\'');
+                            let tail = &chars[digits..i];
+                            let letters: Vec<char> = tail
+                                .iter()
+                                .filter(|c| c.is_ascii_alphabetic())
+                                .copied()
+                                .collect();
+                            let letter = match letters[..] {
+                                [l] | [l, 'A'..='Z', ..] if l.is_ascii_lowercase() => l.into(),
+                                _ => String::new(),
+                            };
+                            let primes = tail.iter().filter(|&&c| c == '\'').count();
+                            locants.push((depth, (true, number, letter, primes)));
+                        } else if c.is_ascii_alphabetic() {
+                            let end = run(i, char::is_ascii_alphabetic);
+                            i = run(end, |c| *c == '\'');
+                            let mut word: String = chars[start..end].iter().collect();
+                            if word.contains(|c: char| c.is_ascii_uppercase()) {
+                                // An element locant such as N or N'.
+                                locants.push((depth, (false, 0, word, i - end)));
+                            } else {
+                                // s- and as-indacene take a prefix directly:
+                                // 3-chloros-indacene.
+                                if chars[end..]
+                                    .starts_with(&['-', 'i', 'n', 'd', 'a', 'c', 'e', 'n'])
+                                {
+                                    let n = if word.ends_with("as") {
+                                        2
+                                    } else {
+                                        usize::from(word.ends_with('s'))
+                                    };
+                                    italic.push_str(&word.split_off(word.len() - n));
+                                }
+                                // Fusion letters run in alphabetical sequence: c, cd.
+                                let fusion = word.as_bytes().windows(2).all(|w| w[1] == w[0] + 1);
+                                if fusion || ITALIC_WORDS.contains(&word.as_str()) {
+                                    italic.push_str(&word);
+                                } else if word != "lambda" {
+                                    // The Greek lambda of lambda^4 takes no part.
+                                    roman.push_str(&word);
+                                }
+                            }
+                        } else {
+                            match c {
+                                '(' | '[' | '{' => depth += 1,
+                                ')' | ']' | '}' => depth = depth.saturating_sub(1),
+                                _ => {}
+                            }
+                            i += 1;
+                            // The bonding number of lambda^4 is no locant.
+                            if c == '^' {
+                                i = run(i, char::is_ascii_digit);
+                            }
+                        }
+                        marks.extend(chars[start..i].iter().map(|c| match c {
+                            '{' | '}' => 1,
+                            '[' | ']' => 2,
+                            '(' | ')' => 3,
+                            '.' => 4,
+                            ',' => 5,
+                            ';' => 6,
+                            ':' => 7,
+                            '-' => 8,
+                            _ => 0,
+                        }));
+                    }
+                    let primary: Vec<_> = locants
+                        .iter()
+                        .filter(|l| l.0 == 0)
+                        .map(|l| l.1.clone())
+                        .collect();
+                    let all: Vec<_> = locants.into_iter().map(|l| l.1).collect();
+                    (roman, italic, primary, all, marks)
+                };
+                halves.sort_by_cached_key(|half| order_key(&half.0));
                 format!("{} {} {class}", halves[0].1, halves[1].1)
             };
             Ok(Some(StructuralParentName {
@@ -3755,16 +3911,51 @@ mod tests {
             ("C[O+](C)c1ccccc1", "dimethyl(phenyl)oxidanium"),
             ("C[O+](C)CC(=O)O", "(carboxymethyl)di(methyl)oxidanium"),
             ("C[O+](C)C(C)=O", "acetyldi(methyl)oxidanium"),
+            // Issue #18. P-73.1.1.1, P-73.1.2.1: ylidene and ylidyne ligands
+            // (ethylideneoxidanium, ethyl(propan-2-ylidene)oxidanium,
+            // ethylidyneoxidanium are the Blue Book PINs).
+            ("C=[O+]C", "methyl(methylidene)oxidanium"),
+            ("CC=[O+]C", "ethylidene(methyl)oxidanium"),
+            ("CC=[OH+]", "ethylideneoxidanium"),
+            ("CC(C)=[O+]CC", "ethyl(propan-2-ylidene)oxidanium"),
+            ("CC#[O+]", "ethylidyneoxidanium"),
+            ("C1CCCCC1=[O+]C", "cyclohexylidene(methyl)oxidanium"),
+            ("C=[S+]C", "methyl(methylidene)sulfanium"),
+            ("CC=[Se+]C", "ethylidene(methyl)selanium"),
+            ("NCC=[OH+]", "(2-aminoethylidene)oxidanium"),
+            // Issue #18. P-41, P-73.1.2: the cation outranks a neutral amine or
+            // other heteroatom centre, which becomes a prefix.
+            (
+                "C[O+](C)CCN(C)C",
+                "[2-(dimethylamino)ethyl]di(methyl)oxidanium",
+            ),
+            ("C=[O+]CCN", "(2-aminoethyl)(methylidene)oxidanium"),
+            ("C[O+](C)C1CCNCC1", "dimethyl(piperidin-4-yl)oxidanium"),
+            (
+                "C[S+](C)CCN(C)C",
+                "[2-(dimethylamino)ethyl]di(methyl)sulfanium",
+            ),
         ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
             let result = simple_central_parent_hydride_name(&mol, &all_atoms(&mol))
                 .unwrap()
                 .unwrap();
-            assert_eq!(result.name, expected, "{smiles}");
+            // Enclosing marks are normalized to brackets after this shortcut.
+            assert_eq!(
+                result.name,
+                expected.replace('[', "(").replace(']', ")"),
+                "{smiles}"
+            );
             assert!(result.certified, "{smiles}");
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = nazuchem_n2s::Parser::new()
+                .unwrap()
+                .parse(&name.text, &nazuchem_n2s::ParseOptions::strict());
+            let reconstructed = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
+            crate::test_support::verify_identity(smiles, &reconstructed)
+                .unwrap_or_else(|error| panic!("{smiles} -> {expected}: {error}"));
         }
     }
 
@@ -3773,7 +3964,14 @@ mod tests {
         for smiles in [
             "C[S+]1CCCC1",
             "C[O+]1CCCC1",
-            "C=[O+]C",
+            // The ligand names cannot carry E/Z of the C=O+ bond.
+            "C/C=[O+]/C",
+            // P-73.1.2.2: protonated (thio)urea is named from uronium.
+            "[OH+]=C(N)N",
+            "[SH+]=C(N)N",
+            // Methanethioyl would cite a single bond to the centre.
+            "S=C=[OH+]",
+            "C[O+](C)CC[S+](C)C",
             "C[S+](C)[CH2-]",
             "C[S+](C)C[O-]",
             "C[S+](C)CCCCCC[N+](C)(C)C",
@@ -4086,6 +4284,156 @@ mod tests {
     }
 
     #[test]
+    fn mixed_anhydride_acids_follow_alphanumerical_order() {
+        // Issues #9 and #19. P-65.7.2: the acids are cited in alphanumerical
+        // order (P-14.5).
+        let preferred = NameStatus::Preferred;
+        for (smiles, expected, status) in [
+            // P-14.5: Roman letters first; locants take no part.
+            (
+                "CC(=O)OC(=O)C(Cl)C",
+                "acetic 2-chloropropanoic anhydride",
+                preferred,
+            ),
+            (
+                "CCCC(=O)OC(=O)C(C)Cl",
+                "butanoic 2-chloropropanoic anhydride",
+                preferred,
+            ),
+            (
+                "ClCC(=O)OC(=O)C",
+                "acetic chloroacetic anhydride",
+                preferred,
+            ),
+            // P-14.5: the letter of a compound locant takes no part.
+            (
+                "O=C(OC(C)=O)C1CC2(Br)CCCCC2CC1",
+                "acetic 8a-bromodecahydronaphthalene-2-carboxylic anhydride",
+                preferred,
+            ),
+            // P-14.5.4: 4 is lower than 4a.
+            (
+                "BrC1C(CC(C2CCCCC12)C(=O)OC(=O)C1C(CCC2(CCCCC12)Br)Cl)Cl",
+                "4-bromo-3-chlorodecahydronaphthalene-1-carboxylic \
+                 4a-bromo-2-chlorodecahydronaphthalene-1-carboxylic anhydride",
+                preferred,
+            ),
+            // P-14.5: enclosing marks take no part ('phenoxy' before 'phenyls').
+            (
+                "O=C(OC(=O)c1ccc(Sc2ccccc2)cc1)c1ccc(Oc2ccccc2)cc1",
+                "4-phenoxybenzoic 4-(phenylsulfanyl)benzoic anhydride",
+                preferred,
+            ),
+            (
+                "CC(=O)OC(=O)c1ccc(Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
+                "acetic 4-[4-(4-phenoxyphenoxy)phenoxy]benzoic anhydride",
+                NameStatus::NotPreferred(NameReason::LinearPhane),
+            ),
+            // P-14.5.4: equal letters; lowest locants at the first point of
+            // difference, in order of citation.
+            (
+                "O=C(OC(=O)CCCCCCCCC(Cl)C)C(Cl)CCCCCCCCC",
+                "2-chloroundecanoic 10-chloroundecanoic anhydride",
+                preferred,
+            ),
+            (
+                "O=C(OC(=O)C(Cl)C(Br)C)C(Br)C(Cl)C",
+                "2-bromo-3-chlorobutanoic 3-bromo-2-chlorobutanoic anhydride",
+                preferred,
+            ),
+            // P-14.5: locants of the primary substituents are compared before
+            // those inside enclosing marks ({2,4} before {2,5}).
+            (
+                "O=C(OC(=O)c1c(C(C)CCC)ccc(S)c1)c1c(C(CC)CC)cc(S)cc1",
+                "2-(pentan-3-yl)-4-sulfanylbenzoic 2-(pentan-2-yl)-5-sulfanylbenzoic anhydride",
+                preferred,
+            ),
+            // P-14.5: Greek letters take no part; lambda^4 gives no Roman
+            // letters ('phosphanyl' before 'sulfanyl').
+            (
+                "C[SH](C)c1ccc(C(=O)OC(=O)c2ccc(P(C)C)cc2)cc1",
+                "4-(dimethylphosphanyl)benzoic 4-(dimethyl-lambda^4-sulfanyl)benzoic anhydride",
+                preferred,
+            ),
+            // P-14.5: an italic element locant is lower than a numeral.
+            (
+                "CN(CCC(=O)OC(=O)CCNC(=O)c1ccc(C)cc1C)C(=O)c1ccc(C)cc1",
+                "3-(N,4-dimethylbenzamido)propanoic 3-(2,4-dimethylbenzamido)propanoic anhydride",
+                preferred,
+            ),
+            // P-14.5.3: s of s-indacene is italic even when joined to a prefix
+            // ('chloroindacene' before 'chloroindene').
+            (
+                "ClC=1C=C(C2=CC3=CC=CC3=CC12)C(=O)OC(=O)C=1CC2=CC=CC=C2C1Cl",
+                "3-chloros-indacene-1-carboxylic 3-chloro-1H-indene-2-carboxylic anhydride",
+                preferred,
+            ),
+            // P-14.5.3: fusion letters are italic and count only after the
+            // Roman letters ('carbot' before 'carbox', 'cyclopentan' before
+            // 'cyclopentap').
+            (
+                "BrC1=CC=C2C(=N1)C=C(O2)C(=O)OC(=S)C2=C(C=1C=NC=CC1O2)Br",
+                "3-bromofuro[3,2-c]pyridine-2-carbothioic \
+                 5-bromofuro[3,2-b]pyridine-2-carboxylic anhydride",
+                preferred,
+            ),
+            (
+                "C1(=CC2=C3C(=CC4=CC=CC5=CC=C1C3=C45)C=C2)C(=O)OC(=O)C2CCCC2",
+                "cyclopentanecarboxylic cyclopenta[cd]pyrene-1-carboxylic anhydride",
+                preferred,
+            ),
+            // P-14.5: the indicated hydrogen 1H is a locant ('iodo' before
+            // 'pyrrole').
+            (
+                "ICC(=O)OC(=O)c1ccc[nH]1",
+                "iodoacetic 1H-pyrrole-2-carboxylic anhydride",
+                preferred,
+            ),
+            // P-14.5.1, P-14.5.3: tert is italic ('butyl' before 'chloro').
+            (
+                "CC(C)(C)c1ccc(cc1)C(=O)OC(=O)c1ccc(Cl)cc1",
+                "4-(tert-butyl)benzoic 4-chlorobenzoic anhydride",
+                preferred,
+            ),
+            // P-14.5: stereodescriptors take no part ('bromob' before 'bromoc').
+            (
+                "O=C(OC(=O)c1c(Br)cc([C@H](Br)Cl)cc1)c1cc(Br)c([C@H](F)Cl)cc1",
+                "2-bromo-4-[(S)-bromochloromethyl]benzoic \
+                 3-bromo-4-[(R)-chlorofluoromethyl]benzoic anhydride",
+                preferred,
+            ),
+            // P-14.6: equal alphanumerical characters; a letter is preferred
+            // to an opening parenthesis, whichever half the input gives first.
+            (
+                "N[SiH](C)c1ccc(cc1)C(=O)OC(=O)c1ccc(cc1)[SiH2]CN",
+                "4-[amino(methyl)silyl]benzoic 4-[(aminomethyl)silyl]benzoic anhydride",
+                preferred,
+            ),
+            (
+                "NC[SiH2]c1ccc(cc1)C(=O)OC(=O)c1ccc(cc1)[SiH](C)N",
+                "4-[amino(methyl)silyl]benzoic 4-[(aminomethyl)silyl]benzoic anhydride",
+                preferred,
+            ),
+            // P-14.6 with the stereodescriptor (R) and its hyphen excluded.
+            (
+                "N[P@](C)c1ccc(cc1)C(=O)OC(=O)c1ccc(cc1)[PH]CN",
+                "4-[(R)-amino(methyl)phosphanyl]benzoic 4-[(aminomethyl)phosphanyl]benzoic anhydride",
+                preferred,
+            ),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, status, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
+        }
+    }
+
+    #[test]
     // Provenance: fn tests::anhydride_certificate_counts_linkages_within_the_component | adapted
     // Source: ReShiki | src/naming/openclatura/special_cases.rs::tests::anhydride_certificate_counts_linkages_within_the_component
     // Source: openclatura | tests/unit/test_analysis.py::test_anhydride_shortcut_binds_acid_halves_and_core_separately
@@ -4100,7 +4448,7 @@ mod tests {
             ("CC(=O)OC(C)=O", "acetic anhydride", true),
             (
                 "CC(=O)OC(=O)CCC(=O)OC(C)=O",
-                "4-(acetyloxy)-4-oxobutanoic acetic anhydride",
+                "acetic 4-(acetyloxy)-4-oxobutanoic anhydride",
                 false,
             ),
         ] {

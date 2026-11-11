@@ -6,9 +6,10 @@
 // Source: openclatura | src/openclatura/numbering.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/data/parser_xml_resources/simpleGroups.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_chalcogen_functional_groups.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs | issue 13
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
-// Changes: Inherited parent scoring/candidate pipeline with original anion, ring-assembly and exchanged-arm stereochemical preference extensions.
+// Changes: Inherited parent scoring/candidate pipeline with original anion, ring-assembly, tied-chain prefix-locant and exchanged-arm stereochemical preference extensions.
 // Local contributions: MIT OR Apache-2.0; see NOTICE and PROVENANCE-nazuchem.toml.
 
 //! Parent preference criteria, in the Python registry's comparison order.
@@ -18,7 +19,7 @@ use super::{
     locants::{LocantKey, retained_locant_sort_key},
     molecule::{AtomSet, Molecule},
     namer::name_subgraph_with_upstream,
-    numbering::chain_orientations_before_stereo,
+    numbering::{chain_orientations_before_stereo, chain_preference_before_stereo},
     perception::PerceivedGroup,
     ring_assembly::{RingAssembly, discover_ring_assemblies},
 };
@@ -62,6 +63,8 @@ struct ParentScore {
     skeletal_anionic_centres: i64,
     uide_centres: i64,
     anionic_elements: [i64; 19],
+    cationic_centres: i64,
+    cationic_elements: [i64; 19],
     contains_principal: i64,
     principal_count: i64,
     senior_elements: Vec<usize>,
@@ -76,6 +79,7 @@ struct ParentScore {
     attached_prefixes: i64,
     assembly_substituent_locants: Option<Vec<LocantKey>>,
     assembly_substituent_citation: Option<AssemblyCitation>,
+    chain_prefix_locants: Option<(Vec<usize>, Vec<usize>)>,
     exchanged_arm_stereo: i64,
     path_tiebreak: Vec<usize>,
 }
@@ -84,12 +88,14 @@ impl ParentScore {
     // Provenance: fn ParentScore::principal_preference | adapted
     // Source: openclatura | src/openclatura/parent_selection.py::_prefer_spiro_backbone_components
     // Source: openclatura | src/openclatura/parent_selection.py::ParentSeniorityProfile.criterion_value
-    fn principal_preference(&self) -> (i64, i64, i64, [i64; 19], i64, i64) {
+    fn principal_preference(&self) -> (i64, i64, i64, [i64; 19], i64, [i64; 19], i64, i64) {
         (
             self.anionic_centres,
             self.skeletal_anionic_centres,
             self.uide_centres,
             self.anionic_elements,
+            self.cationic_centres,
+            self.cationic_elements,
             self.contains_principal,
             self.principal_count,
         )
@@ -100,6 +106,8 @@ struct ParentGroups<'a> {
     principal: &'a [usize],
     // Prefix parents must stay rooted at their attachment, not at an anion.
     anionic: Option<&'a [PerceivedGroup]>,
+    // Cationic centres of a cation; empty otherwise.
+    cationic: &'a AtomSet,
 }
 
 /// P-72.7(a): skeletal anions and anionic suffixes each contribute their
@@ -258,11 +266,37 @@ fn score(
             .filter(|id| mol.atoms[id].symbol == symbol)
             .count() as i64)
     });
+    // P-73.7(a), (c): a cation's parent has the most cationic centres,
+    // counting its cationic suffixes, then the most centres in the order
+    // N > P > ... > Te > C, before any neutral principal group. Criterion (b),
+    // ylium centres, needs no score: carbocation parents are declined.
+    let cationic_centres: Vec<_> = groups
+        .cationic
+        .iter()
+        .filter(|&i| {
+            atoms.contains(i)
+                || groups.anionic.is_some_and(|g| {
+                    g.iter().any(|g| {
+                        g.is_principal_candidate
+                            && atoms.contains(&g.attachment_carbon)
+                            && g.atoms_involved.contains(i)
+                    })
+                })
+        })
+        .collect();
+    let cationic_elements = elements.map(|symbol| {
+        -(cationic_centres
+            .iter()
+            .filter(|id| mol.atoms[id].symbol == symbol)
+            .count() as i64)
+    });
     ParentScore {
         anionic_centres: -(centres.len() as i64),
         skeletal_anionic_centres: -(skeletal.len() as i64),
         uide_centres: -(uide_count as i64),
         anionic_elements,
+        cationic_centres: -(cationic_centres.len() as i64),
+        cationic_elements,
         contains_principal: -i64::from(principal_count > 0),
         principal_count: -principal_count,
         senior_elements,
@@ -286,6 +320,7 @@ fn score(
         attached_prefixes: -attached,
         assembly_substituent_locants: None,
         assembly_substituent_citation: None,
+        chain_prefix_locants: None,
         exchanged_arm_stereo: 0,
         path_tiebreak: {
             let mut key: Vec<_> = path.iter().map(|idx| ranks[idx]).collect();
@@ -313,7 +348,8 @@ pub fn select_principal_parent(
         &AtomSet::new(),
         true,
     );
-    prefer_single_centre_exchanged_arms(mol, &mut candidates, principal_carbons);
+    prefer_chain_prefix_locants(mol, &mut candidates, principal_carbons, groups);
+    prefer_exchanged_arm_descriptors(mol, &mut candidates, principal_carbons);
     candidates
         .into_iter()
         .min_by(|a, b| a.0.cmp(&b.0))
@@ -344,7 +380,7 @@ fn arm_tree(
     path: &BTreeMap<usize, usize>,
     principal: &AtomSet,
     visited: &mut AtomSet,
-    centre: &mut Option<usize>,
+    centres: &mut Vec<usize>,
 ) -> Option<ArmTree> {
     // Revisiting any atom proves a cycle or a second attachment to the stem.
     if !visited.insert(atom) {
@@ -352,10 +388,11 @@ fn arm_tree(
     }
     let a = &mol.atoms[&atom];
     if a.has_stereo() {
-        if !matches!(a.stereo.as_deref(), Some("R" | "S")) || centre.is_some() {
+        // Descriptor pairs among three or more centres need full CIP rule 4.
+        if !matches!(a.stereo.as_deref(), Some("R" | "S")) || centres.len() == 2 {
             return None;
         }
-        *centre = Some(atom);
+        centres.push(atom);
     }
     let mut branches = Vec::new();
     for &neighbor in mol.get_neighbors(atom) {
@@ -369,7 +406,7 @@ fn arm_tree(
         branches.push((
             bond.order,
             bond.is_aromatic,
-            arm_tree(mol, neighbor, atom, path, principal, visited, centre)?,
+            arm_tree(mol, neighbor, atom, path, principal, visited, centres)?,
         ));
     }
     branches.sort();
@@ -386,11 +423,140 @@ fn arm_tree(
     })
 }
 
-/// Bounded P-44.4.1.12.2: one R/S centre in otherwise identical exchanged
-/// terminal arms. This does not implement like/unlike pairs or E/Z seniority.
-// Provenance: fn prefer_single_centre_exchanged_arms | original
+/// Prefix names cited on each chain atom, for branches outside `boundary`.
+// Provenance: fn chain_prefix_names | original
 // Source: ReShiki | src/naming/openclatura/parent_selection.rs::prefer_single_centre_exchanged_arms
-fn prefer_single_centre_exchanged_arms(
+fn chain_prefix_names(
+    mol: &Molecule,
+    path: &[usize],
+    boundary: &AtomSet,
+) -> Option<BTreeMap<usize, Vec<String>>> {
+    let mut substituents: BTreeMap<usize, Vec<String>> = BTreeMap::new();
+    mol.candidate::<()>(|| {
+        for &atom in path {
+            for &neighbor in mol.get_neighbors(atom) {
+                if !boundary.contains(&neighbor) {
+                    substituents
+                        .entry(atom)
+                        .or_default()
+                        .push(name_subgraph_with_upstream(
+                            mol,
+                            neighbor,
+                            boundary,
+                            Some(atom),
+                        )?);
+                }
+            }
+        }
+        // Discard candidate naming status marks even when all prefixes name.
+        Ok(None)
+    })
+    .ok()?;
+    Some(substituents)
+}
+
+/// P-45.2.2 and P-45.2.3: chains tied through P-45.2.1 prefer the lower
+/// prefix locant set, then the lower locants in order of citation. Chains
+/// whose numbering differs in an earlier P-44.4.1 criterion are left alone.
+// Provenance: fn prefer_chain_prefix_locants | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::prefer_chain_prefix_locants
+fn prefer_chain_prefix_locants(
+    mol: &Molecule,
+    candidates: &mut [(ParentScore, ParentSelection)],
+    principal: &[usize],
+    groups: &[PerceivedGroup],
+) {
+    // P-44.4.1.11 precedes P-45, including labels removed for isotope naming.
+    if mol.isotope_labels_stripped || mol.atoms.values().any(|a| a.isotope.is_some()) {
+        return;
+    }
+    let Some(best) = candidates.iter().map(|(s, _)| earlier_score(s)).min() else {
+        return;
+    };
+    let tied: Vec<_> = candidates
+        .iter()
+        .enumerate()
+        .filter_map(|(i, (s, _))| (earlier_score(s) == best).then_some(i))
+        .collect();
+    if tied.len() < 2 || tied.iter().any(|&i| candidates[i].1.is_ring) {
+        return;
+    }
+    let mut earlier_numbering = None;
+    let mut keys = BTreeMap::new();
+    for &i in &tied {
+        let path = candidates[i].1.primary_path();
+        let atoms = candidates[i].1.atom_set();
+        // Both orientations of one chain share a key.
+        if keys.contains_key(&atoms) {
+            continue;
+        }
+        let mut suffix_keys = BTreeMap::new();
+        let mut boundary = atoms.clone();
+        for group in groups.iter().filter(|g| {
+            g.is_principal_candidate
+                && principal.contains(&g.attachment_carbon)
+                && atoms.contains(&g.attachment_carbon)
+        }) {
+            // Two group classes on one atom: one of them is cited as a prefix.
+            if suffix_keys
+                .insert(group.attachment_carbon, &group.key)
+                .is_some_and(|key| key != &group.key)
+            {
+                return;
+            }
+            boundary.extend(&group.atoms_involved);
+        }
+        // An N-substituted suffix cites prefixes of its own; an ester does not.
+        if boundary.difference(&atoms).any(|a| {
+            !matches!(mol.atoms[a].symbol.as_str(), "O" | "S" | "Se" | "Te")
+                && mol.get_neighbors(*a).iter().any(|n| !boundary.contains(n))
+        }) {
+            return;
+        }
+        let Some(substituents) = chain_prefix_names(mol, path, &boundary) else {
+            return;
+        };
+        let numbering = chain_preference_before_stereo(mol, path, principal, &substituents);
+        let earlier = (
+            numbering.skeletal_ions,
+            numbering.principal,
+            numbering.hydro,
+            numbering.hetero_by_priority,
+            numbering.indicated_hydrogen,
+            numbering.unsaturation,
+            numbering.double_bonds,
+        );
+        if earlier_numbering.as_ref().is_some_and(|e| e != &earlier) {
+            return;
+        }
+        earlier_numbering = Some(earlier);
+        let mut locants = numbering.substituent_citation.clone();
+        locants.sort();
+        keys.insert(atoms, (locants, numbering.substituent_citation));
+    }
+    if keys.len() < 2 {
+        return;
+    }
+    for i in tied {
+        candidates[i].0.chain_prefix_locants = keys.get(&candidates[i].1.atom_set()).cloned();
+    }
+}
+
+/// The score through the last structural criterion, without the atom-order key.
+// Provenance: fn earlier_score | original
+// Source: ReShiki | src/naming/openclatura/parent_selection.rs::prefer_single_centre_exchanged_arms
+fn earlier_score(score: &ParentScore) -> ParentScore {
+    let mut score = score.clone();
+    score.path_tiebreak.clear();
+    score
+}
+
+/// Bounded P-44.4.1.12.2: one or two R/S centres in otherwise identical
+/// exchanged terminal arms. Like descriptors (RR, SS) precede unlike ones,
+/// then R precedes S. Unlike RS against SR and E/Z seniority are not decided.
+// Provenance: fn prefer_exchanged_arm_descriptors | original
+// Source: ReShiki | src/naming/openclatura/parent_selection.rs::prefer_single_centre_exchanged_arms
+fn prefer_exchanged_arm_descriptors(
     mol: &Molecule,
     candidates: &mut [(ParentScore, ParentSelection)],
     principal: &[usize],
@@ -399,11 +565,6 @@ fn prefer_single_centre_exchanged_arms(
     if mol.isotope_labels_stripped || mol.atoms.values().any(|a| a.isotope.is_some()) {
         return;
     }
-    let earlier_score = |score: &ParentScore| {
-        let mut score = score.clone();
-        score.path_tiebreak.clear();
-        score
-    };
     let Some(best) = candidates.iter().map(|(s, _)| earlier_score(s)).min() else {
         return;
     };
@@ -449,7 +610,7 @@ fn prefer_single_centre_exchanged_arms(
             .map(|(position, &atom)| (atom, position))
             .collect();
         let mut visited = common.clone();
-        let mut centre = None;
+        let mut arm_centres = Vec::new();
         let Some(tree) = arm_tree(
             mol,
             root,
@@ -457,13 +618,14 @@ fn prefer_single_centre_exchanged_arms(
             &positions,
             &principal,
             &mut visited,
-            &mut centre,
+            &mut arm_centres,
         ) else {
             return;
         };
-        let Some(centre) = centre.filter(|a| positions.contains_key(a)) else {
+        if arm_centres.is_empty() || arm_centres.iter().any(|a| !positions.contains_key(a)) {
             return;
-        };
+        }
+        arm_centres.sort_by_key(|a| positions[a]);
         let Some(bond) = mol.get_bond(junction, root) else {
             return;
         };
@@ -476,7 +638,7 @@ fn prefer_single_centre_exchanged_arms(
         }
         reference = Some(constitution);
         arms.extend(visited.difference(&common));
-        centres.insert(candidates[i].1.atom_set(), centre);
+        centres.insert(candidates[i].1.atom_set(), arm_centres);
     }
     // A common configured centre would introduce like/unlike comparisons.
     if mol
@@ -487,35 +649,28 @@ fn prefer_single_centre_exchanged_arms(
     {
         return;
     }
-    let has_descriptor = |descriptor| {
-        centres
-            .values()
-            .any(|a| mol.atoms[a].stereo.as_deref() == Some(descriptor))
+    // Corresponding centres, from the junction outwards: (unlike, not R).
+    let descriptors: BTreeMap<_, _> = centres
+        .iter()
+        .map(|(atoms, arm)| {
+            let is_s = |a: &usize| mol.atoms[a].stereo.as_deref() == Some("S");
+            let unlike = arm.iter().any(|a| is_s(a) != is_s(&arm[0]));
+            (atoms, (unlike, is_s(&arm[0])))
+        })
+        .collect();
+    let Some(senior) = descriptors.values().min() else {
+        return;
     };
-    if !has_descriptor("R") || !has_descriptor("S") {
+    // Nothing to choose, or only unlike arms that differ (RS against SR).
+    if descriptors.values().all(|d| d == senior) || senior.0 {
         return;
     }
     let mut reference_locants = None;
     for (atoms, &i) in &unique {
         let path = candidates[i].1.primary_path();
-        let mut substituents: BTreeMap<usize, Vec<String>> = BTreeMap::new();
-        let named =
-            mol.candidate::<()>(|| {
-                for &atom in path {
-                    for &neighbor in mol.get_neighbors(atom) {
-                        if !atoms.contains(&neighbor) {
-                            substituents.entry(atom).or_default().push(
-                                name_subgraph_with_upstream(mol, neighbor, atoms, Some(atom))?,
-                            );
-                        }
-                    }
-                }
-                // Discard candidate naming status marks even when all prefixes name.
-                Ok(None)
-            });
-        if named.is_err() {
+        let Some(substituents) = chain_prefix_names(mol, path, atoms) else {
             return;
-        }
+        };
         let mut locants: Vec<_> = chain_orientations_before_stereo(
             mol,
             path,
@@ -523,7 +678,14 @@ fn prefer_single_centre_exchanged_arms(
             &substituents,
         )
         .iter()
-        .filter_map(|path| path.iter().position(|a| *a == centres[atoms]))
+        .map(|path| {
+            let mut positions: Vec<_> = centres[atoms]
+                .iter()
+                .filter_map(|centre| path.iter().position(|a| a == centre))
+                .collect();
+            positions.sort();
+            positions
+        })
         .collect();
         locants.sort();
         locants.dedup();
@@ -533,9 +695,8 @@ fn prefer_single_centre_exchanged_arms(
         reference_locants = Some(locants);
     }
     for i in tied {
-        let centre = centres[&candidates[i].1.atom_set()];
-        candidates[i].0.exchanged_arm_stereo =
-            -i64::from(mol.atoms[&centre].stereo.as_deref() == Some("R"));
+        let (unlike, is_s) = descriptors[&candidates[i].1.atom_set()];
+        candidates[i].0.exchanged_arm_stereo = 2 * i64::from(unlike) + i64::from(is_s);
     }
 }
 
@@ -670,9 +831,13 @@ fn parent_candidates(
     excluded: &AtomSet,
     atom_order_tiebreak: bool,
 ) -> Vec<(ParentScore, ParentSelection)> {
+    let cationic = groups
+        .map(|_| super::species::cationic_centres(mol))
+        .unwrap_or_default();
     let groups = ParentGroups {
         principal: principal_carbons,
         anionic: groups,
+        cationic: &cationic,
     };
     let ranks = canonical_ranks(mol, None);
     let assemblies = discover_ring_assemblies(mol, ring_systems);
@@ -762,6 +927,7 @@ fn parent_candidates(
             &ParentGroups {
                 principal: &[],
                 anionic: None,
+                cationic: &AtomSet::new(),
             },
             &ranks,
         )
@@ -1115,7 +1281,7 @@ mod tests {
                         .any(|a| mol.atoms[a].stereo.as_deref() == Some("R"));
                     score.path_tiebreak = vec![usize::from(has_r)];
                 }
-                prefer_single_centre_exchanged_arms(&mol, &mut candidates, &[]);
+                prefer_exchanged_arm_descriptors(&mol, &mut candidates, &[]);
                 let (_, selected) = candidates.iter().min_by_key(|(s, _)| s).unwrap();
                 let descriptors: Vec<_> = selected
                     .primary_path()
@@ -1133,7 +1299,7 @@ mod tests {
     }
 
     #[test]
-    fn exchanged_arm_rule_requires_single_corresponding_opposite_centres() {
+    fn exchanged_arm_rule_requires_corresponding_decidable_centres() {
         for smiles in [
             // One arm is unspecified; equally specified arms have no R/S tie.
             "C[C@H](F)C(C(F)C)CCCC",
@@ -1143,8 +1309,10 @@ mod tests {
             // specified centre at different positions in the two arms.
             "C[C@H](F)C([C@H](Cl)C)CCCC",
             "C[C@H](F)C(F)C([C@H](F)C(F)C)CCCC",
-            // Two centres per arm require the general like/unlike rule.
-            "C[C@H](F)[C@H](Cl)C([C@H](Cl)[C@@H](F)C)=C=C=CC",
+            // Unlike arms, RS against SR, and three centres per arm need
+            // the full CIP rules 4 and 5.
+            "C[C@H](F)[C@H](Cl)C([C@H](Cl)[C@H](F)C)=C=C=CC",
+            "C[C@H](F)[C@H](Cl)[C@H](Br)C([C@H](Br)[C@@H](Cl)[C@@H](F)C)CCCCC",
             // A shared configured centre also introduces descriptor pairs.
             "C[C@H](F)C([C@H](F)C)[C@H](Cl)CCC",
             // Bond descriptors are outside the bounded R/S rule.
@@ -1152,9 +1320,149 @@ mod tests {
         ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
             let mut candidates = chain_candidates(&mol);
-            prefer_single_centre_exchanged_arms(&mol, &mut candidates, &[]);
+            prefer_exchanged_arm_descriptors(&mol, &mut candidates, &[]);
             assert!(
                 candidates.iter().all(|(s, _)| s.exchanged_arm_stereo == 0),
+                "{smiles}"
+            );
+        }
+    }
+
+    fn name(smiles: &str) -> String {
+        crate::name_smiles(smiles, &Default::default())
+            .unwrap()
+            .text
+    }
+
+    // P-44.4.1.12.2: like descriptor pairs (RR, SS) precede unlike pairs,
+    // then R precedes S.
+    #[test]
+    fn like_descriptor_pairs_precede_unlike_pairs_in_exchanged_arms() {
+        for (smiles, expected) in [
+            (
+                "C[C@H](F)[C@H](Cl)C([C@H](Cl)[C@@H](F)C)=C=C=CC",
+                "(6S,7S)-6-chloro-5-[(1R,2S)-1-chloro-2-fluoropropyl]-7-fluoroocta-2,3,4-triene",
+            ),
+            (
+                "C[C@@H](F)[C@@H](Cl)C([C@H](Cl)[C@@H](F)C)=C=C=CC",
+                "(6S,7S)-6-chloro-5-[(1S,2R)-1-chloro-2-fluoropropyl]-7-fluoroocta-2,3,4-triene",
+            ),
+            (
+                "C[C@H](F)[C@H](Cl)C([C@H](Cl)[C@@H](F)C)CCCC",
+                "(2S,3S)-3-chloro-4-[(1R,2S)-1-chloro-2-fluoropropyl]-2-fluorooctane",
+            ),
+            // Both arms like: RR precedes SS.
+            (
+                "C[C@@H](F)[C@H](Cl)C([C@H](Cl)[C@@H](F)C)=C=C=CC",
+                "(6R,7R)-6-chloro-5-[(1S,2S)-1-chloro-2-fluoropropyl]-7-fluoroocta-2,3,4-triene",
+            ),
+        ] {
+            assert_eq!(name(smiles), expected, "{smiles}");
+        }
+    }
+
+    // P-45.2.3: equal prefix locant sets are compared in order of citation.
+    // The acids, the alcohol and the two hexanes are examples (4), (5), (7),
+    // (8) and (15) of the rule.
+    #[test]
+    fn tied_chains_prefer_lower_prefix_locants_in_citation_order() {
+        for (smiles, expected) in [
+            (
+                "C[C@H](Cl)[C@@H](F)C([C@H](Cl)[C@@H](F)C)=C=C=CC",
+                "(6S,7S)-6-chloro-5-[(1S,2S)-2-chloro-1-fluoropropyl]-7-fluoroocta-2,3,4-triene",
+            ),
+            (
+                "OC(=O)CCC(C(F)C(Br)C)C(Br)C(F)C",
+                "5-bromo-4-(2-bromo-1-fluoropropyl)-6-fluoroheptanoic acid",
+            ),
+            (
+                "OC(=O)C(C(O)CBr)C(Br)CO",
+                "3-bromo-2-(2-bromo-1-hydroxyethyl)-4-hydroxybutanoic acid",
+            ),
+            ("OCC(CCBr)CCCl", "2-(2-bromoethyl)-4-chlorobutan-1-ol"),
+            (
+                "ClC(Br)CCCC(CBr)CCl",
+                "1-bromo-5-(bromomethyl)-1,6-dichlorohexane",
+            ),
+            (
+                "ClC(Br)CCC(C(I)CBr)C(Br)CCl",
+                "1,5-dibromo-4-(2-bromo-1-iodoethyl)-1,6-dichlorohexane",
+            ),
+            // The alkyl group of an ester is not a prefix of the chain.
+            (
+                "CC(Cl)C(Br)C(C(Cl)C(Br)C)C(=O)OC",
+                "methyl 3-bromo-2-(2-bromo-1-chloropropyl)-4-chloropentanoate",
+            ),
+        ] {
+            assert_eq!(name(smiles), expected, "{smiles}");
+        }
+    }
+
+    // P-45.2.2: the lower prefix locant set, examples (6), (7) and (15).
+    #[test]
+    fn tied_chains_prefer_the_lower_prefix_locant_set() {
+        for (smiles, expected) in [
+            (
+                "OC(=O)CCC(C(Cl)CC[N+](=O)[O-])C(Br)C(Br)C",
+                "5,6-dibromo-4-(1-chloro-3-nitropropyl)heptanoic acid",
+            ),
+            (
+                "OCC(N)CCC(CC(Cl)CCO)C(C)CCCO",
+                "2-amino-5-(2-chloro-4-hydroxybutyl)-6-methylnonane-1,9-diol",
+            ),
+            (
+                "CC(O)C(Cl)C(C)C(CCC(C)O)C(C)CC(O)C",
+                "3-chloro-5-(3-hydroxybutyl)-4,6-dimethylnonane-2,8-diol",
+            ),
+        ] {
+            assert_eq!(name(smiles), expected, "{smiles}");
+        }
+    }
+
+    #[test]
+    fn prefix_locant_choice_precedes_canonical_fallback_and_ignores_path_order() {
+        let mol = read_smiles("OCC(CCBr)CCCl", &Default::default()).unwrap();
+        let paths = find_all_carbon_paths(&mol, &AtomSet::new()).unwrap();
+        let bromine = mol.atoms.values().find(|a| a.symbol == "Br").unwrap().idx;
+        let bromo_carbon = mol.get_neighbors(bromine)[0];
+        for reverse_paths in [false, true] {
+            for reverse_candidates in [false, true] {
+                let mut paths = paths.clone();
+                if reverse_paths {
+                    paths.iter_mut().for_each(|p| p.reverse());
+                }
+                if reverse_candidates {
+                    paths.reverse();
+                }
+                let mut candidates =
+                    parent_candidates(&mol, &paths, &[], &[1], Some(&[]), &AtomSet::new(), true);
+                // Deliberately give the 4-bromo parent a better fallback key.
+                for (score, selection) in &mut candidates {
+                    let bromo = selection.primary_path().contains(&bromo_carbon);
+                    score.path_tiebreak = vec![usize::from(!bromo)];
+                }
+                prefer_chain_prefix_locants(&mol, &mut candidates, &[1], &[]);
+                let (_, selected) = candidates.iter().min_by_key(|(s, _)| s).unwrap();
+                assert!(!selected.primary_path().contains(&bromo_carbon));
+            }
+        }
+    }
+
+    #[test]
+    fn prefix_locant_rule_leaves_unmodelled_ties_alone() {
+        for smiles in [
+            // P-45.2.2 follows P-44.4.1.10: the ene locants differ.
+            "CCCCCC(C=CC)CC=C",
+            // Isotopic modification (P-44.4.1.11) precedes P-45.
+            "[13CH3]C(Cl)C(F)C(C(Cl)C(F)C)CCCC",
+        ] {
+            let mol = read_smiles(smiles, &Default::default()).unwrap();
+            let mut candidates = chain_candidates(&mol);
+            prefer_chain_prefix_locants(&mol, &mut candidates, &[], &[]);
+            assert!(
+                candidates
+                    .iter()
+                    .all(|(s, _)| s.chain_prefix_locants.is_none()),
                 "{smiles}"
             );
         }
@@ -1171,7 +1479,7 @@ mod tests {
                 &BTreeMap::new(),
                 &AtomSet::new(),
                 &mut AtomSet::from([0]),
-                &mut None,
+                &mut Vec::new(),
             )
             .is_none()
         );
@@ -1190,7 +1498,7 @@ mod tests {
             assert_eq!(mol.atoms[&1].stereo.as_deref(), Some("S"));
             assert_eq!(mol.atoms[&4].stereo.as_deref(), Some("R"));
             let mut candidates = chain_candidates(&mol);
-            prefer_single_centre_exchanged_arms(&mol, &mut candidates, &[]);
+            prefer_exchanged_arm_descriptors(&mol, &mut candidates, &[]);
             assert!(candidates.iter().all(|(s, _)| s.exchanged_arm_stereo == 0));
         }
     }
@@ -1210,7 +1518,7 @@ mod tests {
             })
             .unwrap();
         candidates[s_parent].0.principal_count = -1;
-        prefer_single_centre_exchanged_arms(&mol, &mut candidates, &[]);
+        prefer_exchanged_arm_descriptors(&mol, &mut candidates, &[]);
         assert!(candidates.iter().all(|(s, _)| s.exchanged_arm_stereo == 0));
         assert_eq!(
             candidates
@@ -1226,7 +1534,7 @@ mod tests {
         let mut unrelated = candidates.iter().min_by_key(|(s, _)| s).unwrap().clone();
         unrelated.1.paths = vec![vec![0]];
         candidates.push(unrelated);
-        prefer_single_centre_exchanged_arms(&mol, &mut candidates, &[]);
+        prefer_exchanged_arm_descriptors(&mol, &mut candidates, &[]);
         assert!(candidates.iter().all(|(s, _)| s.exchanged_arm_stereo == 0));
     }
 
@@ -1261,6 +1569,7 @@ mod tests {
         let groups = ParentGroups {
             principal: &[],
             anionic: Some(&[]),
+            cationic: &AtomSet::new(),
         };
         let phosphanide = score(&mol, &[0], false, 0, None, &groups, &ranks);
         let arsanuide = score(&mol, &[3], false, 0, None, &groups, &ranks);
@@ -1285,6 +1594,7 @@ mod tests {
         let groups = ParentGroups {
             principal: &[3],
             anionic: Some(&[]),
+            cationic: &AtomSet::new(),
         };
         let phosphanide = score(&mol, &[0], false, 0, None, &groups, &ranks);
         let silanide = score(&mol, &[3], false, 0, None, &groups, &ranks);
