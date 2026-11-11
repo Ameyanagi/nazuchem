@@ -199,7 +199,9 @@ fn lowest_equivalent_map(
     search
         .best
         .map(|(_, map)| map)
-        .ok_or_else(|| "openclatura: isotope equivalent-numbering proof failed".into())
+        .ok_or_else(|| {
+            "openclatura: an isotope label outside the parent hydride, on a substituent prefix or characteristic group, is not supported".into()
+        })
 }
 
 fn site_locant(

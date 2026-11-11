@@ -172,6 +172,22 @@ pub(super) fn prepare_anion_parent(
     if !negative.iter().all(supported) {
         return Ok(());
     }
+    // P-72.3: a centre above its standard bonding number gained a hydride
+    // (1,1-dimethylborinan-1-uide); P-72.2.2.1: the others lost a hydron.
+    let hydride_added = |site: &&ChargeSite| {
+        let atom = &mol.atoms[&site.atom];
+        let bonds: usize = mol
+            .get_neighbors(site.atom)
+            .iter()
+            .map(|&n| mol.bond_order(site.atom, n))
+            .sum();
+        atom.element()
+            .is_some_and(|e| bonds + atom.total_h_count > e.standard_valence)
+    };
+    let uide = negative.iter().all(hydride_added);
+    if !uide && negative.iter().any(hydride_added) {
+        return Ok(());
+    }
     let mut anion_locants: Vec<_> = negative.iter().map(|site| site.locant.clone()).collect();
     anion_locants.sort_by_key(|locant| parse_locant(locant));
     // P-14.3.4.2: the sole skeletal suffix follows the same locant-omission
@@ -187,6 +203,7 @@ pub(super) fn prepare_anion_parent(
     parts.anion_suffix = Some(AnionSuffix {
         locants: anion_locants,
         cite_locants: !omit_locants,
+        uide,
     });
     Ok(())
 }
@@ -523,6 +540,30 @@ pub(super) fn cationic_methylidene_fallback(
 mod tests {
     use super::super::molecule::{Atom, Bond};
     use super::*;
+
+    #[test]
+    fn hydride_adduct_anions_take_the_uide_suffix() {
+        // Issue #27. P-72.3: tetramethylboranuide, tetramethylphosphanuide,
+        // sodium trimethylboranuide, 1,1-dimethylborinan-1-uide.
+        for (smiles, expected) in [
+            ("C[B-](C)(C)C", "tetramethylboranuide"),
+            ("C[BH-](C)C", "trimethylboranuide"),
+            ("C[P-](C)(C)C", "tetramethylphosphanuide"),
+            (
+                "[B-](C1=CC=C(C=C1)Cl)(C2=CC=C(C=C2)Cl)(C3=CC=C(C=C3)Cl)C4=CC=C(C=C4)Cl",
+                "tetrakis(4-chlorophenyl)boranuide",
+            ),
+            ("C[B-]1(C)CCCCC1", "1,1-dimethylborinan-1-uide"),
+            ("C[BH-](C)C.[Na+]", "sodium trimethylboranuide"),
+            // P-72.2.2.1: hydron loss keeps "ide".
+            ("C[CH-]C", "propan-2-ide"),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+    }
 
     #[test]
     fn retained_chalcogen_cations_need_a_proved_ring_pi_state() {
