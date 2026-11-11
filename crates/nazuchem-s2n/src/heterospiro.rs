@@ -217,6 +217,15 @@ pub(super) fn compose(
             }
         }
     }
+    // The numbering proof ranks a fused ketone as a suffix site; as an oxo
+    // prefix of a substituent it keeps the unverified fallback.
+    if parts.is_substituent
+        && super::perception::perceive_groups(mol)
+            .iter()
+            .any(|g| g.key == "ketone" && fused.contains_key(&g.attachment_carbon))
+    {
+        return Ok(None);
+    }
     let suffix: AtomSet = fused
         .iter()
         .filter(|(_, locant)| {

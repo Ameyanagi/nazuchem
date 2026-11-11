@@ -538,11 +538,18 @@ fn heterospiro_substituent_prefixes_and_junior_groups() {
             NameStatus::Preferred,
         ),
         (
-            // P-58.2.4: a ketone of the prefix is cited as oxo with hydro prefixes.
-            "ketone inside a spiro substituent",
-            "OC(=O)CC1CCC2(CC1)CC(=O)c1ccccc12",
-            "(3'-oxo-2',3'-dihydrospiro[cyclohexane-1,1'-inden]-4-yl)acetic acid",
+            // P-58.2.4: a ketone of the prefix is cited as oxo; P-29.2: the
+            // free valence takes the lower locant.
+            "monocycle ketone inside a spiro substituent",
+            "OC(=O)CC1CCC(=O)C2(C1)CCc1ccccc12",
+            "(6-oxo-2',3'-dihydrospiro[cyclohexane-1,1'-inden]-3-yl)acetic acid",
             NameStatus::Preferred,
+        ),
+        (
+            "fused ketone inside a spiro substituent stays unverified",
+            "OC(=O)CC1CCC2(CC1)CC(=O)c1ccccc12",
+            "[3'-oxospiro[cyclohexane-1,1'-(2,3-dihydro-1H-indene)]-4-yl]acetic acid",
+            NameStatus::Unverified(NameReason::SpiroHydrogen),
         ),
         (
             "saturated spiro substituent on furan",
