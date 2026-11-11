@@ -589,6 +589,18 @@ mod tests {
     }
 
     #[test]
+    fn labels_on_substituent_prefixes_decline_with_their_cause() {
+        // Issue #27: a descriptor inside the prefix, (1,1-2H2)ethyl, is not composed.
+        let error = name_smiles(
+            "[2H]C([2H])(C)N1C=CC=C1",
+            IsotopeStyle::Iupac,
+            &Default::default(),
+        )
+        .unwrap_err();
+        assert!(error.contains("outside the parent hydride"), "{error}");
+    }
+
+    #[test]
     fn isotopic_onium_keeps_the_ordinary_parent_plan() {
         // The sulfanium shortcut has no atom locants for the isotope descriptor.
         let smiles = "[13CH3][S+](C)C";

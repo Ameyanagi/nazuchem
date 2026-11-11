@@ -172,20 +172,22 @@ pub(super) fn prepare_anion_parent(
     if !negative.iter().all(supported) {
         return Ok(());
     }
-    // P-72.3: a centre above its standard bonding number gained a hydride
+    // P-72.3: a centre one above its standard bonding number gained a hydride
     // (1,1-dimethylborinan-1-uide); P-72.2.2.1: the others lost a hydron.
-    let hydride_added = |site: &&ChargeSite| {
+    // Higher bonding numbers need a lambda parent (P-72.4) and decline.
+    let excess = |site: &&ChargeSite| {
         let atom = &mol.atoms[&site.atom];
         let bonds: usize = mol
             .get_neighbors(site.atom)
             .iter()
             .map(|&n| mol.bond_order(site.atom, n))
             .sum();
-        atom.element()
-            .is_some_and(|e| bonds + atom.total_h_count > e.standard_valence)
+        atom.element().map_or(0, |e| {
+            (bonds + atom.total_h_count).saturating_sub(e.standard_valence)
+        })
     };
-    let uide = negative.iter().all(hydride_added);
-    if !uide && negative.iter().any(hydride_added) {
+    let uide = negative.iter().all(|site| excess(site) == 1);
+    if !uide && negative.iter().any(|site| excess(site) > 0) {
         return Ok(());
     }
     let mut anion_locants: Vec<_> = negative.iter().map(|site| site.locant.clone()).collect();
@@ -549,12 +551,17 @@ mod tests {
             ("C[B-](C)(C)C", "tetramethylboranuide"),
             ("C[BH-](C)C", "trimethylboranuide"),
             ("C[P-](C)(C)C", "tetramethylphosphanuide"),
+            ("CCC[Sb-](C)(C)C", "trimethyl(propyl)stibanuide"),
             (
                 "[B-](C1=CC=C(C=C1)Cl)(C2=CC=C(C=C2)Cl)(C3=CC=C(C=C3)Cl)C4=CC=C(C=C4)Cl",
                 "tetrakis(4-chlorophenyl)boranuide",
             ),
             ("C[B-]1(C)CCCCC1", "1,1-dimethylborinan-1-uide"),
             ("C[BH-](C)C.[Na+]", "sodium trimethylboranuide"),
+            (
+                "[B-](C1=CC=C(C=C1)Cl)(C2=CC=C(C=C2)Cl)(C3=CC=C(C=C3)Cl)C4=CC=C(C=C4)Cl.CCCCCCCCCCCC[NH+]=C(N)N",
+                "1,1-diamino-N-dodecylmethaniminium tetrakis(4-chlorophenyl)boranuide",
+            ),
             // P-72.2.2.1: hydron loss keeps "ide".
             ("C[CH-]C", "propan-2-ide"),
         ] {
@@ -562,6 +569,17 @@ mod tests {
             assert_eq!(name.text, expected, "{smiles}");
             let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        // P-72.4: these need a lambda parent, and mixed ide/uide is not composed.
+        for smiles in [
+            "C[P-]1(C)(C)(C)CCCCC1",
+            "C[S-]1(C)(C)CCCC1",
+            "C[B-]1(C)CC[CH-]CC1",
+        ] {
+            assert!(
+                super::super::name_smiles(smiles, &Default::default()).is_err(),
+                "{smiles}"
+            );
         }
     }
 

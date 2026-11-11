@@ -260,7 +260,6 @@ mod tests {
             "COC(=O)C1CC(C(=O)[O-])NC(C(N)=S)C1",
             "CCC[PH-]",
             "CCC[As-](C)",
-            "CCC[Sb-](C)(C)C",
             "CCC[SH2-]",
             "CCC[TeH2-]",
             "CCC[ClH+]",

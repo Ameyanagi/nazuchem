@@ -578,6 +578,7 @@ mod tests {
         // (cyclopenta-2,4-dien-1-ylium), other groups as prefixes.
         for (smiles, name) in [
             ("[CH3+]", "methylium"),
+            ("[SiH3+]", "silylium"),
             ("CC[CH2+]", "propylium"),
             ("C[CH+]C", "propan-2-ylium"),
             ("C[C+](C)C", "2-methylpropan-2-ylium"),
