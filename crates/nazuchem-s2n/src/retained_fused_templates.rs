@@ -178,7 +178,12 @@ static ALL_TEMPLATES: LazyLock<Vec<RetainedGraphTemplate>> = LazyLock::new(|| {
     let mut templates: Vec<_> = retained_graph_template_rows()
         .map(retained_graph_template_from_data)
         .collect();
-    for (family, minimum, maximum) in [("acenes", 4, 9), ("polyaphenes", 5, 10)] {
+    // P-25.1.2.6: polyhelicenes start at six rings; P-25.8.2 lists them up to nine.
+    for (family, minimum, maximum) in [
+        ("acenes", 4, 9),
+        ("polyaphenes", 5, 10),
+        ("helicenes", 6, 9),
+    ] {
         for count in minimum..=maximum {
             let generated = generated_series_template(family, count);
             if !templates.iter().any(|t| t.name == generated.name) {
@@ -418,8 +423,13 @@ pub fn match_retained_graph_templates_with_options(
             && key.edge_degrees.values().sum::<usize>() + 1 == key.size + count
             && key.degrees.keys().all(|d| matches!(d, 2 | 3))
         {
-            for (family, eager) in [("acenes", 9), ("polyaphenes", 10)] {
-                if count > eager {
+            // A helicene's inner fusion atoms take letters a to z: 27 rings at most.
+            for (family, eager, maximum) in [
+                ("acenes", 9, 1000),
+                ("polyaphenes", 10, 1000),
+                ("helicenes", 9, 27),
+            ] {
+                if count > eager && count <= maximum {
                     let t = generated_series_template(family, count);
                     if retained_graph_template_topology_key(&t) == key
                         && !candidates.iter().any(|c| c.name == t.name)
@@ -1053,21 +1063,44 @@ fn generated_series_template(family: &str, count: usize) -> RetainedGraphTemplat
         serde_json::from_str(include_str!("data/retained_fused_series.json"))
             .expect("checked-in retained fused series")
     });
-    let (locants, edges) = if family == "acenes" {
-        higher_acene_locant_graph(count)
-    } else {
-        polyaphene_locant_graph(count)
+    let (locants, edges) = match family {
+        "acenes" => higher_acene_locant_graph(count),
+        "helicenes" => {
+            // P-25.3.3.1.1 numbering: from the inner CH of one terminal ring
+            // round the outer rim, then the inner fusion atoms in letter order.
+            let inner = |i: usize| format!("{}{}", 2 * count + 4, (b'a' + i as u8) as char);
+            let mut locants: Vec<_> = (1..=4).map(|n| n.to_string()).collect();
+            for k in 1..count - 1 {
+                locants.extend([
+                    format!("{}a", 2 * k + 2),
+                    (2 * k + 3).to_string(),
+                    (2 * k + 4).to_string(),
+                ]);
+            }
+            locants.push(format!("{}a", 2 * count));
+            locants.extend((2 * count + 1..=2 * count + 4).map(|n| n.to_string()));
+            locants.extend((0..count - 1).map(inner));
+            let mut edges: Vec<_> = (0..locants.len())
+                .map(|i| (locants[i].clone(), locants[(i + 1) % locants.len()].clone()))
+                .collect();
+            edges.extend((1..count).map(|k| (format!("{}a", 2 * k + 2), inner(count - 1 - k))));
+            (locants, edges)
+        }
+        _ => polyaphene_locant_graph(count),
     };
-    let series = if family == "acenes" {
-        &SERIES.acenes
-    } else {
-        &SERIES.polyaphenes
+    let overrides = match family {
+        "acenes" => SERIES.acenes.member_overrides.get(&count),
+        "helicenes" => None,
+        _ => SERIES.polyaphenes.member_overrides.get(&count),
     };
-    let overrides = series.member_overrides.get(&count);
     let name = format!(
         "{}{}",
         multipliers::basic(count),
-        if family == "acenes" { "cene" } else { "phene" }
+        match family {
+            "acenes" => "cene",
+            "helicenes" => "helicene",
+            _ => "phene",
+        }
     );
     let fusion_atoms: Vec<_> = locants
         .iter()

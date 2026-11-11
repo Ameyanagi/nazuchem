@@ -3105,6 +3105,54 @@ mod tests {
     }
 
     #[test]
+    fn polyhelicenes_take_their_retained_names() {
+        for (smiles, expected) in [
+            // P-25.1.2.6: six or more helically ortho-fused benzene rings.
+            ("c1ccc2c(c1)ccc1ccc3ccc4ccc5ccccc5c4c3c12", "hexahelicene"),
+            (
+                "c1ccc2c(c1)ccc1ccc3ccc4ccc5ccc6ccccc6c5c4c3c12",
+                "heptahelicene",
+            ),
+            (
+                "c1ccc2c(c1)ccc1ccc3ccc4ccc5ccc6ccc7ccc8ccc9ccccc9c8c7c6c5c4c3c12",
+                "decahelicene",
+            ),
+            // P-25.3.3.1.1: numbering starts at the inner CH of a terminal ring.
+            (
+                "Clc1cccc2ccc3ccc4ccc5ccc6ccccc6c5c4c3c12",
+                "1-chlorohexahelicene",
+            ),
+            (
+                "c1ccc2c(c1)ccc1ccc3ccc4ccc5ccc(Cl)cc5c4c3c12",
+                "2-chlorohexahelicene",
+            ),
+            (
+                "c1ccc2c(c1)ccc1ccc3ccc4cc(Cl)c5ccccc5c4c3c12",
+                "5-chlorohexahelicene",
+            ),
+            (
+                "c1ccc2c(c1)ccc1ccc3c(Cl)cc4ccc5ccccc5c4c3c12",
+                "8-chlorohexahelicene",
+            ),
+            // Five rings are not a helicene.
+            (
+                "c1ccc2c(c1)ccc1ccc3ccc4ccccc4c3c12",
+                "dibenzo[c,g]phenanthrene",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
+        }
+    }
+
+    #[test]
     fn angular_oxazole_thiazole_acetic_acid_round_trips() {
         let smiles = "O=C(O)Cc1nc2ccc3ocnc3c2s1";
         let name = name_smiles(smiles, &Default::default()).unwrap().text;
