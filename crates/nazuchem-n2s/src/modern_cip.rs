@@ -380,6 +380,13 @@ mod tests {
                 "(2R,3R,4S,5S,6R)-2,3,4,5,6-pentahydroxyheptanedioic acid",
                 "O=C(O)[C@H](O)[C@H](O)[C@@H](O)[C@H](O)[C@@H](O)C(=O)O",
             ),
+            // The ring cis descriptor is applied before C1 is resolved with
+            // full CIP (#22), so C1 is ranked through C2/C4 (P-92.5); RDKit
+            // labels this structure 1R,2R,4R.
+            (
+                "(1R,2R,4R)-cis-2,4-dichloro-2,4-difluoro-1-ethyl-3-methylcyclobutane",
+                "CC[C@H]1[C@](F)(Cl)[C@H](C)[C@@]1(F)Cl",
+            ),
         ] {
             let result = parser.parse(name, &ParseOptions::strict());
             assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
@@ -396,7 +403,6 @@ mod tests {
         for name in [
             "(2R,3S,4S)-2,3,4-trihydroxypentanedioic acid",
             "(2R,3S,4R)-2,3,4-trihydroxypentanedioic acid",
-            "(1R,2R,4R)-cis-2,4-dichloro-2,4-difluoro-1-ethyl-3-methylcyclobutane",
         ] {
             let result = parser.parse(name, &ParseOptions::strict());
             assert_eq!(result.status, Status::Failure, "{name}");

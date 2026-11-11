@@ -41,7 +41,7 @@
     "resources/xml/inlineSuffixes.xml": "9d5ce3bc345dd15ed6a8be0a6b46a22007b1801c190519164f45369eb0c37a9c",
     "resources/xml/miscTokens.xml": "c46a740d8d94b45a07aa1327891183430809809ed119b86fed8e374967649709",
     "resources/xml/multiRadicalSubstituents.xml": "dba08d1e2367d5253080bee04f9edcb964da7a4b215ecb10953be4d04524b683",
-    "resources/xml/multipliers.xml": "c2401556d2111cf7dbd94a2e6d6ec5dc96bdee999373a892bbdd08d62e62ed12",
+    "resources/xml/multipliers.xml": "08030f378924bf9e5662eb808957817474acc0c3bd46c3a347fdaf5bcf356994",
     "resources/xml/naturalProducts.xml": "8f1f01cff9111d391b25d9e04222dd2a90f8ac1580ada348badc6643ff6d582b",
     "resources/xml/nonCarboxylicAcids.xml": "732921fafe01c2d19c4793d83b91f6bec6f7d05ce7cf47fa2b01a70e691be30a",
     "resources/xml/phanes.xml": "09a2c3d671b2fe77f585eb0b721ce49729fa403973b57f2d2bff0a4a8069adb4",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "c4c6dbda518cb38ff80867fe6491441e3fbd11c76795d8f0cc4fe15c6ffd6302"
+    "sha256": "3386f841ea3ccf449e7aed60389e5b91afd1c53d67e0f346f675df878859a6f9"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",
@@ -281,6 +281,10 @@
       "grammar": "Unlocanted Xi/xi in stereochemPossibilities; graph interpretation keeps the case of xi",
       "automata": ["token-69", "token-reversed-69"],
       "exporter": "ExportDfa.java.txt with the checked regexTokens.xml resource override; all other DFA entries retained"
+    },
+    "p14_composite_multipliers": {
+      "tokens": "multipliers.xml basic 51-1000, group 31-1000 and VonBaeyer 21-1000 composite numerical terms (IUPAC 2013 P-14.2.1, P-14.2.2) plus the icosa VonBaeyer spelling",
+      "automata": []
     }
   }
 }
