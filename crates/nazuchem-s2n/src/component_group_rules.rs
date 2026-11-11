@@ -14,7 +14,7 @@ use super::molecule::{AtomSet, Molecule};
 use super::nomenclature::RULES;
 use super::parent_selection::{ParentSelection, select_principal_parent};
 use super::perception::{LigandRole, PerceivedGroup};
-use super::principal_groups::{is_neutral_amide, selects_neutral_amides};
+use super::principal_groups::{is_neutral_amide, is_suffix_class_variant, selects_neutral_amides};
 
 pub struct ExternalCarboxylicParent {
     pub groups: Vec<PerceivedGroup>,
@@ -314,13 +314,18 @@ pub fn retarget_external_carbonyl_groups(
         g.is_principal_candidate && Some(g.key.as_str()) == principal_key && is_carboxylate_group(g)
     });
     let neutral_amides = selects_neutral_amides(m, groups, principal_key);
-    for g in groups {
+    let variants: Vec<_> = groups
+        .iter()
+        .map(|g| is_suffix_class_variant(m, groups, principal_key, g))
+        .collect();
+    for (g, variant) in groups.iter_mut().zip(variants) {
         // Only an established prefix excludes an acid-anion carbon. Other
         // carboxylates must remain available as parent candidates.
         let prefix_carboxylate = principal_key.is_none() && is_carboxylate_group(g);
         if g.is_principal_candidate
             && (Some(g.key.as_str()) == principal_key
                 || neutral_amides && is_neutral_amide(m, g)
+                || variant
                 || selects_carboxylate && is_carboxylate_group(g))
             || !(prefix_carboxylate
                 || g.resolved_rule

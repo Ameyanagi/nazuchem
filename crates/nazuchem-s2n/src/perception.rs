@@ -2598,16 +2598,51 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
             consumed.insert(n);
         }
     }
+    // P-66.1.6.1.1.5: a carboxylic amide is senior to urea, so a nitrogen
+    // shared with another acyl centre belongs to that centre, whatever the
+    // atom order: N-carbamoylacetamide, not N-acetylurea.
+    let mut ureas = Vec::new();
+    // P-66.1.2: (R-CO)2NH is an N-acyl derivative of the senior amide, so
+    // every acyl centre on a shared nitrogen stays an amide candidate until
+    // the parent is selected.
+    let mut amide_nitrogens = AtomSet::new();
     for (&c, a) in &m.atoms {
         if a.is_carbon()
             && let Some(acyl_groups) = acyl_group(m, c, &consumed, &cyclic)
         {
+            if acyl_groups.iter().any(|g| {
+                g.resolved_rule
+                    .as_ref()
+                    .is_some_and(|r| r.has_capability("urea"))
+            }) {
+                ureas.push(c);
+                continue;
+            }
             for g in acyl_groups {
                 if g.is_principal_candidate {
-                    consumed.extend(g.atoms_without_attachment());
+                    let amide = g
+                        .descriptor
+                        .as_ref()
+                        .is_some_and(|d| d.derivative == "amide");
+                    for atom in g.atoms_without_attachment() {
+                        if amide && m.atoms[&atom].symbol == "N" {
+                            amide_nitrogens.insert(atom);
+                        } else {
+                            consumed.insert(atom);
+                        }
+                    }
                 }
                 groups.push(g);
             }
+        }
+    }
+    consumed.extend(amide_nitrogens);
+    for c in ureas {
+        for g in acyl_group(m, c, &consumed, &cyclic).into_iter().flatten() {
+            if g.is_principal_candidate {
+                consumed.extend(g.atoms_without_attachment());
+            }
+            groups.push(g);
         }
     }
     // Remaining carbon-bound C=N nitrogens become imines/hydrazones.

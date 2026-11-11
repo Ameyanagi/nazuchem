@@ -1115,18 +1115,19 @@ mod tests {
 
     #[test]
     fn bicyclo_bridge_ties_preserve_secondary_unsaturation_locants() {
+        // P-31.1.4.2 (1): the fewest compound locants precede lower locants.
         for (smiles, expected) in [
             (
                 "FC12C=CC(=C1c1ccccc1)C2c1ccccc1",
-                "4-fluoro-5,6-diphenylbicyclo[2.1.1]hexa-1(6),2-diene",
+                "1-fluoro-5,6-diphenylbicyclo[2.1.1]hexa-2,4-diene",
             ),
             (
                 "COC(=O)SC1C2=CC1C2",
-                "{[bicyclo[1.1.1]pent-1(5)-en-2-yl]sulfanyl}(methoxy)methanone",
+                "[(bicyclo[1.1.1]pent-3-en-2-yl)sulfanyl](methoxy)methanone",
             ),
             (
                 "Cc1cc(C2(F)C3=C=C2C3)ccn1",
-                "4-[2-fluorobicyclo[1.1.1]penta-1(5),3(5)-dien-2-yl]-2-methylpyridine",
+                "4-[2-fluorobicyclo[1.1.1]penta-1(4),3-dien-2-yl]-2-methylpyridine",
             ),
         ] {
             assert_eq!(

@@ -478,6 +478,10 @@ pub fn build_parent_assembly_plan_with_parent(
     } else {
         Vec::new()
     };
+    let is_von_baeyer = retained_name.is_none()
+        && fusion_maps.is_empty()
+        && locant_maps.is_empty()
+        && (selection.is_bicycle || !proof_maps.is_empty());
     let locant_maps = if !fusion_maps.is_empty() {
         &fusion_maps
     } else if proof_maps.is_empty() {
@@ -572,6 +576,7 @@ pub fn build_parent_assembly_plan_with_parent(
             is_bicycle: selection.is_bicycle,
             is_spiro: selection.is_spiro,
             is_polycycle: selection.is_polycycle,
+            is_von_baeyer,
         },
         (modifiers.spiro_junction.is_some()
             || parent
@@ -1378,7 +1383,8 @@ mod tests {
             ),
             (
                 "C12=C3C4=C1[C@@H]1[C@H]2[C@H]3N41",
-                "(2S,3s,8R)-1-azapentacyclo[4.2.0.0^{2,5}.0^{3,8}.0^{4,7}]octa-4(7),5-diene",
+                // P-31.1.4.2 (1): no compound locant, not octa-4(7),5-diene.
+                "(6R,7s,8S)-1-azapentacyclo[4.2.0.0^{2,5}.0^{3,8}.0^{4,7}]octa-2,4-diene",
                 vec![(5, "s")],
             ),
         ] {

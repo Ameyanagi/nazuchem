@@ -3,9 +3,10 @@
 // Source: openclatura | src/openclatura/principal_groups.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/principal_groups.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/roundtrip/test_acids.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs | issue 10
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
-// Changes: Openclatura principal-group partition/suffix attachment with original skeletal-anion demotion and neutral-amide candidate policies.
+// Changes: Openclatura principal-group partition/suffix attachment with original skeletal-anion demotion, neutral-amide and chain/ring suffix-class candidate policies.
 // Local contributions: MIT OR Apache-2.0; see NOTICE and PROVENANCE-nazuchem.toml.
 
 //! Principal characteristic-group selection and suffix assembly.
@@ -146,6 +147,33 @@ pub fn selects_neutral_amides(
         && selected.all(|g| is_neutral_amide(mol, g))
 }
 
+/// P-44.1.1: the chain and ring spellings of one neutral suffix class, such
+/// as nitrile and carbonitrile, are the same principal characteristic group.
+// Provenance: fn is_suffix_class_variant | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::is_suffix_class_variant
+pub fn is_suffix_class_variant(
+    mol: &Molecule,
+    groups: &[PerceivedGroup],
+    key: Option<&str>,
+    group: &PerceivedGroup,
+) -> bool {
+    let ring = |key: &str, other: &str| key.strip_prefix("ring_") == Some(other);
+    let neutral = |g: &PerceivedGroup| {
+        g.atom_ids()
+            .iter()
+            .map(|id| mol.atoms[id].charge)
+            .sum::<i32>()
+            == 0
+    };
+    !mol.is_isotope_parent()
+        && key.is_some_and(|key| ring(key, &group.key) || ring(&group.key, key))
+        && neutral(group)
+        && groups
+            .iter()
+            .filter(|g| g.is_principal_candidate && Some(g.key.as_str()) == key)
+            .all(neutral)
+}
+
 /// Equivalent amide and anionic suffix classes remain candidates until
 /// P-44.1 or P-72.7 chooses their parent.
 // Provenance: fn candidate_principal_attachments | adapted
@@ -172,6 +200,7 @@ pub fn candidate_principal_attachments(
             g.is_principal_candidate
                 && (Some(g.key.as_str()) == key
                     || neutral_amides && is_neutral_amide(mol, g)
+                    || is_suffix_class_variant(mol, groups, key, g)
                     || selected.is_some_and(|selected| {
                         anionic(selected)
                             && anionic(g)
@@ -378,13 +407,14 @@ mod tests {
                 assert!(exclude.is_empty(), "{smiles}: {key}");
             }
         }
+        // P-44.1.1: every chain/ring spelling pair is one suffix class.
         for smiles in ["O=C(O)Cc1ccc(C(=O)O)cc1", "N#CCc1ccc(C#N)cc1"] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
             let groups = perceive_groups(&mol);
             let key = component_principal_key(&mol, &groups, false);
             assert_eq!(
                 candidate_principal_attachments(&mol, &groups, key.as_deref()).len(),
-                1,
+                2,
                 "{smiles}"
             );
         }
