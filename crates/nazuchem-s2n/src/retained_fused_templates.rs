@@ -1431,7 +1431,8 @@ mod tests {
             ),
             (
                 "C1=CC=C2C=C=CCC2=C1",
-                Some("bicyclo[4.4.0]deca-1(10),2,3,6,8-pentaene"),
+                // P-31.1.4.2 (1): no compound locant, not deca-1(10),2,3,6,8-pentaene.
+                Some("bicyclo[4.4.0]deca-1,3,5,7,8-pentaene"),
             ),
         ] {
             for (allow_nonaromatic, allow_relocated_indicated_h) in
