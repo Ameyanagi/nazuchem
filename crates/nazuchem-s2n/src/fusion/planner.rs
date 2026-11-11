@@ -35,7 +35,7 @@ use super::{
     mancude::{
         ParentDerivativeOptions, ParentDerivativeState, all_single,
         has_complete_saturated_hydrogenation, indicated_hydrogen_parent_bond_model,
-        is_added_hydrogen_nitrogen, parent_derivative_state, protonated_hydrogenation_is_complete,
+        parent_derivative_state, protonated_hydrogenation_is_complete,
         saturated_nitrogen_hydrogen_sites,
     },
     model::*,
@@ -615,12 +615,7 @@ fn complete_fusion_plan(
     let cited_n_h = input_locants
         .iter()
         .filter(|(a, l)| {
-            initial_citations.contains(l)
-                && mol.atoms[a].symbol == "N"
-                && mol.atoms[a].charge == 0
-                && (mol.atoms[a].total_h_count == 1
-                    || ast.plan_kind == "benzoheterocycle"
-                        && is_added_hydrogen_nitrogen(mol, atoms, **a))
+            initial_citations.contains(l) && mol.atoms[a].symbol == "N" && mol.atoms[a].charge == 0
         })
         .map(|(&a, _)| a)
         .collect();
