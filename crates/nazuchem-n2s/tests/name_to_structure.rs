@@ -66,6 +66,80 @@ fn peroxycyanate_esters_preserve_both_oxygens() {
     }
 }
 
+/// Issue #26: chalcogen peroxy names place each element where the name says.
+#[test]
+fn chalcogen_peroxy_names_keep_their_element_order() {
+    let parser = Parser::new().unwrap();
+    for (name, expected) in [
+        // P-65.1.5.3: the acid locant names the atom on C, then the acidic atom.
+        ("ethane(thioperoxoic) OS-acid", "C(C)(=O)OS"),
+        ("benzenecarbo(thioperoxoic) SO-acid", "C1(=CC=CC=C1)C(=O)SO"),
+        (
+            "ethaneseleno(tellurothioperoxoic) STe-acid",
+            "C(C)(S[TeH])=[Se]",
+        ),
+        ("prop-2-ene(dithioperoxoic) acid", "C(C=C)(=O)SS"),
+        ("methanesulfono(thioperoxoic) OS-acid", "CS(=O)(=O)OS"),
+        // P-63.4.2.1, Table 6.1.
+        ("methane-SO-thioperoxol", "CSO"),
+        ("propane-1-OS-thioperoxol", "C(CC)OS"),
+        ("methane-SSe-selenothioperoxol", "CS[SeH]"),
+        ("methane-TeSe-selenotelluroperoxol", "C[Te][SeH]"),
+        // P-66.6.3, Table 6.4.
+        ("ethanetellanal", "C(C)=[Te]"),
+        // P-65.7.4: the element locant names the bridge atom bonded to that acid.
+        ("acetic thioperoxyanhydride", "C(C)(=O)SOC(C)=O"),
+        (
+            "S-acetic O-propanoic thioperoxyanhydride",
+            "C(CC)(=O)OSC(C)=O",
+        ),
+        (
+            "O-acetic S-propanoic thioperoxyanhydride",
+            "C(CC)(=O)SOC(C)=O",
+        ),
+        // P-63.3.2, method (2).
+        ("O-ethyl S-methyl thioperoxide", "CSOCC"),
+        ("S-ethyl O-methyl thioperoxide", "COSCC"),
+        ("S-cyclohexyl O-methyl thioperoxide", "COSC1CCCCC1"),
+        ("Se-ethyl S-methyl selenothioperoxide", "CS[Se]CC"),
+        ("dimethyl selenoperoxide", "CO[Se]C"),
+        // A single leading locant still belongs to its substituent.
+        (
+            "acetic S-methylcysteine anhydride",
+            "CSC[C@H](N)C(=O)OC(C)=O",
+        ),
+        (
+            "O-methylserine S-methylcysteine anhydride",
+            "CSC[C@H](N)C(=O)OC([C@@H](N)COC)=O",
+        ),
+        // Tellanal keeps its aldehydic hydrogen like ethanal.
+        ("perchloroethanetellanal", "ClC(C=[Te])(Cl)Cl"),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+    for name in [
+        "S-acetic S-propanoic thioperoxyanhydride",
+        "S-ethyl S-methyl thioperoxide",
+        "O-ethyl O-methyl ether",
+        // Without locants the bridge could face either way.
+        "acetic propanoic thioperoxyanhydride",
+        "ethyl methyl thioperoxide",
+        "propan-1-yl propan-2-yl thioperoxide",
+        "acetic S-methylcysteine thioperoxyanhydride",
+        "2-methylbutanedioic thioperoxyanhydride",
+        "propane-1,2-diyl thioperoxide",
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Failure, "{name}");
+    }
+}
+
 /// P-73.6 method (1) and the 2020 corrections to P-73.6 and P-74.1.3: a
 /// substituted cationic nitrogen prefix is the aminium cation name plus
 /// 'yl' or 'ylidene', e.g. (N,N-dimethylmethanaminiumyl)acetate.

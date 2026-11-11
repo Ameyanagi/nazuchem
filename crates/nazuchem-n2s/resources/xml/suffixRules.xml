@@ -14,6 +14,10 @@ sense of this -->
 		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
 		<addgroup SMILES="[*]=O"/>
 	</rule>
+	<rule value="tellanal">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*]=[Te|2]"/>
+	</rule>
 	<rule value="aldoxime">
 		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
 		<addgroup SMILES="[*]=NO"/>
@@ -236,6 +240,66 @@ sense of this -->
 		<addgroup SMILES="[*](=O)O" functionalIDs="3"/>
 		<setAcidicElement element="Te"/>
 	</rule>
+	<rule value="peroxoic_SO_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)SO" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_SeO_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Se|2]O" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_TeO_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Te|2]O" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_OS_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)OS" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_OSe_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)O[Se|2]" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_OTe_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)O[Te|2]" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_SeS_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Se|2]S" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_TeS_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Te|2]S" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_SSe_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)S[Se|2]" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_STe_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)S[Te|2]" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_TeSe_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Te|2][Se|2]" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_SeTe_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Se|2][Te|2]" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_SS_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)SS" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_SeSe_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Se|2][Se|2]" functionalIDs="4"/>
+	</rule>
+	<rule value="peroxoic_TeTe_acid">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Te|2][Te|2]" functionalIDs="4"/>
+	</rule>
 	<rule value="ic_nonCarboxylic">
 		<addFunctionalAtomsToHydroxyGroups/>
 	</rule>
@@ -300,6 +364,42 @@ sense of this -->
 	</rule>
 	<rule value="ol">
 		<addgroup SMILES="[*]O" />
+	</rule>
+	<rule value="peroxol_SO">
+		<addgroup SMILES="[*]SO"/>
+	</rule>
+	<rule value="peroxol_SeO">
+		<addgroup SMILES="[*][Se|2]O"/>
+	</rule>
+	<rule value="peroxol_TeO">
+		<addgroup SMILES="[*][Te|2]O"/>
+	</rule>
+	<rule value="peroxol_OS">
+		<addgroup SMILES="[*]OS"/>
+	</rule>
+	<rule value="peroxol_OSe">
+		<addgroup SMILES="[*]O[Se|2]"/>
+	</rule>
+	<rule value="peroxol_OTe">
+		<addgroup SMILES="[*]O[Te|2]"/>
+	</rule>
+	<rule value="peroxol_SeS">
+		<addgroup SMILES="[*][Se|2]S"/>
+	</rule>
+	<rule value="peroxol_TeS">
+		<addgroup SMILES="[*][Te|2]S"/>
+	</rule>
+	<rule value="peroxol_SSe">
+		<addgroup SMILES="[*]S[Se|2]"/>
+	</rule>
+	<rule value="peroxol_STe">
+		<addgroup SMILES="[*]S[Te|2]"/>
+	</rule>
+	<rule value="peroxol_TeSe">
+		<addgroup SMILES="[*][Te|2][Se|2]"/>
+	</rule>
+	<rule value="peroxol_SeTe">
+		<addgroup SMILES="[*][Se|2][Te|2]"/>
 	</rule>
 	<rule value="olate">
 		<addgroup SMILES="[*][O-]" />

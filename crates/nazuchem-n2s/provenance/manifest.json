@@ -27,7 +27,7 @@
     "resources/xml/chargeAndOxidationNumberSpecifiers.xml": "e49d54a32e4aa889285b6ef2167c2dde1ab6936f50b6f0896e6b045ab1e901cc",
     "resources/xml/cyclicUnsaturableHydrocarbon.xml": "1cf6419d2bd7503a2b6818259ea9e6335c09d214ad6b0523da47b25e84411c25",
     "resources/xml/elementaryAtoms.xml": "f60303cda7b23b65b1e1e88d09bb2f02ce48298ad6b9bd567ec3c8f21180c1e0",
-    "resources/xml/functionalTerms.xml": "1aff14ca9925c609780c50e82d8c6b4b555848155504972c96a5c50ab1451257",
+    "resources/xml/functionalTerms.xml": "3d857b636dafc5fc25599baba90f239378740de0784f38ab9e52578fa49d3fc3",
     "resources/xml/fusionComponents.xml": "bd9b4caa09b9c60a6d087b01f6063613a8af0cab681d6cdffea005ac57509938",
     "resources/xml/germanTokens.xml": "9cf7c50f974503858ff8da31772410573f7577e91530fc8e696558ad15513d62",
     "resources/xml/groupStemsAllowingAllSuffixes.xml": "9b12769c19e6c41a542410d288e04c16caa6d95213a59a042046bb299bd3737b",
@@ -54,11 +54,11 @@
     "resources/xml/simpleSubstituents.xml": "41348a77f2135ad2047f836b52ca2c5db983bcb26c44e04e1694818d24066876",
     "resources/xml/substituents.xml": "41a7f584e7d532dd21526bacd4078d34f8b8ec2df6b833b6f5347b63e3164a35",
     "resources/xml/suffixApplicability.dtd": "50e57c6484ac2ec522cb6ca30e33d25288a74a036ad03432a40db1bb59787c16",
-    "resources/xml/suffixApplicability.xml": "c5c7d3fbb35254ab5f82f2d0386dc37a9a9ce263721c115670c397171490d4d1",
+    "resources/xml/suffixApplicability.xml": "6a5be89a80a09276b28abaf971fa6cce6a2929ad902c910e0c1e227e8de2a66d",
     "resources/xml/suffixPrefix.xml": "5428dbc34ce8e458f81e36ccf456023284bcf8b822d2ada7de5b41e248a7d1c5",
     "resources/xml/suffixRules.dtd": "307af66d255095c9d117493c8bddf5e2b9dcc4741e998e7dd7fdcb38304d4daf",
-    "resources/xml/suffixRules.xml": "dc58cebda03b6b1e05df9335885b5b41c321f09622c23a52107bd89a1eb71236",
-    "resources/xml/suffixes.xml": "6a76924255cceee29e99917d5808c4ae904d071243cf367d387f977992634b08",
+    "resources/xml/suffixRules.xml": "d92e6896feb730c5ce66712d6fdffa396ecccdbcebbdf3255496e8713c1a8b10",
+    "resources/xml/suffixes.xml": "cd22e16bc15df9f62675583d9f0061eb4c3d6e0d81a0dfc1a15ff7dc68424f35",
     "resources/xml/tokenFiles.dtd": "3acb49df364b02a65ea20aef8d33758b047fa1426289be3811386a7450e57355",
     "resources/xml/tokenLists.dtd": "35ab7b9c52960ea27aa715dd73f1fadb5fc5c5e9081f8fdd9dd8967fdad96100",
     "resources/xml/unsaturators.xml": "d528b967c52d64a434563dc237d0a28e0784d1916784772381fe545c9bdf6bc1",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "bdf0a1d59024c509d20d66207e94c6836d26e6422e4f3d88fe9a232e6ac9cb3b"
+    "sha256": "2943b86103bd26b7ee15e189251b779d080939f01ed81f464523a759828d0601"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",
@@ -290,6 +290,11 @@
       "grammar": "aminiumyl and aminiumylidene inline suffix tokens (IUPAC P-73.6 method (1)) with suffixApplicability and suffixRules entries for standard groups",
       "automata": [],
       "exporter": "None; dictionary tokens of the existing inline-suffix symbol, DFA table unchanged"
+    },
+    "chalcogen_peroxy_names": {
+      "resources": ["suffixes.xml", "suffixRules.xml", "suffixApplicability.xml", "functionalTerms.xml"],
+      "change": "Dictionary tokens and suffix rules for chalcogen peroxy acids with SO/OS-type acid locants (P-65.1.5.3), Table 6.1 peroxols (P-63.4.2.1), tellanal (P-66.6.3), mixed-chalcogen peroxyanhydrides (P-65.7.4) and peroxide class names (P-63.3.2); element locants on anhydride acids and peroxide substituents choose the bridge end",
+      "automata": []
     }
   }
 }
