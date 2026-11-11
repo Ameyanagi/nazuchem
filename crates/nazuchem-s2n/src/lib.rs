@@ -1484,6 +1484,49 @@ mod tests {
     }
 
     #[test]
+    fn polyamine_n_locants_cite_the_parent_locant() {
+        // P-62.2.4.1.1, P-62.2.4.1.2: the parent locant is a superscript on N,
+        // as in the PINs N^1-ethyl-N^3-methylpropane-1,3-diamine and
+        // N^4,2-dimethylpentane-2,4-diamine, never N or N'.
+        for (smiles, expected) in [
+            ("CNCCCNCC", "N^1-ethyl-N^3-methylpropane-1,3-diamine"),
+            ("CC(N)(C)CC(NC)C", "N^4,2-dimethylpentane-2,4-diamine"),
+            ("CN(C)CCCNC", "N^1,N^1,N^3-trimethylpropane-1,3-diamine"),
+            (
+                "CCN(CC)CCCNC",
+                "N^1,N^1-diethyl-N^3-methylpropane-1,3-diamine",
+            ),
+            (
+                "CNCCCCCCCCCCCCNCC",
+                "N^1-ethyl-N^12-methyldodecane-1,12-diamine",
+            ),
+            (
+                "C1CCN(CC1)CCNC2=C(C(=NC=N2)NC3=NC4=CC=CC=C4S3)[N+](=O)[O-]",
+                "N^4-(1,3-benzothiazol-2-yl)-5-nitro-N^6-[2-(piperidin-1-yl)ethyl]pyrimidine-4,6-diamine",
+            ),
+            // Fusion-letter and composite parent locants keep their hyphen and order.
+            (
+                "CNC12CCCCC1(NCC)CCCC2",
+                "N^4a-ethyl-N^8a-methyldecahydronaphthalene-4a,8a-diamine",
+            ),
+            (
+                "C1(C2CCCCCC(C3CCCCCCCCCCC3)CCCCC2)C(NC)CCCCCCCC(NC)CC1",
+                "N^1^2,N^1^10-dimethyl[1^1,2^1:2^7,3^1-tercyclododecane]-1^2,1^10-diamine",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}",
+            );
+        }
+    }
+
+    #[test]
     fn axial_general_names_leave_nuclide_groups_alone() {
         assert_eq!(
             super::general_axial_name("(31P)phosphanium (2M)-2-(2-hydroxyphenyl)benzen-1-olate")
