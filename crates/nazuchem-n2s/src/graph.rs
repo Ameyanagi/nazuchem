@@ -184,6 +184,9 @@ pub struct AtomProperties {
     pub oxidation_number: Option<i32>,
     pub is_aldehyde: bool,
     pub is_anomeric: bool,
+    /// A neighbour lost its spare valency to a locanted hydro prefix or
+    /// indicated hydrogen of a parent that cites indicated hydrogen.
+    pub beside_cited_hydrogen: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

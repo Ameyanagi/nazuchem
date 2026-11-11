@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
 // Source: ReShiki | src/naming/openclatura/species.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
+// Source: Nazuchem | crates/nazuchem-s2n/src/species.rs | issue #32
 // Copyright (c) 2026 lamalab-org
 // Source: openclatura | tests/exploratory/test_charge_representation_gaps.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/data/parser_xml_resources/simpleGroups.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -165,25 +166,35 @@ pub(super) fn assess_cation_parent(mol: &Molecule, derivation: &Derivation) {
     else {
         return;
     };
-    let neutral_group_atoms = neutral_group_atoms(mol);
-    let centres: Vec<_> = mol
-        .atoms
-        .iter()
-        .filter(|(i, atom)| atom.charge != 0 && !neutral_group_atoms.contains(i))
-        .collect();
-    // Zwitterions and anions take the anionic parent (P-72, P-74).
-    if centres.is_empty() || centres.iter().any(|(_, atom)| atom.charge < 0) {
-        return;
-    }
+    let centres = cationic_centres(mol);
     let cited = |i: &usize| {
         parent_atoms.contains(i)
             || principal_group
                 .as_ref()
                 .is_some_and(|(_, atoms)| atoms.contains(i))
     };
-    if !centres.iter().any(|(i, _)| cited(i)) {
+    if !centres.is_empty() && !centres.iter().any(cited) {
         mol.mark_name(NameStatus::Unverified(NameReason::CationParent));
     }
+}
+
+/// P-70.2, P-73.7(a): the cationic centres of a cation, leaving out
+/// charge-separated neutral groups. Empty for neutral species and for anions
+/// and zwitterions, which take the anionic parent (P-72, P-74).
+// Provenance: fn cationic_centres | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::cationic_centres
+pub(super) fn cationic_centres(mol: &Molecule) -> std::collections::BTreeSet<usize> {
+    let neutral_group_atoms = neutral_group_atoms(mol);
+    let centres: std::collections::BTreeSet<usize> = mol
+        .atoms
+        .iter()
+        .filter(|(i, atom)| atom.charge != 0 && !neutral_group_atoms.contains(i))
+        .map(|(i, _)| *i)
+        .collect();
+    if centres.iter().any(|i| mol.atoms[i].charge < 0) {
+        return Default::default();
+    }
+    centres
 }
 
 /// Nitro, N-oxide, azido, diazo and isocyano charges express neutral groups
@@ -1343,12 +1354,12 @@ mod tests {
             ),
             (
                 format!("[O-]c1ccccc1.[O-]c1ccccc1.{BIS_AMINIUM}"),
-                "N,N,N-trimethyl-1-{4-[(trimethylammonio)methyl]phenyl}methanaminium diphenoxide",
+                "1-{4-[(N,N-dimethylmethanaminiumyl)methyl]phenyl}-N,N,N-trimethylmethanaminium diphenoxide",
                 NotPreferred(Multiplicative),
             ),
             (
                 format!("{PENTALENE_CARBOXYLATE}.{BIS_AMINIUM}.{PENTALENE_CARBOXYLATE}"),
-                "N,N,N-trimethyl-1-{4-[(trimethylammonio)methyl]phenyl}methanaminium bis(octahydro-2,5-methanopentalene-1-carboxylate)",
+                "1-{4-[(N,N-dimethylmethanaminiumyl)methyl]phenyl}-N,N,N-trimethylmethanaminium bis(octahydro-2,5-methanopentalene-1-carboxylate)",
                 NotPreferred(Multiplicative),
             ),
             (
@@ -1439,5 +1450,66 @@ mod tests {
                 "{smiles}"
             );
         }
+    }
+
+    #[test]
+    // Provenance: fn tests::cationic_ring_is_the_parent | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::tests::cationic_ring_is_the_parent
+    // P-41 and P-70.2: cations are senior to every neutral class, so neutral
+    // groups become prefixes on the cationic ring (P-73.1.2.1:
+    // 2,2-dimethyl-1,3-dioxo-2,3-dihydro-1H-isoindol-2-ium). P-73.7(a): the
+    // parent has the most cationic centres, including cationic suffixes.
+    fn cationic_ring_is_the_parent() {
+        for (smiles, expected) in [
+            // Issue #32.
+            (
+                "OCc1cc[n+](C)cc1",
+                "4-(hydroxymethyl)-1-methylpyridin-1-ium",
+            ),
+            ("OCC[n+]1ccccc1", "1-(2-hydroxyethyl)pyridin-1-ium"),
+            ("C[n+]1ccc(C(=O)O)cc1", "4-carboxy-1-methylpyridin-1-ium"),
+            (
+                "C[n+]1ccc(CCN)cc1",
+                "4-(2-aminoethyl)-1-methylpyridin-1-ium",
+            ),
+            ("O=C1CC[NH+](C)CC1", "1-methyl-4-oxopiperidin-1-ium"),
+            // P-73.7(a) precedes ring seniority (P-44.2).
+            (
+                "C1CC[NH+](C1)CC2=C(N=C3N2C=CS3)C4=CC=CC=C4",
+                "1-[(6-phenylimidazo[2,1-b][1,3]thiazol-5-yl)methyl]pyrrolidinium",
+            ),
+            // Cationic suffixes keep their place (P-73.7(a), (d)).
+            (
+                "[NH3+]CCc1cc[n+](C)cc1",
+                "2-(1-methylpyridin-1-ium-4-yl)ethan-1-aminium",
+            ),
+            ("OCC[NH3+]", "2-hydroxyethan-1-aminium"),
+            ("OCC1CC[NH2+]C1", "3-(hydroxymethyl)pyrrolidinium"),
+            // Nitro is a neutral group, not a cationic centre.
+            (
+                "OCc1cc[n+](cc1)c1ccc([N+](=O)[O-])cc1",
+                "4-(hydroxymethyl)-1-(4-nitrophenyl)pyridin-1-ium",
+            ),
+            // P-73.5.3.2, P-75.2: a skeletal cationic centre takes the low
+            // locant before detachable prefixes (P-14.4(f)).
+            ("C[NH+]1CCN(CC)CC1", "4-ethyl-1-methylpiperazin-1-ium"),
+            (
+                "CCN1CC[NH+](CC1)CCNC2=NC3=CC(=NN3C4=CC=CC=C42)C",
+                "4-ethyl-1-{2-[(2-methylpyrazolo[1,5-a]quinazolin-5-yl)amino]ethyl}piperazin-1-ium",
+            ),
+            // P-73.7(c): a cationic N precedes a cationic O before ring
+            // seniority, which would prefer morpholine (P-44.2.1).
+            (
+                "C[NH+]1CCC(CC2C[O+](C)CCN2)CC1",
+                "1-methyl-4-[(1-methylmorpholin-1-ium-3-yl)methyl]piperidin-1-ium",
+            ),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+        }
+        // A charge-separated N-oxide is not a cationic centre (P-74).
+        let name = super::super::name_smiles("[O-][n+]1ccc(CO)cc1", &Default::default()).unwrap();
+        assert_eq!(name.text, "(1-oxidopyridin-1-ium-4-yl)methanol");
     }
 }

@@ -223,6 +223,7 @@ pub struct NumberingNSubstituents {
     items: Vec<SubstituentItem>,
     sites: BTreeMap<String, usize>,
     pub consumed: AtomSet,
+    amine: bool,
 }
 
 impl NumberingNSubstituents {
@@ -255,10 +256,20 @@ impl NumberingNSubstituents {
     ) -> AtomSet {
         let mut sites: Vec<_> = self.sites.values().copied().collect();
         sites.sort_by_key(|carbon| parse_locant(&locants[carbon]));
+        // Polyamines cite the parent locant as a superscript on each nitrogen,
+        // N^1,N^3 (P-62.2.4.1.1, P-62.2.4.1.2); amides keep N, N' and are
+        // marked as not preferred.
         let assigned: BTreeMap<_, _> = sites
             .iter()
             .enumerate()
-            .map(|(index, &carbon)| (carbon, format!("N{}", "'".repeat(index))))
+            .map(|(index, &carbon)| {
+                let locant = if self.amine {
+                    format!("N^{}", locants[&carbon])
+                } else {
+                    format!("N{}", "'".repeat(index))
+                };
+                (carbon, locant)
+            })
             .collect();
         for item in &mut self.items {
             for locant in &mut item.locants {
@@ -332,6 +343,7 @@ pub fn collect_numbering_n_substituents(
         items: parts.substituents,
         sites,
         consumed,
+        amine: key == "amine",
     }))
 }
 
