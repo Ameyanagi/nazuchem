@@ -942,7 +942,29 @@ fn explicit_cage_groups_with_stereogenic_axes_are_refused() {
         "rel-(1R)-8-ethyl-8-azabicyclo[3.2.1]octan-3-endo-yl (1P)-2',5'-dimethoxy-6-nitro[1,1'-biphenyl]-2-carboxylate",
         "rac-(1R)-8-ethyl-8-azabicyclo[3.2.1]octan-3-endo-yl (1P)-2',5'-dimethoxy-6-nitro[1,1'-biphenyl]-2-carboxylate",
     ] {
-        assert_group_scope_refused(name);
+        // rel/rac at the front cover the whole ester (P-93.1.2.1, P-93.1.3),
+        // and a stereo group cannot hold its axis.
+        let result = Parser::new().unwrap().parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Failure, "{name}");
+        assert!(
+            result.message.contains("axial"),
+            "{name}: {}",
+            result.message
+        );
+    }
+}
+
+#[test]
+fn leading_qualifier_on_a_non_cip_descriptor_covers_the_cage() {
+    // #42: rel/rac at the front of the name describe the entire molecule
+    // (P-93.1.2.1, P-93.1.3), here the cage centres of the substituent.
+    for (prefix, groups) in [("rel", "|o1:0,1,3|"), ("rac", "|r|")] {
+        let name = format!("{prefix}-(1E)-1-[(1R)-bicyclo[2.2.1]heptan-2-exo-yl]-2-fluoroethene");
+        assert_eq!(
+            parse(&name).semantic_cxsmiles().unwrap(),
+            format!(r"[C@@H]12[C@@H](C[C@@H](CC1)C2)\C=C\F {groups}"),
+            "{name}"
+        );
     }
 }
 
@@ -1012,10 +1034,9 @@ fn supported_racemic_cage_groups_with_e_z_double_bonds_preserve_their_kind() {
 
 #[test]
 fn qualifiers_on_non_cip_descriptors_are_retained_for_cage_scope_checks() {
-    for unqualified in [
-        "(1E)-1-[(1R)-bicyclo[2.2.1]heptan-2-exo-yl]-2-fluoroethene",
-        "(3alpha,5alpha)-cholestan-3-yl (1R)-bicyclo[2.2.1]heptane-2-exo-carboxylate",
-    ] {
+    for unqualified in
+        ["(3alpha,5alpha)-cholestan-3-yl (1R)-bicyclo[2.2.1]heptane-2-exo-carboxylate"]
+    {
         let structure = parse(unqualified);
         assert!(
             structure

@@ -890,6 +890,15 @@ impl<'a> ComponentGenerator<'a> {
             }
             return Ok(());
         }
+        // rel/rac cited at the front of a compound's name describe the entire
+        // molecule (P-93.1.2.1, P-93.1.3), not only this descriptor set. Only
+        // other stereodescriptors may precede them, such as the sign of
+        // rotation in (+)-rel- (P-101.8.3) or a relocated endo/exo.
+        let mut previous = self.arena.previous_element(id, true);
+        while let Some(p) = previous.filter(|&p| self.arena[p].name == STEREOCHEMISTRY_EL) {
+            previous = self.arena.previous_element(p, true);
+        }
+        let leading = previous.is_none();
         let pattern = rx(&format!("^{STEREO}$"));
         for descriptor in descriptors {
             let Some(c) = pattern.captures(&descriptor) else {
@@ -898,6 +907,9 @@ impl<'a> ComponentGenerator<'a> {
             let n = self.token(STEREOCHEMISTRY_EL, descriptor.clone(), &[]);
             if let Some(group) = group {
                 self.add(n, STEREOGROUP_ATR, group);
+                if leading {
+                    self.add(n, LEADINGSTEREOGROUP_ATR, group);
+                }
             }
             if !c[1].is_empty() {
                 self.add(
