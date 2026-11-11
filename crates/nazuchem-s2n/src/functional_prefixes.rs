@@ -430,6 +430,14 @@ pub fn prefix_from_group(
             })
             .collect();
         if group.key == "iminium" {
+            if let Some(prefix) = super::heteroatom_subgraphs::aminium_prefix(
+                context.mol,
+                n,
+                context.sub_exclude,
+                Some(group.attachment_carbon),
+            )? {
+                return Ok(prefix);
+            }
             super::amine_oxides::assess_cationic_prefix(context.mol, n);
             if context.mol.get_neighbors(n).iter().all(|&neighbor| {
                 neighbor == group.attachment_carbon || context.mol.atoms[&neighbor].symbol == "H"
