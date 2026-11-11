@@ -1461,8 +1461,9 @@ mod tests {
             ),
             (
                 "C[N+](C)(C)CC(=O)[O-]",
-                "(trimethylammonio)acetate",
-                NameStatus::Unverified(NameReason::CationPrefix),
+                // P-74.1.3 (2020 correction)
+                "(N,N-dimethylmethanaminiumyl)acetate",
+                NameStatus::Preferred,
             ),
             (
                 "C1CC2C3CCC1C2C3C4CC5C6CCC4C5C6",

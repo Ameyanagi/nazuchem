@@ -66,6 +66,43 @@ fn peroxycyanate_esters_preserve_both_oxygens() {
     }
 }
 
+/// P-73.6 method (1) and the 2020 corrections to P-73.6 and P-74.1.3: a
+/// substituted cationic nitrogen prefix is the aminium cation name plus
+/// 'yl' or 'ylidene', e.g. (N,N-dimethylmethanaminiumyl)acetate.
+#[test]
+fn aminiumyl_prefixes_keep_nitrogen_charge_hydrogens_and_attachment_order() {
+    let parser = Parser::new().unwrap();
+    for (name, expected) in [
+        (
+            "(N,N-dimethylmethanaminiumyl)acetate",
+            "C[N+](C)(C)CC(=O)[O-]",
+        ),
+        ("(methanaminiumyl)acetate", "C[NH2+]CC(=O)[O-]"),
+        ("(N-methylmethanaminiumyl)acetate", "C[NH+](C)CC(=O)[O-]"),
+        (
+            "2-(N,N-dimethylmethanaminiumyl)propan-2-ide",
+            "C[N+](C)(C)[C-](C)C",
+        ),
+        (
+            "(N-ethyl-N-methylpropan-1-aminiumyl)acetate",
+            "C(C)[N+](CCC)(C)CC(=O)[O-]",
+        ),
+        (
+            "(N-methylmethanaminiumylidene)acetate",
+            "C[N+](C)=CC(=O)[O-]",
+        ),
+        ("(methanaminiumylidene)acetate", "C[NH+]=CC(=O)[O-]"),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+}
+
 // P-72.2.2.1: "-ide" removes a hydron from the named atom. Where a mancude
 // ring has no hydrogen there, the name needs added hydrogen (P-72.2.2.1.1,
 // pyridin-1(2H)-ide), so the bare names are rejected instead of hydrogenated.

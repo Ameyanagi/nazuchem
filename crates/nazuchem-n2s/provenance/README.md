@@ -8,10 +8,13 @@ affects parsing or structures is ported through the pinned main commit,
 including phane nomenclature (see `../PORTING.md`).
 `../LICENSE` is an unmodified upstream copy. `manifest.json` records every
 XML/DTD file, migrated table, exporter and fixture hash. The seven DTD files
-and 40 XML files are byte-equal to the pinned main checkout. The native
+and 37 XML files are byte-equal to the pinned main checkout. The native
 `regexTokens.xml` extensions permit a locant before an axial descriptor and
-recognize unlocanted Xi/xi stereodescriptors; `native_extensions` in the
-manifest records both changes.
+recognize unlocanted Xi/xi stereodescriptors. The native `inlineSuffixes.xml`,
+`suffixApplicability.xml` and `suffixRules.xml` extensions add the
+`aminiumyl` and `aminiumylidene` substituent suffixes (IUPAC P-73.6); they
+only add dictionary tokens of an existing grammar symbol, so the DFA table is
+unchanged. `native_extensions` in the manifest records these changes.
 
 The development oracle is the main build
 `opsin-core-3.0-SNAPSHOT-jar-with-dependencies.jar`, SHA256
@@ -134,7 +137,7 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`c4c6dbda518cb38ff80867fe6491441e3fbd11c76795d8f0cc4fe15c6ffd6302`.
+`4372347a60230969a77ed0e4b29aa484315619c2805d5cd39f02eeab94c154ea`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph
