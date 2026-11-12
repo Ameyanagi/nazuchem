@@ -26,7 +26,9 @@ fn thio_acid_and_ester_names_follow_the_blue_book_and_round_trip() {
         ("SC(=O)c1ccc(cc1)C(=O)S", "benzene-1,4-dicarbothioic S-acid"),
         // P-65.2.1.6: sulfanylcarbonyl, hydroxycarbonothioyl and
         // dithiocarboxy; P-65.1.5.1 (3-(sulfanylcarbonyl)propanoic acid,
-        // 4-(sulfanylcarbonyl)pyridine-2-carboxylic acid).
+        // 4-(sulfanylcarbonyl)pyridine-2-carboxylic acid). On a chain the
+        // PIN is the chain-end form, 4-oxo-4-sulfanylbutanoic acid, which
+        // the namer does not generate for any acyl prefix yet.
         ("O=C(O)CCC(=O)S", "3-(sulfanylcarbonyl)propanoic acid"),
         ("O=C(O)CCC(=S)O", "3-(hydroxycarbonothioyl)propanoic acid"),
         ("O=C(O)CCC(=S)S", "3-(dithiocarboxy)propanoic acid"),
