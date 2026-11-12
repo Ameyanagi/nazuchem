@@ -293,9 +293,12 @@ impl AssemblyParts {
     // Provenance: fn AssemblyParts::stereochemical_locant | original
     // Source: ReShiki | src/naming/openclatura/assembly_parts.rs::AssemblyParts::stereochemical_locant
     pub(super) fn stereochemical_locant(&self, locant: &str) -> String {
-        self.endo_exo_descriptors.get(locant).map_or_else(
-            || locant.to_owned(),
-            |descriptor| format!("{locant}-{descriptor}"),
-        )
+        self.endo_exo_descriptors
+            .get(locant)
+            .filter(|_| !super::formatting::descriptors_omitted())
+            .map_or_else(
+                || locant.to_owned(),
+                |descriptor| format!("{locant}-{descriptor}"),
+            )
     }
 }

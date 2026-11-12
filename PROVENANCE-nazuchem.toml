@@ -4535,6 +4535,7 @@ origin = "mixed"
 license = "MIT AND (MIT OR Apache-2.0)"
 sources = [
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/formatting.rs", ref = "issue #45", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/formatting.rs", ref = "issue #11", license = "MIT OR Apache-2.0" },
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/formatting.py", license = "MIT" },
   { project = "ReShiki", path = "src/naming/openclatura/formatting.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/exploratory/test_parenthesis_functions_direct.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
@@ -4545,6 +4546,9 @@ notes = "Openclatura fragment/multiplier formatting with local preferred-prefix 
 parts = [
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/formatting.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "phenylamino_spelling" }], items = ["fn phenylamino_spelling"] },
   { origin = "port", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/formatting.py", license = "MIT", symbol = "strip_outer_parentheses" }], items = ["fn strip_outer_parentheses"] },
+  { items = ["fn descriptors_omitted"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/formatting.rs", ref = "issue #11", license = "MIT OR Apache-2.0", symbol = "descriptors_omitted" }] },
+  { items = ["fn without_descriptors"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/formatting.rs", ref = "issue #11", license = "MIT OR Apache-2.0", symbol = "without_descriptors" }] },
+  { items = ["impl <RestoreDescriptors as Drop>"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/formatting.rs", ref = "issue #11", license = "MIT OR Apache-2.0", symbol = "<RestoreDescriptors as Drop>" }], members = { "impl <RestoreDescriptors as Drop>" = ["fn <RestoreDescriptors as Drop>::drop"] } },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/formatting.py", license = "MIT", symbol = "_starts_with_multiplier" }], items = ["fn starts_with_multiplier"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/formatting.py", license = "MIT", symbol = "is_complex_prefix" }], items = ["fn is_complex_prefix"] },
   { items = ["fn is_compound_prefix"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/formatting.rs", ref = "issue #45", license = "MIT OR Apache-2.0", symbol = "is_compound_prefix" }] },
@@ -6624,6 +6628,7 @@ sources = [
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/species.rs", ref = "issue #25", license = "MIT OR Apache-2.0" },
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/species.rs", ref = "issue #32", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/species.rs", ref = "issue #11", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/exploratory/test_charge_representation_gaps.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/data/parser_xml_resources/simpleGroups.json", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/unit/test_chalcogen_structural_roles.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
@@ -6648,15 +6653,13 @@ parts = [
   { items = ["fn neutral_group_atoms"], origin = "original", sources = [
     { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "neutral_group_atoms" },
   ] },
-  { items = ["fn salt_ion_sort_key"], origin = "original", sources = [
-    { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "salt_ion_sort_key" },
-  ] },
   { items = ["fn name_salt"], origin = "original", sources = [
     { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "name_salt" },
   ] },
   { items = ["fn name_adduct"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/species.rs", ref = "issue #25", license = "MIT OR Apache-2.0", symbol = "name_adduct" }] },
   { items = ["fn tests::neutral_components_are_named_as_adducts"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/species.rs", ref = "issue #25", license = "MIT OR Apache-2.0", symbol = "tests::neutral_components_are_named_as_adducts" }] },
-  { items = ["fn tests::salt_ion_key_orders_letters_then_locants_and_declines_uncovered_spellings"], origin = "adapted", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "tests::salt_ion_key_orders_letters_then_locants_and_declines_uncovered_spellings" }, { project = "openclatura", path = "tests/exploratory/test_charge_representation_gaps.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT", symbol = "test_wrong_charge_single_atoms_fail_honestly_instead_of_mislabeling" }, { project = "openclatura", path = "tests/data/parser_xml_resources/simpleGroups.json", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT", symbol = "<fixture data>" }], notes = "Conservatively adapted exact upstream test inputs/expected names; exact coincidence does not establish independent ancestry. Local harness, assertions, status checks and additional cases remain local extensions. Conservative test-data attribution required by the requested audit rule: shared SMILES/chemical-name literals are attributed even when common chemistry or independent introduction is plausible. Implementation ancestry is uncertain; this decision attributes the test data and does not assert a mechanical port. Fixture-to-consuming-test function mapping is uncertain; the exact upstream fixture path is cited directly." },
+  { items = ["fn tests::descriptor_free_rendering_keeps_the_cited_name"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/species.rs", ref = "issue #11", license = "MIT OR Apache-2.0", symbol = "tests::descriptor_free_rendering_keeps_the_cited_name" }] },
+  { items = ["fn tests::salt_ions_follow_alphanumerical_order"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/species.rs", ref = "issue #11", license = "MIT OR Apache-2.0", symbol = "tests::salt_ions_follow_alphanumerical_order" }] },
   { items = ["fn tests::salt_ion_order_falls_back_for_uncovered_ions"], origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "tests::salt_ion_order_falls_back_for_uncovered_ions" }] },
   { items = ["fn tests::mixed_salt_anion_spellings_preserve_status"], origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/species.rs", license = "MIT OR Apache-2.0", symbol = "tests::mixed_salt_anion_spellings_preserve_status" }] },
   { items = ["fn tests::assess_component"], origin = "original", sources = [

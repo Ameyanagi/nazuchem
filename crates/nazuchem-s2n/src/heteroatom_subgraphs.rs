@@ -19,9 +19,9 @@
 use super::assembly_prefixes::substituent_sort_key;
 use super::chains::get_cyclic_atoms;
 use super::formatting::{
-    format_center_ligands_by, format_counted_prefixes, format_element_substituent,
-    format_multiplier, is_complex_prefix, is_compound_prefix, oxy_prefix_from_branch,
-    phenylamino_spelling, strip_outer_parentheses,
+    descriptors_omitted, format_center_ligands_by, format_counted_prefixes,
+    format_element_substituent, format_multiplier, is_complex_prefix, is_compound_prefix,
+    oxy_prefix_from_branch, phenylamino_spelling, strip_outer_parentheses,
 };
 use super::molecule::{AtomSet, Molecule};
 use super::namer::{capped_acid_name, name_subgraph_rendered, name_subgraph_with_upstream};
@@ -146,6 +146,7 @@ fn stereo(mol: &Molecule, idx: usize) -> String {
     mol.atoms[&idx]
         .stereo
         .as_ref()
+        .filter(|_| !descriptors_omitted())
         .map(|s| format!("({s})-"))
         .unwrap_or_default()
 }
@@ -865,7 +866,7 @@ fn name_nitrogen(
                 let stereo = bond
                     .stereo
                     .as_ref()
-                    .filter(|s| matches!(s.as_str(), "E" | "Z"))
+                    .filter(|s| matches!(s.as_str(), "E" | "Z") && !descriptors_omitted())
                     .map(|s| format!("({s})-"))
                     .unwrap_or_default();
                 return Ok(format!("({stereo}{modifier}diazenyl)"));
@@ -1890,6 +1891,9 @@ fn guanidino_prefix(
         .collect::<Vec<_>>()
         .join("-");
     mol.mark_name(NameStatus::NotPreferred(NameReason::AminoPrefix));
+    if descriptors_omitted() {
+        return Ok(Some(format!("({prefixes}guanidino)")));
+    }
     Ok(Some(format!("({stereo}{prefixes}guanidino)")))
 }
 

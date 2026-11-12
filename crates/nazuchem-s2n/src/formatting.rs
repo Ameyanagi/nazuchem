@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
 // Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs | issue #45
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs | issue #11
 // Source: openclatura | src/openclatura/formatting.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/formatting.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/exploratory/test_parenthesis_functions_direct.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -17,6 +18,7 @@ use super::{
     assembly_utils::is_fully_enclosed,
     rules::{multipliers, stems},
 };
+use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
@@ -40,6 +42,38 @@ pub fn strip_outer_parentheses(name: &str) -> String {
         name.into()
     }
 }
+thread_local! {
+    static DESCRIPTORS_OMITTED: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Whether names are being rendered without their stereo and isotope
+/// descriptors. Every descriptor writer checks this; nothing else does, so the
+/// parent, prefixes, locants and numbering are those of the cited name.
+// Provenance: fn descriptors_omitted | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::descriptors_omitted
+pub(super) fn descriptors_omitted() -> bool {
+    DESCRIPTORS_OMITTED.get()
+}
+
+/// Run `render` with stereo and isotope descriptors left out of every name,
+/// the form that alphanumerical order compares (P-14.5).
+// Provenance: fn without_descriptors | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::without_descriptors
+pub(super) fn without_descriptors<T>(render: impl FnOnce() -> T) -> T {
+    let _restore = RestoreDescriptors(DESCRIPTORS_OMITTED.replace(true));
+    render()
+}
+
+struct RestoreDescriptors(bool);
+
+// Provenance: impl <RestoreDescriptors as Drop> | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::<RestoreDescriptors as Drop>
+impl Drop for RestoreDescriptors {
+    fn drop(&mut self) {
+        DESCRIPTORS_OMITTED.set(self.0);
+    }
+}
+
 static BASIC_MULTIPLIERS: LazyLock<Vec<String>> =
     LazyLock::new(|| (2..=1000).map(multipliers::basic).collect());
 // Provenance: fn starts_with_multiplier | adapted

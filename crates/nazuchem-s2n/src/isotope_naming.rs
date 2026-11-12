@@ -394,12 +394,16 @@ pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Na
     super::assess_derivation(&parent, &base.derivation);
     let symmetry = lowest_equivalent_map(&parent, &sites, locants)?;
     let descriptor = isotope_descriptors(&parent, &sites, locants, &symmetry, style)?;
-    let text = super::nest_enclosing_marks(&with_descriptor(
-        &base.text,
-        &base.rendered_parent,
-        &descriptor,
-        style,
-    )?);
+    let text = if super::formatting::descriptors_omitted() {
+        super::nest_enclosing_marks(&base.text)
+    } else {
+        super::nest_enclosing_marks(&with_descriptor(
+            &base.text,
+            &base.rendered_parent,
+            &descriptor,
+            style,
+        )?)
+    };
     let status = if style == IsotopeStyle::Boughton {
         NameStatus::NotPreferred(NameReason::BoughtonIsotope)
     } else {
