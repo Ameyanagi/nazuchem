@@ -5054,6 +5054,7 @@ sources = [
   { project = "ReShiki", path = "src/naming/openclatura/fusion/planner.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/roundtrip/test_bridges.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/integration/test_systematic_fusion.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/fusion/planner.rs", ref = "issue #95", license = "MIT OR Apache-2.0" },
 ]
 notes = "Openclatura audited fusion planner with separate local benzo-parent planning, spiro entry and localized-pi refusal proof."
 parts = [
@@ -5065,6 +5066,7 @@ parts = [
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/planner.py", license = "MIT", symbol = "_complete_fusion_plan" }], items = ["fn plan_benzoheterocycle"], notes = "The generated-benzo candidate loop and fixed numbering proof are local, but it reuses the nontrivial graph -> intrinsic_parent_lone_pair_sites -> unconstrained/indicated-H parent_bond_model -> complete_fusion_plan sequence in fusion/planner.py::_complete_fusion_plan (335-358). The local function moves this inherited initial-model choice out into a new benzo plan constructor." },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/planner.py", license = "MIT", symbol = "inline in _abstract_graph" }], items = ["fn component_specs"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/planner.py", license = "MIT", symbol = "_complete_fusion_plan" }], items = ["fn complete_fusion_plan"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/fusion/planner.rs", ref = "issue #95", license = "MIT OR Apache-2.0", symbol = "bridged" }], items = ["fn bridged"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/planner.py", license = "MIT", symbol = "_cited_indicated_hydrogens" }], items = ["fn cited_indicated_hydrogens"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/planner.py", license = "MIT", symbol = "_standard_valence_parent" }], items = ["fn standard_valence_parent"] },
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/fusion/planner.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "unresolved_localized_pi_cycle" }], items = ["fn unresolved_localized_pi_cycle"] },

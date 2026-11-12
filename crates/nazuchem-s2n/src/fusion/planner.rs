@@ -4,6 +4,7 @@
 // Source: ReShiki | src/naming/openclatura/fusion/planner.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/roundtrip/test_bridges.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/integration/test_systematic_fusion.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/planner.rs | issue #95
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura audited fusion planner with separate local benzo-parent planning, spiro entry and localized-pi refusal proof.
@@ -1001,21 +1002,85 @@ fn complete_fusion_plan(
         if cited != indicated {
             sites.retain(|a| !cited.contains(a));
             sites.sort_by_key(|a| locant_key(&input_locants[a]));
-            let operation = &mut plan.derivative_state.hydro_operations[0];
-            operation.locants = sites.iter().map(|a| input_locants[a].clone()).collect();
-            operation.atom_ids = sites;
-            let mut cited: Vec<_> = cited.iter().map(|a| input_locants[a].clone()).collect();
-            cited.sort_by_key(|l| locant_key(l));
-            plan.rendered_base_name =
+            let mut locants: Vec<_> = cited.iter().map(|a| input_locants[a].clone()).collect();
+            locants.sort_by_key(|l| locant_key(l));
+            let mut relocated = plan.clone();
+            relocated.rendered_base_name =
                 super::super::retained_name_policy::render_retained_hydrogen_state(
                     &plan.rendered_base_name,
                     &plan.indicated_hydrogens,
-                    Some(&cited),
+                    Some(&locants),
                 );
-            plan.indicated_hydrogens = cited;
+            relocated.indicated_hydrogens = locants;
+            let model = indicated_hydrogen_parent_bond_model(graph, &cited)?;
+            // Prove the relocated hydrogen like the original plan. The bond
+            // model cannot place hydro prefixes that move double bonds
+            // through an aromatic ring (N-H of '2,3,4,5-tetrahydro-1H-
+            // pyrido[4,3-b]indole'); those keep the audited plan and only
+            // exchange the cited positions. A bridged parent recomputes this
+            // state, so it keeps the plan as it is.
+            let proved = parent_derivative_state(
+                mol,
+                atoms,
+                &model,
+                &input_locants,
+                &ParentDerivativeOptions {
+                    indicated_hydrogen_atom_ids: Some(&cited),
+                    ..Default::default()
+                },
+            )?
+            .filter(|state| {
+                state.unsaturation_operations.is_empty()
+                    && state.bond_delta.added_hydrogen_operations.is_empty()
+                    && state.bond_delta.intrinsic_hydro_operations.is_empty()
+                    && (state.hydro_operations.iter())
+                        .map(|operation| &operation.atom_ids)
+                        .eq([&sites])
+            })
+            .map(|state| FusionParentPlan {
+                bond_model: model,
+                derivative_state: state,
+                ..relocated.clone()
+            })
+            .filter(|proved| {
+                audit_fusion_plan(mol, atoms, proved, registry, &rendered_core)
+                    .is_ok_and(|audit| audit.confirmed())
+            });
+            if let Some(proved) = proved {
+                plan = proved;
+            } else if !bridged(mol, atoms) {
+                let operation = &mut relocated.derivative_state.hydro_operations[0];
+                operation.locants = sites.iter().map(|a| input_locants[a].clone()).collect();
+                operation.atom_ids = sites;
+                plan = relocated;
+            }
         }
     }
     Ok(Some(plan))
+}
+
+/// Whether atoms outside the ring system join two of its atoms.
+// Provenance: fn bridged | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/planner.rs::bridged
+fn bridged(mol: &Molecule, atoms: &AtomSet) -> bool {
+    let mut seen = AtomSet::new();
+    for &start in atoms {
+        for &outside in mol.get_neighbors(start) {
+            let mut joined = AtomSet::new();
+            let mut pending = vec![outside];
+            while let Some(atom) = pending.pop() {
+                if atoms.contains(&atom) {
+                    joined.insert(atom);
+                } else if seen.insert(atom) {
+                    pending.extend(mol.get_neighbors(atom));
+                }
+            }
+            if joined.len() > 1 && !atoms.contains(&outside) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 // Provenance: fn cited_indicated_hydrogens | adapted

@@ -3792,6 +3792,31 @@ mod tests {
             let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
         }
+        // A bridged fused parent replays the plan, so the relocated hydrogen
+        // must carry its own bond proof; otherwise the plan is left as it was.
+        for (smiles, expected) in [
+            (
+                "C1NCc2nc3cc(C3)c21",
+                "6,7-dihydro-2,4-methano-5H-pyrrolo[3,4-b]pyridine",
+            ),
+            (
+                "C1NCc2nc3cc(CC3)c21",
+                "6,7-dihydro-2,4-ethano-5H-pyrrolo[3,4-b]pyridine",
+            ),
+            (
+                "C1CNCc2c1[nH]c1cc3cc(C3)c12",
+                "1,2,3,4-tetrahydro-7,9-methano-5H-pyrido[4,3-b]indole",
+            ),
+            (
+                "CN1CCC23C4C1CC5=C2C(=CC=C5)OC3CC=C4",
+                "3-methyl-2,3,4,4a,7,7a-hexahydro-4,12-methano-1H-[1]benzofuro[3,2-e]isoquinoline",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
     }
 
     #[test]
