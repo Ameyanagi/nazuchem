@@ -363,8 +363,9 @@ mod tests {
                 "O=C(O)c1ccc(OCCOc2ccc(C(=O)O)cc2)cc1",
                 "4-[2-(4-carboxyphenoxy)ethoxy]benzoic acid",
             ),
-            // P-15.3.3.1: chains as linking groups.
-            ("CC(c1ccccc1)Cc1ccccc1", "(2-phenylpropyl)benzene"),
+            // P-15.3.3.1: chains as linking groups. P-45.5: 'phenylpropanyl'
+            // precedes 'phenylpropyl' between the tied rings.
+            ("CC(c1ccccc1)Cc1ccccc1", "(1-phenylpropan-2-yl)benzene"),
             // P-45.6.2: configuration needs primed stereodescriptors.
             (
                 "C[C@H](O)CSC[C@H](C)O",

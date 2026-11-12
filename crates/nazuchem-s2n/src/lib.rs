@@ -1603,9 +1603,10 @@ mod tests {
                 "ethanethioyl dimethyl phosphate",
                 NameStatus::Unverified(NameReason::UnauditedPath),
             ),
+            // P-45.5: 'bis' precedes 'methoxy' between the tied ethane parents.
             (
                 "COCCOCCOCCOC",
-                "1-methoxy-2-[2-(2-methoxyethoxy)ethoxy]ethane",
+                "1,2-bis(2-methoxyethoxy)ethane",
                 NameStatus::Unverified(NameReason::UnauditedParent),
             ),
             (
@@ -1827,9 +1828,10 @@ mod tests {
         // P-16.5.4 Fig. 1.3(f) and P-15.3.2.1: the first central group is
         // asymmetric; the second has a cyclic assembly between equal arms.
         for (smiles, expected) in [
+            // P-45.5: 'oxopropanyl' precedes 'oxopropyl' between the tied rings.
             (
                 "N#Cc1ccc(-c2ccc(OCCCCCOC(=O)C(Cc3ccc(C(=O)O)cc3)c3ccc(C(=O)O)cc3)cc2)cc1",
-                "4-[2-(4-carboxyphenyl)-3-({5-[(4'-cyano[1,1'-biphenyl]-4-yl)oxy]pentyl}oxy)-3-oxopropyl]benzoic acid",
+                "4-[3-(4-carboxyphenyl)-1-({5-[(4'-cyano[1,1'-biphenyl]-4-yl)oxy]pentyl}oxy)-1-oxopropan-2-yl]benzoic acid",
             ),
             (
                 "O=C(O)CCCCCCCCCOc1ccc(-c2ccc(OCCCCCCCCCC(=O)O)cc2)cc1",
@@ -3042,7 +3044,50 @@ mod tests {
                 "O=C1C=CC(=O)c2c1ccc1Oc3ccccc3Nc21",
                 "4H-benzo[a]phenoxazine-1,4(12H)-dione",
             ),
+            // #86: the unfused pheno...ine is the retained parent itself
+            // (P-25.2.2.3), its indicated hydrogen goes to the ketone
+            // (P-58.2.3.1.1, '1,2-dihydro-3H-indol-3-one' in P-64.3.1) or,
+            // for a dione, to the lowest position (P-58.2.3.1.3).
+            (
+                "O=C1CC=C2Nc3ccccc3OC2=C1",
+                "2,10-dihydro-3H-phenoxazin-3-one",
+            ),
+            (
+                "O=C1CC=C2N(C)c3ccccc3OC2=C1",
+                "10-methyl-2,10-dihydro-3H-phenoxazin-3-one",
+            ),
+            (
+                "O=C1CC=C2Nc3ccc(Cl)cc3OC2=C1",
+                "7-chloro-2,10-dihydro-3H-phenoxazin-3-one",
+            ),
+            (
+                "O=C1CC=C2Nc3ccccc3SC2=C1",
+                "2,10-dihydro-3H-phenothiazin-3-one",
+            ),
+            (
+                "O=C1C=CC(=O)c2Nc3ccccc3Oc12",
+                "1H-phenoxazine-1,4(10H)-dione",
+            ),
+            (
+                "O=C1C(=O)C2=C(CC1)Nc1ccccc1O2",
+                "1H-phenoxazine-3,4(2H,10H)-dione",
+            ),
+            (
+                "O=C1C=CC2=C(C1=O)Oc1ccccc1N2",
+                "3H-phenoxazine-3,4(10H)-dione",
+            ),
+            // P-58.2.3.1.4: a ketone that cannot take the indicated hydrogen
+            // leaves it at the lowest permissible site (P-58.2.3.1.3).
+            ("O=C1C=CC2=C(Nc3ccccc3O2)C1", "1H-phenoxazin-2(10H)-one"),
+            (
+                "O=C1CCC=C2Nc3ccccc3OC21",
+                "2,10-dihydro-3H-phenoxazin-4(4aH)-one",
+            ),
+            ("O=C1C=CC2=Nc3ccccc3OC2=C1", "3H-phenoxazin-3-one"),
             // Controls.
+            ("O=C1CNc2ccccc12", "1,2-dihydro-3H-indol-3-one"),
+            ("O=C1CC=CC2=C1c1ccccc1N2", "3,9-dihydro-4H-carbazol-4-one"),
+            ("O=c1[nH]cnc2nc[nH]c12", "1,7-dihydro-6H-purin-6-one"),
             (
                 "CN1c2ccccc2Nc2ccncc21",
                 "10-methyl-5,10-dihydropyrido[3,4-b]quinoxaline",

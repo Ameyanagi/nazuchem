@@ -30,7 +30,7 @@ use super::{
         ParentAssemblyPlan, build_parent_assembly_plan_with_modifiers,
         build_parent_assembly_plan_with_parent, resolve_retained_parent,
     },
-    parent_selection::select_principal_parent,
+    parent_selection::{ParentSelection, assembled_name_preference, tied_principal_parents},
     principal_groups::{
         add_component_principal_group, candidate_principal_attachments, component_groups,
         component_principal_key, demote_neutral_suffixes_for_skeletal_anion,
@@ -95,7 +95,15 @@ pub(super) fn name_component_with_citation(
     citation: Option<&str>,
     principal_atom: Option<usize>,
 ) -> Result<ComponentName, String> {
-    match component_pipeline(mol, component_atoms, citation, principal_atom, None, None)? {
+    match component_pipeline(
+        mol,
+        component_atoms,
+        citation,
+        principal_atom,
+        None,
+        None,
+        None,
+    )? {
         ComponentResult::Shortcut(name) => Ok(ComponentName {
             text: name.name,
             principal_group_atoms: AtomSet::new(),
@@ -146,7 +154,7 @@ pub(super) fn name_component_with_atom_locants(
     component_atoms: &AtomSet,
     isotope_source: Option<&Molecule>,
 ) -> Result<IsotopeParentName, String> {
-    match component_pipeline(mol, component_atoms, None, None, None, isotope_source)? {
+    match component_pipeline(mol, component_atoms, None, None, None, isotope_source, None)? {
         ComponentResult::Shortcut(name) => Ok(IsotopeParentName {
             rendered_parent: name.name.clone(),
             text: name.name,
@@ -224,6 +232,7 @@ pub(super) fn build_spiro_component_parts(
                     prioritize_junction,
                 }),
                 None,
+                None,
             )? {
                 ComponentResult::Shortcut(_) => None,
                 ComponentResult::Plan(plan, _, _) => Some(*plan),
@@ -282,6 +291,8 @@ fn component_pipeline(
     principal_atom: Option<usize>,
     projection: Option<SpiroProjection<'_>>,
     isotope_source: Option<&Molecule>,
+    // A parent to name instead of the selected one, when parents tie.
+    tied_parent: Option<&ParentSelection>,
 ) -> Result<ComponentResult, String> {
     let _depth = mol.enter_naming()?;
     let as_prefix = projection.as_ref().is_some_and(|p| {
@@ -394,11 +405,79 @@ fn component_pipeline(
                 component_atoms,
                 &exclude,
             )?
+        } else if let Some(parent) = tied_parent {
+            parent.clone()
         } else {
             let chains = find_all_carbon_paths(mol, &exclude)?;
             let rings = find_ring_systems(mol, &exclude)?;
-            select_principal_parent(mol, &chains, &rings, &principal, &groups)
-                .ok_or("openclatura: no supported parent skeleton")?
+            let mut tied = tied_principal_parents(mol, &chains, &rings, &principal, &groups);
+            // P-45.2.2, P-45.2.3 and P-45.5 compare the assembled names of
+            // the tied parents. Isotopes (P-44.4.1.11, P-45.4), nonstandard
+            // bonding numbers (P-45.3) and configuration in a tied parent
+            // (P-44.4.1.12) are not modelled, and a difference in the parent
+            // with its suffix is an earlier P-44.4.1 criterion; the
+            // atom-order choice stands in those cases.
+            let in_tied = |atom: &usize| tied.iter().any(|p| p.primary_path().contains(atom));
+            let mut best = 0;
+            if tied.len() > 1
+                && principal_atom.is_none()
+                && !mol.isotope_labels_stripped
+                && mol
+                    .atoms
+                    .values()
+                    .all(|a| a.isotope.is_none() && !(a.has_stereo() && in_tied(&a.idx)))
+                && mol
+                    .bonds
+                    .values()
+                    .all(|b| b.stereo.is_none() || !(in_tied(&b.u) || in_tied(&b.v)))
+            {
+                let mut names = Vec::new();
+                for parent in &tied {
+                    // Discard the status marks of every trial name.
+                    mol.candidate::<()>(|| {
+                        if let ComponentResult::Plan(mut plan, ..) = component_pipeline(
+                            mol,
+                            component_atoms,
+                            citation,
+                            None,
+                            None,
+                            isotope_source,
+                            Some(parent),
+                        )? {
+                            let prefixes = plan.parts.substituents.clone();
+                            let (name, parent) = render_component_and_parent(
+                                mol,
+                                &mut plan.parts,
+                                &plan.numbered_path,
+                                &plan.locant_map,
+                            )?;
+                            // P-44.4.1.10.2: hydro prefixes belong to the parent.
+                            let hydro: Vec<_> = plan
+                                .parts
+                                .hydro_operations
+                                .iter()
+                                .map(|h| (h.key.clone(), h.locants.clone()))
+                                .collect();
+                            if !name.contains("lambda") {
+                                names.push((
+                                    (parent, hydro),
+                                    assembled_name_preference(&prefixes, &name),
+                                ));
+                            }
+                        }
+                        Ok(None)
+                    })
+                    .ok();
+                }
+                if names.len() == tied.len() && names.iter().all(|(p, _)| p == &names[0].0) {
+                    // The first of equal names, which is the atom-order choice.
+                    best = (0..names.len()).min_by_key(|&i| &names[i].1).unwrap_or(0);
+                }
+            }
+            if tied.is_empty() {
+                return Err("openclatura: no supported parent skeleton".into());
+            }
+            tied.swap_remove(best)
         }
     };
     // The key is the first of equally senior groups, such as carboxylic_acid
