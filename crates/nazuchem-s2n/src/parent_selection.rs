@@ -887,7 +887,7 @@ pub(super) fn anion_parent_is_senior(
     ) else {
         return false;
     };
-    let candidates = parent_candidates(
+    let mut candidates = parent_candidates(
         mol,
         &paths,
         &rings,
@@ -896,6 +896,7 @@ pub(super) fn anion_parent_is_senior(
         &excluded,
         false,
     );
+    prefer_chain_suffix_and_unsaturation_locants(mol, &mut candidates, &principal);
     let Some(cited_score) = candidates
         .iter()
         .filter(|(_, selection)| selection.atom_set() == *parent)
@@ -1592,9 +1593,21 @@ mod tests {
                 "4-(3-hydroxybutoxy)butan-1-ol",
                 &["OCCCCOCCC(C)O", "CC(O)CCOCCCCO"][..],
             ),
+            // 1,4 is lower than 2,3.
+            (
+                "2-(2,3-dihydroxybutoxy)butane-1,4-diol",
+                &["OCC(OCC(O)C(O)C)CCO", "CC(O)C(O)COC(CO)CCO"][..],
+            ),
+            // The anion parent check (P-72.7) applies the same criterion.
+            (
+                "4-(2-methyl-3-sulfidobutoxy)butane-1-thiolate",
+                &["[S-]CCCCOCC(C)C([S-])C", "CC([S-])C(C)COCCCC[S-]"][..],
+            ),
         ] {
             for smiles in inputs {
-                assert_eq!(name(smiles), expected, "{smiles}");
+                let named = crate::name_smiles(smiles, &Default::default()).unwrap();
+                assert_eq!(named.text, expected, "{smiles}");
+                assert_eq!(named.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
             }
         }
     }
