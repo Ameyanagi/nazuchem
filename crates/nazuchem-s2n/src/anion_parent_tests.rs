@@ -127,13 +127,13 @@ fn anion_parent_choice_matrix() {
             "6-oxocyclohexa-2,4-dien-1-ide",
             NameStatus::Preferred,
         ),
-        // The skeletal anion gets locant 1; the order of skeletal -ide and
-        // characteristic -aminium remains unsettled (P-70.3.3.2.2/P-74.1.2).
+        // P-74.0: the skeletal anion is senior to the aminium cation, which
+        // becomes an azaniumyl prefix as in the P-74.2.1.1.1 ylide PIN.
         (
             "C20",
             "[NH3+]CC[CH-]C#N",
-            "1-cyanopropan-1-id-3-aminium",
-            NameStatus::Unverified(NameReason::IonicSuffixOrder),
+            "3-azaniumyl-1-cyanopropan-1-ide",
+            NameStatus::Preferred,
         ),
         (
             "C21",
