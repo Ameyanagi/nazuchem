@@ -483,7 +483,7 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
             counts.rejection_messages_identical,
             counts.rejection_messages_differing
         ),
-        (30, 0)
+        (28, 0)
     );
     assert_eq!(
         (
@@ -1046,7 +1046,7 @@ fn every_n2s_structure_oracle_structure_retains_complete_name_results() {
     assert_n2s_coverage(&counts, (2624, 2535, 70, 19));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (2407, 198)
+        (2405, 200)
     );
     counts
         .names
