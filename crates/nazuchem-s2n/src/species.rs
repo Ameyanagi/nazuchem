@@ -325,13 +325,11 @@ pub(super) fn name_salt(
             })
             .ok()?
             .text;
-            // The descriptors are the only text left out: a prefix that is
-            // multiplied once its descriptors are gone would add letters.
-            let mut cited = name.text.chars().filter(char::is_ascii_alphanumeric);
-            bare.chars()
-                .filter(char::is_ascii_alphanumeric)
-                .all(|c| cited.any(|d| d == c))
-                .then(|| (alphanumerical_order_key(&bare), bare))
+            // The descriptors are the only text left out, so the Roman
+            // letters are those of the cited name: prefixes that differ only
+            // in their descriptors are multiplied once these are gone.
+            let key = alphanumerical_order_key(&bare);
+            (key.0 == alphanumerical_order_key(&name.text).0).then_some((key, bare))
         })
         .collect();
     // Ions of one sign are ordered by the key when it tells every two
@@ -828,6 +826,12 @@ mod tests {
             (
                 "[Na+].[Na+].Clc1ccccc1-c1c([O-])c(C)c(-c2ccccc2)cc1.[O-]c1c(Cl)c(C)ccc1-c1ccc(-c2ccccc2)cc1",
                 "disodium 1^2-chloro-2^3-methyl[1^1,2^1:2^4,3^1-terphenyl]-2^2-olate 1^3-chloro-1^4-methyl[1^1,2^1:2^4,3^1-terphenyl]-1^2-olate",
+            ),
+            // Without descriptors the two ligands of the first ion are
+            // rendered as one multiplied prefix, which is not the cited name.
+            (
+                "[Na+].[Na+].O=C([O-])CN([C@H](Br)CN=C=O)[C@@H](Br)CN=C=O.BrCC(=O)[O-]",
+                "disodium {[(1R)-1-bromo-2-isocyanatoethyl][(1S)-1-bromo-2-isocyanatoethyl]amino}acetate bromoacetate",
             ),
             // Only the numerals of the von Baeyer descriptors differ.
             (
