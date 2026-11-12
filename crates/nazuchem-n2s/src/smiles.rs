@@ -1064,8 +1064,11 @@ impl<'a> Writer<'a> {
     fn assign_one_stereo(&mut self, central: BondId) -> Result<Vec<BondId>, SerializationError> {
         let stereo = self.graph.bond(central).stereo.as_ref().unwrap();
         let refs = stereo.atom_refs;
+        // An odd cumulene's record sits on its two terminal bonds, each
+        // holding one of the terminal atoms `refs[1]` and `refs[2]`.
         if self.graph.bond(central).order != 2
-            || self.graph.bond(central).other_atom(refs[1]) != Some(refs[2])
+            || self.graph.bond(central).other_atom(refs[1]).is_none()
+                && self.graph.bond(central).other_atom(refs[2]).is_none()
         {
             return Err(SerializationError(
                 "Bond stereo has invalid central bond references".into(),
@@ -1110,7 +1113,9 @@ impl<'a> Writer<'a> {
                 .bonds
                 .iter()
                 .copied()
-                .filter(|bond| *bond != primary && *bond != central)
+                .filter(|bond| {
+                    *bond != primary && *bond != central && self.graph.bond(*bond).order == 1
+                })
                 .collect();
             if bonds.len() == 1 && self.next[bonds[0].0].is_some() {
                 Some(bonds[0])

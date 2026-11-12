@@ -3,8 +3,8 @@
 // Source: ReShiki | crates/chemistry/src/stereo/cumulene.rs | be63a799aa03a83dc6ec74bb294f4d42b89298d3
 
 //! Odd cumulene chains with distinguishable ligands at both ends.
-// Copied unchanged from crates/chemistry/src/stereo/cumulene.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3
-use super::{at, double_bond_directions, perception, perception::State};
+// Copied from crates/chemistry/src/stereo/cumulene.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: add the specified E/Z record and its CIP descriptor
+use super::{at, cip::label, double_bond_directions, perception, perception::State};
 use crate::ranking;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -13,6 +13,66 @@ pub struct Cumulene {
     pub ends: [(usize, usize); 2],
     /// Graph bond indices in order from the first end to the second.
     pub bonds: Vec<usize>,
+}
+
+/// Cis/trans geometry that SMILES directions specify across an odd cumulene.
+/// `refs[i]` is a ligand of the terminal atom `ends[i]`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CumuleneEz {
+    pub ends: [usize; 2],
+    pub refs: [usize; 2],
+    pub cis: bool,
+}
+
+/// Whether a specified odd cumulene is E (P-93.4.2.3): the CIP-senior ligands
+/// of its two terminal atoms are trans. `None` when CIP cannot rank an end.
+pub fn cumulene_is_e(state: &State, ez: &CumuleneEz) -> Result<Option<bool>, String> {
+    let double = |atom: usize, skip: usize| {
+        state
+            .graph
+            .bonds
+            .iter()
+            .enumerate()
+            .find_map(|(id, bond)| match (bond.a, bond.b) {
+                (x, y) | (y, x) if bond.order == 2 && x == atom && y != skip => Some((id, y)),
+                _ => None,
+            })
+            .ok_or("Invalid cumulene end")
+    };
+    // Label each terminal double bond as cis from the reference to the next
+    // chain atom: it is Z exactly when the reference is the senior ligand.
+    let mut probe = state.clone();
+    let mut bonds = [0; 2];
+    for ((&end, &reference), slot) in ez.ends.iter().zip(&ez.refs).zip(&mut bonds) {
+        let (bond, inner) = double(end, usize::MAX)?;
+        let (_, next) = double(inner, end)?;
+        let meta = probe
+            .metadata
+            .bonds
+            .get_mut(bond)
+            .ok_or("Invalid cumulene bond")?;
+        meta.stereo = 4;
+        meta.stereo_atoms = if at(&state.graph.bonds, bond)?.a == end {
+            vec![reference, next]
+        } else {
+            vec![next, reference]
+        };
+        *slot = bond;
+    }
+    let codes = label::assign(&probe, &label::Options::default())
+        .map_err(|error| error.to_string())?
+        .state
+        .properties
+        .bond_codes;
+    let mut senior = [false; 2];
+    for (bond, senior) in bonds.into_iter().zip(&mut senior) {
+        *senior = match at(&codes, bond)?.as_deref() {
+            Some("Z") => true,
+            Some("E") => false,
+            _ => return Ok(None),
+        };
+    }
+    Ok(Some(ez.cis != (senior[0] == senior[1])))
 }
 
 #[derive(PartialEq, Eq)]

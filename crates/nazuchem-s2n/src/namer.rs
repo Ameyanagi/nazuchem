@@ -526,7 +526,7 @@ fn name_subgraph_rendered_except_stereo(
         &plan.locant_map,
         upstream,
         excluded_stereo_bond,
-    );
+    )?;
     add_indicated_hydrogens(mol, &mut parts, &plan.numbered_path, &plan.locant_map)?;
     for (&idx, items) in &mapping {
         for item in items {

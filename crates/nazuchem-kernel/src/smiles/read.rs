@@ -9,7 +9,7 @@
 //! Default SMILES import annotations adapted from SmilesParse.cpp and
 //! CXSmilesOps.cpp, Copyright (C) 2001-2022 Greg Landrum and contributors.
 //! BSD-3-Clause; see licenses/rdkit/LICENSE and NOTICE.
-// Copied from crates/chemistry/src/smiles/read.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: forward an explicit borrowed Budget through molecule/reaction import and sanitization
+// Copied from crates/chemistry/src/smiles/read.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: forward an explicit borrowed Budget through molecule/reaction import and sanitization; flag only the odd-cumulene E/Z that preparation cannot record
 use super::{Error, Parsed, Prepared, Result, parse_inner, prepare};
 use crate::budget::Budget;
 use crate::{
@@ -26,7 +26,8 @@ pub struct Imported {
     pub prepared: Prepared,
     pub conformers: Vec<Conformer>,
     pub name: Option<String>,
-    /// SMILES directions specified odd-cumulene E/Z that preparation discarded.
+    /// SMILES directions specified odd-cumulene E/Z that `prepared.cumulene_ez`
+    /// cannot hold: a terminal atom's only ligand is a removed hydrogen.
     pub dropped_cumulene_ez: bool,
     /// Original molecule-level CX `r` marker, normalized into stereo groups.
     #[serde(skip)]
@@ -488,6 +489,7 @@ pub fn reaction_part(
                 properties,
             },
             dummy_labels: parsed.dummy_labels,
+            cumulene_ez: Vec::new(),
         },
         conformers: annotations.context.conformers,
         name: None,
@@ -607,7 +609,10 @@ pub fn read(text: &str, budget: &Budget) -> Result<Imported> {
     let mut dropped_cumulene_ez = false;
     for chain in stereo::stereogenic_odd_cumulenes(&prepared.state).map_err(Error::Stereo)? {
         let [(a, _), (b, _)] = chain.ends;
-        if *at(&directed, *at(&kept_atoms, a)?)? && *at(&directed, *at(&kept_atoms, b)?)? {
+        if *at(&directed, *at(&kept_atoms, a)?)?
+            && *at(&directed, *at(&kept_atoms, b)?)?
+            && !prepared.cumulene_ez.iter().any(|ez| ez.ends == [a, b])
+        {
             dropped_cumulene_ez = true;
             break;
         }

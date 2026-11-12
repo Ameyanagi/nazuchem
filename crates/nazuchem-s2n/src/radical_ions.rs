@@ -69,6 +69,13 @@ pub(super) fn recover_state(
     if radicals.is_empty() || charge == 0 {
         return Ok(None);
     }
+    // The neutral identity recovered below cannot carry odd-cumulene E/Z.
+    if source.metadata.atoms.iter().any(|atom| {
+        use nazuchem_kernel::identity::{CUMULENE_E, CUMULENE_Z};
+        matches!(atom.map_number, CUMULENE_E | CUMULENE_Z)
+    }) {
+        return Err(UNSUPPORTED.into());
+    }
     if canonical.contains('.') {
         return Err(UNSUPPORTED.into());
     }

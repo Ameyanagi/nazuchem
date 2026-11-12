@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Origin: original
 // Source: ReShiki | crates/model/src/molecule_names.rs | 2df788dc456793c687b934afd6d4b317e3c73ef8
-// Changes: copy pure identity helpers onto kernel State and forward an explicit Budget.
+// Changes: copy pure identity helpers onto kernel State and forward an explicit Budget; add odd-cumulene E/Z markers.
 // Intentionally mirrored on different State types until ReShiki's chemistry and the kernel converge; kept in step by crates/model/src/molecule_names/identity_parity.rs.
 
 //! Canonical molecular identity, independent of document selection and captions.
@@ -18,11 +18,96 @@ pub enum IdentityRejection {
     Write(String),
 }
 
+/// Reserved naming map for an E odd cumulene; both terminal atoms carry it.
+pub const CUMULENE_E: i32 = 900_016;
+/// Reserved naming map for a Z odd cumulene; both terminal atoms carry it.
+pub const CUMULENE_Z: i32 = 900_032;
+
+/// Record each SMILES-specified odd cumulene as its CIP descriptor
+/// (P-93.4.2.3) in the maps of its two terminal atoms.
+pub fn mark_cumulenes(prepared: &mut chemistry::smiles::Prepared) -> Result<(), IdentityRejection> {
+    let mut markers = Vec::new();
+    for ez in &prepared.cumulene_ez {
+        let e = chemistry::stereo::cumulene_is_e(&prepared.state, ez)
+            .ok()
+            .flatten()
+            .ok_or(IdentityRejection::NonclassicalStereo)?;
+        markers.push((ez.ends, if e { CUMULENE_E } else { CUMULENE_Z }));
+    }
+    for (end, marker) in markers
+        .into_iter()
+        .flat_map(|(ends, marker)| ends.map(|end| (end, marker)))
+    {
+        let atom = prepared
+            .state
+            .metadata
+            .atoms
+            .get_mut(end)
+            .ok_or(IdentityRejection::NonclassicalStereo)?;
+        atom.map_number = marker;
+        atom.map_present = true;
+    }
+    Ok(())
+}
+
+/// Marked odd cumulenes and whether each is E. A marker is valid only on both
+/// terminal atoms of one stereogenic odd cumulene; any other use fails.
+pub fn cumulene_markers(
+    state: &chemistry::stereo::perception::State,
+) -> Result<Vec<(chemistry::stereo::Cumulene, bool)>, IdentityRejection> {
+    let marker = |atom: usize| {
+        state
+            .metadata
+            .atoms
+            .get(atom)
+            .map(|meta| meta.map_number)
+            .filter(|map| matches!(*map, CUMULENE_E | CUMULENE_Z))
+    };
+    let marked = (0..state.metadata.atoms.len())
+        .filter(|&atom| marker(atom).is_some())
+        .count();
+    if marked == 0 {
+        return Ok(Vec::new());
+    }
+    let mut found = Vec::new();
+    for chain in chemistry::stereo::stereogenic_odd_cumulenes(state)
+        .map_err(|_| IdentityRejection::NonclassicalStereo)?
+    {
+        let [(a, _), (b, _)] = chain.ends;
+        if let (Some(x), Some(y)) = (marker(a), marker(b))
+            && x == y
+        {
+            found.push((chain, x == CUMULENE_E));
+        }
+    }
+    if marked != 2 * found.len() {
+        return Err(IdentityRejection::NonclassicalStereo);
+    }
+    Ok(found)
+}
+
 /// Shared canonical isomeric identity, with private maps for M/P biaryl axes.
 /// Ordinary atom maps are excluded. The naming adapter and caption identity
 /// retain their own document bounds and error messages.
 pub fn canonical_identity(
     state: &chemistry::stereo::perception::State,
+    budget: &Budget,
+) -> Result<String, IdentityRejection> {
+    identity(state, false, budget)
+}
+
+/// [`canonical_identity`] of a state read from SMILES: its odd-cumulene E/Z
+/// markers are molecular identity and stay in the result.
+pub fn canonical_smiles_identity(
+    state: &chemistry::stereo::perception::State,
+    budget: &Budget,
+) -> Result<String, IdentityRejection> {
+    identity(state, true, budget)
+}
+
+fn identity(
+    state: &chemistry::stereo::perception::State,
+    cumulenes: bool,
     budget: &Budget,
 ) -> Result<String, IdentityRejection> {
     if state
@@ -39,7 +124,17 @@ pub fn canonical_identity(
     {
         return Err(IdentityRejection::UnsupportedAtomsOrBonds);
     }
-    let state = unspecified_unknown_stereo(&encode_axis_markers(state, budget)?);
+    let mut encoded = encode_axis_markers(state, budget)?;
+    if cumulenes {
+        for (chain, e) in cumulene_markers(state)? {
+            for (end, _) in chain.ends {
+                let atom = &mut encoded.metadata.atoms[end];
+                atom.map_number = if e { CUMULENE_E } else { CUMULENE_Z };
+                atom.map_present = true;
+            }
+        }
+    }
+    let state = unspecified_unknown_stereo(&encoded);
     let smiles = chemistry::smiles::write::write(
         &state,
         chemistry::smiles::write::Options {

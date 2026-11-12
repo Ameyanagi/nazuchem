@@ -699,7 +699,7 @@ fn component_pipeline(
     let locants = &plan.locant_map;
     let parts = &mut plan.parts;
     parts.principal_citation_mode = citation.map(str::to_owned);
-    emit_bond_stereo(mol, parts, numbered, locants, None);
+    emit_bond_stereo(mol, parts, numbered, locants, None)?;
     front.add_to_parts(isotope_source.unwrap_or(mol), parts, locants);
     let component_splits = front.component_splits;
     let n_subs = if let Some(subs) = numbering_n_subs {

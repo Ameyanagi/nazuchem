@@ -6,7 +6,7 @@
 // Copyright (c) 2006-2015, Rational Discovery LLC, Greg Landrum, and Julie Penzotti and others
 // Changes: Rust adaptation; forward an explicit borrowed Budget through preparation and sanitization.
 
-// Copied from crates/chemistry/src/smiles/prepare.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: forward an explicit borrowed Budget through preparation and sanitization
+// Copied from crates/chemistry/src/smiles/prepare.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: forward an explicit borrowed Budget through preparation and sanitization; record odd-cumulene cis/trans read from directions
 use super::{Error, Parsed, Result, parse_inner};
 use crate::budget::Budget;
 use crate::{
@@ -21,6 +21,9 @@ use serde::Serialize;
 pub struct Prepared {
     pub state: perception::State,
     pub dummy_labels: Vec<Option<String>>,
+    /// Odd-cumulene cis/trans read from directions; `state` cannot hold it.
+    #[serde(skip)]
+    pub cumulene_ez: Vec<stereo::CumuleneEz>,
 }
 
 /// Prepare a bare SMILES graph with default H removal, sanitization and stereo.
@@ -64,6 +67,18 @@ pub(super) fn finish(
     // Reject unsupported explicit AL classes before native cleanup can erase
     // them and turn a specified configuration into an unspecified structure.
     validate_allenes(&parsed)?;
+    // Each directed bond, seen outward from either end, before H removal.
+    let directed: Vec<_> = parsed
+        .graph
+        .bonds
+        .iter()
+        .zip(&parsed.directions)
+        .filter(|(_, direction)| matches!(direction, Direction::Up | Direction::Down))
+        .flat_map(|(bond, direction)| {
+            let up = *direction == Direction::Up;
+            [(bond.a, bond.b, up), (bond.b, bond.a, !up)]
+        })
+        .collect();
     let removed = hydrogens::before_sanitization(&hydrogens::Input {
         graph: parsed.graph,
         metadata: parsed.metadata,
@@ -176,10 +191,40 @@ pub(super) fn finish(
         .iter()
         .map(|&i| parsed.dummy_labels.get(i).cloned().ok_or(Error::Limit))
         .collect::<Result<Vec<_>>>()?;
+    let mut cumulene_ez = Vec::new();
+    if !directed.is_empty() {
+        'chains: for chain in stereo::stereogenic_odd_cumulenes(&state).map_err(Error::Stereo)? {
+            let (mut refs, mut up) = ([0; 2], [false; 2]);
+            for (slot, &(end, inner)) in chain.ends.iter().enumerate() {
+                let old = removed.kept_atoms.get(end).ok_or(Error::Limit)?;
+                let Some(&(_, neighbor, outward)) = directed.iter().find(|d| d.0 == *old) else {
+                    continue 'chains;
+                };
+                (refs[slot], up[slot]) =
+                    match removed.kept_atoms.iter().position(|&kept| kept == neighbor) {
+                        Some(kept) => (kept, outward),
+                        // A removed hydrogen lies opposite the remaining ligand.
+                        None => match state.graph.bonds.iter().find_map(|b| match (b.a, b.b) {
+                            (x, y) | (y, x) if x == end && y != inner => Some(y),
+                            _ => None,
+                        }) {
+                            Some(other) => (other, !outward),
+                            None => continue 'chains,
+                        },
+                    };
+            }
+            cumulene_ez.push(stereo::CumuleneEz {
+                ends: chain.ends.map(|(end, _)| end),
+                refs,
+                cis: up[0] == up[1],
+            });
+        }
+    }
     Ok((
         Prepared {
             state,
             dummy_labels,
+            cumulene_ez,
         },
         context.conformers,
         removed.kept_atoms,
