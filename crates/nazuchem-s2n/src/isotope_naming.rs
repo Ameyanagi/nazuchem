@@ -510,7 +510,7 @@ pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Na
     {
         return Err(uncited());
     }
-    let text = if sites.is_empty() {
+    let text = if sites.is_empty() || super::formatting::descriptors_omitted() {
         base.text
     } else {
         let symmetry = lowest_equivalent_map(&parent, &sites, locants, &base.prefix_isotopes)?;

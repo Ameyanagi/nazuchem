@@ -561,6 +561,9 @@ fn move_added_hydrogen(parts: &AssemblyParts, core: &str, suffix: &str) -> (Stri
 // Provenance: fn add_stereo | adapted
 // Source: openclatura | src/openclatura/assembler.py::_add_stereo_prefix
 fn add_stereo(parts: &AssemblyParts, word: &str, cites_locants: bool) -> String {
+    if super::formatting::descriptors_omitted() {
+        return word.into();
+    }
     let mut features = vec![];
     for feature in &parts.stereo_features {
         if !features.contains(&feature) {
@@ -808,7 +811,7 @@ fn finish_name_with_parent(
             relative.push(p.as_str());
         }
     }
-    if !relative.is_empty() {
+    if !relative.is_empty() && !super::formatting::descriptors_omitted() {
         word = format!("{}-{word}", relative.join("-"));
     }
     Ok((add_front_modifiers(parts, &word), core))

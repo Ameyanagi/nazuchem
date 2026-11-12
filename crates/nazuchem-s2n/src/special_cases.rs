@@ -33,8 +33,8 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use super::assembly_prefixes::substituent_sort_key;
 use super::chains::{canonical_ranks, get_cyclic_atoms};
 use super::formatting::{
-    format_center_ligands_by, format_multiplier, is_complex_prefix, needs_complex_multiplier,
-    needs_simple_multiplier_parentheses, strip_outer_parentheses,
+    descriptors_omitted, format_center_ligands_by, format_multiplier, is_complex_prefix,
+    needs_complex_multiplier, needs_simple_multiplier_parentheses, strip_outer_parentheses,
 };
 use super::graph_kernel::{Edge, biconnected_edge_components, normalize_edge};
 use super::molecule::{Atom, AtomSet, Bond, Molecule, component_atoms_until_blocked};
@@ -661,6 +661,9 @@ fn hydrazone_name(
                 ""
             },
         );
+    if descriptors_omitted() {
+        return name;
+    }
     format!("({locant}{stereo})-{name}")
 }
 
@@ -791,11 +794,13 @@ fn simple_azine_parent_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<St
             } else {
                 format!("{multiplier}{ylidene}")
             };
-            return Ok(Some(if let Some(stereo) = stereo {
-                format!("(1{stereo},2{stereo})-{prefix}hydrazine")
-            } else {
-                format!("{prefix}hydrazine")
-            }));
+            return Ok(Some(
+                if let Some(stereo) = stereo.filter(|_| !descriptors_omitted()) {
+                    format!("(1{stereo},2{stereo})-{prefix}hydrazine")
+                } else {
+                    format!("{prefix}hydrazine")
+                },
+            ));
         }
         let parent_side =
             usize::from((sides[1].atoms.len(), &parents[1]) > (sides[0].atoms.len(), &parents[0]));
@@ -1317,6 +1322,9 @@ fn sulfoxide_parent_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<Strin
     };
     ligands.sort();
     mol.mark_name(NameStatus::NotPreferred(NameReason::FunctionalClass));
+    if descriptors_omitted() {
+        return Ok(Some(format!("{} sulfoxide", ligands.join(" "))));
+    }
     Ok(Some(format!("({stereo})-{} sulfoxide", ligands.join(" "))))
 }
 
@@ -2612,7 +2620,7 @@ fn homonuclear_chain_parent_name(
             (b.order == 2 && matches!(s, "E" | "Z")).then(|| format!("{}{s}", i + 1))
         })
         .collect();
-    if !stereo.is_empty() {
+    if !stereo.is_empty() && !descriptors_omitted() {
         name = format!("({})-{name}", stereo.join(","));
     }
     if symbol == "S" && chain.len() <= 2 && !placed.is_empty() {

@@ -225,6 +225,7 @@ fn nitrogen_group_prefix(
         ns.last()
             .and_then(|&n| mol.get_bond(n, core))
             .and_then(|b| b.stereo.as_ref())
+            .filter(|_| !super::formatting::descriptors_omitted())
             .map(|s| format!("({s})-"))
             .unwrap_or_default()
     } else {
