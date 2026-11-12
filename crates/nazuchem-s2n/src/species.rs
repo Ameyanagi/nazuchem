@@ -254,13 +254,6 @@ fn salt_ion_sort_key(name: &str) -> Option<SaltIonKey> {
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || " ,.-'()[]{}".contains(c))
         || name.contains("lambda")
-        // 3-chloros-indacene: the italic s or as is not told from the prefix.
-        || name.match_indices("s-indacen").any(|(i, _)| {
-            name[..i]
-                .strip_suffix('a')
-                .unwrap_or(&name[..i])
-                .ends_with(|c: char| c.is_ascii_alphanumeric())
-        })
     {
         return None;
     }
@@ -376,7 +369,21 @@ pub(super) fn name_salt(
                     })
                     .count()
                     >= 2);
-        ions.push((q < 0, name, component, labelled, oxoanion));
+        // P-16.3.6 (a): a monatomic anion is multiplied with `bis` when the
+        // `di` form names a homopolyatomic anion: dioxide (O2 2-) and
+        // disulfide (S2 2-) for dianions, triiodide (I3-) for halides.
+        let monatomic = q < 0
+            && atoms.len() == 1
+            && atoms[0].explicit_hydrogens == 0
+            && state.valences[0].implicit_hydrogens == 0;
+        let bis_from = if oxoanion || monatomic && q <= -2 {
+            2
+        } else if monatomic {
+            3
+        } else {
+            usize::MAX
+        };
+        ions.push((q < 0, name, component, labelled, bis_from));
     }
     // The name without its stereodescriptor and isotopic descriptor groups, such
     // as `(2R,3R)-`, `(4aS)-`, `(2E)-`, `(2H3)` and `(1-13C)`, with every
@@ -477,7 +484,7 @@ pub(super) fn name_salt(
         })
     });
     let mut grouped = BTreeMap::new();
-    for ((negative, name, component, _, oxoanion), key) in ions.into_iter().zip(keys) {
+    for ((negative, name, component, _, bis_from), key) in ions.into_iter().zip(keys) {
         let plain: String = name
             .text
             .chars()
@@ -492,7 +499,7 @@ pub(super) fn name_salt(
                 name.text.clone(),
                 component,
             ))
-            .or_insert((name, oxoanion, 0));
+            .or_insert((name, bis_from, 0));
         entry.2 += 1;
     }
     if charge != 0 {
@@ -503,7 +510,7 @@ pub(super) fn name_salt(
     }
     let mut status = NameStatus::Preferred;
     let mut words = Vec::new();
-    for (_, (name, oxoanion, count)) in grouped {
+    for (_, (name, bis_from, count)) in grouped {
         // The strongest ion downgrade wins; ties keep the first ion's reason.
         if name.status.severity() > status.severity() {
             status = name.status;
@@ -511,7 +518,7 @@ pub(super) fn name_salt(
         // P-16.3.6 (a): `bis(carbonate)` for two carbonate ions, since
         // `dicarbonate` (like `disulfate` and `diphosphate`) names the
         // condensed dinuclear anion.
-        let complex = oxoanion
+        let complex = count >= bis_from
             || name.text.chars().any(|c| !c.is_ascii_alphabetic())
             || super::formatting::starts_with_multiplier(&name.text)
             || name.text.ends_with("aminium");
@@ -795,8 +802,6 @@ mod tests {
             "(2H3)acetate",
             "1lambda^5-phosphinin-1-ylium",
             "N1-methylbutanediamide",
-            "3-chloros-indacene-1-carboxylate",
-            "3-chloros-indacen-1-olate",
             "(2R)-butan-2-olate",
         ] {
             assert_eq!(salt_ion_sort_key(name), None, "{name}");
@@ -866,11 +871,6 @@ mod tests {
             (
                 "[Na+].[Na+].C/C=C/C(=O)[O-].C/C=C\\C(=O)[O-]",
                 "disodium (2E)-but-2-enoate (2Z)-but-2-enoate",
-            ),
-            // The italic s of this name is not set off from the prefix.
-            (
-                "[Na+].[Na+].ClC1=c2cc3c(cc2C([O-])=C1)=CC=C3.[O-]c1ccc(Cl)c2ccccc12",
-                "disodium 3-chloros-indacen-1-olate 4-chloronaphthalen-1-olate",
             ),
         ] {
             let name = name_salt(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
@@ -1020,6 +1020,13 @@ mod tests {
                 "disodium 2-(chloromethyl)heptanoate 3-(chloromethyl)heptanoate",
                 NameStatus::Preferred,
             ),
+            // P-14.5.3, P-16.2.4.1(d): the italic s of s-indacene is set off by
+            // a hyphen and is no Roman letter; chloroindacenolate first.
+            (
+                "[Na+].[Na+].ClC1=c2cc3c(cc2C([O-])=C1)=CC=C3.[O-]c1ccc(Cl)c2ccccc12",
+                "disodium 3-chloro-s-indacen-1-olate 4-chloronaphthalen-1-olate",
+                NameStatus::Preferred,
+            ),
         ] {
             let name = name_salt(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
@@ -1050,7 +1057,13 @@ mod tests {
     // Provenance: fn tests::anion_parent_assessment_uses_the_cited_derivation | original
     // Source: ReShiki | src/naming/openclatura/species.rs::tests::anion_parent_assessment_uses_the_cited_derivation
     fn anion_parent_assessment_uses_the_cited_derivation() {
-        for smiles in ["C[N+](C)(C)CC[O-]", "[NH3+]CC([NH3+])C[O-]"] {
+        for smiles in [
+            "C[N+](C)(C)CC[O-]",
+            "[NH3+]CC([NH3+])C[O-]",
+            // No prefix keeps these cations, so they stay suffixes beside -ide.
+            "[CH2-]CC(=O)[NH3+]",
+            "[CH2-]CC#[NH+]",
+        ] {
             assert_eq!(
                 assess_component(smiles),
                 NameStatus::Unverified(NameReason::AnionParent),
@@ -1104,6 +1117,10 @@ mod tests {
             "Oc1ccccc1-c1[n-]ccc1C",
             "OCCc1cc[n-]c1",
             "OC(=O)c1ccccc1-c1[n-]ccc1",
+            // P-74.0: the aminium cation becomes a prefix of the -ide parent.
+            "[NH3+]CC[CH-]C#N",
+            "[NH3+][C-]1C=CC2=C1N=NO2",
+            "C[N+](C)(C)[C-](C)C",
         ] {
             assert_eq!(assess_component(smiles), NameStatus::Preferred, "{smiles}");
         }
@@ -1113,13 +1130,12 @@ mod tests {
     // Provenance: fn tests::skeletal_anion_with_characteristic_cation_has_unsettled_suffix_order | original
     // Source: ReShiki | src/naming/openclatura/species.rs::tests::skeletal_anion_with_characteristic_cation_has_unsettled_suffix_order
     fn skeletal_anion_with_characteristic_cation_has_unsettled_suffix_order() {
-        for smiles in ["[NH3+]CC[CH-]C#N", "[NH3+][C-]1C=CC2=C1N=NO2"] {
-            assert_eq!(
-                assess_component(smiles),
-                NameStatus::Unverified(NameReason::IonicSuffixOrder),
-                "{smiles}"
-            );
-        }
+        // Aminium becomes a prefix (P-74.0), but the diazonio prefix is not
+        // the preselected diazyn-1-ium-1-yl (P-73.6), so diazonium stays.
+        assert_eq!(
+            assess_component("[CH2-]CC[N+]#N"),
+            NameStatus::Unverified(NameReason::IonicSuffixOrder),
+        );
     }
 
     #[test]
@@ -1527,6 +1543,78 @@ mod tests {
             (
                 "[Na+].[Na+].[Na+].[Na+].[Na+].[Na+].[O-]C([O-])=O.[O-]C([O-])=O.[O-]C([O-])=O",
                 "hexasodium tris(carbonate)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            // Issue #109, P-65.6.2.3.2, P-72.2.2.2.1.2: acid hydrogen of an
+            // inorganic oxoanion is cited as `hydrogen`; P-16.3.6 (a) gives
+            // `bis(hydrogen sulfate)` for two such anions.
+            (
+                "[Na+].OC(=O)[O-]",
+                "sodium hydrogen carbonate",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Ca+2].OC(=O)[O-].OC(=O)[O-]",
+                "calcium bis(hydrogen carbonate)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Ca+2].OS(=O)(=O)[O-].OS(=O)(=O)[O-]",
+                "calcium bis(hydrogen sulfate)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Na+].OP(=O)([O-])[O-]",
+                "disodium hydrogen phosphate",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].OP(=O)(O)[O-]",
+                "sodium dihydrogen phosphate",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            // P-77.1.1 example.
+            (
+                "CC[NH+](CC)CC.OS(=O)(=O)[O-]",
+                "N,N-diethylethanaminium hydrogen sulfate",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            // Issue #109, P-16.3.6 (a): `disulfide` and `dioxide` name the
+            // S2(2-) and O2(2-) anions and `triiodide` names I3-, so separate
+            // monatomic anions take `bis`/`tris`; `diiodide` stays.
+            (
+                "[Ca+2].[Ca+2].[S-2].[S-2]",
+                "dicalcium bis(sulfide)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Na+].[Na+].[Na+].[O-2].[O-2]",
+                "tetrasodium bis(oxide)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Na+].[S-2]",
+                "disodium sulfide",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Ca+2].[I-].[I-].[I-]",
+                "calcium sodium tris(iodide)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Na+].[Na+].[Na+].[Na+].[Na+].[S-2].[S-2].[S-2]",
+                "hexasodium tris(sulfide)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Ca+2].[Ca+2].[Cl-].[Cl-].[Cl-].[Cl-]",
+                "dicalcium tetrakis(chloride)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Ca+2].[I-].[I-]",
+                "calcium diiodide",
                 NameStatus::Unverified(NameReason::UnauditedPath),
             ),
             // P-16.3.6 (a) applies only to ambiguous names: nitrite has no
@@ -1979,7 +2067,7 @@ mod tests {
             // P-73.7(a) precedes ring seniority (P-44.2).
             (
                 "C1CC[NH+](C1)CC2=C(N=C3N2C=CS3)C4=CC=CC=C4",
-                "1-[(6-phenylimidazo[2,1-b][1,3]thiazol-5-yl)methyl]pyrrolidinium",
+                "1-[(6-phenylimidazo[2,1-b][1,3]thiazol-5-yl)methyl]pyrrolidin-1-ium",
             ),
             // Cationic suffixes keep their place (P-73.7(a), (d)).
             (
@@ -1987,7 +2075,7 @@ mod tests {
                 "2-(1-methylpyridin-1-ium-4-yl)ethan-1-aminium",
             ),
             ("OCC[NH3+]", "2-hydroxyethan-1-aminium"),
-            ("OCC1CC[NH2+]C1", "3-(hydroxymethyl)pyrrolidinium"),
+            ("OCC1CC[NH2+]C1", "3-(hydroxymethyl)pyrrolidin-1-ium"),
             // Nitro is a neutral group, not a cationic centre.
             (
                 "OCc1cc[n+](cc1)c1ccc([N+](=O)[O-])cc1",

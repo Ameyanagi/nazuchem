@@ -4,6 +4,7 @@
 // Copyright (c) 2026 lamalab-org
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/data/parser_xml_resources/groupStemsAllowingInlineSuffixes.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/anion_spelling_tests.rs | issue #83
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 
 use super::name_smiles;
@@ -79,18 +80,21 @@ fn anion_spelling_matrix() {
         (
             5,
             "O[C@H](C1=CC(F)=C[N-]1)[C-]1C=CC=N1",
-            "4-fluoro-2-[(S)-(hydroxy)(2H-pyrrol-2-id-2-yl)methyl]-1H-pyrrol-1-ide",
+            // P-16.5.1.3.1: the first cited simple prefix is not enclosed.
+            "4-fluoro-2-[(S)-hydroxy(2H-pyrrol-2-id-2-yl)methyl]-1H-pyrrol-1-ide",
         ),
+        // P-74.0: the skeletal anion is senior to the aminium cation, which
+        // is cited as an azaniumyl prefix (P-73.6, P-74.2.1.1.1).
         (
             6,
             "[NH3+]C1C(C#N)[N-]CC1",
-            "2-cyanopyrrolidin-1-id-3-aminium",
+            "3-azaniumyl-2-cyanopyrrolidin-1-ide",
         ),
-        (7, "[NH3+]CC[CH-]C#N", "1-cyanopropan-1-id-3-aminium"),
+        (7, "[NH3+]CC[CH-]C#N", "3-azaniumyl-1-cyanopropan-1-ide"),
         (
             8,
             "[NH3+][C-]1C=CC2=C1N=NO2",
-            "cyclopenta[d][1,2,3]oxadiazol-4-id-4-aminium",
+            "4-azaniumylcyclopenta[d][1,2,3]oxadiazol-4-ide",
         ),
         (9, "CC[CH-]C=O", "1-oxobutan-2-ide"),
         (10, "N#CC1CCC[CH-]1", "2-cyanocyclopentan-1-ide"),
@@ -430,5 +434,96 @@ fn ketone_anions_needing_added_hydrogen_are_not_claimed_preferred() {
             "{smiles}: {:?}",
             actual.status
         );
+    }
+}
+
+#[test]
+// Provenance: fn chalcogen_acid_anion_prefixes_keep_charge_and_infix | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/anion_spelling_tests.rs::chalcogen_acid_anion_prefixes_keep_charge_and_infix
+fn chalcogen_acid_anion_prefixes_keep_charge_and_infix() {
+    // Issue #83. P-72.6.1: an acid anion cited as a prefix changes the anion
+    // suffix's "ate" to "ato", keeping the P-65.3.1.3 replacement infix
+    // (sulfinothioate -> sulfinothioato), so –S(=S)O⁻ keeps its charge.
+    let parser = nazuchem_n2s::Parser::new().unwrap();
+    let prefix_only = NameStatus::Unverified(NameReason::AnionParent);
+    for (smiles, expected, status) in [
+        (
+            "c1ccccc1N(C)S(=S)[O-]",
+            "[methyl(sulfinothioato)amino]benzene",
+            prefix_only,
+        ),
+        (
+            "c1ccccc1N(C)S(=O)(=S)[O-]",
+            "[methyl(sulfonothioato)amino]benzene",
+            prefix_only,
+        ),
+        (
+            "c1ccccc1N(C)S(=S)(=S)[O-]",
+            "[methyl(sulfonodithioato)amino]benzene",
+            prefix_only,
+        ),
+        (
+            "c1ccccc1N(C)S(=[Se])[O-]",
+            "[methyl(sulfinoselenoato)amino]benzene",
+            prefix_only,
+        ),
+        (
+            "c1ccccc1N(C)S(=S)(=[Se])[O-]",
+            "[methyl(sulfonoselenothioato)amino]benzene",
+            prefix_only,
+        ),
+        // A specified sulfur configuration is cited, so enantiomers differ.
+        (
+            "c1ccccc1N(C)[S@](=S)[O-]",
+            "{methyl[(S)-sulfinothioato]amino}benzene",
+            prefix_only,
+        ),
+        (
+            "c1ccccc1N(C)[S@@](=S)[O-]",
+            "{methyl[(R)-sulfinothioato]amino}benzene",
+            prefix_only,
+        ),
+        // The oxygen acids keep their sulfinato/sulfonato prefixes.
+        (
+            "c1ccccc1N(C)S(=O)[O-]",
+            "[methyl(sulfinato)amino]benzene",
+            prefix_only,
+        ),
+        (
+            "c1ccccc1N(C)S(=O)(=O)[O-]",
+            "[methyl(sulfonato)amino]benzene",
+            prefix_only,
+        ),
+        // Carbon-attached: the perceived acid-anion prefix keeps its infix.
+        (
+            "C[N+](C)(C)CCS(=S)[O-]",
+            "N,N,N-trimethyl-2-sulfinothioatoethan-1-aminium",
+            prefix_only,
+        ),
+        (
+            "[O-]S(=S)c1ccc(cc1)C(=O)[O-]",
+            "4-sulfinothioatobenzoate",
+            NameStatus::Preferred,
+        ),
+        // Repeated replacement infixes are multiplied, not repeated.
+        (
+            "c1ccccc1S(=S)(=S)[S-]",
+            "benzenesulfonotrithioate",
+            prefix_only,
+        ),
+    ] {
+        assert_name_and_round_trip(&parser, smiles, expected, status);
+    }
+    for (smiles, expected) in [
+        (
+            "[S-]S(=S)(=S)c1ccc(cc1)C(=O)[O-]",
+            "4-sulfonotrithioatobenzoate",
+        ),
+        (
+            "[Se-]S(=S)(=S)c1ccc(cc1)C(=O)[O-]",
+            "4-sulfonoselenodithioatobenzoate",
+        ),
+    ] {
+        assert_eq!(name(smiles).unwrap().text, expected, "{smiles}");
     }
 }

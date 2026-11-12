@@ -1798,15 +1798,18 @@ fn oxoacid_parent_name(mol: &Molecule, atoms: &AtomSet) -> Option<String> {
         return None;
     }
     let spec = matching_oxo_spec(mol, r)?;
-    let name = if r.count(OxoLigandRole::Oxido) > 0
-        && r.count(OxoLigandRole::Hydroxy) == 0
-        && !spec.ester_suffix.is_empty()
-    {
-        &spec.ester_suffix
-    } else {
-        &spec.name
-    };
-    Some(name.clone())
+    if r.count(OxoLigandRole::Oxido) == 0 || spec.ester_suffix.is_empty() {
+        return Some(spec.name.clone());
+    }
+    // P-65.6.2.3.2, P-72.2.2.2.1.2: an anion that keeps acid hydrogen, such
+    // as HCO3-, is `hydrogen carbonate`, and H2PO4- `dihydrogen phosphate`.
+    // A zwitterion such as O[N+](=O)[O-] has no net charge and stays the acid.
+    Some(match r.count(OxoLigandRole::Hydroxy) {
+        0 => spec.ester_suffix.clone(),
+        _ if atoms.iter().map(|a| mol.atoms[a].charge).sum::<i32>() >= 0 => spec.name.clone(),
+        1 => format!("hydrogen {}", spec.ester_suffix),
+        n => format!("{}hydrogen {}", multipliers::basic(n), spec.ester_suffix),
+    })
 }
 // Provenance: fn modifier_phrase | adapted
 // Source: openclatura | src/openclatura/special_cases.py::_ester_modifier_phrase
@@ -3963,21 +3966,11 @@ pub(super) fn alphanumerical_order_key(name: &str) -> AlphanumericalKey {
         } else if c.is_ascii_alphabetic() {
             let end = run(i, char::is_ascii_alphabetic);
             i = run(end, |c| *c == '\'');
-            let mut word: String = chars[start..end].iter().collect();
+            let word: String = chars[start..end].iter().collect();
             if word.contains(|c: char| c.is_ascii_uppercase()) {
                 // An element locant such as N or N'.
                 locants.push((depth, (false, 0, word, i - end)));
             } else {
-                // s- and as-indacene take a prefix directly:
-                // 3-chloros-indacene.
-                if chars[end..].starts_with(&['-', 'i', 'n', 'd', 'a', 'c', 'e', 'n']) {
-                    let n = if word.ends_with("as") {
-                        2
-                    } else {
-                        usize::from(word.ends_with('s'))
-                    };
-                    italic.push_str(&word.split_off(word.len() - n));
-                }
                 // Fusion letters run in alphabetical sequence: c, cd.
                 let fusion = word.as_bytes().windows(2).all(|w| w[1] == w[0] + 1);
                 if fusion || ITALIC_WORDS.contains(&word.as_str()) {
@@ -5057,11 +5050,11 @@ mod tests {
                 "3-(N,4-dimethylbenzamido)propanoic 3-(2,4-dimethylbenzamido)propanoic anhydride",
                 preferred,
             ),
-            // P-14.5.3: s of s-indacene is italic even when joined to a prefix
-            // ('chloroindacene' before 'chloroindene').
+            // P-14.5.3: s of s-indacene is italic, set off by a hyphen
+            // (P-16.2.4.1(d)); 'chloroindacene' before 'chloroindene'.
             (
                 "ClC=1C=C(C2=CC3=CC=CC3=CC12)C(=O)OC(=O)C=1CC2=CC=CC=C2C1Cl",
-                "3-chloros-indacene-1-carboxylic 3-chloro-1H-indene-2-carboxylic anhydride",
+                "3-chloro-s-indacene-1-carboxylic 3-chloro-1H-indene-2-carboxylic anhydride",
                 preferred,
             ),
             // P-14.5.3: fusion letters are italic and count only after the

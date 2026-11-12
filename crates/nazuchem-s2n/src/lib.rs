@@ -1174,6 +1174,46 @@ mod tests {
                     "C(OC(CC(OC)=O)=O)C(C)(C)CC(=O)OC(C)(C)C",
                 ][..],
             ),
+            // Issue #97. P-14.4 (c): the -ium suffix takes the
+            // lower of the two equivalent locants (#96 may retain naphthyridine).
+            (
+                "decahydropyrido[3,4-c]pyridin-2-ium",
+                &["N1CCC2C(C1)C[NH2+]CC2", "C1C[NH2+]CC2CNCCC12"][..],
+            ),
+            // P-14.3.5: on a symmetric assembly the chalcogenide nitrogen is
+            // 1, not 1′.
+            (
+                "4,4'-bipyridine 1-sulfide",
+                &["[S-][n+]1ccc(-c2ccncc2)cc1", "c1cc(-c2cc[n+]([S-])cc2)ccn1"][..],
+            ),
+            // Controls: a substituent fixes the numbering, so the oxide keeps a
+            // primed locant; a stereo parent keeps its own numbering, since the
+            // other site would need inverted descriptors.
+            (
+                "2-methyl-4,4'-bipyridine 1'-oxide",
+                &["Cc1cc(-c2cc[n+]([O-])cc2)ccn1"][..],
+            ),
+            // Every nitrogen shares one Morgan rank, but N1 and N4 are not
+            // equivalent.
+            (
+                "4-[2-(aziridin-1-yl)ethyl]-1,4,7-triazabicyclo[5.2.2]undecane 4-oxide",
+                &["[N+]1([O-])(CCN2CC2)CCN3CCN(CC1)CC3"][..],
+            ),
+            (
+                "(2R,5S)-1,2,4,5-tetramethylpiperazine 1-oxide",
+                &["C[N+]1([O-])[C@H](C)CN(C)[C@@H](C)C1"][..],
+            ),
+            (
+                "(2R,5S)-1,2,4,5-tetramethylpiperazine 4-oxide",
+                &["CN1[C@H](C)C[N+](C)([O-])[C@@H](C)C1"][..],
+            ),
+            // P-66.4.1.1, P-66.4.1.2.1.1, P-66.1.6.1.1.5: amidines rank as amides,
+            // in the order of their acids, so a carboximidamide is senior to
+            // guanidine (the amidine of carbonic acid).
+            (
+                "4-{2-[(diaminomethylidene)amino]ethyl}benzene-1-carboximidamide",
+                &["NC(N)=NCCc1ccc(C(N)=N)cc1", "NC(=N)c1ccc(CCN=C(N)N)cc1"][..],
+            ),
         ] {
             let identity = crate::test_support::canonical_smiles(inputs[0]).unwrap();
             let parsed = crate::test_support::parse_strict(expected).unwrap();
@@ -3257,6 +3297,73 @@ mod tests {
                 crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{expected}"
             );
+        }
+    }
+
+    #[test]
+    fn first_locantless_simple_prefix_is_not_enclosed() {
+        // P-16.5.1.3.1, P-16.5.1.3.2: the first cited simple prefix is not enclosed
+        // (a compound one is) and later ones are, as in cyclopropyl(phenyl)methanol and
+        // hydroxydi(phenyl)acetic acid (P-65.1.1.2.4); a first prefix with a
+        // locant keeps its parentheses. The tellanyl prefixes follow
+        // hydroxy(oxo)-lambda^5-azanylidene (P-61.5.3) and
+        // methyldi(oxo)-lambda^5-phosphane (P-64.1.2.2).
+        for (smiles, expected) in [
+            ("OC(C(=O)O)c1ccccc1", "hydroxy(phenyl)acetic acid"),
+            (
+                "OC(C(=O)O)(c1ccccc1)c1ccccc1",
+                "hydroxydi(phenyl)acetic acid",
+            ),
+            (
+                "OC(C(=O)O)c1ccccc1Cl",
+                "(2-chlorophenyl)(hydroxy)acetic acid",
+            ),
+            (
+                "OC(c1ccccc1)c1ccc(cc1)C(=O)O",
+                "4-[hydroxy(phenyl)methyl]benzoic acid",
+            ),
+            ("OC(C1CC1)c1ccccc1", "cyclopropyl(phenyl)methanol"),
+            (
+                "OC(=O)CO[Te](=O)O",
+                "{[hydroxy(oxo)-lambda^4-tellanyl]oxy}acetic acid",
+            ),
+            (
+                "OC(=O)CO[Te](=O)(=O)O",
+                "{[hydroxydi(oxo)-lambda^6-tellanyl]oxy}acetic acid",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
+        }
+        // A first compound prefix keeps its parentheses, as the compound heterone
+        // prefixes oxophosphanyl, oxoarsanyl and oxostibanyl (P-61.6) do. Only the
+        // outer marks are checked: [(methoxycarbonyl)amino] and triaz-1-en-1-yl
+        // (P-68.3.1.4.1) for aminodiazenyl are separate gaps.
+        for (smiles, expected) in [
+            ("OC(=O)C(P=O)c1ccccc1", "(oxophosphanyl)(phenyl)acetic acid"),
+            ("OC(=O)C([As]=O)c1ccccc1", "(oxoarsanyl)(phenyl)acetic acid"),
+            (
+                "OC(=O)C([Sb]=O)c1ccccc1",
+                "(oxostibanyl)(phenyl)acetic acid",
+            ),
+            (
+                "OC(=O)C(N=NN)c1ccccc1",
+                "(aminodiazenyl)(phenyl)acetic acid",
+            ),
+            (
+                "OC(=O)C(NC(=O)OC)c1ccccc1",
+                "(methoxycarbonylamino)(phenyl)acetic acid",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
         }
     }
 

@@ -69,14 +69,19 @@ pub fn is_composite_prefix(name: &str) -> bool {
 /// P-16.5.1.1: a compound prefix (P-29.1.2), a simple prefix that carries a
 /// substituent prefix such as chloromethyl, cyclopropylmethyl or methoxyamino,
 /// is enclosed when it substitutes another prefix, as in [(chloromethyl)sulfanyl]
-/// or (methoxyamino)phosphanyl (P-35.4.1).
+/// or (methoxyamino)phosphanyl (P-35.4.1). Substituted diazenyl, phosphanyl,
+/// arsanyl and stibanyl prefixes such as aminodiazenyl and the compound
+/// heterone prefix oxophosphanyl (P-61.6) are compound in the same way.
 // Provenance: fn is_compound_prefix | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::is_compound_prefix
 pub fn is_compound_prefix(name: &str) -> bool {
     is_composite_prefix(name)
-        || name
-            .strip_suffix("amino")
-            .is_some_and(|stem| !stem.is_empty())
+        || ["amino", "diazenyl", "phosphanyl", "arsanyl", "stibanyl"]
+            .iter()
+            .any(|parent| {
+                name.strip_suffix(parent)
+                    .is_some_and(|stem| !stem.is_empty())
+            })
         || stems::terminal_stem(name)
             .is_some_and(|s| name != format!("{s}yl") && name != format!("cyclo{s}yl"))
 }
@@ -94,6 +99,9 @@ pub fn needs_complex_multiplier(name: &str) -> bool {
             "sulfanylidene",
             "selanylidene",
             "tellanylidene",
+            // P-16.3.6(a): diazaniumyl would name the hydrazinium group.
+            "azaniumyl",
+            "azaniumylidene",
         ]
         .contains(&name)
 }
