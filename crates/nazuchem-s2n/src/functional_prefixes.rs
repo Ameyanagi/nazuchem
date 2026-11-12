@@ -482,6 +482,46 @@ pub fn prefix_from_group(
         }) {
             return Err("openclatura: peroxy-acid prefix overlaps its parent carbon".into());
         }
+        // P-65.1.5.3: a chalcogen peroxy acid is cited from its own atoms,
+        // as in `4-[(hydroxysulfanyl)carbonyl]cyclohexane-1-carboxylic acid`.
+        if let Some([double, link, terminal]) = group
+            .descriptor
+            .as_ref()
+            .map(|descriptor| descriptor.ligands.as_slice())
+            .filter(|ligands| ligands.iter().any(|ligand| ligand.element != "O"))
+        {
+            let hydride = NAMER_RULES
+                .chalcogen_simple_group_keys
+                .iter()
+                .find(|r| {
+                    r.family == "hydroxy"
+                        && r.derivative == "alcohol"
+                        && r.element == terminal.element
+                })
+                .and_then(|r| RULES.functional_groups.cited_prefix_for(&r.key))
+                .ok_or("openclatura: peroxy-acid prefix has no terminal chalcogen name")?;
+            // P-63.4.2.2: -OOH is `hydroperoxy`, -SSH `disulfanyl`, -OSH
+            // `sulfanyloxy`.
+            let ligand = if link.element == "O" && terminal.element == "O" {
+                "hydroperoxy".into()
+            } else if link.element == terminal.element {
+                format!("di{hydride}")
+            } else {
+                element_ligand(
+                    RenderedSubstituentName {
+                        text: hydride,
+                        ..Default::default()
+                    },
+                    &link.element,
+                )?
+            };
+            return Ok(format!(
+                "({ligand}{})",
+                chalcogen_term(&double.element, "acyl_center_prefix", |e| {
+                    &e.acyl_center_prefix
+                })?
+            ));
+        }
         return Ok("hydroperoxycarbonyl".into());
     }
     if rule.has_capability("acyl_leaving_group") {

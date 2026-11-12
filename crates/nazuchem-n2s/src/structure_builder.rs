@@ -9,6 +9,7 @@
 // Changes: Validate stoichiometric graph expansion before cloning components.
 // Changes: Chalcogen locants on anhydride acids and peroxide substituents choose the bridge end (issue #26).
 // Changes: Two-symbol chalcogen locants such as SO- orient the peroxy group of an ester (issue #90).
+// Changes: Ester locants may name the position of the acid group, as in 4-S-ethyl and 4-SO-ethyl (issue #94).
 
 //! OPSIN word-rule assembly and finalization.
 //! Port of `StructureBuilder.java`, OPSIN 2.9.0, b91b610af5ab07560fedb20730d7aef46bb2bca0.
@@ -2149,6 +2150,14 @@ impl Builder<'_> {
                 return Ok(atom);
             }
         }
+        let numbered = ft::parse_amino_acid_style_locant(locant)
+            .filter(|(_, primes, position)| primes.is_empty() && ft::is_numeric_locant(position))
+            .map(|(symbol, _, position)| (symbol, position));
+        // "4-SO-ethyl": the position of the acid group, then the pair locant.
+        let (pair_position, pair) = match locant.split_once('-') {
+            Some((position, pair)) => (Some(position), pair),
+            None => (None, locant),
+        };
         if ft::is_numeric_locant(locant) {
             for (index, &atom) in results.functional_atoms.iter().enumerate() {
                 if self.search_non_suffix_locant(atom, locant).is_some() {
@@ -2159,9 +2168,15 @@ impl Builder<'_> {
                     return Ok(atom);
                 }
             }
-        } else if ft::is_element_symbol_locant(locant) {
-            let bare = Element::from_symbol(locant).is_some();
+        } else if ft::is_element_symbol_locant(locant) || numbered.is_some() {
+            // "4-S-ethyl" (P-65.6.3.3.7.2.1) arrives as S4: the S of the acid
+            // group at position 4, chosen like a bare S among its atoms.
+            let (locant, position) = numbered.map_or((locant, None), |(s, p)| (s, Some(p)));
+            let bare = position.is_some() || Element::from_symbol(locant).is_some();
             for (index, &atom) in results.functional_atoms.iter().enumerate() {
+                if position.is_some_and(|p| self.search_non_suffix_locant(atom, p).is_none()) {
+                    continue;
+                }
                 if bare && self.assembly.graph().atom(atom).element.symbol() == locant {
                     results.remove_functional_atom(self.assembly.graph_mut(), index)?;
                     return Ok(atom);
@@ -2197,15 +2212,18 @@ impl Builder<'_> {
                     }
                 }
             }
-        } else if let Some(split) = locant.rfind(|c: char| c.is_ascii_uppercase())
+        } else if let Some(split) = pair.rfind(|c: char| c.is_ascii_uppercase())
             && let Some(wanted) =
-                Element::from_symbol(&locant[..split]).zip(Element::from_symbol(&locant[split..]))
+                Element::from_symbol(&pair[..split]).zip(Element::from_symbol(&pair[split..]))
         {
             // P-65.6.3.3.7.1: in "SO-methyl" the first symbol is the peroxy
             // atom bonded to the acid and the second carries the organyl
             // group. A mixed "(thioperoxoate)" has no orientation of its own
             // (see SuffixApplier), so the locant sets it.
             for (index, &atom) in results.functional_atoms.iter().enumerate() {
+                if pair_position.is_some_and(|p| self.search_non_suffix_locant(atom, p).is_none()) {
+                    continue;
+                }
                 let graph = self.assembly.graph();
                 let &[inner] = graph.neighbours(atom).as_slice() else {
                     continue;
