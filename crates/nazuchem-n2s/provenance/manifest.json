@@ -54,11 +54,11 @@
     "resources/xml/simpleSubstituents.xml": "1be5a17895f332fc2351a00820b53c158217a88e9719ff3d2eacb55a0ebf80b7",
     "resources/xml/substituents.xml": "41a7f584e7d532dd21526bacd4078d34f8b8ec2df6b833b6f5347b63e3164a35",
     "resources/xml/suffixApplicability.dtd": "50e57c6484ac2ec522cb6ca30e33d25288a74a036ad03432a40db1bb59787c16",
-    "resources/xml/suffixApplicability.xml": "379fd480b6f327b8339c7783c1d335cc6cc9c8f04c9454393a13b61ed28c786c",
+    "resources/xml/suffixApplicability.xml": "1d10496b8e863008f909094a55cc964a9a97110b628359384ad7d58bf04a45b3",
     "resources/xml/suffixPrefix.xml": "5428dbc34ce8e458f81e36ccf456023284bcf8b822d2ada7de5b41e248a7d1c5",
     "resources/xml/suffixRules.dtd": "307af66d255095c9d117493c8bddf5e2b9dcc4741e998e7dd7fdcb38304d4daf",
-    "resources/xml/suffixRules.xml": "a267b913c7da4491546d34fd7c108306ae0f79973969f96fcffcef1f60116524",
-    "resources/xml/suffixes.xml": "d5068e49b299cbda83298e5f9fa4f3716d6eb091260d3df5110959571866275e",
+    "resources/xml/suffixRules.xml": "abb6d036f42ddf4f02002218c15a28f814b871c039885ce8f86075e66ea8fa21",
+    "resources/xml/suffixes.xml": "4c96c7e561881892ffbb49d8d232764fbe3c9595a7cebc201261b87ec31d1b05",
     "resources/xml/tokenFiles.dtd": "3acb49df364b02a65ea20aef8d33758b047fa1426289be3811386a7450e57355",
     "resources/xml/tokenLists.dtd": "35ab7b9c52960ea27aa715dd73f1fadb5fc5c5e9081f8fdd9dd8967fdad96100",
     "resources/xml/unsaturators.xml": "d528b967c52d64a434563dc237d0a28e0784d1916784772381fe545c9bdf6bc1",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "d1c3344342f04765aa9ad4d38338f97fe3a052c189e551112237fdd06a06e837"
+    "sha256": "3ccf7ada2dda7e93b892ff9f582beb9245fe90a20c19c610a069d40fd964ff8c"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",
@@ -293,7 +293,7 @@
     },
     "chalcogen_peroxy_names": {
       "resources": ["suffixes.xml", "suffixRules.xml", "suffixApplicability.xml", "functionalTerms.xml"],
-      "change": "Dictionary tokens and suffix rules for chalcogen peroxy acids with SO/OS-type acid locants (P-65.1.5.3), Table 6.1 peroxols (P-63.4.2.1), tellanal (P-66.6.3), mixed-chalcogen peroxyanhydrides (P-65.7.4) and peroxide class names (P-63.3.2); element locants on anhydride acids and peroxide substituents choose the bridge end; the letter-locanted acid tokens also read ics-acid, the spelling left inside brackets, for butanebis(thioic S-acid) (P-16.3.5 (b), P-65.1.5.1)",
+      "change": "Dictionary tokens and suffix rules for chalcogen peroxy acids with SO/OS-type acid locants (P-65.1.5.3), Table 6.1 peroxols (P-63.4.2.1), tellanal (P-66.6.3), mixed-chalcogen peroxyanhydrides (P-65.7.4) and peroxide class names (P-63.3.2); element locants on anhydride acids and peroxide substituents choose the bridge end; the letter-locanted acid tokens also read ics-acid, the spelling left inside brackets, for butanebis(thioic S-acid) (P-16.3.5 (b), P-65.1.5.1); the bracketed anion forms of the mixed peroxols, (SO-thioperoxolate) through (SeTe-selenotelluroperoxolate) (P-72.2.2.2.2)",
       "automata": []
     },
     "peroxy_ester_locants": {

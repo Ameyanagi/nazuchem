@@ -115,11 +115,12 @@ pub fn suffix(count: usize, suffix: &str) -> String {
     {
         chalcogens = rest;
     }
-    // P-72.2.2.2.2: compound anionic suffixes such as `olate` and suffixes
-    // with a letter locant, as in `bis(OS-thioperoxolate)`, take bis/tris.
+    // P-72.2.2.2.2: compound anionic suffixes such as `olate`, `peroxolate`
+    // and `dithioperoxolate`, and suffixes with a letter locant, as in
+    // `bis(OS-thioperoxolate)`, take bis/tris.
     if matches!(chalcogens, "ate" | "ic") && suffix != chalcogens
         || suffix.contains('-')
-        || matches!(suffix, "olate" | "thiolate" | "selenolate" | "tellurolate")
+        || suffix.ends_with("olate")
     {
         return format!("{}({suffix})", complex_(count));
     }
