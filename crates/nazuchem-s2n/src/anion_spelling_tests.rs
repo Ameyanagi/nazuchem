@@ -79,7 +79,8 @@ fn anion_spelling_matrix() {
         (
             5,
             "O[C@H](C1=CC(F)=C[N-]1)[C-]1C=CC=N1",
-            "4-fluoro-2-[(S)-(hydroxy)(2H-pyrrol-2-id-2-yl)methyl]-1H-pyrrol-1-ide",
+            // P-16.5.1.3.1: the first cited simple prefix is not enclosed.
+            "4-fluoro-2-[(S)-hydroxy(2H-pyrrol-2-id-2-yl)methyl]-1H-pyrrol-1-ide",
         ),
         (
             6,
