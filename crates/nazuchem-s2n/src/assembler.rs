@@ -436,12 +436,8 @@ fn add_indicated_hydrogen_prefix(parts: &mut AssemblyParts, core: &str) -> (Stri
         );
     }
     if !additive.is_empty() {
-        let sep = if core.starts_with(|c: char| c.is_ascii_digit()) {
-            "-"
-        } else {
-            ""
-        };
         let hydro = format_multiplier("hydro", additive.len(), false);
+        let sep = if needs_hyphen(&hydro, &core) { "-" } else { "" };
         let mut stated = parts
             .retained_parent_metadata
             .as_ref()
