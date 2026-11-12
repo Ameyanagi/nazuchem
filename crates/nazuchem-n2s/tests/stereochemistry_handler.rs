@@ -699,3 +699,51 @@ fn starred_and_racemic_sets_on_separate_components_get_separate_groups() {
         assert_eq!(written, expected, "{name}");
     }
 }
+
+#[test]
+fn rel_or_rac_on_an_ion_without_stereocentres_adds_no_group() {
+    // #84: rel/rac give the configuration of one molecule relative to its own
+    // stereogenic units (P-93.1.2.1, P-93.1.3). 2-Methylalanine has none, so
+    // its (rel) or (rac) adds no group; the parity its alanine template
+    // carried must not claim group 1 ahead of the real centres.
+    for (name, expected, groups) in [
+        (
+            "rel-(2R)-alaninium (rel)-2-methylalaninate",
+            "CC(N)(C)C(=O)[O-].[NH3+][C@H](C)C(=O)O |o1:8|",
+            &[(StereoGroupType::Relative, 1)][..],
+        ),
+        (
+            "rac-(2R)-alaninium (rac)-2-methylalaninate",
+            "CC(N)(C)C(=O)[O-].[NH3+][C@H](C)C(=O)O |r|",
+            &[(StereoGroupType::Racemic, 1)],
+        ),
+        (
+            "(2R*)-butan-2-aminium (rel)-2-methylalaninate",
+            "CC(N)(C)C(=O)[O-].C[C@H](CC)[NH3+] |o1:8|",
+            &[(StereoGroupType::Relative, 1)],
+        ),
+        (
+            "(rel)-2-methylalanine compound with (2R*)-butan-2-amine and (2R*)-2-hydroxypropanoic acid (1:1:1)",
+            "O[C@@H](C(=O)O)C.C[C@H](CC)N.CC(N)(C)C(=O)O |o1:1,o2:7|",
+            &[
+                (StereoGroupType::Relative, 1),
+                (StereoGroupType::Relative, 2),
+            ],
+        ),
+    ] {
+        let result = Parser::new().unwrap().parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        let structure = result.structure.unwrap();
+        let mut written_groups: Vec<_> = structure
+            .graph
+            .atoms
+            .iter()
+            .filter(|atom| atom.active)
+            .filter_map(|atom| Some(atom.parity.as_ref()?.stereo_group))
+            .map(|group| (group.kind, group.number))
+            .collect();
+        written_groups.sort_by_key(|&(_, number)| number);
+        assert_eq!(written_groups, groups, "{name}");
+        assert_eq!(structure.semantic_cxsmiles().unwrap(), expected, "{name}");
+    }
+}
