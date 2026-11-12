@@ -308,7 +308,6 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
             && (i > 0 || is_compound_prefix(name))
             && !optional
             && !is_fully_enclosed(&used)
-            && !["fluoro", "chloro", "bromo", "iodo"].contains(&name)
         {
             used = format!("({used})");
         }

@@ -1831,17 +1831,17 @@
       },
       "diazenylamino": {
         "role": "prefix",
-        "prefix": "diazenylamino",
+        "prefix": "(triaz-2-en-1-yl)",
         "needs_locant": true
       },
       "aminodiazenyl": {
         "role": "prefix",
-        "prefix": "aminodiazenyl",
+        "prefix": "(triaz-1-en-1-yl)",
         "needs_locant": true
       },
       "hydrazinylamino": {
         "role": "prefix",
-        "prefix": "hydrazinylamino",
+        "prefix": "(triazan-1-yl)",
         "needs_locant": true
       },
       "diazenyl": {

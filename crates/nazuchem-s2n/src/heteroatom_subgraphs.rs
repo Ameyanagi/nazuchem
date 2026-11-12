@@ -303,18 +303,22 @@ pub fn format_amino_from_branches(
             _ => {}
         }
     }
+    // P-16.5.1.1: an acyl prefix such as methoxycarbonyl is compound, so it is
+    // enclosed inside amino: [(methoxycarbonyl)amino], [(methoxycarbonyl)(methyl)amino].
+    let acyl = |s: &str| {
+        ["carbonyl", "sulfonyl", "sulfinyl", "carbonothioyl"]
+            .iter()
+            .any(|a| s.ends_with(a))
+    };
     if names.len() == 1 {
         let n = strip_outer_parentheses(&names[0]);
-        if ["carbonyl", "sulfonyl", "sulfinyl", "carbonothioyl"]
-            .iter()
-            .any(|s| n.ends_with(s))
-            && !n.starts_with('(')
-        {
-            return format!("{n}amino");
-        }
         // X-amino + amino stays unenclosed so the retained hydrazinyl
-        // rewrite (namer_rules: aminoamino) still applies.
-        return if is_complex_prefix(&n) || (is_compound_prefix(&n) && !n.ends_with("amino")) {
+        // rewrite (namer_rules: aminoamino) still applies, also to
+        // [(methoxycarbonyl)amino]amino.
+        let x_amino = n
+            .strip_suffix("amino")
+            .is_some_and(|x| !is_complex_prefix(x) || acyl(&strip_outer_parentheses(x)));
+        return if acyl(&n) || (!x_amino && (is_complex_prefix(&n) || is_compound_prefix(&n))) {
             format!("(({n})amino)")
         } else {
             format!("({n}amino)")
@@ -328,7 +332,18 @@ pub fn format_amino_from_branches(
             format_counted_prefixes(&plain)
         )
     } else {
-        center(names)
+        let names: Vec<_> = names
+            .iter()
+            .map(|n| {
+                let p = strip_outer_parentheses(n);
+                if acyl(&p) {
+                    format!("({p})")
+                } else {
+                    n.clone()
+                }
+            })
+            .collect();
+        center(&names)
     };
     format!("({modifier}amino)")
 }
@@ -2040,7 +2055,8 @@ mod tests {
     #[test]
     fn heteroatom_branches_preserve_acyl_ligands_and_oxo_roles() -> Result<(), String> {
         for (smiles, expected) in [
-            ("CNC(=S)CC(C)C", "2-methylpropylcarbonothioylamino"),
+            // P-16.5.1.1: an acyl prefix is enclosed inside amino.
+            ("CNC(=S)CC(C)C", "((2-methylpropylcarbonothioyl)amino)"),
             ("CNC(=S)N(C)C", "((dimethylcarbamothioyl)amino)"),
             ("CN(C(=O)OC)C", "(methoxycarbonyl(methyl)amino)"),
             ("COC(=S)N(C)C", "(dimethylaminocarbonothioyloxy)"),

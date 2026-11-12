@@ -2156,7 +2156,8 @@ mod tests {
                 "COS(=O)(=O)c1ccc(C(=O)O)cc1",
                 "4-(methoxysulfonyl)benzoic acid",
             ),
-            ("COS(=O)(=O)NCC(=O)O", "methoxysulfonylaminoacetic acid"),
+            // P-16.5.1.1: the compound prefix methoxysulfonyl is enclosed.
+            ("COS(=O)(=O)NCC(=O)O", "[(methoxysulfonyl)amino]acetic acid"),
             // Sulfonyl and sulfinyl prefixes are named from the acid (P-65.3.2.2.2).
             ("CS(=O)(=O)c1ccccc1", "(methanesulfonyl)benzene"),
             ("C[S@](=O)c1ccccc1", "[(S)-methanesulfinyl]benzene"),
@@ -3303,9 +3304,7 @@ mod tests {
             );
         }
         // A first compound prefix keeps its parentheses, as the compound heterone
-        // prefixes oxophosphanyl, oxoarsanyl and oxostibanyl (P-61.6) do. Only the
-        // outer marks are checked: [(methoxycarbonyl)amino] and triaz-1-en-1-yl
-        // (P-68.3.1.4.1) for aminodiazenyl are separate gaps.
+        // prefixes oxophosphanyl, oxoarsanyl and oxostibanyl (P-61.6) do.
         for (smiles, expected) in [
             ("OC(=O)C(P=O)c1ccccc1", "(oxophosphanyl)(phenyl)acetic acid"),
             ("OC(=O)C([As]=O)c1ccccc1", "(oxoarsanyl)(phenyl)acetic acid"),
@@ -3313,17 +3312,67 @@ mod tests {
                 "OC(=O)C([Sb]=O)c1ccccc1",
                 "(oxostibanyl)(phenyl)acetic acid",
             ),
-            (
-                "OC(=O)C(N=NN)c1ccccc1",
-                "(aminodiazenyl)(phenyl)acetic acid",
-            ),
-            (
-                "OC(=O)C(NC(=O)OC)c1ccccc1",
-                "(methoxycarbonylamino)(phenyl)acetic acid",
-            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
+        }
+    }
+
+    #[test]
+    fn halogen_acyl_amino_and_triazene_prefixes_take_iupac_enclosing_marks() {
+        // P-16.5.1.3.1, P-16.5.1.3.2: later simple prefixes are enclosed, halogens
+        // included: bromo(chloro)acetic acid, (R)-bromo(chloro)(fluoro)methane
+        // (P-91.3), bromo(chloro)(phenyl)borane (P-67.1.2.5.2). P-16.5.1.1: the compound
+        // prefix methoxycarbonyl is enclosed inside amino. P-25.4.2.1.4 and
+        // P-68.3.1.4.1: H2N-N=N- is triaz-1-en-1-yl, HN=N-NH- triaz-2-en-1-yl and
+        // H2N-NH-NH- triazan-1-yl.
+        for (smiles, expected) in [
+            ("FC(Cl)Br", "bromo(chloro)(fluoro)methane"),
+            ("F[C@H](Cl)Br", "(R)-bromo(chloro)(fluoro)methane"),
+            ("OC(=O)C(Cl)Br", "bromo(chloro)acetic acid"),
+            ("N#CC(F)C1CC1", "cyclopropyl(fluoro)acetonitrile"),
+            ("ClC(Cl)(Br)C(=O)O", "bromodi(chloro)acetic acid"),
+            ("ClC(Br)c1ccccc1", "[bromo(chloro)methyl]benzene"),
+            ("ClC(Cl)C(=O)O", "dichloroacetic acid"),
+            ("OC(=O)CNC(=O)OC", "[(methoxycarbonyl)amino]acetic acid"),
+            (
+                "OC(=O)C(NC(=O)OC)c1ccccc1",
+                "[(methoxycarbonyl)amino](phenyl)acetic acid",
+            ),
+            (
+                "CC(NC(=O)OC(C)(C)C)C(=O)O",
+                "2-[(tert-butoxycarbonyl)amino]propanoic acid",
+            ),
+            ("OC(=O)CNS(=O)(=O)OC", "[(methoxysulfonyl)amino]acetic acid"),
+            (
+                "OC(=O)CN(C)C(=O)OC",
+                "[(methoxycarbonyl)(methyl)amino]acetic acid",
+            ),
+            (
+                "OC(=O)CN(CC)C(=O)OC",
+                "[ethyl(methoxycarbonyl)amino]acetic acid",
+            ),
+            (
+                "OC(=O)C(Cl)(Br)N=NN",
+                "bromo(chloro)(triaz-1-en-1-yl)acetic acid",
+            ),
+            (
+                "OC(=O)C(N=NN)c1ccccc1",
+                "phenyl(triaz-1-en-1-yl)acetic acid",
+            ),
+            ("NN=Nc1ccc(cc1)C(=O)O", "4-(triaz-1-en-1-yl)benzoic acid"),
+            ("OC(=O)CNN=N", "(triaz-2-en-1-yl)acetic acid"),
+            ("OC(=O)CNNN", "(triazan-1-yl)acetic acid"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
         }
     }
 

@@ -443,7 +443,8 @@ fn amine_oxide_nitrogen_stereocentres_remain_rejected() {
 fn amine_oxide_unknown_stereo_does_not_certify_zwitterionic_alternatives() {
     let smiles = "[O-][n+]1ccc([CH:900001](F)Cl)cc1";
     let actual = name_smiles(smiles, &Default::default()).unwrap();
-    assert_eq!(actual.text, "4-(chlorofluoromethyl)-1-oxidopyridin-1-ium");
+    // P-16.5.1.3: later halogen prefixes are enclosed.
+    assert_eq!(actual.text, "4-[chloro(fluoro)methyl]-1-oxidopyridin-1-ium");
     assert_eq!(
         actual.status,
         NameStatus::NotPreferred(NameReason::UnknownConfiguration)
@@ -453,7 +454,7 @@ fn amine_oxide_unknown_stereo_does_not_certify_zwitterionic_alternatives() {
     let explicit = &actual.alternatives[0];
     assert_eq!(
         explicit.name,
-        "4-[(Ξ)-chlorofluoromethyl]-1-oxidopyridin-1-ium"
+        "4-[(Ξ)-chloro(fluoro)methyl]-1-oxidopyridin-1-ium"
     );
     assert_eq!(
         explicit.status,
