@@ -268,10 +268,15 @@ fn nitrogen_group_prefix(
             {
                 continue;
             }
+            let mut blocked = context.sub_exclude.clone();
+            blocked.insert(n);
+            let text = name_subgraph_with_upstream(mol, root, &blocked, Some(n))?;
             // P-66.3.2.3, P-66.3.3.3: with a second acyl group the preferred
             // prefix may be the hydrazido form of the other acid, as
-            // acetohydrazido; that choice is not made here.
+            // acetohydrazido; that choice is not made here. R-CO-N(NH2)- is
+            // always a substituted hydrazinyl (1-acetylhydrazin-1-yl).
             if hydrazide
+                && !(chain_end && index == 0)
                 && mol.get_neighbors(root).iter().any(|&x| {
                     mol.bond_order(root, x) == 2
                         && matches!(mol.atoms[&x].symbol.as_str(), "O" | "S" | "Se" | "Te")
@@ -279,9 +284,6 @@ fn nitrogen_group_prefix(
             {
                 mol.mark_name(NameStatus::NotPreferred(NameReason::AminoPrefix));
             }
-            let mut blocked = context.sub_exclude.clone();
-            blocked.insert(n);
-            let text = name_subgraph_with_upstream(mol, root, &blocked, Some(n))?;
             if let Some((_, locants)) = names.iter_mut().find(|(name, _)| name == &text) {
                 locants.push(loc.into());
             } else {
@@ -785,6 +787,12 @@ mod tests {
             (
                 "OC(=O)CCC(=O)N(C)N",
                 "4-(1-methylhydrazin-1-yl)-4-oxobutanoic acid",
+            ),
+            // P-66.3.2.3: R-CO-N(NH2)- is a substituted hydrazinyl, as in
+            // 4-(1-acetyl-2-ethylhydrazin-1-yl)benzoic acid.
+            (
+                "OC(=O)CCC(=O)N(N)C(C)=O",
+                "4-(1-acetylhydrazin-1-yl)-4-oxobutanoic acid",
             ),
             // P-66.3.2.1 (1), P-16.5.1.4: on a ring, a heteroatom or a
             // nonterminal chain atom the acyl prefix of the hydrazine acid,
