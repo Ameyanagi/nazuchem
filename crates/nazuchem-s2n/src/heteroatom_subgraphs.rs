@@ -2058,7 +2058,7 @@ mod tests {
             // P-16.5.1.1: an acyl prefix is enclosed inside amino.
             ("CNC(=S)CC(C)C", "((2-methylpropylcarbonothioyl)amino)"),
             ("CNC(=S)N(C)C", "((dimethylcarbamothioyl)amino)"),
-            ("CN(C(=O)OC)C", "(methoxycarbonyl(methyl)amino)"),
+            ("CN(C(=O)OC)C", "((methoxycarbonyl)(methyl)amino)"),
             ("COC(=S)N(C)C", "(dimethylaminocarbonothioyloxy)"),
             ("CP(=O)(O)ON", "((aminooxy)(hydroxy)phosphoryl)"),
             // P-16.5.1.1: the compound prefix ethylideneamino is enclosed.
