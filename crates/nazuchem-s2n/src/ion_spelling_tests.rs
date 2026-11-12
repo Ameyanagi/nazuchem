@@ -240,6 +240,39 @@ fn ion_spelling_matrix() {
             "piperidin-1-ium",
             NameStatus::Preferred,
         ),
+        // P-73.1.1.2: a ring cation cites its locanted -ium, eliding the
+        // final e; P-73.6 method (1): its prefix adds yl to that cation name.
+        // P-74.2.1.1.1: the nitrogen ylide PIN cites the cation as a prefix.
+        (
+            "nitrogen ylide",
+            "C[N+](C)(C)[C-](C)C",
+            "2-(N,N-dimethylmethanaminiumyl)propan-2-ide",
+            NameStatus::Preferred,
+        ),
+        (
+            "pyrrolidine cation",
+            "C1CC[NH2+]C1",
+            "pyrrolidin-1-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "pyrrolidine cation prefix",
+            "C[N+]1(CCCC1)CCC(=O)[O-]",
+            "3-(1-methylpyrrolidin-1-ium-1-yl)propanoate",
+            NameStatus::Preferred,
+        ),
+        (
+            "azetidine cation prefix",
+            "C1C[NH+](C1)CC(=O)[O-]",
+            "azetidin-1-ium-1-ylacetate",
+            NameStatus::Preferred,
+        ),
+        (
+            "aziridine cation",
+            "C[N+]1(C)CC1",
+            "1,1-dimethylaziridin-1-ium",
+            NameStatus::Preferred,
+        ),
         (
             "control morpholine cation",
             "[NH2+]1CCOCC1",

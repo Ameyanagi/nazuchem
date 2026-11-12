@@ -261,20 +261,20 @@
     ]
   },
   "retained_ionic_n_parents": {
-    "bluebook_rule": "P-14.4 and P-22; retained saturated N-heterocycle cation parent names",
+    "bluebook_rule": "P-14.4, P-22 and P-73.1.1.2; retained saturated N-heterocycle cation parent names, with the locanted -ium suffix",
     "values": {
-      "azetidine": "azetidinium",
-      "aziridine": "aziridinium",
-      "pyrrolidine": "pyrrolidinium",
+      "azetidine": "azetidin-1-ium",
+      "aziridine": "aziridin-1-ium",
+      "pyrrolidine": "pyrrolidin-1-ium",
       "piperidine": "piperidin-1-ium"
     }
   },
   "saturated_n_ring_ionic_parents": {
     "bluebook_rule": "P-22 replacement nomenclature; inferred saturated N-heterocycle cation parent names by ring size",
     "values": {
-      "3": "aziridinium",
-      "4": "azetidinium",
-      "5": "pyrrolidinium",
+      "3": "aziridin-1-ium",
+      "4": "azetidin-1-ium",
+      "5": "pyrrolidin-1-ium",
       "6": "piperidin-1-ium"
     }
   },

@@ -81,16 +81,18 @@ fn anion_spelling_matrix() {
             "O[C@H](C1=CC(F)=C[N-]1)[C-]1C=CC=N1",
             "4-fluoro-2-[(S)-(hydroxy)(2H-pyrrol-2-id-2-yl)methyl]-1H-pyrrol-1-ide",
         ),
+        // P-74.0: the skeletal anion is senior to the aminium cation, which
+        // is cited as an azaniumyl prefix (P-73.6, P-74.2.1.1.1).
         (
             6,
             "[NH3+]C1C(C#N)[N-]CC1",
-            "2-cyanopyrrolidin-1-id-3-aminium",
+            "3-azaniumyl-2-cyanopyrrolidin-1-ide",
         ),
-        (7, "[NH3+]CC[CH-]C#N", "1-cyanopropan-1-id-3-aminium"),
+        (7, "[NH3+]CC[CH-]C#N", "3-azaniumyl-1-cyanopropan-1-ide"),
         (
             8,
             "[NH3+][C-]1C=CC2=C1N=NO2",
-            "cyclopenta[d][1,2,3]oxadiazol-4-id-4-aminium",
+            "4-azaniumylcyclopenta[d][1,2,3]oxadiazol-4-ide",
         ),
         (9, "CC[CH-]C=O", "1-oxobutan-2-ide"),
         (10, "N#CC1CCC[CH-]1", "2-cyanocyclopentan-1-ide"),

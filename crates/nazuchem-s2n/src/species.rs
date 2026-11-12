@@ -111,14 +111,11 @@ pub(super) fn assess_anion_parent(mol: &Molecule, derivation: &Derivation) {
     // P-70.2 / P-74.2: only an anionic suffix group cites the charge; a
     // charge-separated or deprotonated neutral class, as in acetamide for
     // acetylazanide, does not. With no characteristic group, the parent cites -ide.
+    // A skeletal -ide makes a cationic characteristic group a prefix
+    // (P-74.0), so it never accompanies a cationic suffix.
     let anionic_parent = principal_group.as_ref().map_or_else(
         || parent_atoms.iter().any(anionic_centre),
-        |(key, _)| {
-            anionic_principal
-                // A cationic characteristic suffix can accompany skeletal -ide.
-                || (matches!(key.as_str(), "aminium" | "iminium" | "diazonio")
-                    && parent_atoms.iter().any(anionic_centre))
-        },
+        |_| anionic_principal,
     );
     let unresolved_alkoxide = matches!(
         retained_anion_name,
@@ -132,13 +129,6 @@ pub(super) fn assess_anion_parent(mol: &Molecule, derivation: &Derivation) {
     });
     let unresolved_parent = external_centre
         && !super::parent_selection::anion_parent_is_senior(mol, parent_atoms, principal_atoms);
-    if parent_atoms.iter().any(anionic_centre)
-        && principal_group
-            .as_ref()
-            .is_some_and(|(key, _)| matches!(key.as_str(), "aminium" | "iminium" | "diazonio"))
-    {
-        mol.mark_name(NameStatus::Unverified(NameReason::IonicSuffixOrder));
-    }
     if !anionic_parent || unresolved_alkoxide || unresolved_parent {
         let status = NameStatus::Unverified(NameReason::AnionParent);
         // The unresolved principal anion spelling remains the reason when a
@@ -1104,21 +1094,12 @@ mod tests {
             "Oc1ccccc1-c1[n-]ccc1C",
             "OCCc1cc[n-]c1",
             "OC(=O)c1ccccc1-c1[n-]ccc1",
+            // P-74.0: the aminium cation becomes a prefix of the -ide parent.
+            "[NH3+]CC[CH-]C#N",
+            "[NH3+][C-]1C=CC2=C1N=NO2",
+            "C[N+](C)(C)[C-](C)C",
         ] {
             assert_eq!(assess_component(smiles), NameStatus::Preferred, "{smiles}");
-        }
-    }
-
-    #[test]
-    // Provenance: fn tests::skeletal_anion_with_characteristic_cation_has_unsettled_suffix_order | original
-    // Source: ReShiki | src/naming/openclatura/species.rs::tests::skeletal_anion_with_characteristic_cation_has_unsettled_suffix_order
-    fn skeletal_anion_with_characteristic_cation_has_unsettled_suffix_order() {
-        for smiles in ["[NH3+]CC[CH-]C#N", "[NH3+][C-]1C=CC2=C1N=NO2"] {
-            assert_eq!(
-                assess_component(smiles),
-                NameStatus::Unverified(NameReason::IonicSuffixOrder),
-                "{smiles}"
-            );
         }
     }
 
@@ -1979,7 +1960,7 @@ mod tests {
             // P-73.7(a) precedes ring seniority (P-44.2).
             (
                 "C1CC[NH+](C1)CC2=C(N=C3N2C=CS3)C4=CC=CC=C4",
-                "1-[(6-phenylimidazo[2,1-b][1,3]thiazol-5-yl)methyl]pyrrolidinium",
+                "1-[(6-phenylimidazo[2,1-b][1,3]thiazol-5-yl)methyl]pyrrolidin-1-ium",
             ),
             // Cationic suffixes keep their place (P-73.7(a), (d)).
             (
@@ -1987,7 +1968,7 @@ mod tests {
                 "2-(1-methylpyridin-1-ium-4-yl)ethan-1-aminium",
             ),
             ("OCC[NH3+]", "2-hydroxyethan-1-aminium"),
-            ("OCC1CC[NH2+]C1", "3-(hydroxymethyl)pyrrolidinium"),
+            ("OCC1CC[NH2+]C1", "3-(hydroxymethyl)pyrrolidin-1-ium"),
             // Nitro is a neutral group, not a cationic centre.
             (
                 "OCc1cc[n+](cc1)c1ccc([N+](=O)[O-])cc1",

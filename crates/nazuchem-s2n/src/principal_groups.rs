@@ -30,7 +30,9 @@ pub fn component_groups(mol: &Molecule, atoms: &AtomSet) -> Vec<PerceivedGroup> 
         .collect()
 }
 
-/// P-41: a skeletal anionic suffix is senior to neutral characteristic groups.
+/// P-41: a skeletal anionic suffix is senior to neutral characteristic groups,
+/// and (P-74.0) to a cationic one such as -aminium, which is then cited as a
+/// prefix, as in 2-(N,N-dimethylmethanaminiumyl)propan-2-ide (P-74.2.1.1.1).
 /// Apply this before excluding group atoms and enumerating parent chains: a
 /// nitrile cited as cyano contributes no carbon to the parent skeleton.
 // Provenance: fn demote_neutral_suffixes_for_skeletal_anion | original
@@ -82,14 +84,14 @@ pub fn demote_neutral_suffixes_for_skeletal_anion(
         .collect();
     for group in groups {
         // The attachment may itself be anionic; only the characteristic
-        // group's own charge decides whether its suffix is neutral.
+        // group's own charge decides whether its suffix is junior.
         let charge = group
             .atom_ids()
             .iter()
             .filter(|id| !skeletal_anions.contains(id))
             .map(|id| mol.atoms[id].charge)
             .sum::<i32>();
-        if charge == 0
+        if charge >= 0
             && !(group.key == "ketone"
                 && protected_ketone_rings
                     .iter()
@@ -502,7 +504,9 @@ mod tests {
     fn skeletal_anion_demotion_keeps_cationic_suffixes_and_added_hydrogen_boundary() {
         use super::super::graph_io::read_smiles;
         for (smiles, key) in [
-            ("[NH3+]CC[CH-]C#N", Some("aminium")),
+            // P-74.0: the anion outranks the cationic -aminium suffix too.
+            ("[NH3+]CC[CH-]C#N", None),
+            ("C[N+](C)(C)[C-](C)C", None),
             ("[CH2-]CCS", None),
             ("[CH2-]CC=N", None),
             ("O=C1C=CC=C[N-]1", Some("ketone")),
