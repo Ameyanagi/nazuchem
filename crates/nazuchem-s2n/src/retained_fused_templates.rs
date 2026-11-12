@@ -1608,7 +1608,7 @@ mod tests {
             super::super::name_smiles("ClC1=c2cc3c(cc2C=C1)=CC=C3", &Default::default())
                 .map(|name| name.text)
                 .as_deref(),
-            Ok("3-chloros-indacene")
+            Ok("3-chloro-s-indacene")
         );
     }
 
