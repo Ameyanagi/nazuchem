@@ -3811,6 +3811,11 @@ mod tests {
                 "CN1CCC23C4C1CC5=C2C(=CC=C5)OC3CC=C4",
                 "3-methyl-2,3,4,4a,7,7a-hexahydro-4,12-methano-1H-[1]benzofuro[3,2-e]isoquinoline",
             ),
+            // A bridge on the ring N is not a substituent of the N-H parent.
+            (
+                "C1CN3Cc2c1[nH]c1cc(CC3)ccc12",
+                "1,2,3,4-tetrahydro-2,7-ethano-5H-pyrido[4,3-b]indole",
+            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");

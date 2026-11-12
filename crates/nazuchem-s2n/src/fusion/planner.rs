@@ -106,7 +106,9 @@ fn plan_uncached(
     // added to the neutral parent hydride, so an N-substituted, anionic or
     // quaternary ring N keeps the indicated or hydro hydrogen of its N-H
     // parent. Plan that parent; the plan proved on the input is kept when it
-    // cites the same hydrogen.
+    // cites the same hydrogen. A bridge on the N is cut with the substituents,
+    // so a bridged parent uses the N-H parent only for a pheno...ine
+    // component (P-25.2.2.3), which the input structure does not keep.
     let n_h_sites: Vec<_> = atoms
         .iter()
         .copied()
@@ -155,6 +157,12 @@ fn plan_uncached(
             .filter(|id| mol.atoms[id].charge != 0)
             .collect();
         if let Ok(Some(mut plan)) = plan_uncached(&parent, atoms, spiro_component, true)
+            && (!bridged(mol, atoms)
+                || plan.ast.component_occurrences.iter().any(|m| {
+                    fusion_component_registry()
+                        .spec_for_match(m)
+                        .is_ok_and(|s| s.parent_hydride_only)
+                }))
             && (charged.is_empty()
                 || plan.indicated_hydrogens.len() == 1
                     && charged.iter().all(|id| {
