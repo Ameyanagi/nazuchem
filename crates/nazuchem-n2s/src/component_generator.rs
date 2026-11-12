@@ -11,6 +11,8 @@
 // Copyright 2017 Daniel Lowe
 // Changes: Rust ownership, arena/container and error-handling adaptation; integrated native changes are documented in PORTING.md.
 // Changes: A bracketed mixed chalcogen peroxy infix block is rejected; the oriented suffix tokens read it (issue #90).
+// Changes: A numeric locant before a peroxy ester locant, as in 4-SO-ethyl, is joined to it (issue #94).
+// Changes: A list of pair locants on a peroxy acid suffix must have one per acid group (issue #94).
 // Changes: Check name-derived arithmetic and parent-chain bounds before expansion;
 // bound name-driven expansions to 1 MiB and report fallible allocation errors.
 
@@ -328,6 +330,20 @@ impl<'a> ComponentGenerator<'a> {
                     *text = standardize_locant_variants(text);
                 }
                 self.arena[id].set_value(locants.join(","));
+                // "4-SO-ethyl": the position of the acid group, then the pair
+                // locant of a peroxy ester (after "1-S-methyl",
+                // P-65.6.3.3.7.2.1). The ester builder reads them together.
+                if let [pair] = locants.as_slice()
+                    && matches(pair, "(O|S|Se|Te)(O|S|Se|Te)")
+                    && let Some(position) = self.arena.previous_sibling(id).filter(|&p| {
+                        self.arena[p].name == LOCANT_EL
+                            && matches(&self.val(p), "[1-9][0-9]*[a-z]?'*")
+                    })
+                {
+                    let joined = format!("{}-{pair}", self.val(position));
+                    self.arena[id].set_value(joined);
+                    self.arena.detach(position);
+                }
                 if self.arena.next_sibling(id).is_none() {
                     return err(format!(
                         "Nothing after locant tag: {}",
@@ -1484,6 +1500,21 @@ impl<'a> ComponentGenerator<'a> {
     fn handle_suffix_irregularities(&mut self, sub: NodeId) -> Result {
         for s in self.arena.children_named(sub, SUFFIX_EL) {
             let value = self.val(s);
+            // P-65.2.1.2 (carbonobis(thioperoxoic) OS,SO-acid): a list of
+            // pair locants has one for each peroxy acid group.
+            if value.contains("peroxoic) ") && value.contains(',') {
+                let mut before = self.arena.previous_sibling(s);
+                while let Some(prefix) = before.filter(|&b| self.arena[b].name == SUFFIXPREFIX_EL) {
+                    before = self.arena.previous_sibling(prefix);
+                }
+                let groups = match before.filter(|&b| self.arena[b].name == MULTIPLIER_EL) {
+                    Some(multiplier) => self.num(multiplier, VALUE_ATR)?,
+                    None => 1,
+                };
+                if value.split(',').count() != groups {
+                    return err("One locant such as SO is needed for each peroxy acid group");
+                }
+            }
             match value.as_str() {
                 "ic" | "ous" => {
                     if !self.context.options.interpret_acids_without_the_word_acid

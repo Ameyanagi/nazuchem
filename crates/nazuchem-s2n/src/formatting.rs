@@ -99,6 +99,9 @@ pub fn needs_complex_multiplier(name: &str) -> bool {
             "sulfanylidene",
             "selanylidene",
             "tellanylidene",
+            // P-16.3.6(a): diazaniumyl would name the hydrazinium group.
+            "azaniumyl",
+            "azaniumylidene",
         ]
         .contains(&name)
 }

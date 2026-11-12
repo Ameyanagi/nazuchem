@@ -22,7 +22,9 @@ extensions add the `aminiumyl` and `aminiumylidene` substituent suffixes
 (IUPAC P-73.6). Native dictionary additions to `suffixes.xml`,
 `suffixRules.xml`, `suffixApplicability.xml` and `functionalTerms.xml` read
 chalcogen peroxy acids and their `ate` forms, peroxols, tellanal, mixed-chalcogen peroxyanhydrides
-and peroxide class names. These additions only add dictionary tokens to
+and peroxide class names. Native `simpleSubstituents.xml` tokens read the
+acid-anion prefixes of chalcogen-replaced sulfinic and sulfonic acids, such as
+`sulfinothioato` (P-72.6.1, P-65.3.1.3). These additions only add dictionary tokens to
 existing token lists, so the DFA tables are unchanged. `native_extensions` in
 the manifest records these changes.
 
@@ -202,11 +204,13 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`7fe4954cb0b16814463fc5e9fce7940042d6d75a1bd67ea58fc31e6f50aa63a0`.
+`8675cf5ccb7316d5249a177fe7bea60dfef520f9f65ba91a1c801dd1a76212e2`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph
-snapshots and constructs all 3,183 literal groups. `phanes.txt` contributes
+snapshots and constructs all 3,195 literal groups: the 3,183 pinned ones and
+the 12 native `simpleSubstituents.xml` acid-anion prefixes, which postdate the
+oracle and are checked natively as acyclic, kekulization-stable fragments. `phanes.txt` contributes
 174 integration names (348 strict/radical structure records); the 21 phane
 rows in `uninterpretable.txt` are also checked natively. No goldens are edited
 by hand. Regeneration uses the checked exporter sources and the pinned jar.

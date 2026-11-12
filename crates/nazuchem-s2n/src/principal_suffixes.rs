@@ -36,6 +36,13 @@ pub fn render_principal_suffix(rule: &FunctionalGroupRule, count: usize) -> Stri
                 } else {
                     multipliers::suffix(count, w)
                 }
+            } else if let Some(site) = w
+                .strip_suffix("-acid")
+                .filter(|_| suffix.contains("peroxoic) "))
+            {
+                // P-65.2.1.2 `carbonobis(thioperoxoic) OS,SO-acid`: one
+                // letter locant for each mixed peroxy acid group.
+                format!("{}-acid", vec![site; count].join(","))
             } else {
                 w.into()
             }
@@ -91,6 +98,21 @@ mod tests {
         assert_eq!(render_principal_suffix(&rule, 4), "tetroyl tetrachloride");
         rule.suffix_multiplier_positions = vec![1];
         assert_eq!(render_principal_suffix(&rule, 4), "oyl tetrachloride");
+        // Issue #94, P-65.2.1.2 `carbonobis(thioperoxoic) OS,SO-acid`: one
+        // letter locant for each mixed peroxy acid group.
+        rule.suffix_multiplier_positions = vec![];
+        for (suffix, count, expected) in [
+            ("(thioperoxoic) SO-acid", 2, "bis(thioperoxoic) SO,SO-acid"),
+            (
+                "carbo(selenoperoxoic) OSe-acid",
+                3,
+                "tricarbo(selenoperoxoic) OSe,OSe,OSe-acid",
+            ),
+            ("(dithioperoxoic) acid", 2, "bis(dithioperoxoic) acid"),
+        ] {
+            rule.suffix = Some(suffix.into());
+            assert_eq!(render_principal_suffix(&rule, count), expected);
+        }
         rule.suffix = None;
         assert_eq!(render_principal_suffix(&rule, 4), "");
     }

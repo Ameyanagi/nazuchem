@@ -230,6 +230,111 @@ fn peroxy_ester_locants_orient_the_peroxy_group() {
     }
 }
 
+/// Issue #94: one letter locant for each group of a multiplied chalcogen
+/// acid or ester, and the position of the acid group before the letters.
+#[test]
+fn multiplied_and_numbered_chalcogen_locants_are_read() {
+    let parser = Parser::new().unwrap();
+    for (name, expected) in [
+        // P-65.6.3.3.7.1: S,S-dimethyl ethanebis(thioate).
+        ("S,S-dimethyl ethanebis(thioate)", "C(C(SC)=O)(SC)=O"),
+        // The same comma list with the pair locants of P-65.6.3.3.7.1.
+        (
+            "SO,SO-dimethyl butanebis(thioperoxoate)",
+            "C(CCC(=O)SOC)(=O)SOC",
+        ),
+        (
+            "OS,OS-diethyl butanebis(thioperoxoate)",
+            "C(CCC(=O)OSCC)(=O)OSCC",
+        ),
+        (
+            "SO,SO-dimethyl benzene-1,4-dicarbo(thioperoxoate)",
+            "C1(=CC=C(C=C1)C(=O)SOC)C(=O)SOC",
+        ),
+        (
+            "SS,SS-dimethyl butanebis(dithioperoxoate)",
+            "C(CCC(=O)SSC)(=O)SSC",
+        ),
+        (
+            "OO,OO-dimethyl butanediperoxothioate",
+            "C(CCC(OOC)=S)(OOC)=S",
+        ),
+        (
+            "SeO,SeO-dimethyl butanebis(selenoperoxoate)",
+            "C(CCC(=O)[Se]OC)(=O)[Se]OC",
+        ),
+        // P-65.6.3.3.7.2.1 (3-ethyl 1-S-methyl 1-thiodicarbonate): the
+        // position of the acid group, then the letter locant.
+        (
+            "4-S-ethyl 1-S-methyl 2-chlorobutanebis(thioate)",
+            "ClC(C(SC)=O)CC(SCC)=O",
+        ),
+        (
+            "4-SO-ethyl 1-SO-methyl 2-chlorobutanebis(thioperoxoate)",
+            "ClC(C(=O)SOC)CC(=O)SOCC",
+        ),
+        (
+            "1-OS-ethyl 4-SO-methyl 2-chlorobutanebis(thioperoxoate)",
+            "ClC(C(=O)OSCC)CC(=O)SOC",
+        ),
+        // A primed position.
+        (
+            "4'-SO-ethyl 4-SO-methyl [1,1'-biphenyl]-4,4'-dicarbo(thioperoxoate)",
+            "C1(=CC=C(C=C1)C(=O)SOC)C1=CC=C(C=C1)C(=O)SOCC",
+        ),
+        // P-65.2.1.2 (carbonobis(thioperoxoic) OS,SO-acid): one pair locant
+        // for each acid group.
+        ("butanebis(thioperoxoic) SO,SO-acid", "C(CCC(=O)SO)(=O)SO"),
+        (
+            "cyclohexane-1,4-dicarbo(thioperoxoic) OS,OS-acid",
+            "C1(CCC(CC1)C(=O)OS)C(=O)OS",
+        ),
+        (
+            "ethane-1,2-disulfono(thioperoxoic) SO,SO-acid",
+            "C(CS(=O)(=O)SO)S(=O)(=O)SO",
+        ),
+        (
+            "propane-1,2,3-tricarbo(selenoperoxoic) SeO,SeO,SeO-acid",
+            "C(C(CC(=O)[Se]O)C(=O)[Se]O)C(=O)[Se]O",
+        ),
+        (
+            "benzenehexacarbo(thioperoxoic) SO,SO,SO,SO,SO,SO-acid",
+            "C1(=C(C(=C(C(=C1C(=O)SO)C(=O)SO)C(=O)SO)C(=O)SO)C(=O)SO)C(=O)SO",
+        ),
+        // The single locant of the earlier namer form still reads.
+        ("butanebis(thioperoxoic) SO-acid", "C(CCC(=O)SO)(=O)SO"),
+        (
+            "benzene-1,2,4,5-tetracarbo(thioperoxoic) SO,SO,SO,SO-acid",
+            "C=1(C(=CC(=C(C1)C(=O)SO)C(=O)SO)C(=O)SO)C(=O)SO",
+        ),
+        // P-72.2.2.2.1.1: the anion locant stays inside the brackets.
+        ("butanebis(SO-thioperoxoate)", "C(CCC(=O)S[O-])(=O)S[O-]"),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+    for name in [
+        // The position must hold an acid group that the letters fit.
+        "3-SO-methyl 2-chlorobutanebis(thioperoxoate)",
+        "4-OO-ethyl 1-SO-methyl 2-chlorobutanebis(thioperoxoate)",
+        "3-S-ethyl 1-S-methyl 2-chlorobutanebis(thioate)",
+        "SO,SO-dimethyl butanedioate",
+        // A list of acid locants has one for each group.
+        "ethane(thioperoxoic) SO,SO-acid",
+        "butanebis(thioperoxoic) SO,SO,SO-acid",
+        "cyclohexane-1,4-dicarbo(thioperoxoic) SO,SO,SO-acid",
+        "ethane-1,2-disulfono(thioperoxoic) SO,SO,SO-acid",
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Failure, "{name}");
+    }
+}
+
 /// Issue #90, P-31.1.5.2.1 and the P-31.2.3.3.3 example
 /// 4,5-dihydro-3H-spiro[[1]benzofuran-2,1'-cyclohexan]-2'-ene: 'ene' for a
 /// saturated spiro component is cited after the closing bracket.
@@ -547,6 +652,39 @@ fn oxido_on_sulfinyl_like_groups_keeps_its_charge() {
         ("oxidosulfinylbenzene", "[O-]S(=O)C1=CC=CC=C1"),
         ("oxidophosphinylbenzene", "[O-]P(=O)C1=CC=CC=C1"),
         ("oxidosulfinothioylbenzene", "[O-]S(=S)C1=CC=CC=C1"),
+        // Issue #83. P-72.6.1 acid-anion prefixes of the P-65.3.1.3
+        // chalcogen-replaced sulfinic and sulfonic acids.
+        (
+            "[methyl(sulfinothioato)amino]benzene",
+            "CN(S(=S)[O-])C1=CC=CC=C1",
+        ),
+        ("sulfonothioatobenzene", "S(=O)(=S)([O-])C1=CC=CC=C1"),
+        ("sulfonodithioatobenzene", "S(=S)(=S)([O-])C1=CC=CC=C1"),
+        ("sulfinoselenoatobenzene", "S(=[Se])([O-])C1=CC=CC=C1"),
+        ("sulfinotelluroatobenzene", "S(=[Te])([O-])C1=CC=CC=C1"),
+        ("sulfonoselenoatobenzene", "S(=O)(=[Se])([O-])C1=CC=CC=C1"),
+        ("sulfonotelluroatobenzene", "S(=O)(=[Te])([O-])C1=CC=CC=C1"),
+        (
+            "sulfonodiselenoatobenzene",
+            "S(=[Se])(=[Se])([O-])C1=CC=CC=C1",
+        ),
+        (
+            "sulfonoditelluroatobenzene",
+            "S(=[Te])(=[Te])([O-])C1=CC=CC=C1",
+        ),
+        // Mixed infixes in alphanumerical order (P-65.3.1.3).
+        (
+            "sulfonoselenothioatobenzene",
+            "S(=S)(=[Se])([O-])C1=CC=CC=C1",
+        ),
+        (
+            "sulfonoselenotelluroatobenzene",
+            "S(=[Se])(=[Te])([O-])C1=CC=CC=C1",
+        ),
+        (
+            "sulfonotellurothioatobenzene",
+            "S(=S)(=[Te])([O-])C1=CC=CC=C1",
+        ),
         // Without an existing =O/=S the upstream oxido-to-oxo reading is kept.
         ("1-oxidothiolane", "O=S1CCCC1"),
         // An =O made from one oxido must not keep the next oxido anionic.

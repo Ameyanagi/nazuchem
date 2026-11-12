@@ -1203,7 +1203,9 @@ pub fn format_principal_suffix(
     }
     let mut suffix = render_principal_suffix(&group, locs.len());
     let mut modifier_cites_locants = false;
-    if group.has_capability("element_locanted_suffix") && omit {
+    // P-63.4.2.1: `methane-SO-thioperoxol`, `propane-1-OS-thioperoxol`.
+    let element_locanted = group.has_capability("element_locanted_suffix");
+    if element_locanted && omit && locs.len() == 1 {
         suffix = format!("-{suffix}");
     }
     if !parts.principal_suffix_modifiers.is_empty()
@@ -1220,7 +1222,7 @@ pub fn format_principal_suffix(
             suffix_modifiers(parts)
         );
     }
-    let terminal = if elision::is_vowel_start(&suffix) {
+    let terminal = if elision::is_vowel_start(&suffix) && !element_locanted {
         String::new()
     } else {
         terminal.into()
