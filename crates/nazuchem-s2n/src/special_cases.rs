@@ -3897,6 +3897,128 @@ fn anhydride_class_name(mol: &Molecule, path: &[usize]) -> Option<String> {
             .replace("{replacement}", &replacement),
     )
 }
+type NameLocant = (bool, u32, String, usize);
+pub(super) type AlphanumericalKey = (String, String, Vec<NameLocant>, Vec<NameLocant>, Vec<u8>);
+
+/// The alphanumerical order of a name (P-14.5): its nonitalic Roman letters,
+/// its italic letters, its locants outside enclosing marks, all its locants,
+/// then its enclosing marks and punctuation.
+// Provenance: fn alphanumerical_order_key | original
+// Source: ReShiki | src/naming/openclatura/special_cases.rs::try_name_anhydride_component
+pub(super) fn alphanumerical_order_key(name: &str) -> AlphanumericalKey {
+    const ITALIC_WORDS: [&str; 10] = [
+        "tert", "sec", "cis", "trans", "endo", "exo", "syn", "anti", "as", "asym",
+    ];
+    let chars: Vec<char> = name.chars().collect();
+    let (mut roman, mut italic) = (String::new(), String::new());
+    let (mut locants, mut marks) = (Vec::new(), Vec::new());
+    let (mut depth, mut i) = (0usize, 0);
+    while i < chars.len() {
+        let c = chars[i];
+        let run = |from: usize, f: fn(&char) -> bool| {
+            from + chars[from..].iter().take_while(|c| f(c)).count()
+        };
+        if c == '(' {
+            // A descriptor such as (S), (2E) or (1r,4r) has a
+            // letter, no hyphen and no word of two letters; it
+            // is dropped with its hyphen.
+            let end = chars[i..]
+                .iter()
+                .position(|&c| c == ')')
+                .map_or(chars.len(), |n| i + n);
+            let inner = &chars[i + 1..end];
+            if inner.iter().any(char::is_ascii_alphabetic)
+                && !inner.contains(&'-')
+                && !inner
+                    .windows(2)
+                    .any(|w| w.iter().all(char::is_ascii_lowercase))
+            {
+                i = end + 1 + usize::from(chars.get(end + 1) == Some(&'-'));
+                continue;
+            }
+        }
+        let start = i;
+        if c.is_ascii_digit() {
+            let digits = run(i, char::is_ascii_digit);
+            let number: u32 = chars[i..digits]
+                .iter()
+                .collect::<String>()
+                .parse()
+                .unwrap_or(u32::MAX);
+            // Letters and primes written onto a locant: 4a, 3'a,
+            // 1H, 3aH, 1lambda.
+            i = run(digits, |c| c.is_ascii_alphabetic() || *c == '\'');
+            let tail = &chars[digits..i];
+            let letters: Vec<char> = tail
+                .iter()
+                .filter(|c| c.is_ascii_alphabetic())
+                .copied()
+                .collect();
+            let letter = match letters[..] {
+                [l] | [l, 'A'..='Z', ..] if l.is_ascii_lowercase() => l.into(),
+                _ => String::new(),
+            };
+            let primes = tail.iter().filter(|&&c| c == '\'').count();
+            locants.push((depth, (true, number, letter, primes)));
+        } else if c.is_ascii_alphabetic() {
+            let end = run(i, char::is_ascii_alphabetic);
+            i = run(end, |c| *c == '\'');
+            let mut word: String = chars[start..end].iter().collect();
+            if word.contains(|c: char| c.is_ascii_uppercase()) {
+                // An element locant such as N or N'.
+                locants.push((depth, (false, 0, word, i - end)));
+            } else {
+                // s- and as-indacene take a prefix directly:
+                // 3-chloros-indacene.
+                if chars[end..].starts_with(&['-', 'i', 'n', 'd', 'a', 'c', 'e', 'n']) {
+                    let n = if word.ends_with("as") {
+                        2
+                    } else {
+                        usize::from(word.ends_with('s'))
+                    };
+                    italic.push_str(&word.split_off(word.len() - n));
+                }
+                // Fusion letters run in alphabetical sequence: c, cd.
+                let fusion = word.as_bytes().windows(2).all(|w| w[1] == w[0] + 1);
+                if fusion || ITALIC_WORDS.contains(&word.as_str()) {
+                    italic.push_str(&word);
+                } else if word != "lambda" {
+                    // The Greek lambda of lambda^4 takes no part.
+                    roman.push_str(&word);
+                }
+            }
+        } else {
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+            i += 1;
+            // The bonding number of lambda^4 is no locant.
+            if c == '^' {
+                i = run(i, char::is_ascii_digit);
+            }
+        }
+        marks.extend(chars[start..i].iter().map(|c| match c {
+            '{' | '}' => 1,
+            '[' | ']' => 2,
+            '(' | ')' => 3,
+            '.' => 4,
+            ',' => 5,
+            ';' => 6,
+            ':' => 7,
+            '-' => 8,
+            _ => 0,
+        }));
+    }
+    let primary: Vec<_> = locants
+        .iter()
+        .filter(|l| l.0 == 0)
+        .map(|l| l.1.clone())
+        .collect();
+    let all: Vec<_> = locants.into_iter().map(|l| l.1).collect();
+    (roman, italic, primary, all, marks)
+}
 // Provenance: fn try_name_anhydride_component | adapted
 // Source: openclatura | src/openclatura/special_cases.py::try_name_anhydride_component_result
 pub(super) fn try_name_anhydride_component(
@@ -3975,123 +4097,7 @@ pub(super) fn try_name_anhydride_component(
                 // letters; fusion letters ([3,2-c], [cd]) and words such as tert
                 // are italic. Remaining ties compare enclosing marks and
                 // punctuation, stereodescriptors excluded (P-14.6).
-                let order_key = |name: &str| {
-                    const ITALIC_WORDS: [&str; 10] = [
-                        "tert", "sec", "cis", "trans", "endo", "exo", "syn", "anti", "as", "asym",
-                    ];
-                    let chars: Vec<char> = name.chars().collect();
-                    let (mut roman, mut italic) = (String::new(), String::new());
-                    let (mut locants, mut marks) = (Vec::new(), Vec::new());
-                    let (mut depth, mut i) = (0usize, 0);
-                    while i < chars.len() {
-                        let c = chars[i];
-                        let run = |from: usize, f: fn(&char) -> bool| {
-                            from + chars[from..].iter().take_while(|c| f(c)).count()
-                        };
-                        if c == '(' {
-                            // A descriptor such as (S), (2E) or (1r,4r) has a
-                            // letter, no hyphen and no word of two letters; it
-                            // is dropped with its hyphen.
-                            let end = chars[i..]
-                                .iter()
-                                .position(|&c| c == ')')
-                                .map_or(chars.len(), |n| i + n);
-                            let inner = &chars[i + 1..end];
-                            if inner.iter().any(char::is_ascii_alphabetic)
-                                && !inner.contains(&'-')
-                                && !inner
-                                    .windows(2)
-                                    .any(|w| w.iter().all(char::is_ascii_lowercase))
-                            {
-                                i = end + 1 + usize::from(chars.get(end + 1) == Some(&'-'));
-                                continue;
-                            }
-                        }
-                        let start = i;
-                        if c.is_ascii_digit() {
-                            let digits = run(i, char::is_ascii_digit);
-                            let number: u32 = chars[i..digits]
-                                .iter()
-                                .collect::<String>()
-                                .parse()
-                                .unwrap_or(u32::MAX);
-                            // Letters and primes written onto a locant: 4a, 3'a,
-                            // 1H, 3aH, 1lambda.
-                            i = run(digits, |c| c.is_ascii_alphabetic() || *c == '\'');
-                            let tail = &chars[digits..i];
-                            let letters: Vec<char> = tail
-                                .iter()
-                                .filter(|c| c.is_ascii_alphabetic())
-                                .copied()
-                                .collect();
-                            let letter = match letters[..] {
-                                [l] | [l, 'A'..='Z', ..] if l.is_ascii_lowercase() => l.into(),
-                                _ => String::new(),
-                            };
-                            let primes = tail.iter().filter(|&&c| c == '\'').count();
-                            locants.push((depth, (true, number, letter, primes)));
-                        } else if c.is_ascii_alphabetic() {
-                            let end = run(i, char::is_ascii_alphabetic);
-                            i = run(end, |c| *c == '\'');
-                            let mut word: String = chars[start..end].iter().collect();
-                            if word.contains(|c: char| c.is_ascii_uppercase()) {
-                                // An element locant such as N or N'.
-                                locants.push((depth, (false, 0, word, i - end)));
-                            } else {
-                                // s- and as-indacene take a prefix directly:
-                                // 3-chloros-indacene.
-                                if chars[end..]
-                                    .starts_with(&['-', 'i', 'n', 'd', 'a', 'c', 'e', 'n'])
-                                {
-                                    let n = if word.ends_with("as") {
-                                        2
-                                    } else {
-                                        usize::from(word.ends_with('s'))
-                                    };
-                                    italic.push_str(&word.split_off(word.len() - n));
-                                }
-                                // Fusion letters run in alphabetical sequence: c, cd.
-                                let fusion = word.as_bytes().windows(2).all(|w| w[1] == w[0] + 1);
-                                if fusion || ITALIC_WORDS.contains(&word.as_str()) {
-                                    italic.push_str(&word);
-                                } else if word != "lambda" {
-                                    // The Greek lambda of lambda^4 takes no part.
-                                    roman.push_str(&word);
-                                }
-                            }
-                        } else {
-                            match c {
-                                '(' | '[' | '{' => depth += 1,
-                                ')' | ']' | '}' => depth = depth.saturating_sub(1),
-                                _ => {}
-                            }
-                            i += 1;
-                            // The bonding number of lambda^4 is no locant.
-                            if c == '^' {
-                                i = run(i, char::is_ascii_digit);
-                            }
-                        }
-                        marks.extend(chars[start..i].iter().map(|c| match c {
-                            '{' | '}' => 1,
-                            '[' | ']' => 2,
-                            '(' | ')' => 3,
-                            '.' => 4,
-                            ',' => 5,
-                            ';' => 6,
-                            ':' => 7,
-                            '-' => 8,
-                            _ => 0,
-                        }));
-                    }
-                    let primary: Vec<_> = locants
-                        .iter()
-                        .filter(|l| l.0 == 0)
-                        .map(|l| l.1.clone())
-                        .collect();
-                    let all: Vec<_> = locants.into_iter().map(|l| l.1).collect();
-                    (roman, italic, primary, all, marks)
-                };
-                halves.sort_by_cached_key(|half| order_key(&half.0));
+                halves.sort_by_cached_key(|half| alphanumerical_order_key(&half.0));
                 format!("{} {} {class}", halves[0].1, halves[1].1)
             };
             Ok(Some(StructuralParentName {
