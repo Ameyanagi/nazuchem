@@ -12,7 +12,7 @@ and 33 XML files are byte-equal to the pinned main checkout. The native
 `regexTokens.xml` extensions permit a locant before an axial descriptor and
 recognize unlocanted Xi/xi stereodescriptors, and read two chalcogen symbols
 such as `SO-` as the locant of a peroxy ester's organyl group (IUPAC
-P-65.6.3.3.7.1). The native `regexes.xml` extension permits `ene`/`yne` after
+P-65.6.3.3.7.1), also in a comma list such as `SO,SO-`. The native `regexes.xml` extension permits `ene`/`yne` after
 the closing bracket of a spiro name (P-31.1.5.2.1, P-31.2.3.3.3). The native `multipliers.xml`
 additions supply the composite P-14.2 numerical terms. The native
 `inlineSuffixes.xml`, `suffixApplicability.xml` and `suffixRules.xml`
@@ -200,7 +200,7 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`a510ee3d785694a625b2685c0dd41b054cf7d323a6606c498ce0fae60588ab9c`.
+`f7207b5ad29397f11521be03c458c38f00ee64078b6ef483a594290b493a693e`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph
