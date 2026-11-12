@@ -1603,9 +1603,10 @@ mod tests {
                 "ethanethioyl dimethyl phosphate",
                 NameStatus::Unverified(NameReason::UnauditedPath),
             ),
+            // P-45.5: 'bis' precedes 'methoxy' between the tied ethane parents.
             (
                 "COCCOCCOCCOC",
-                "1-methoxy-2-[2-(2-methoxyethoxy)ethoxy]ethane",
+                "1,2-bis(2-methoxyethoxy)ethane",
                 NameStatus::Unverified(NameReason::UnauditedParent),
             ),
             (
@@ -1827,9 +1828,10 @@ mod tests {
         // P-16.5.4 Fig. 1.3(f) and P-15.3.2.1: the first central group is
         // asymmetric; the second has a cyclic assembly between equal arms.
         for (smiles, expected) in [
+            // P-45.5: 'oxopropanyl' precedes 'oxopropyl' between the tied rings.
             (
                 "N#Cc1ccc(-c2ccc(OCCCCCOC(=O)C(Cc3ccc(C(=O)O)cc3)c3ccc(C(=O)O)cc3)cc2)cc1",
-                "4-[2-(4-carboxyphenyl)-3-({5-[(4'-cyano[1,1'-biphenyl]-4-yl)oxy]pentyl}oxy)-3-oxopropyl]benzoic acid",
+                "4-[3-(4-carboxyphenyl)-1-({5-[(4'-cyano[1,1'-biphenyl]-4-yl)oxy]pentyl}oxy)-1-oxopropan-2-yl]benzoic acid",
             ),
             (
                 "O=C(O)CCCCCCCCCOc1ccc(-c2ccc(OCCCCCCCCCC(=O)O)cc2)cc1",

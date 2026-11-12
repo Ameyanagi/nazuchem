@@ -14,6 +14,7 @@
 
 //! Parent preference criteria, in the Python registry's comparison order.
 use super::{
+    assembly_parts::SubstituentItem,
     assembly_prefixes::substituent_sort_key,
     chains::{RingSystem, canonical_ranks},
     locants::{LocantKey, retained_locant_sort_key},
@@ -76,6 +77,7 @@ struct ParentScore {
     double_bonds: i64,
     assembly_junctions: Option<(Vec<LocantKey>, Vec<LocantKey>)>,
     split_acyl: usize,
+    chain_unsaturation_locants: Option<(Vec<usize>, Vec<usize>)>,
     attached_prefixes: i64,
     assembly_substituent_locants: Option<Vec<LocantKey>>,
     assembly_substituent_citation: Option<AssemblyCitation>,
@@ -317,6 +319,7 @@ fn score(
         multiple_bonds: -multiple,
         double_bonds: -double,
         split_acyl,
+        chain_unsaturation_locants: None,
         attached_prefixes: -attached,
         assembly_substituent_locants: None,
         assembly_substituent_citation: None,
@@ -339,6 +342,22 @@ pub fn select_principal_parent(
     principal_carbons: &[usize],
     groups: &[PerceivedGroup],
 ) -> Option<ParentSelection> {
+    tied_principal_parents(mol, chains, ring_systems, principal_carbons, groups)
+        .into_iter()
+        .next()
+}
+
+/// The parents that tie through every structural criterion, the atom-order
+/// choice first. Parents with the same canonical ranks are listed once.
+// Provenance: fn tied_principal_parents | adapted
+// Source: openclatura | src/openclatura/parent_selection.py::select_principal_parent
+pub(super) fn tied_principal_parents(
+    mol: &Molecule,
+    chains: &[Vec<usize>],
+    ring_systems: &[RingSystem],
+    principal_carbons: &[usize],
+    groups: &[PerceivedGroup],
+) -> Vec<ParentSelection> {
     let mut candidates = parent_candidates(
         mol,
         chains,
@@ -348,12 +367,117 @@ pub fn select_principal_parent(
         &AtomSet::new(),
         true,
     );
+    prefer_chain_unsaturation_locants(mol, &mut candidates, principal_carbons);
     prefer_chain_prefix_locants(mol, &mut candidates, principal_carbons, groups);
     prefer_exchanged_arm_descriptors(mol, &mut candidates, principal_carbons);
-    candidates
-        .into_iter()
-        .min_by(|a, b| a.0.cmp(&b.0))
-        .map(|(_, selection)| selection)
+    let Some(best) = candidates.iter().map(|(s, _)| earlier_score(s)).min() else {
+        return Vec::new();
+    };
+    candidates.retain(|(s, _)| earlier_score(s) == best);
+    // Stable, so the first of equal candidates stays first, as with `min_by`.
+    candidates.sort_by(|a, b| a.0.cmp(&b.0));
+    candidates.dedup_by(|a, b| a.0 == b.0);
+    candidates.into_iter().map(|(_, s)| s).collect()
+}
+
+/// P-45.2.2, P-45.2.3 and P-45.5 for one assembled candidate name: the
+/// prefix locant set, the prefix locants in order of citation, the nonitalic
+/// letters of the name, then its numerical locants in order of appearance.
+/// A letter locant such as N is lower than a numeral (P-14.3.5).
+// Provenance: fn assembled_name_preference | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::assembled_name_preference
+pub(super) fn assembled_name_preference(
+    prefixes: &[SubstituentItem],
+    name: &str,
+) -> impl Ord + use<> {
+    let mut cited: Vec<_> = prefixes
+        .iter()
+        .flat_map(|prefix| {
+            prefix.locants.iter().map(|locant| {
+                (
+                    substituent_sort_key(&prefix.name),
+                    (
+                        locant.starts_with(|c: char| c.is_ascii_digit()),
+                        retained_locant_sort_key(locant),
+                    ),
+                )
+            })
+        })
+        .collect();
+    cited.sort();
+    let cited: Vec<_> = cited.into_iter().map(|(_, locant)| locant).collect();
+    let mut locants = cited.clone();
+    locants.sort();
+    // Capitals are locants and hydrogen; a letter after a digit is a locant.
+    let name = name.replace("tert-", "");
+    let letters: String = name
+        .char_indices()
+        .filter(|&(i, c)| {
+            c.is_ascii_lowercase() && !name[..i].ends_with(|c: char| c.is_ascii_digit())
+        })
+        .map(|(_, c)| c)
+        .collect();
+    let numbers: Vec<usize> = name
+        .split(|c: char| !c.is_ascii_digit())
+        .filter_map(|n| n.parse().ok())
+        .collect();
+    (locants, cited, letters, numbers)
+}
+
+/// P-44.4.1.10: chains tied through the number of double bonds prefer the
+/// lower locants for the ene and yne endings together, then for the ene
+/// endings. It precedes the number of prefixes (P-45.2.1). Chains whose
+/// numbering differs in an earlier P-44.4.1 criterion are left alone.
+// Provenance: fn prefer_chain_unsaturation_locants | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::prefer_chain_unsaturation_locants
+fn prefer_chain_unsaturation_locants(
+    mol: &Molecule,
+    candidates: &mut [(ParentScore, ParentSelection)],
+    principal: &[usize],
+) {
+    let earlier = |score: &ParentScore| {
+        let mut score = earlier_score(score);
+        score.attached_prefixes = 0;
+        score.assembly_substituent_locants = None;
+        score.assembly_substituent_citation = None;
+        score
+    };
+    let Some(best) = candidates.iter().map(|(s, _)| earlier(s)).min() else {
+        return;
+    };
+    let tied: Vec<_> = candidates
+        .iter()
+        .enumerate()
+        .filter_map(|(i, (s, _))| (earlier(s) == best).then_some(i))
+        .collect();
+    if best.multiple_bonds == 0 || tied.iter().any(|&i| candidates[i].1.is_ring) {
+        return;
+    }
+    let mut earlier_numbering = None;
+    let mut keys = BTreeMap::new();
+    for &i in &tied {
+        let numbering = chain_preference_before_stereo(
+            mol,
+            candidates[i].1.primary_path(),
+            principal,
+            &BTreeMap::new(),
+        );
+        let earlier = (
+            numbering.skeletal_ions,
+            numbering.principal,
+            numbering.hydro,
+            numbering.hetero_by_priority,
+            numbering.indicated_hydrogen,
+        );
+        if earlier_numbering.as_ref().is_some_and(|e| e != &earlier) {
+            return;
+        }
+        earlier_numbering = Some(earlier);
+        keys.insert(i, (numbering.unsaturation, numbering.double_bonds));
+    }
+    for (i, key) in keys {
+        candidates[i].0.chain_unsaturation_locants = Some(key);
+    }
 }
 
 /// Exact rooted-tree constitution, including the corresponding parent and
@@ -1417,6 +1541,134 @@ mod tests {
         ] {
             assert_eq!(name(smiles), expected, "{smiles}");
         }
+    }
+
+    // P-44.4.1.10: the lower ene locants precede the number of prefixes
+    // (P-45.2.1). The diene is P-45.2.2 example (8). Each input is also
+    // written from other atoms.
+    #[test]
+    fn tied_chains_prefer_lower_unsaturation_locants() {
+        for (expected, inputs) in [
+            (
+                "5-methyl-4-(2-methylprop-1-en-1-yl)hepta-1,5-diene",
+                &[
+                    "C=CCC(C=C(C)C)C(C)=CC",
+                    "CC=C(C)C(CC=C)C=C(C)C",
+                    "CC(C)=CC(C(C)=CC)CC=C",
+                ][..],
+            ),
+            (
+                "4-(prop-1-en-1-yl)non-1-ene",
+                &["CCCCCC(C=CC)CC=C", "C=CCC(CCCCC)C=CC"][..],
+            ),
+        ] {
+            for smiles in inputs {
+                assert_eq!(name(smiles), expected, "{smiles}");
+            }
+        }
+    }
+
+    // Tied parents are compared by their assembled names. Each input is also
+    // written from other atoms.
+    #[test]
+    fn tied_parents_compare_prefix_locants_and_names() {
+        for (expected, inputs) in [
+            // P-45.2.3 example (2): 2,N,4 is lower than 4,N,2.
+            (
+                "2-bromo-N-(4-bromo-2-chlorophenyl)-4-chloroaniline",
+                &[
+                    "Brc1cc(Cl)ccc1Nc1ccc(Br)cc1Cl",
+                    "Clc1cc(Br)ccc1Nc1ccc(Cl)cc1Br",
+                    "N(c1ccc(Br)cc1Cl)c1ccc(Cl)cc1Br",
+                    "c1c(Br)ccc(c1Cl)Nc1c(Br)cc(Cl)cc1",
+                ][..],
+            ),
+            // P-45.2.3 examples (1), (3) and (14).
+            (
+                "3-chloro-7-[(4-chloro-3-nitroquinolin-7-yl)sulfanyl]-4-nitroquinoline",
+                &[
+                    "Clc1cnc2cc(Sc3ccc4c(Cl)c(cnc4c3)[N+](=O)[O-])ccc2c1[N+](=O)[O-]",
+                    "[O-][N+](=O)c1cnc2cc(Sc3ccc4c(c(Cl)cnc4c3)[N+](=O)[O-])ccc2c1Cl",
+                ][..],
+            ),
+            (
+                "1-ethyl-7-[(7-ethyl-8-propylnaphthalen-2-yl)oxy]-2-propylnaphthalene",
+                &[
+                    "CCc1c(CCC)ccc2ccc(Oc3ccc4ccc(CC)c(CCC)c4c3)cc12",
+                    "CCCc1c(CC)ccc2ccc(Oc3ccc4ccc(CCC)c(CC)c4c3)cc12",
+                ][..],
+            ),
+            (
+                "1-ethyl-6-[(8-ethyl-5-propylnaphthalen-2-yl)selanyl]-4-propylnaphthalene",
+                &["CCc1ccc(CCC)c2cc([Se]c3ccc4c(CCC)ccc(CC)c4c3)ccc12"][..],
+            ),
+            // P-45.2.3: the N locant takes its place in the order of citation,
+            // 3,2,4,N against 4,2,3,N.
+            (
+                "3-bromo-2-(2-bromo-1-chloropropyl)-4-chloro-N-methylpentanamide",
+                &[
+                    "CC(Cl)C(Br)C(C(Cl)C(Br)C)C(=O)NC",
+                    "CNC(=O)C(C(Br)C(C)Cl)C(Cl)C(C)Br",
+                    "CC(Br)C(Cl)C(C(=O)NC)C(Br)C(Cl)C",
+                ][..],
+            ),
+            // P-45.5 example (4): difluoro precedes dinitro.
+            (
+                "4-(1,2-difluoropropyl)-5,6-dinitroheptanoic acid",
+                &[
+                    "OC(=O)CCC(C(F)C(F)C)C([N+](=O)[O-])C([N+](=O)[O-])C",
+                    "CC(F)C(F)C(CCC(O)=O)C(C(C)[N+]([O-])=O)[N+]([O-])=O",
+                    "CC(C(C(CCC(=O)O)C(F)C(C)F)[N+](=O)[O-])[N+](=O)[O-]",
+                ][..],
+            ),
+            // P-45.5 examples (1) and (2): bromo precedes dibromo.
+            (
+                "1-bromo-4-chloro-2-{2-[(1,4-dibromonaphthalen-2-yl)methoxy]ethyl}naphthalene",
+                &[
+                    "Brc1c(CCOCc3cc(Br)c4ccccc4c3Br)cc(Cl)c2ccccc12",
+                    "Brc1c(COCCc3cc(Cl)c4ccccc4c3Br)cc(Br)c2ccccc12",
+                ][..],
+            ),
+            (
+                "2-bromo-4-chloro-N-(2,4-dibromophenyl)aniline",
+                &[
+                    "Brc1cc(Cl)ccc1Nc1ccc(Br)cc1Br",
+                    "Brc1cc(Br)ccc1Nc1ccc(Cl)cc1Br",
+                ][..],
+            ),
+        ] {
+            for smiles in inputs {
+                assert_eq!(name(smiles), expected, "{smiles}");
+            }
+        }
+    }
+
+    // P-45.2.2, P-45.2.3 and P-45.5: the locant sets, the locants in order of
+    // citation, the letters, then the numerical locants. N is lower than a
+    // numeral (P-14.3.5).
+    #[test]
+    fn assembled_name_preference_orders_locants_before_letters() {
+        let key = |prefixes: &[(&str, &str)], name: &str| {
+            let prefixes: Vec<_> = prefixes
+                .iter()
+                .map(|(name, locant)| SubstituentItem::new(*name, vec![(*locant).into()]))
+                .collect();
+            assembled_name_preference(&prefixes, name)
+        };
+        // P-45.2.2 example (1): N,2 is lower than 2,5.
+        assert!(
+            key(&[("methyl", "N"), ("phenoxy", "2")], "z")
+                < key(&[("methyl", "5"), ("phenoxy", "2")], "a")
+        );
+        // P-45.2.3 example (2).
+        assert!(
+            key(&[("bromo", "2"), ("phenyl", "N"), ("chloro", "4")], "z")
+                < key(&[("bromo", "4"), ("phenyl", "N"), ("chloro", "2")], "a")
+        );
+        // P-45.5: letters, without locants such as N, 4a and 2H, then numbers.
+        assert!(key(&[], "4a-bromo-2H-N") < key(&[], "1-chloro"));
+        assert!(key(&[], "1-bromo-3-chloro") < key(&[], "2-bromo-1-chloro"));
+        assert!(key(&[], "2-tert-butyl") < key(&[], "1-chloro"));
     }
 
     #[test]
