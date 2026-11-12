@@ -398,7 +398,14 @@ pub fn added_hydrogen_is_citable(mol: &Molecule, m: &RetainedGraphTemplateMatch)
     let excluded = m.indicated_h.iter().filter(|l| !by[*l].aromatic).count();
     let surplus =
         saturated as isize - (m.template.indicated_hydrogen_count() as isize - excluded as isize);
-    surplus <= 0 || surplus % 2 == 0 || indicated_h_retained_name(&m.template.name)
+    // A parent whose name states its indicated hydrogen cites it like
+    // carbazole, so a ketone can take it ('2,10-dihydro-3H-phenoxazin-3-one',
+    // P-58.2.3.1.1).
+    surplus <= 0
+        || surplus % 2 == 0
+        || indicated_h_retained_name(&m.template.name)
+        || (m.template.default_indicated_h.is_empty()
+            && !super::additive::name_indicated_hydrogen_locants(Some(&m.template.name)).is_empty())
 }
 // Provenance: fn indicated_h_retained_name | adapted
 // Source: openclatura | src/openclatura/namer_config.py::_indicated_h_retained_names

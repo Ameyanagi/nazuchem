@@ -3627,6 +3627,174 @@ mod tests {
     }
 
     #[test]
+    fn fused_parents_place_indicated_hydrogen_before_hydro_prefixes_and_on_ketones() {
+        use nazuchem_ir::NameStatus;
+        for (smiles, expected) in [
+            // #95. P-31.2.2, P-58.2.1.2: indicated hydrogen takes lower locants
+            // than hydro prefixes ('2,3-dihydro-1H-indene', not
+            // '1,3-dihydro-2H-indene'; '3,4-dihydro-2H-1-benzopyran').
+            ("C1NCc2ncccc21", "6,7-dihydro-5H-pyrrolo[3,4-b]pyridine"),
+            (
+                "C1CNCc2c1[nH]c1ccccc12",
+                "2,3,4,5-tetrahydro-1H-pyrido[4,3-b]indole",
+            ),
+            ("C1CC2OCC=CC2O1", "3,3a,5,7a-tetrahydro-2H-furo[3,2-b]pyran"),
+            // The same for retained parents whose name states the hydrogen.
+            (
+                "C1CNCc2c1c1ccccc1[nH]2",
+                "2,3,4,9-tetrahydro-1H-pyrido[3,4-b]indole",
+            ),
+            (
+                "C1CCc2c(C1)Oc1ccccc1N2",
+                "2,3,4,10-tetrahydro-1H-phenoxazine",
+            ),
+            ("C1CSc2ccccc2N1", "3,4-dihydro-2H-1,4-benzothiazine"),
+            ("C1CNc2ncncc21", "6,7-dihydro-5H-pyrrolo[2,3-d]pyrimidine"),
+            // P-58.2.4: prefixes are added after the hydrogen of the N-H
+            // parent, whether that N-H is indicated or hydro hydrogen (#52).
+            (
+                "CN1Cc2ncccc2C1",
+                "6-methyl-6,7-dihydro-5H-pyrrolo[3,4-b]pyridine",
+            ),
+            (
+                "CN1CCc2c(C1)c1ccccc1n2C",
+                "2,5-dimethyl-2,3,4,5-tetrahydro-1H-pyrido[4,3-b]indole",
+            ),
+            (
+                "CN1CCc2sccc21",
+                "4-methyl-5,6-dihydro-4H-thieno[3,2-b]pyrrole",
+            ),
+            (
+                "CN1Cc2sccc2C1",
+                "5-methyl-5,6-dihydro-4H-thieno[2,3-c]pyrrole",
+            ),
+            (
+                "CN1CCC2=C1C=NN2",
+                "4-methyl-1,4,5,6-tetrahydropyrrolo[3,2-c]pyrazole",
+            ),
+            (
+                "N1CCCC2C1CN(C)C2",
+                "6-methyloctahydro-1H-pyrrolo[3,4-b]pyridine",
+            ),
+            (
+                "CN1CCCC2C1CN(C)C2",
+                "1,6-dimethyloctahydro-1H-pyrrolo[3,4-b]pyridine",
+            ),
+            ("CN1CC2CCNC2C1", "5-methyloctahydropyrrolo[3,4-b]pyrrole"),
+            // P-72.2.2.1, P-73.1.1.2: '-ide' and '-ium' modify the parent
+            // hydride, which keeps its hydrogen ('5H-...-5-ide' in P-74.1.1).
+            ("c1ccc2c(c1)[n-]c1ccncc12", "5H-pyrido[4,3-b]indol-5-ide"),
+            ("[n-]1ccc2sccc21", "4H-thieno[3,2-b]pyrrol-4-ide"),
+            (
+                "C[NH+]1Cc2ncccc2C1",
+                "6-methyl-6,7-dihydro-5H-pyrrolo[3,4-b]pyridin-6-ium",
+            ),
+            (
+                "C1C[NH2+]Cc2c1c1ccccc1[nH]2",
+                "2,3,4,9-tetrahydro-1H-pyrido[3,4-b]indol-2-ium",
+            ),
+            (
+                "C[NH+]1CCc2c(C1)[nH]c1ccccc21",
+                "2-methyl-2,3,4,9-tetrahydro-1H-pyrido[3,4-b]indol-2-ium",
+            ),
+            (
+                "C1C[NH2+]Cc2c1[nH]c1ccccc12",
+                "2,3,4,5-tetrahydro-1H-pyrido[4,3-b]indol-2-ium",
+            ),
+            // P-58.2.3.1.1: with as many indicated hydrogens as ketones the
+            // ketone takes the hydrogen and the other saturated positions are
+            // hydro positions ('7H-1-benzopyran-7-one'; P-64.3.1
+            // '1,2-dihydro-3H-indol-3-one, not 1H-indol-3(2H)-one').
+            ("O=c1ccoc2ncccc12", "4H-pyrano[2,3-b]pyridin-4-one"),
+            ("O=c1ccc2cccnc2o1", "2H-pyrano[2,3-b]pyridin-2-one"),
+            ("O=c1ccoc2ccsc12", "7H-thieno[3,2-b]pyran-7-one"),
+            (
+                "O=C1NCc2ncccc21",
+                "6,7-dihydro-5H-pyrrolo[3,4-b]pyridin-5-one",
+            ),
+            (
+                "O=C1CNc2[nH]c3ccccc3c2C1",
+                "1,2,4,9-tetrahydro-3H-pyrido[2,3-b]indol-3-one",
+            ),
+            (
+                "O=c1[nH]ccc2[nH]ccc12",
+                "1,5-dihydro-4H-pyrrolo[3,2-c]pyridin-4-one",
+            ),
+            (
+                "O=C1CN=C(c2ccccc2)c2cc(Cl)ccc2N1",
+                "7-chloro-5-phenyl-1,3-dihydro-2H-1,4-benzodiazepin-2-one",
+            ),
+            (
+                "O=c1[nH]ccc2c1[nH]c1ccccc12",
+                "2,9-dihydro-1H-pyrido[3,4-b]indol-1-one",
+            ),
+            (
+                "O=C1NCCc2c1[nH]c1ccccc12",
+                "2,3,4,9-tetrahydro-1H-pyrido[3,4-b]indol-1-one",
+            ),
+            ("O=C1CCCc2c[nH]cc21", "2,5,6,7-tetrahydro-4H-isoindol-4-one"),
+            (
+                "O=c1[nH]cnc2[nH]ccc12",
+                "3,7-dihydro-4H-pyrrolo[2,3-d]pyrimidin-4-one",
+            ),
+            (
+                "O=c1[nH]cnc2c1cnn2C",
+                "1-methyl-1,5-dihydro-4H-pyrazolo[3,4-d]pyrimidin-4-one",
+            ),
+            (
+                "O=C1CC=C2Nc3ccccc3OC2=C1",
+                "2,10-dihydro-3H-phenoxazin-3-one",
+            ),
+            // P-58.2.3.1.3: with fewer indicated hydrogens than ketones it
+            // takes the lowest position and the rest use added hydrogen
+            // ('1H-cyclopenta[a]naphthalene-1,2(3H)-dione').
+            (
+                "O=C1NC(=O)c2ncccc12",
+                "5H-pyrrolo[3,4-b]pyridine-5,7(6H)-dione",
+            ),
+            (
+                "O=C1C=CC(=O)c2Nc3ccccc3Oc12",
+                "1H-phenoxazine-1,4(10H)-dione",
+            ),
+            // P-58.2.3.1.4: a ketone position that cannot take the hydrogen
+            // leaves it at the lowest permissible one.
+            ("O=C1C=CC2=C(Nc3ccccc3O2)C1", "1H-phenoxazin-2(10H)-one"),
+            ("O=C1COc2ccccc2N1", "2H-1,4-benzoxazin-3(4H)-one"),
+            // Controls: already lowest, a hydro N, no indicated hydrogen in
+            // the parent, and parents whose name does not state the hydrogen.
+            (
+                "C1CCc2c(C1)n(C)c1ccncc21",
+                "5-methyl-6,7,8,9-tetrahydro-5H-pyrido[4,3-b]indole",
+            ),
+            (
+                "CN1CCCc2sccc21",
+                "4-methyl-4,5,6,7-tetrahydrothieno[3,2-b]pyridine",
+            ),
+            (
+                "O=c1c2ccccc2nc2n1CCC2",
+                "2,3-dihydropyrrolo[2,1-b]quinazolin-9(1H)-one",
+            ),
+            (
+                "C1CCc2c(C1)[nH]c1ccccc12",
+                "2,3,4,9-tetrahydro-1H-carbazole",
+            ),
+            ("O=C1CC=CC2=C1c1ccccc1N2", "3,9-dihydro-4H-carbazol-4-one"),
+            ("O=c1[nH]cnc2nc[nH]c12", "1,7-dihydro-6H-purin-6-one"),
+            (
+                "CN1C=NC2=C1C(=O)N(C(=O)N2C)C",
+                "1,3,7-trimethyl-3,7-dihydro-1H-purine-2,6-dione",
+            ),
+            ("O=C1NC(=O)c2ccccc12", "1H-isoindole-1,3(2H)-dione"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+    }
+
+    #[test]
     fn angular_oxazole_thiazole_acetic_acid_round_trips() {
         let smiles = "O=C(O)Cc1nc2ccc3ocnc3c2s1";
         let name = name_smiles(smiles, &Default::default()).unwrap().text;

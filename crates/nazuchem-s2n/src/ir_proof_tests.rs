@@ -1128,7 +1128,7 @@ fn every_n2s_golden_structure_retains_complete_name_results() {
     finish("n2s generated-name golden", &counts, differences, started);
     assert_eq!(records, 1650);
     // One generated name cites impossible hydro/indicated hydrogen (P-14.7.1, P-31.2.2; #34).
-    assert_n2s_coverage(&counts, (1659, 1655, 0, 4));
+    assert_n2s_coverage(&counts, (1658, 1654, 0, 4));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
         (1654, 1)

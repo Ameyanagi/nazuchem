@@ -1232,9 +1232,10 @@ mod tests {
         for (smiles, expected) in [
             (
                 "CCCC1=NN(C2=C1N=C(NC2=O)C3=C(C=CC(=C3)S(=O)(=O)N4CCN(CC4)C)OCC)C",
-                // #16/#29: the substituted N-1 keeps the parent's indicated hydrogen,
-                // which takes the low locant before added hydrogen (P-31.0, P-58.2.1.1).
-                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-1H-pyrazolo[4,3-d]pyrimidin-7(6H)-one",
+                // #95: one indicated hydrogen and one ketone, so the ketone takes
+                // it and the N-H positions are hydro positions (P-58.2.3.1.1;
+                // P-64.3.1 '1,2-dihydro-3H-indol-3-one, not 1H-indol-3(2H)-one').
+                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-1,6-dihydro-7H-pyrazolo[4,3-d]pyrimidin-7-one",
             ),
             (
                 "CCCCCN1C(=O)COC2=C1C=C(C(=C2)F)N3C(=O)C4=CC=CC=C4N=N3",
