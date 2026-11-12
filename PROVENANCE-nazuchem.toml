@@ -1104,7 +1104,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/PORTING.md", license = "MIT" },
 ]
 notes = "Project-authored OPSIN source/module mapping, acceptance narrative and upstream commit classification. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "0df41421ff20093cab33767011d79e77c2b0c1f5e169f75c1d9666e560234b7f"
+sha256 = "d30262d0a0362ac8940b316bb5992a1d5d1cbafae5255a7ee2fdd1cce4d57b2e"
 
 [[file]]
 path = "crates/nazuchem-n2s/README.md"

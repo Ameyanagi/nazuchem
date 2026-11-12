@@ -298,6 +298,12 @@ fn multiplied_and_numbered_chalcogen_locants_are_read() {
             "C(C(CC(=O)[Se]O)C(=O)[Se]O)C(=O)[Se]O",
         ),
         (
+            "benzenehexacarbo(thioperoxoic) SO,SO,SO,SO,SO,SO-acid",
+            "C1(=C(C(=C(C(=C1C(=O)SO)C(=O)SO)C(=O)SO)C(=O)SO)C(=O)SO)C(=O)SO",
+        ),
+        // The single locant of the earlier namer form still reads.
+        ("butanebis(thioperoxoic) SO-acid", "C(CCC(=O)SO)(=O)SO"),
+        (
             "benzene-1,2,4,5-tetracarbo(thioperoxoic) SO,SO,SO,SO-acid",
             "C=1(C(=CC(=C(C1)C(=O)SO)C(=O)SO)C(=O)SO)C(=O)SO",
         ),
@@ -318,6 +324,11 @@ fn multiplied_and_numbered_chalcogen_locants_are_read() {
         "4-OO-ethyl 1-SO-methyl 2-chlorobutanebis(thioperoxoate)",
         "3-S-ethyl 1-S-methyl 2-chlorobutanebis(thioate)",
         "SO,SO-dimethyl butanedioate",
+        // A list of acid locants has one for each group.
+        "ethane(thioperoxoic) SO,SO-acid",
+        "butanebis(thioperoxoic) SO,SO,SO-acid",
+        "cyclohexane-1,4-dicarbo(thioperoxoic) SO,SO,SO-acid",
+        "ethane-1,2-disulfono(thioperoxoic) SO,SO,SO-acid",
     ] {
         let result = parser.parse(name, &ParseOptions::strict());
         assert_eq!(result.status, Status::Failure, "{name}");
