@@ -253,7 +253,7 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
     // P-93.4.2.1.3: element locants such as N- do not make a lone
     // stereodescriptor take a locant; numeric parent locants do.
     let mut cites_numeric_locants = false;
-    for (name, items, locs, mut loc) in groups {
+    for (i, (name, items, locs, mut loc)) in groups.into_iter().enumerate() {
         if cites_locants && parts.elided_substituent_locants.contains(name) {
             loc = substituent_locant_string(parts, &locs, grouped.len());
         }
@@ -300,7 +300,9 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
                 used = format!("({used})");
             }
         } else if loc.is_empty()
-            && grouped.len() > 1
+            // P-16.5.1.3.1/P-16.5.1.3.2: the first cited unlocanted simple
+            // prefix is not enclosed: hydroxy(phenyl)acetic acid.
+            && i > 0
             && !optional
             && !is_fully_enclosed(&used)
             && !["fluoro", "chloro", "bromo", "iodo"].contains(&name)

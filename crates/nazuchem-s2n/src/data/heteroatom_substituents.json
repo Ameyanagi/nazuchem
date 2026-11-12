@@ -176,7 +176,7 @@
       "hydroxy": 1,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "(hydroxy)(oxo)-lambda^4-tellanyl"
+      "prefix": "hydroxy(oxo)-lambda^4-tellanyl"
     },
     {
       "symbol": "Te",
@@ -185,7 +185,7 @@
       "hydroxy": 1,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "(hydroxy)dioxo-lambda^6-tellanyl"
+      "prefix": "hydroxydi(oxo)-lambda^6-tellanyl"
     },
     {
       "symbol": "As",
