@@ -58,7 +58,7 @@
     "resources/xml/suffixPrefix.xml": "5428dbc34ce8e458f81e36ccf456023284bcf8b822d2ada7de5b41e248a7d1c5",
     "resources/xml/suffixRules.dtd": "307af66d255095c9d117493c8bddf5e2b9dcc4741e998e7dd7fdcb38304d4daf",
     "resources/xml/suffixRules.xml": "a267b913c7da4491546d34fd7c108306ae0f79973969f96fcffcef1f60116524",
-    "resources/xml/suffixes.xml": "4449813d04b4fba0acd80140b609b42d7cb5631d88555c112c719d10ea430ed7",
+    "resources/xml/suffixes.xml": "983c60d02a5f89036766a35ba82fd897a090ffdf9b40d2ef70baaebd4677a620",
     "resources/xml/tokenFiles.dtd": "3acb49df364b02a65ea20aef8d33758b047fa1426289be3811386a7450e57355",
     "resources/xml/tokenLists.dtd": "35ab7b9c52960ea27aa715dd73f1fadb5fc5c5e9081f8fdd9dd8967fdad96100",
     "resources/xml/unsaturators.xml": "d528b967c52d64a434563dc237d0a28e0784d1916784772381fe545c9bdf6bc1",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "f7207b5ad29397f11521be03c458c38f00ee64078b6ef483a594290b493a693e"
+    "sha256": "e48190ae0927d79256880ff4dc652f87f1b002a56c6d568ee15075331bf13b27"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",

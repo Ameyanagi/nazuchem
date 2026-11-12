@@ -277,6 +277,11 @@ fn multiplied_and_numbered_chalcogen_locants_are_read() {
             "1-OS-ethyl 4-SO-methyl 2-chlorobutanebis(thioperoxoate)",
             "ClC(C(=O)OSCC)CC(=O)SOC",
         ),
+        // A primed position.
+        (
+            "4'-SO-ethyl 4-SO-methyl [1,1'-biphenyl]-4,4'-dicarbo(thioperoxoate)",
+            "C1(=CC=C(C=C1)C(=O)SOC)C1=CC=C(C=C1)C(=O)SOCC",
+        ),
         // P-65.2.1.2 (carbonobis(thioperoxoic) OS,SO-acid): one pair locant
         // for each acid group.
         ("butanebis(thioperoxoic) SO,SO-acid", "C(CCC(=O)SO)(=O)SO"),
@@ -291,6 +296,10 @@ fn multiplied_and_numbered_chalcogen_locants_are_read() {
         (
             "propane-1,2,3-tricarbo(selenoperoxoic) SeO,SeO,SeO-acid",
             "C(C(CC(=O)[Se]O)C(=O)[Se]O)C(=O)[Se]O",
+        ),
+        (
+            "benzene-1,2,4,5-tetracarbo(thioperoxoic) SO,SO,SO,SO-acid",
+            "C=1(C(=CC(=C(C1)C(=O)SO)C(=O)SO)C(=O)SO)C(=O)SO",
         ),
         // P-72.2.2.2.1.1: the anion locant stays inside the brackets.
         ("butanebis(SO-thioperoxoate)", "C(CCC(=O)S[O-])(=O)S[O-]"),

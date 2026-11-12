@@ -500,8 +500,11 @@ pub fn prefix_from_group(
                 })
                 .and_then(|r| RULES.functional_groups.cited_prefix_for(&r.key))
                 .ok_or("openclatura: peroxy-acid prefix has no terminal chalcogen name")?;
-            // P-63.4.2.2: -SSH is `disulfanyl`, -OSH `sulfanyloxy`.
-            let ligand = if link.element == terminal.element {
+            // P-63.4.2.2: -OOH is `hydroperoxy`, -SSH `disulfanyl`, -OSH
+            // `sulfanyloxy`.
+            let ligand = if link.element == "O" && terminal.element == "O" {
+                "hydroperoxy".into()
+            } else if link.element == terminal.element {
                 format!("di{hydride}")
             } else {
                 element_ligand(

@@ -335,7 +335,8 @@ impl<'a> ComponentGenerator<'a> {
                 if let [pair] = locants.as_slice()
                     && matches(pair, "(O|S|Se|Te)(O|S|Se|Te)")
                     && let Some(position) = self.arena.previous_sibling(id).filter(|&p| {
-                        self.arena[p].name == LOCANT_EL && matches(&self.val(p), "[1-9][0-9]*")
+                        self.arena[p].name == LOCANT_EL
+                            && matches(&self.val(p), "[1-9][0-9]*[a-z]?'*")
                     })
                 {
                     let joined = format!("{}-{pair}", self.val(position));

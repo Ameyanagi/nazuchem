@@ -49,6 +49,10 @@ fn chalcogen_peroxy_names_follow_the_blue_book_and_round_trip() {
             "OSS(=O)(=O)CCS(=O)(=O)SO",
             "ethane-1,2-disulfono(thioperoxoic) SO,SO-acid",
         ),
+        (
+            "OSC(=O)c1cc(C(=O)SO)c(C(=O)SO)cc1C(=O)SO",
+            "benzene-1,2,4,5-tetracarbo(thioperoxoic) SO,SO,SO,SO-acid",
+        ),
         // P-72.2.2.2.1.1 (ethane(OS-thioperoxoate)): the anion carries its
         // locant inside the brackets.
         ("CC(=O)S[O-]", "ethane(SO-thioperoxoate)"),
@@ -65,6 +69,11 @@ fn chalcogen_peroxy_names_follow_the_blue_book_and_round_trip() {
         ("CSC(=O)C(=O)SC", "S,S-dimethyl ethanebis(thioate)"),
         ("COC(=S)CCC(=S)OC", "O,O-dimethyl butanebis(thioate)"),
         ("CSC(=S)CCC(=S)SC", "S,S-dimethyl butanebis(dithioate)"),
+        // P-16.3.5 (a): a substituted organyl group takes bis.
+        (
+            "ClCSC(=O)C(=O)SCCl",
+            "S,S-bis(chloromethyl) ethanebis(thioate)",
+        ),
         (
             "CSC(=O)c1ccc(cc1)C(=O)SC",
             "S,S-dimethyl benzene-1,4-dicarbothioate",
@@ -92,6 +101,14 @@ fn chalcogen_peroxy_names_follow_the_blue_book_and_round_trip() {
             "CCOSC(=O)CC(Cl)C(=O)SOC",
             "4-SO-ethyl 1-SO-methyl 2-chlorobutanebis(thioperoxoate)",
         ),
+        (
+            "CSC(=O)c1ccc(-c2ccc(C(=O)SCC)cc2)cc1",
+            "4'-S-ethyl 4-S-methyl [1,1'-biphenyl]-4,4'-dicarbothioate",
+        ),
+        (
+            "COSC(=O)c1ccc(-c2ccc(C(=O)SOCC)cc2)cc1",
+            "4'-SO-ethyl 4-SO-methyl [1,1'-biphenyl]-4,4'-dicarbo(thioperoxoate)",
+        ),
         // P-65.1.5.3 (4-[(hydroxysulfanyl)carbonyl]cyclohexane-1-carboxylic
         // acid): a peroxy acid cited as a prefix names its own chalcogens.
         (
@@ -105,6 +122,15 @@ fn chalcogen_peroxy_names_follow_the_blue_book_and_round_trip() {
         (
             "O=C(O)C1CCC(CC1)C(=O)SS",
             "4-(disulfanylcarbonyl)cyclohexane-1-carboxylic acid",
+        ),
+        // P-63.4.2.2: -OOH stays hydroperoxy beside C=S.
+        (
+            "O=C(O)C1CCC(CC1)C(=S)OO",
+            "4-(hydroperoxycarbonothioyl)cyclohexane-1-carboxylic acid",
+        ),
+        (
+            "O=C(O)C1CCC(CC1)C(=O)OO",
+            "4-hydroperoxycarbonylcyclohexane-1-carboxylic acid",
         ),
     ] {
         let name = smiles_to_name(smiles).unwrap().text;
