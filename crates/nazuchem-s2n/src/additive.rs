@@ -1391,7 +1391,28 @@ pub(super) fn retained_suffix_hydrogen_state(
     use super::fusion::{mancude::suffix_hydrogen_state, numbering};
     let by_loc = locants.iter().map(|(&id, l)| (l.clone(), id)).collect();
     let suffix_locants: BTreeSet<_> = suffix.iter().map(|a| locants[a].clone()).collect();
-    let mut citations = vec![template.default_indicated_h.clone()];
+    // A pheno...ine parent (P-25.2.2.3) cites its indicated hydrogen on the
+    // template heteroatom ('10H-phenoxazine'); it seeds the P-58.2.3.1.1
+    // placement like any indicated hydrogen ('2,10-dihydro-3H-phenoxazin-3-one',
+    // as '1,2-dihydro-3H-indol-3-one' in P-64.3.1).
+    let pheno = super::fusion::registry::fusion_component_registry()
+        .get(&template.name)
+        .is_some_and(|c| c.spec.parent_hydride_only);
+    let default = if pheno && template.default_indicated_h.is_empty() {
+        template
+            .atoms
+            .iter()
+            .filter(|a| {
+                !a.aromatic
+                    && !a.fusion
+                    && !elements::get(&a.symbol).is_some_and(|e| e.mancude_forced_single)
+            })
+            .map(|a| a.locant.clone())
+            .collect()
+    } else {
+        template.default_indicated_h.clone()
+    };
+    let mut citations = vec![default];
     if indicated_seed.len() == template.indicated_hydrogen_count() {
         citations.push(indicated_seed.to_vec());
     }
