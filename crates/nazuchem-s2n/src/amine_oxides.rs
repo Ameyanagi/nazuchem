@@ -100,7 +100,27 @@ pub(super) fn name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<Name>, Stri
         };
         let (locant, unambiguous) = match principal_group {
             None if parent_atoms.contains(&n) => {
-                let Some(locant) = parent_locants.get(&n) else {
+                // The neutral parent's numbering ignores the chalcogenide, so
+                // symmetric parents such as 4,4′-bipyridine leave a choice: the
+                // site takes the lowest of its equivalent locants (P-14.3.5:
+                // 1 before 1′). Morgan ranks only shortlist sites; an
+                // automorphism exchanging the two must exist (it is refused
+                // when stereo is present, which could invert descriptors).
+                let ranks = super::chains::canonical_ranks(&reduced, None);
+                let Some(locant) = parent_atoms
+                    .iter()
+                    .filter(|&&i| {
+                        i == n
+                            || ranks.get(&i) == ranks.get(&n)
+                                && super::locant_elision::ester_sites_are_equivalent(
+                                    &reduced,
+                                    &reduced_atoms,
+                                    &[n, i],
+                                )
+                    })
+                    .filter_map(|i| parent_locants.get(i))
+                    .min_by_key(|l| super::locants::retained_locant_sort_key(l))
+                else {
                     return Ok(None);
                 };
                 let unambiguous = locant == "1"

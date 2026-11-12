@@ -1333,7 +1333,7 @@
             0
           ]
         },
-        "seniority": 69,
+        "seniority": [69, 1],
         "suffix_with_locant": false,
         "needs_locant": true
       },
