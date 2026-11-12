@@ -459,7 +459,9 @@ fn name_subgraph_rendered_except_stereo(
             g.atom_ids().is_subset(&component)
                 && (is_carboxylate_group(g)
                     // P-66.5.1.1.4: a chain-end –C≡N in a substituent is cyano.
+                    // A charged nitrile N keeps its own heteroatom prefix.
                     || g.key == "nitrile"
+                        && g.atom_ids().iter().all(|i| mol.atoms[i].charge == 0)
                     || (anionic_parent || acid_parent || mol.uses_acid_prefixes())
                         && is_carboxylic_acid_group(g))
         })
@@ -1056,6 +1058,13 @@ mod tests {
                 "{smiles}"
             );
         }
+        // A protonated nitrile is not the neutral cyano group.
+        assert_eq!(
+            name_smiles("[O-]C(=O)c1ccc(CC#[NH+])cc1", &Default::default())
+                .map(|name| name.text)
+                .as_deref(),
+            Ok("4-(2-azaniumylidyneethyl)benzoate")
+        );
     }
 
     #[test]
