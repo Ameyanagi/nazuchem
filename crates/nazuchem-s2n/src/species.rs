@@ -1601,6 +1601,16 @@ mod tests {
                 NameStatus::Unverified(NameReason::UnauditedPath),
             ),
             (
+                "[Na+].[Na+].[Na+].[Na+].[Na+].[Na+].[S-2].[S-2].[S-2]",
+                "hexasodium tris(sulfide)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Ca+2].[Ca+2].[Cl-].[Cl-].[Cl-].[Cl-]",
+                "dicalcium tetrakis(chloride)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
                 "[Ca+2].[I-].[I-]",
                 "calcium diiodide",
                 NameStatus::Unverified(NameReason::UnauditedPath),

@@ -294,8 +294,13 @@ fn bracketed_group_multipliers_name_separate_monatomic_anions() {
             "[I-].[I-].[I-].C(C(C[NH3+])[NH3+])[NH3+]",
         ),
         ("calcium bis(chloride)", "[Cl-].[Cl-].[Ca+2]"),
+        (
+            "dicalcium tetrakis(chloride)",
+            "[Cl-].[Cl-].[Cl-].[Cl-].[Ca+2].[Ca+2]",
+        ),
         ("butane-2,3-dione bis(oxime)", "CC(C(C)=NO)=NO"),
         // The chain readings are unchanged.
+        ("sodium triiodide", "[I-](I)I.[Na+]"),
         ("calcium disulfide", "[S-][S-].[Ca+2]"),
         (
             "tetrasodium dioxide",
