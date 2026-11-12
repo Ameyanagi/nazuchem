@@ -820,22 +820,23 @@ mod tests {
 
     #[test]
     fn extracted_acid_fragments_preserve_stereo_locant_omission() {
+        // P-16.5.1.3: chloro(fluoro)methyl, chloro(fluoro)acetic acid.
         for (smiles, expected) in [
             (
                 "O=C(O)c1ccc([C@H](F)Cl)cc1",
-                "4-[(R)-chlorofluoromethyl]benzoic acid",
+                "4-[(R)-chloro(fluoro)methyl]benzoic acid",
             ),
             (
                 "CC(=O)OC(=O)c1ccc([C@H](F)Cl)cc1",
-                "acetic 4-[(R)-chlorofluoromethyl]benzoic anhydride",
+                "acetic 4-[(R)-chloro(fluoro)methyl]benzoic anhydride",
             ),
             (
                 "O=C(O)CNC(=O)c1ccc([C@H](F)Cl)cc1",
-                "{4-[(R)-chlorofluoromethyl]benzamido}acetic acid",
+                "{4-[(R)-chloro(fluoro)methyl]benzamido}acetic acid",
             ),
             (
                 "CC(=O)OC(=O)[C@H](F)Cl",
-                "acetic (R)-chlorofluoroacetic anhydride",
+                "acetic (R)-chloro(fluoro)acetic anhydride",
             ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();

@@ -554,7 +554,7 @@ mod tests {
             ("ClC([2H])([2H])Cl", "dichloro(2H2)methane"),
             ("[13CH3][C@@H](F)Cl", "(1S)-1-chloro-1-fluoro(2-13C)ethane"),
             // P-91.3: the only stereocentre of an unlocanted name.
-            ("F[13C@H](Cl)Br", "(R)-bromochlorofluoro(13C)methane"),
+            ("F[13C@H](Cl)Br", "(R)-bromo(chloro)(fluoro)(13C)methane"),
         ] {
             let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");

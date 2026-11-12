@@ -5087,8 +5087,8 @@ mod tests {
             // P-14.5: stereodescriptors take no part ('bromob' before 'bromoc').
             (
                 "O=C(OC(=O)c1c(Br)cc([C@H](Br)Cl)cc1)c1cc(Br)c([C@H](F)Cl)cc1",
-                "2-bromo-4-[(S)-bromochloromethyl]benzoic \
-                 3-bromo-4-[(R)-chlorofluoromethyl]benzoic anhydride",
+                "2-bromo-4-[(S)-bromo(chloro)methyl]benzoic \
+                 3-bromo-4-[(R)-chloro(fluoro)methyl]benzoic anhydride",
                 preferred,
             ),
             // P-14.6: equal alphanumerical characters; a letter is preferred

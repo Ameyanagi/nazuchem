@@ -70,7 +70,7 @@ pub fn is_composite_prefix(name: &str) -> bool {
 /// substituent prefix such as chloromethyl, cyclopropylmethyl or methoxyamino,
 /// is enclosed when it substitutes another prefix, as in [(chloromethyl)sulfanyl]
 /// or (methoxyamino)phosphanyl (P-35.4.1). Substituted diazenyl, phosphanyl,
-/// arsanyl and stibanyl prefixes such as aminodiazenyl and the compound
+/// arsanyl and stibanyl prefixes such as methyldiazenyl and the compound
 /// heterone prefix oxophosphanyl (P-61.6) are compound in the same way.
 // Provenance: fn is_compound_prefix | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::is_compound_prefix
