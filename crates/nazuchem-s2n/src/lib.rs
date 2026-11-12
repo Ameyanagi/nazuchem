@@ -3261,6 +3261,73 @@ mod tests {
     }
 
     #[test]
+    fn first_locantless_simple_prefix_is_not_enclosed() {
+        // P-16.5.1.3.1, P-16.5.1.3.2: the first cited simple prefix is not enclosed
+        // (a compound one is) and later ones are, as in cyclopropyl(phenyl)methanol and
+        // hydroxydi(phenyl)acetic acid (P-65.1.1.2.4); a first prefix with a
+        // locant keeps its parentheses. The tellanyl prefixes follow
+        // hydroxy(oxo)-lambda^5-azanylidene (P-61.5.3) and
+        // methyldi(oxo)-lambda^5-phosphane (P-64.1.2.2).
+        for (smiles, expected) in [
+            ("OC(C(=O)O)c1ccccc1", "hydroxy(phenyl)acetic acid"),
+            (
+                "OC(C(=O)O)(c1ccccc1)c1ccccc1",
+                "hydroxydi(phenyl)acetic acid",
+            ),
+            (
+                "OC(C(=O)O)c1ccccc1Cl",
+                "(2-chlorophenyl)(hydroxy)acetic acid",
+            ),
+            (
+                "OC(c1ccccc1)c1ccc(cc1)C(=O)O",
+                "4-[hydroxy(phenyl)methyl]benzoic acid",
+            ),
+            ("OC(C1CC1)c1ccccc1", "cyclopropyl(phenyl)methanol"),
+            (
+                "OC(=O)CO[Te](=O)O",
+                "{[hydroxy(oxo)-lambda^4-tellanyl]oxy}acetic acid",
+            ),
+            (
+                "OC(=O)CO[Te](=O)(=O)O",
+                "{[hydroxydi(oxo)-lambda^6-tellanyl]oxy}acetic acid",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
+        }
+        // A first compound prefix keeps its parentheses, as the compound heterone
+        // prefixes oxophosphanyl, oxoarsanyl and oxostibanyl (P-61.6) do. Only the
+        // outer marks are checked: [(methoxycarbonyl)amino] and triaz-1-en-1-yl
+        // (P-68.3.1.4.1) for aminodiazenyl are separate gaps.
+        for (smiles, expected) in [
+            ("OC(=O)C(P=O)c1ccccc1", "(oxophosphanyl)(phenyl)acetic acid"),
+            ("OC(=O)C([As]=O)c1ccccc1", "(oxoarsanyl)(phenyl)acetic acid"),
+            (
+                "OC(=O)C([Sb]=O)c1ccccc1",
+                "(oxostibanyl)(phenyl)acetic acid",
+            ),
+            (
+                "OC(=O)C(N=NN)c1ccccc1",
+                "(aminodiazenyl)(phenyl)acetic acid",
+            ),
+            (
+                "OC(=O)C(NC(=O)OC)c1ccccc1",
+                "(methoxycarbonylamino)(phenyl)acetic acid",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+        }
+    }
+
+    #[test]
     // Provenance: fn tests::known_departures_keep_their_names_and_report_the_rule_family | adapted
     // Source: ReShiki | src/naming/openclatura/mod.rs::tests::known_departures_keep_their_names_and_report_the_rule_family
     // Source: openclatura | tests/unit/test_chalcogen_functional_groups.py::test_peroxide_linkages_preserve_both_chalcogen_sites
