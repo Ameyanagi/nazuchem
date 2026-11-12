@@ -354,15 +354,28 @@ pub(super) fn name_salt(
         let labelled = state.graph.atoms.iter().any(|a| a.isotope != 0)
             || state.metadata.atoms.iter().any(|a| a.chiral_tag != 0)
             || state.metadata.bonds.iter().any(|b| b.stereo != 0);
-        // A mononuclear oxoanion such as carbonate, sulfate or phosphate: one
-        // central atom without hydrogen, every other atom oxygen.
-        let central: Vec<_> = (0..state.graph.atoms.len())
-            .filter(|&i| state.graph.atoms[i].atomic_number != 8)
+        // A mononuclear oxoanion with two or more oxido or hydroxy groups on
+        // its central atom, such as carbonate, sulfate or phosphate. Its acid
+        // condenses to a dinuclear one (dicarbonic acid, P-65.2), so
+        // `dicarbonate` would name that anion; nitrite and perchlorate have
+        // a single such group and keep `di`.
+        let (atoms, bonds) = (&state.graph.atoms, &state.graph.bonds);
+        let central: Vec<_> = (0..atoms.len())
+            .filter(|&i| atoms[i].atomic_number != 8)
             .collect();
         let oxoanion = q < 0
-            && state.graph.atoms.len() > 1
-            && matches!(central[..], [c] if state.graph.atoms[c].explicit_hydrogens == 0
-                && state.valences[c].implicit_hydrogens == 0);
+            && matches!(central[..], [c] if atoms[c].explicit_hydrogens == 0
+                && state.valences[c].implicit_hydrogens == 0
+                && bonds
+                    .iter()
+                    .filter(|b| {
+                        let o = if b.a == c { b.b } else { b.a };
+                        b.order == 1
+                            && (b.a == c || b.b == c)
+                            && bonds.iter().filter(|x| x.a == o || x.b == o).count() == 1
+                    })
+                    .count()
+                    >= 2);
         ions.push((q < 0, name, component, labelled, oxoanion));
     }
     // The name without its stereodescriptor and isotopic descriptor groups, such
@@ -1510,6 +1523,23 @@ mod tests {
                 "[Na+].[Na+].[Na+].[Na+].[Na+].[Na+].[O-]B([O-])[O-].[O-]B([O-])[O-]",
                 "hexasodium bis(borate)",
                 NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Na+].[Na+].[Na+].[Na+].[Na+].[O-]C([O-])=O.[O-]C([O-])=O.[O-]C([O-])=O",
+                "hexasodium tris(carbonate)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            // P-16.3.6 (a) applies only to ambiguous names: nitrite has no
+            // condensed `dinitrite` anion and `diformate` names two formates.
+            (
+                "[Ca+2].[O-]N=O.[O-]N=O",
+                "calcium dinitrite",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Ca+2].[O-]C=O.[O-]C=O",
+                "calcium diformate",
+                NameStatus::Preferred,
             ),
             (
                 "C[NH3+].C[NH3+].O=S(=O)([O-])[O-]",
