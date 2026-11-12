@@ -18,8 +18,11 @@ pub fn parse_locant(text: &str) -> (u8, usize, String) {
         // An italic element locant such as N^4 precedes numerals, like N; its
         // superscript is a parent locant, compared as one (P-62.2.4.1.1).
         if primary.starts_with(|c: char| c.is_ascii_uppercase()) {
+            // A primed nitrogen follows its unprimed twin, N^3 then N'^3 (P-14.3.5).
+            let letter = primary.trim_end_matches('\'');
+            let primes = &primary[letter.len()..];
             let (_, number, tail) = parse_locant(secondary);
-            return (0, 0, format!("{primary}^{number:020}{tail}"));
+            return (0, 0, format!("{letter}^{number:020}{tail}{primes}"));
         }
         let n = secondary.bytes().take_while(u8::is_ascii_digit).count();
         if let (Ok(primary), Ok(secondary_number)) =
@@ -147,6 +150,12 @@ mod tests {
         assert_eq!(locants, ["N^1^2", "N^1^10", "N^4", "N^4a", "N^12", "2"]);
         assert!(needs_hyphen("ethyl", "N^4a-methyl"));
         assert!(needs_hyphen("ethyl", "N^1^10,N^1^2-dimethyl"));
+        // P-14.3.5: a primed locant follows its unprimed twin, so N^1,N'^3 as in
+        // N^3-ethyl-N^1,N'^3-dimethylhexane-1,3,3,6-tetramine (P-62.2.4.1.2).
+        let mut locants = ["N'^3", "N^4a", "N^3", "N''^3", "N^1", "N'^4"];
+        locants.sort_by_key(|locant| parse_locant(locant));
+        assert_eq!(locants, ["N^1", "N^3", "N'^3", "N''^3", "N'^4", "N^4a"]);
+        assert!(needs_hyphen("ethyl", "N'^3-methyl"));
     }
 
     #[test]

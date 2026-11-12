@@ -1561,20 +1561,61 @@ pub(super) fn is_anionic_group_key(key: &str) -> bool {
     )
 }
 
+// An acid residue bonded to `link`: an acyl carbon, or the sulfur of a
+// sulfonic or sulfinic acid on a carbon parent (P-65.7.1, P-65.7.2).
+// Returns the atom the group attaches to and the doubly bonded ligands.
+// Provenance: fn anhydride_end | adapted
+// Source: openclatura | src/openclatura/perception.py::_chalcogen_anhydride_groups
+fn anhydride_end(
+    m: &Molecule,
+    x: usize,
+    link: usize,
+    used: &AtomSet,
+) -> Option<(usize, Vec<ChalcogenLigand>)> {
+    let atom = &m.atoms[&x];
+    if used.contains(&x) {
+        return None;
+    }
+    if atom.is_carbon() {
+        let double = terminal_double(m, x, used)?;
+        return is_complete_acyl_end(m, x, double.atom, link).then(|| (x, vec![double]));
+    }
+    let doubles = m
+        .get_neighbors(x)
+        .iter()
+        .filter(|n| !used.contains(n))
+        .filter_map(|&n| classify_chalcogen_ligand(m, x, n))
+        .filter(|l| l.role == LigandRole::DoubleBonded && l.element == "O")
+        .collect::<Vec<_>>();
+    let rest = m
+        .get_neighbors(x)
+        .iter()
+        .copied()
+        .filter(|&n| n != link && doubles.iter().all(|l| l.atom != n))
+        .collect::<Vec<_>>();
+    (atom.symbol == "S"
+        && atom.charge == 0
+        && atom.total_h_count == 0
+        && atom.radical_electrons == 0
+        && !atom.has_stereo()
+        && matches!(doubles.len(), 1 | 2)
+        && m.bond_order(x, link) == 1
+        && rest.len() == 1
+        && m.atoms[&rest[0]].is_carbon()
+        && m.bond_order(x, rest[0]) == 1)
+        .then(|| (rest[0], doubles))
+}
 // Provenance: fn anhydride_groups | adapted
 // Source: openclatura | src/openclatura/perception.py::_chalcogen_anhydride_groups
 fn anhydride_groups(m: &Molecule, used: &AtomSet) -> Vec<PerceivedGroup> {
     let mut groups = Vec::new();
     let mut seen = BTreeSet::new();
     for (&c, a) in &m.atoms {
-        if !a.is_carbon() || used.contains(&c) {
+        if !(a.is_carbon() || a.symbol == "S") || used.contains(&c) {
             continue;
         }
-        let Some(left) = terminal_double(m, c, used) else {
-            continue;
-        };
         for &first in m.get_neighbors(c) {
-            if first == left.atom || used.contains(&first) {
+            if used.contains(&first) {
                 continue;
             }
             let Some(l) = classify_chalcogen_ligand(m, c, first) else {
@@ -1583,9 +1624,10 @@ fn anhydride_groups(m: &Molecule, used: &AtomSet) -> Vec<PerceivedGroup> {
             let Some(second) = l.attachment_atom else {
                 continue;
             };
-            let (other, bridge) = if l.role == LigandRole::CarbonLink {
+            let (other, bridge) = if anhydride_end(m, second, first, used).is_some() {
                 (second, vec![first])
-            } else if l.role == LigandRole::ChalcogenLink {
+            } else if l.role == LigandRole::ChalcogenLink && a.is_carbon() {
+                // Peroxyanhydrides join two acyl carbons (P-65.7.4).
                 let Some(l2) = classify_chalcogen_ligand(m, first, second) else {
                     continue;
                 };
@@ -1599,19 +1641,19 @@ fn anhydride_groups(m: &Molecule, used: &AtomSet) -> Vec<PerceivedGroup> {
             } else {
                 continue;
             };
-            if c == other || !m.atoms[&other].is_carbon() {
-                continue;
-            }
-            let Some(right) = terminal_double(m, other, used) else {
-                continue;
-            };
             let Some(&last_bridge) = bridge.last() else {
                 continue;
             };
-            if !is_complete_acyl_end(m, c, left.atom, first)
-                || !is_complete_acyl_end(m, other, right.atom, last_bridge)
-                || connected_without(m, c, other, &bridge.iter().copied().collect())
-            {
+            if c == other {
+                continue;
+            }
+            let (Some(left), Some(right)) = (
+                anhydride_end(m, c, first, used),
+                anhydride_end(m, other, last_bridge, used),
+            ) else {
+                continue;
+            };
+            if connected_without(m, c, other, &bridge.iter().copied().collect()) {
                 continue;
             }
             let mut sorted = bridge.clone();
@@ -1619,15 +1661,16 @@ fn anhydride_groups(m: &Molecule, used: &AtomSet) -> Vec<PerceivedGroup> {
             if !seen.insert((c.min(other), c.max(other), sorted)) {
                 continue;
             }
-            let (cs, ds, bridge) = if c <= other {
-                (vec![c, other], vec![left.clone(), right], bridge)
+            let (cs, ends, bridge) = if c <= other {
+                (vec![c, other], [left, right], bridge)
             } else {
                 (
                     vec![other, c],
-                    vec![right, left.clone()],
+                    [right, left],
                     bridge.into_iter().rev().collect(),
                 )
             };
+            let ds = vec![ends[0].1[0].clone(), ends[1].1[0].clone()];
             if bridge.iter().any(|&n| {
                 m.atoms[&n].charge != 0
                     || m.atoms[&n].total_h_count != 0
@@ -1685,12 +1728,14 @@ fn anhydride_groups(m: &Molecule, used: &AtomSet) -> Vec<PerceivedGroup> {
                 );
                 (key, Some(r))
             };
-            let atoms = ds
+            // A sulfur end takes its sulfur and all its oxo ligands.
+            let atoms = ends
                 .iter()
-                .map(|l| l.atom)
+                .flat_map(|(_, doubles)| doubles.iter().map(|l| l.atom))
+                .chain(cs.iter().copied().filter(|x| !m.atoms[x].is_carbon()))
                 .chain(bridge.iter().copied())
                 .collect::<Vec<_>>();
-            groups.push(desc_group(key, rule, cs[0], atoms, d));
+            groups.push(desc_group(key, rule, ends[0].0, atoms, d));
         }
     }
     groups
@@ -1795,6 +1840,15 @@ fn central_group(
             match t.role {
                 LigandRole::HydrogenBearing => "acid",
                 LigandRole::Anionic => "anion",
+                // An acyl group on the linking atom makes an anhydride (P-65.7.2).
+                LigandRole::CarbonLink
+                    if t.attachment_atom.is_some_and(|x| {
+                        anhydride_end(m, x, t.atom, used).is_some()
+                            && anhydride_end(m, c, t.atom, used).is_some()
+                    }) =>
+                {
+                    return None;
+                }
                 _ => "ester",
             }
         }
@@ -2016,7 +2070,7 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
             ],
         )
     };
-    let rule = dynamic_rule(
+    let mut rule = dynamic_rule(
         &key,
         &policy.families,
         &policy.capabilities,
@@ -2025,6 +2079,10 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
         seniority,
         true,
     );
+    if let Some(t) = &policy.citation_suffix {
+        rule.citation_suffixes
+            .insert("anhydride_half".into(), format_template(t, &vals));
+    }
     Some((key, Some(rule)))
 }
 // Provenance: fn composable_groups | adapted
@@ -3170,6 +3228,9 @@ mod tests {
             ("CS(=O)(=O)O", "sulfonic_acid"),
             ("CC(=O)Cl", "acid_chloride"),
             ("CC(=O)OC(C)=O", "anhydride"),
+            // P-65.7.1, P-65.7.2: sulfonic and sulfinic acids form anhydrides.
+            ("CC(=O)OS(=O)(=O)C", "anhydride"),
+            ("CS(=O)(=O)OS(C)=O", "anhydride"),
             ("COO", "peroxol_O_O"),
             ("Cc1ccc(C(=O)SC(=S)SCC#N)cc1", "anhydride_O_S_S"),
             ("C1CCCCC1C(=O)O", "ring_carboxylic_acid"),

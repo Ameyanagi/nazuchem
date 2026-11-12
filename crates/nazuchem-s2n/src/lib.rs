@@ -1713,6 +1713,51 @@ mod tests {
     }
 
     #[test]
+    fn geminal_amine_n_locants_take_primes() {
+        // P-62.2.4.1.2, P-16.9.3: geminal amine nitrogens share a superscript
+        // parent locant and are told apart by primes, as in the PINs
+        // N^3-ethyl-N'^3-methylhexane-3,3-diamine and
+        // N^3-ethyl-N^1,N'^3-dimethylhexane-1,3,3,6-tetramine. Unprimed is
+        // lower than primed (P-14.3.5), so it goes to the nitrogen with more
+        // substituents, then to the one cited first (P-14.4 (f), (g)).
+        for (smiles, expected) in [
+            ("CCC(NCC)(NC)CCC", "N^3-ethyl-N'^3-methylhexane-3,3-diamine"),
+            ("CCC(NC)(NCC)CCC", "N^3-ethyl-N'^3-methylhexane-3,3-diamine"),
+            (
+                "CNCCC(NCC)(NC)CCCN",
+                "N^3-ethyl-N^1,N'^3-dimethylhexane-1,3,3,6-tetramine",
+            ),
+            ("CCC(N)(NC)CCC", "N^3-methylhexane-3,3-diamine"),
+            (
+                "CCC(NCC)(N(C)C)CCC",
+                "N'^3-ethyl-N^3,N^3-dimethylhexane-3,3-diamine",
+            ),
+            (
+                "CCC(N(C)CC)(NCCC)CCC",
+                "N^3-ethyl-N^3-methyl-N'^3-propylhexane-3,3-diamine",
+            ),
+            (
+                "CCNC1(NC)CCCCC1",
+                "N^1-ethyl-N'^1-methylcyclohexane-1,1-diamine",
+            ),
+            (
+                "CC(NC)(NCC)N(C)CCC",
+                "N'^1-ethyl-N^1,N''^1-dimethyl-N^1-propylethane-1,1,1-triamine",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}",
+            );
+        }
+    }
+
+    #[test]
     fn axial_general_names_leave_nuclide_groups_alone() {
         assert_eq!(
             super::general_axial_name("(31P)phosphanium (2M)-2-(2-hydroxyphenyl)benzen-1-olate")
@@ -3444,6 +3489,42 @@ mod tests {
                 .as_deref(),
             Ok("spiro[[1,3]benzodioxole-2,1'-cyclopentane]"),
         );
+    }
+
+    #[test]
+    fn saturated_fused_parents_cite_only_the_indicated_hydrogen_the_mancude_parent_needs() {
+        // Issue #87. P-14.7.1: indicated hydrogen marks the positions the
+        // mancude parent leaves without a double bond; P-31.2.2: hydro
+        // prefixes saturate double bonds, so they add hydrogen in pairs.
+        for (smiles, expected) in [
+            // Nine ring atoms: one indicated hydrogen, not 1H,6H plus hexahydro.
+            ("N1CCCC2C1CNC2", "octahydro-1H-pyrrolo[3,4-b]pyridine"),
+            (
+                "N1CCC(C)C2C1CNC2",
+                "4-methyloctahydro-1H-pyrrolo[3,4-b]pyridine",
+            ),
+            // Eleven ring atoms.
+            (
+                "N1CCC2C1C1CCNC1C2",
+                "decahydro-1H-cyclopenta[1,2-b:4,5-b']dipyrrole",
+            ),
+            // Even ring sizes need no indicated hydrogen.
+            ("C1NCC2C1CC1CNCC1C2", "dodecahydropyrrolo[3,4-f]isoindole"),
+            // Controls that were already correct.
+            ("N1CCCC2C1NCC2", "octahydro-1H-pyrrolo[2,3-b]pyridine"),
+            ("N1CCC2C1CNC2", "octahydropyrrolo[3,4-b]pyrrole"),
+            ("N1CCCC2C1CNCC2", "decahydro-1,7-naphthyridine"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
+        }
     }
 
     #[test]

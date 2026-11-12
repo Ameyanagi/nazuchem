@@ -458,13 +458,18 @@ fn name_subgraph_rendered_except_stereo(
         .filter(|g| {
             g.atom_ids().is_subset(&component)
                 && (is_carboxylate_group(g)
+                    // P-66.5.1.1.4: a chain-end –C≡N in a substituent is cyano.
+                    // A charged nitrile N keeps its own heteroatom prefix.
+                    || g.key == "nitrile"
+                        && g.atom_ids().iter().all(|i| mol.atoms[i].charge == 0)
                     || (anionic_parent || acid_parent || mol.uses_acid_prefixes())
                         && is_carboxylic_acid_group(g))
         })
         .cloned()
         .collect();
-    // Acid groups cited as prefixes contribute their carbon to the prefix,
-    // not to the attachment-rooted substituent parent (carboxymethyl).
+    // Acid and nitrile groups cited as prefixes contribute their carbon to the
+    // prefix, not to the attachment-rooted substituent parent (carboxymethyl,
+    // cyanomethyl).
     let mut parent_exclude = sub_exclude.clone();
     retarget_external_carbonyl_groups(mol, &mut acid_prefixes, None, &mut parent_exclude, &cyclic);
     let selection = select_subgraph_parent(mol, start, &component, &parent_exclude)?;
@@ -1027,6 +1032,39 @@ mod tests {
                 "{smiles}"
             );
         }
+    }
+
+    #[test]
+    // P-66.5.1.1.4: a –C≡N at the end of a substituent chain is cited as
+    // cyano and its carbon is not part of the substituent chain.
+    fn chain_end_nitrile_in_a_substituent_is_cyano() {
+        use crate::name_smiles;
+
+        for (smiles, expected) in [
+            ("N#CCCc1ccc(C#N)cc1", "4-(2-cyanoethyl)benzonitrile"),
+            ("N#CCc1ccc(C(=O)O)cc1", "4-(cyanomethyl)benzoic acid"),
+            ("N#CC(C#N)c1ccc(C(=O)O)cc1", "4-(dicyanomethyl)benzoic acid"),
+            (
+                "C/C(=C\\C1=CC=C(C=C1)C(=O)O)/C#N",
+                "4-[(1E)-2-cyanoprop-1-en-1-yl]benzoic acid",
+            ),
+            ("C[O+](C)CCC#N", "(2-cyanoethyl)di(methyl)oxidanium"),
+        ] {
+            assert_eq!(
+                name_smiles(smiles, &Default::default())
+                    .map(|name| name.text)
+                    .as_deref(),
+                Ok(expected),
+                "{smiles}"
+            );
+        }
+        // A protonated nitrile is not the neutral cyano group.
+        assert_eq!(
+            name_smiles("[O-]C(=O)c1ccc(CC#[NH+])cc1", &Default::default())
+                .map(|name| name.text)
+                .as_deref(),
+            Ok("4-(2-azaniumylidyneethyl)benzoate")
+        );
     }
 
     #[test]
