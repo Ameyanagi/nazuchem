@@ -111,11 +111,14 @@ pub(super) fn assess_anion_parent(mol: &Molecule, derivation: &Derivation) {
     // P-70.2 / P-74.2: only an anionic suffix group cites the charge; a
     // charge-separated or deprotonated neutral class, as in acetamide for
     // acetylazanide, does not. With no characteristic group, the parent cites -ide.
-    // A skeletal -ide makes a cationic characteristic group a prefix
-    // (P-74.0), so it never accompanies a cationic suffix.
     let anionic_parent = principal_group.as_ref().map_or_else(
         || parent_atoms.iter().any(anionic_centre),
-        |_| anionic_principal,
+        |(key, _)| {
+            anionic_principal
+                // A cationic characteristic suffix can accompany skeletal -ide.
+                || (matches!(key.as_str(), "aminium" | "iminium" | "diazonio")
+                    && parent_atoms.iter().any(anionic_centre))
+        },
     );
     let unresolved_alkoxide = matches!(
         retained_anion_name,
@@ -129,6 +132,13 @@ pub(super) fn assess_anion_parent(mol: &Molecule, derivation: &Derivation) {
     });
     let unresolved_parent = external_centre
         && !super::parent_selection::anion_parent_is_senior(mol, parent_atoms, principal_atoms);
+    if parent_atoms.iter().any(anionic_centre)
+        && principal_group
+            .as_ref()
+            .is_some_and(|(key, _)| matches!(key.as_str(), "aminium" | "iminium" | "diazonio"))
+    {
+        mol.mark_name(NameStatus::Unverified(NameReason::IonicSuffixOrder));
+    }
     if !anionic_parent || unresolved_alkoxide || unresolved_parent {
         let status = NameStatus::Unverified(NameReason::AnionParent);
         // The unresolved principal anion spelling remains the reason when a
@@ -1107,6 +1117,18 @@ mod tests {
         ] {
             assert_eq!(assess_component(smiles), NameStatus::Preferred, "{smiles}");
         }
+    }
+
+    #[test]
+    // Provenance: fn tests::skeletal_anion_with_characteristic_cation_has_unsettled_suffix_order | original
+    // Source: ReShiki | src/naming/openclatura/species.rs::tests::skeletal_anion_with_characteristic_cation_has_unsettled_suffix_order
+    fn skeletal_anion_with_characteristic_cation_has_unsettled_suffix_order() {
+        // Aminium becomes a prefix (P-74.0), but the diazonio prefix is not
+        // the preselected diazyn-1-ium-1-yl (P-73.6), so diazonium stays.
+        assert_eq!(
+            assess_component("[CH2-]CC[N+]#N"),
+            NameStatus::Unverified(NameReason::IonicSuffixOrder),
+        );
     }
 
     #[test]

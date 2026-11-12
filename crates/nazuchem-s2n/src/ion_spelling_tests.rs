@@ -263,6 +263,20 @@ fn ion_spelling_matrix() {
             NameStatus::Preferred,
         ),
         (
+            "two azaniumylidene prefixes on an -ide",
+            "[NH2+]=CC[CH-]C=[NH2+]",
+            "1,4-bis(azaniumylidene)butan-2-ide",
+            NameStatus::Preferred,
+        ),
+        // An iminium whose cation name is not an aminium keeps the
+        // unverified ammonio prefix.
+        (
+            "iminium ylide",
+            "C[N+](=C(C)C)[C-](C)C",
+            "2-[methyl(propan-2-ylidene)ammonio]propan-2-ide",
+            NameStatus::Unverified(NameReason::CationPrefix),
+        ),
+        (
             "pyrrolidine cation",
             "C1CC[NH2+]C1",
             "pyrrolidin-1-ium",
