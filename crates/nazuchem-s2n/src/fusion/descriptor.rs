@@ -3520,9 +3520,11 @@ mod tests {
                 "N1=CC=C2C3=C4C(=CC=C13)C=CC=C4C=C2",
                 "naphtho[2,1,8-def]quinoline",
             ),
+            // P-31.2.2: fourteen ring atoms take hydro prefixes in pairs; the
+            // two fusion nitrogens need none.
             (
                 "N1CN2C3C(NCN3CC4NCCNC24)C1",
-                "decahydropurino[3,9-ab]pteridine",
+                "tetradecahydropurino[3,9-ab]pteridine",
             ),
             ("N1=C2C13C=CC=CC3=CC=C2", "naphtho[1,8a-b]azirine"),
         ] {

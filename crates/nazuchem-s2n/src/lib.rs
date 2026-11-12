@@ -3447,6 +3447,42 @@ mod tests {
     }
 
     #[test]
+    fn saturated_fused_parents_cite_only_the_indicated_hydrogen_the_mancude_parent_needs() {
+        // Issue #87. P-14.7.1: indicated hydrogen marks the positions the
+        // mancude parent leaves without a double bond; P-31.2.2: hydro
+        // prefixes saturate double bonds, so they add hydrogen in pairs.
+        for (smiles, expected) in [
+            // Nine ring atoms: one indicated hydrogen, not 1H,6H plus hexahydro.
+            ("N1CCCC2C1CNC2", "octahydro-1H-pyrrolo[3,4-b]pyridine"),
+            (
+                "N1CCC(C)C2C1CNC2",
+                "4-methyloctahydro-1H-pyrrolo[3,4-b]pyridine",
+            ),
+            // Eleven ring atoms.
+            (
+                "N1CCC2C1C1CCNC1C2",
+                "decahydro-1H-cyclopenta[1,2-b:4,5-b']dipyrrole",
+            ),
+            // Even ring sizes need no indicated hydrogen.
+            ("C1NCC2C1CC1CNCC1C2", "dodecahydropyrrolo[3,4-f]isoindole"),
+            // Controls that were already correct.
+            ("N1CCCC2C1NCC2", "octahydro-1H-pyrrolo[2,3-b]pyridine"),
+            ("N1CCC2C1CNC2", "octahydropyrrolo[3,4-b]pyrrole"),
+            ("N1CCCC2C1CNCC2", "decahydro-1,7-naphthyridine"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
+        }
+    }
+
+    #[test]
     fn polyhelicenes_take_their_retained_names() {
         for (smiles, expected) in [
             // P-25.1.2.6: six or more helically ortho-fused benzene rings.

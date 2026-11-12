@@ -34,9 +34,9 @@ use super::{
     },
     mancude::{
         ParentDerivativeOptions, ParentDerivativeState, all_single,
-        has_complete_saturated_hydrogenation, indicated_hydrogen_parent_bond_model,
-        parent_derivative_state, protonated_hydrogenation_is_complete,
-        saturated_nitrogen_hydrogen_sites,
+        cited_saturated_nitrogen_hydrogen_sites, has_complete_saturated_hydrogenation,
+        indicated_hydrogen_parent_bond_model, parent_derivative_state,
+        protonated_hydrogenation_is_complete, saturated_nitrogen_hydrogen_sites,
     },
     model::*,
     numbering::{
@@ -979,7 +979,7 @@ fn cited_indicated_hydrogens(
         })
         .copied()
         .collect();
-    cited.extend(saturated_nitrogen_hydrogen_sites(
+    cited.extend(cited_saturated_nitrogen_hydrogen_sites(
         mol,
         &locants.keys().copied().collect(),
         &candidates
@@ -987,6 +987,7 @@ fn cited_indicated_hydrogens(
             .filter(|a| mol.atoms[a].symbol == "N")
             .copied()
             .collect(),
+        bond_model,
     ));
     let has_attached_carbocycle = ast
         .component_occurrences
