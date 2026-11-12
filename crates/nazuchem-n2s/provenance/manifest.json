@@ -54,11 +54,11 @@
     "resources/xml/simpleSubstituents.xml": "41348a77f2135ad2047f836b52ca2c5db983bcb26c44e04e1694818d24066876",
     "resources/xml/substituents.xml": "41a7f584e7d532dd21526bacd4078d34f8b8ec2df6b833b6f5347b63e3164a35",
     "resources/xml/suffixApplicability.dtd": "50e57c6484ac2ec522cb6ca30e33d25288a74a036ad03432a40db1bb59787c16",
-    "resources/xml/suffixApplicability.xml": "57123f620f1321c1903687ca41936c651f40db4ed2bfb6492d929f02a9f2f8d3",
+    "resources/xml/suffixApplicability.xml": "379fd480b6f327b8339c7783c1d335cc6cc9c8f04c9454393a13b61ed28c786c",
     "resources/xml/suffixPrefix.xml": "5428dbc34ce8e458f81e36ccf456023284bcf8b822d2ada7de5b41e248a7d1c5",
     "resources/xml/suffixRules.dtd": "307af66d255095c9d117493c8bddf5e2b9dcc4741e998e7dd7fdcb38304d4daf",
-    "resources/xml/suffixRules.xml": "285c550ecb314ef69cf640461b836df52926c657d1c145a3f7465709d6ea31e0",
-    "resources/xml/suffixes.xml": "f8a0fe8bf12aea2f9a0a96a6393df169cd7e59540b03c75c01c180078484ca24",
+    "resources/xml/suffixRules.xml": "a267b913c7da4491546d34fd7c108306ae0f79973969f96fcffcef1f60116524",
+    "resources/xml/suffixes.xml": "a6c200b84a1340b46f2b4ea27778d8546c9d3d559b37ce64a96c264a7f380d16",
     "resources/xml/tokenFiles.dtd": "3acb49df364b02a65ea20aef8d33758b047fa1426289be3811386a7450e57355",
     "resources/xml/tokenLists.dtd": "35ab7b9c52960ea27aa715dd73f1fadb5fc5c5e9081f8fdd9dd8967fdad96100",
     "resources/xml/unsaturators.xml": "d528b967c52d64a434563dc237d0a28e0784d1916784772381fe545c9bdf6bc1",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "9e1e875b16ea9535ecb81c738b90bffda3cf291e4088b54e6ba3141ddf4e253d"
+    "sha256": "a510ee3d785694a625b2685c0dd41b054cf7d323a6606c498ce0fae60588ab9c"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",
@@ -298,7 +298,7 @@
     },
     "peroxy_ester_locants": {
       "grammar": "Two chalcogen symbols (SO, OS, OO, SS, SeO, ...) and a hyphen as a locant token before the organyl group of a peroxy ester (IUPAC 2013 P-65.6.3.3.7.1); the ester builder reads the first symbol as the atom on the acid centre",
-      "tokens": "suffixes.xml, suffixRules.xml and suffixApplicability.xml add the ate forms of the chalcogen peroxy acid suffixes, (thioperoxoate) through (ditelluroperoxoate); dictionary tokens only",
+      "tokens": "suffixes.xml, suffixRules.xml and suffixApplicability.xml add the ate forms of the chalcogen peroxy acid suffixes, (thioperoxoate) through (ditelluroperoxoate), and the oriented anion forms such as (OS-thioperoxoate) (P-72.2.2.2.1.1); dictionary tokens only",
       "automata": ["token-108", "token-reversed-108"],
       "exporter": "ExportDfa.java.txt with the checked regexTokens.xml and regexes.xml resource overrides"
     },

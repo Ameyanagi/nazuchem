@@ -179,6 +179,18 @@ fn peroxy_ester_locants_orient_the_peroxy_group() {
             "OS-ethyl SO-methyl butanedi(thioperoxoate)",
             "C(CCC(=O)SOC)(=O)OSCC",
         ),
+        // Copies of a multiplied acid parent are oriented one by one.
+        (
+            "OS-ethyl SO-methyl 2,2'-oxydiethane(thioperoxoate)",
+            "O(CC(=O)SOC)CC(=O)OSCC",
+        ),
+        // P-72.2.2.2.1.1: the anion carries its locant inside the brackets.
+        ("ethane(OS-thioperoxoate)", "C(C)(=O)O[S-]"),
+        ("ethane(SO-thioperoxoate)", "C(C)(=O)S[O-]"),
+        (
+            "sodium benzenecarbo(SeS-selenothioperoxoate)",
+            "C1(=CC=CC=C1)C(=O)[Se][S-].[Na+]",
+        ),
         // Homo-chalcogen and single-symbol forms read as before.
         ("ethane(dithioperoxoate)", "C(C)(=O)S[S-]"),
         ("methyl ethane(dithioperoxoate)", "C(C)(=O)SSC"),
@@ -204,6 +216,9 @@ fn peroxy_ester_locants_orient_the_peroxy_group() {
         "SO-methyl ethaneperoxothioate",
         "SO-methyl ethane(dithioperoxoate)",
         "OS-methyl methanesulfenate",
+        "SO-methyl methanesulfenate",
+        "SO-methyl methanesulfonate",
+        "SO-methyl methanesulfinate",
         "OS-methyl acetate",
         "SO-methylbenzene",
     ] {

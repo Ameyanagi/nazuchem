@@ -54,9 +54,12 @@ recognizer (peroxy ester locants), each with its reversed table. The
 `regexes.xml` extension changes the chemical grammar tables `chemical` and
 `chemical-reversed`. The checked table is a full export with the checked
 `regexTokens.xml` and `regexes.xml` as development resource overrides. A
-rebuild of the pinned jar reproduces it byte for byte with
-`scripts/regenerate_opsin_grammar.py`, and a pristine export (no override)
-differs from it in those six tables only. Cargo reads the
+pristine export (no override) differs from it in those six tables only. An
+automaton built from an overridden file gets its state numbers from dk.brics
+in an order that varies between runs, so a rebuild of the pinned jar with
+`scripts/regenerate_opsin_grammar.py` reproduces the same automata, not always
+the same bytes; the script keeps the checked table whenever the fresh export
+equals it after renumbering every automaton's states breadth first. Cargo reads the
 checked binary directly. Frozen upstream oracle fixtures are unchanged.
 
 ## Regenerating the grammar table
@@ -197,7 +200,7 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`9e1e875b16ea9535ecb81c738b90bffda3cf291e4088b54e6ba3141ddf4e253d`.
+`a510ee3d785694a625b2685c0dd41b054cf7d323a6606c498ce0fae60588ab9c`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph

@@ -2210,6 +2210,19 @@ impl Builder<'_> {
                 let &[inner] = graph.neighbours(atom).as_slice() else {
                     continue;
                 };
+                // The inner atom must bridge to an acid centre (C=O, S=O);
+                // the sulfur of a sulfonate or sulfenate is not a peroxy atom.
+                let on_acid = match graph.neighbours(inner)[..] {
+                    [a, b] => graph
+                        .atom(if a == atom { b } else { a })
+                        .bonds
+                        .iter()
+                        .any(|&bond| graph.bond(bond).order == 2),
+                    _ => false,
+                };
+                if !on_acid {
+                    continue;
+                }
                 let found = (graph.atom(inner).element, graph.atom(atom).element);
                 let unoriented = graph
                     .atom(atom)
@@ -2222,9 +2235,12 @@ impl Builder<'_> {
                 } else if found != wanted {
                     continue;
                 }
-                self.assembly
-                    .graph_mut()
-                    .remove_ambiguous_element_assignment_members(atom, &[inner, atom]);
+                // Copied fragments hold a separate set per atom.
+                for holder in [atom, inner] {
+                    self.assembly
+                        .graph_mut()
+                        .remove_ambiguous_element_assignment_members(holder, &[inner, atom]);
+                }
                 results.remove_functional_atom(self.assembly.graph_mut(), index)?;
                 return Ok(atom);
             }

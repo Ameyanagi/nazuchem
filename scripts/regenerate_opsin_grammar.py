@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -87,6 +88,53 @@ def export_dfa(jar, javac, java, out):
             cwd=work,
             check=True,
         )
+
+
+def canonical(table):
+    """Decode an OPSINDFA table with each automaton's states renumbered breadth first."""
+    count, offset = struct.unpack_from(">I", table, 12)[0], 16
+    automata = []
+    for _ in range(count):
+        (length,) = struct.unpack_from(">I", table, offset)
+        name = table[offset + 4 : offset + 4 + length]
+        initial, states, intervals = struct.unpack_from(
+            ">III", table, offset + 4 + length
+        )
+        offset += 16 + length
+        points = table[offset : offset + 4 * intervals]
+        offset += 4 * intervals
+        rows = []
+        for _ in range(states):
+            accept, transitions = struct.unpack_from(">BI", table, offset)
+            rows.append(
+                (
+                    accept,
+                    list(
+                        struct.iter_unpack(
+                            ">III", table[offset + 5 : offset + 5 + 12 * transitions]
+                        )
+                    ),
+                )
+            )
+            offset += 5 + 12 * transitions
+        ids, order = {initial: 0}, [initial]
+        for state in order:
+            for _, _, target in sorted(rows[state][1]):
+                if target not in ids:
+                    ids[target] = len(ids)
+                    order.append(target)
+        automata.append(
+            (
+                name,
+                points,
+                states,
+                [
+                    (rows[s][0], sorted((lo, hi, ids[t]) for lo, hi, t in rows[s][1]))
+                    for s in order
+                ],
+            )
+        )
+    return table[:16], automata
 
 
 def read(path):
@@ -177,6 +225,12 @@ def main():
         table = Path(tmp, "automata.bin")
         export_dfa(args.jar.resolve(), javac, java, table)
         generated = {AUTOMATA: table.read_bytes()}
+    # dk.brics numbers the states of an automaton built from an overridden grammar file
+    # differently from run to run. Keep the checked table when it is the same automata.
+    if AUTOMATA.is_file() and canonical(checked := AUTOMATA.read_bytes()) == canonical(
+        generated[AUTOMATA]
+    ):
+        generated[AUTOMATA] = checked
 
     # Hash every resource listed in the manifest, then the fingerprint over them in
     # sorted path order: path, NUL, raw bytes, NUL.

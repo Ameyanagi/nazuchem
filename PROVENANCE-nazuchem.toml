@@ -1104,7 +1104,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/PORTING.md", license = "MIT" },
 ]
 notes = "Project-authored OPSIN source/module mapping, acceptance narrative and upstream commit classification. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "8d2d53b59845c7a5417f74672a0b6a2b39c9ff0d9f1f381222a47c3d20020daa"
+sha256 = "f67bd04eb21d3e31e4b4b3153c6c51af032f112641afb6263be241260978166f"
 
 [[file]]
 path = "crates/nazuchem-n2s/README.md"
@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "3d6f8a951a5c87ebc501fb5d7434db2892e1fffd5134e2566279a96a30e602f5"
+sha256 = "becf72c71afa0a132b88968563e8149b559454d5dfbf011a5671a710a230310f"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "f5199f3c18dfba30e77389639b3def0ef597bcf5689a92c4584244864f465556"
+sha256 = "8ea379da97dca2f4f477514b511562c4a1401e58da465f197f3c102e5c76411e"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1270,7 +1270,7 @@ sources = [
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "crates/opsin/resources/xml/regexTokens.xml", license = "MIT" },
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "crates/opsin/provenance/ExportDfa.java.txt", license = "MIT" },
 ]
-notes = "Generated OPSINDFA v2 table for the pinned OPSIN grammar, including the native token-69, token-108 and chemical grammar extensions (each with its reversed table). Derived data, not a byte-copy of an upstream tracked file. Exporter and checked grammar establish its claimed lineage; manifest hash and aggregate fingerprint verify current identity. Reproduced 2026-11-11: scripts/regenerate_opsin_grammar.py with a jar rebuilt from the pinned commit (Temurin 21.0.13, Maven 3.9.16) regenerates this file byte for byte, and a pristine export without the regexTokens.xml and regexes.xml overrides differs in those six tables only (regenerated for issue #90)."
+notes = "Generated OPSINDFA v2 table for the pinned OPSIN grammar, including the native token-69, token-108 and chemical grammar extensions (each with its reversed table). Derived data, not a byte-copy of an upstream tracked file. Exporter and checked grammar establish its claimed lineage; manifest hash and aggregate fingerprint verify current identity. Reproduced 2026-11-11: scripts/regenerate_opsin_grammar.py with a jar rebuilt from the pinned commit (Temurin 21.0.13, Maven 3.9.16) regenerated the pre-#90 table byte for byte; with regexes.xml overridden the script reproduces the same automata up to state numbering and keeps the checked bytes. A pristine export without the regexTokens.xml and regexes.xml overrides differs in those six tables only (regenerated for issue #90)."
 sha256 = "b1fe9a199e75ed6f62d539d4c6fb7e5f7d95233f04dcf043b462121446cf3048"
 
 [[file]]
@@ -1662,7 +1662,7 @@ sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixApplicability.xml", license = "MIT" },
 ]
 notes = "OPSIN suffix applicability with original native edits: aminiumyl/aminiumylidene substituent suffixes (IUPAC P-73.6) and standardGroup entries for the added chalcogen peroxy acid, peroxol and tellanal suffixes (issue #26) and the peroxy acid ate forms (issue #90). Do not claim byte equality for this file."
-sha256 = "57123f620f1321c1903687ca41936c651f40db4ed2bfb6492d929f02a9f2f8d3"
+sha256 = "379fd480b6f327b8339c7783c1d335cc6cc9c8f04c9454393a13b61ed28c786c"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/suffixPrefix.xml"
@@ -1692,7 +1692,7 @@ sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixRules.xml", license = "MIT" },
 ]
 notes = "OPSIN suffix rules with original native edits: aminiumyl/aminiumylidene substituent suffixes (IUPAC P-73.6) and rules for the added chalcogen peroxy acid, peroxol and tellanal suffixes (issue #26) and the peroxy acid ate forms (issue #90). Do not claim byte equality for this file."
-sha256 = "285c550ecb314ef69cf640461b836df52926c657d1c145a3f7465709d6ea31e0"
+sha256 = "a267b913c7da4491546d34fd7c108306ae0f79973969f96fcffcef1f60116524"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/suffixes.xml"
@@ -1702,7 +1702,7 @@ sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixes.xml", license = "MIT" },
 ]
 notes = "OPSIN suffix tokens with original native additions (issue #26): chalcogen peroxy acid suffixes with their SO/OS-type acid locants (P-65.1.5.3), Table 6.1 peroxol suffixes (P-63.4.2.1) and tellanal (P-66.6.3); and (issue #90) the ate forms of the peroxy acid suffixes for esters and anions (P-65.6.3.3.7.1). Do not claim byte equality for this file."
-sha256 = "f8a0fe8bf12aea2f9a0a96a6393df169cd7e59540b03c75c01c180078484ca24"
+sha256 = "a6c200b84a1340b46f2b4ea27778d8546c9d3d559b37ce64a96c264a7f380d16"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/tokenFiles.dtd"

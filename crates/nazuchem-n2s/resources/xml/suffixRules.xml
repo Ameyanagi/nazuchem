@@ -324,6 +324,54 @@ sense of this -->
 		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
 		<addgroup SMILES="[*](=O)[Te|2][Se-]" functionalIDs="4"/>
 	</rule>
+	<rule value="SO_thioperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)S[O-]" functionalIDs="4"/>
+	</rule>
+	<rule value="OS_thioperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)O[S-]" functionalIDs="4"/>
+	</rule>
+	<rule value="SeO_selenoperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Se|2][O-]" functionalIDs="4"/>
+	</rule>
+	<rule value="OSe_selenoperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)O[Se-]" functionalIDs="4"/>
+	</rule>
+	<rule value="TeO_telluroperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Te|2][O-]" functionalIDs="4"/>
+	</rule>
+	<rule value="OTe_telluroperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)O[Te-]" functionalIDs="4"/>
+	</rule>
+	<rule value="SeS_selenothioperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Se|2][S-]" functionalIDs="4"/>
+	</rule>
+	<rule value="SSe_selenothioperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)S[Se-]" functionalIDs="4"/>
+	</rule>
+	<rule value="TeS_tellurothioperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Te|2][S-]" functionalIDs="4"/>
+	</rule>
+	<rule value="STe_tellurothioperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)S[Te-]" functionalIDs="4"/>
+	</rule>
+	<rule value="TeSe_selenotelluroperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Te|2][Se-]" functionalIDs="4"/>
+	</rule>
+	<rule value="SeTe_selenotelluroperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Se|2][Te-]" functionalIDs="4"/>
+	</rule>
 	<rule value="dithioperoxoate">
 		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
 		<addgroup SMILES="[*](=O)S[S-]" functionalIDs="4"/>
