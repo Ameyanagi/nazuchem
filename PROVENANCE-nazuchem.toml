@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "72e9b37e6b4f2db44d1b94db8366f4e5df4ac35692e26105d1ca51273428786b"
+sha256 = "200d6cacd473121616cbc87193010777b343e8ee52c288565a064d711cf768fd"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "118f12389bce1025c7d45c644a2c15165d506ac802146b20323a002e0e41f846"
+sha256 = "d73bc0598bf992a29c76aa94e598c585f63b5896cf4a015c8846172961ba3830"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1752,7 +1752,7 @@ sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/wordRules.xml", license = "MIT" },
 ]
 notes = "Byte-preserved upstream data."
-sha256 = "8ee7cacb1cbe77cc6a1e0fd07b54c199fa1736a1eaaa621fb1bfe563c9600331"
+sha256 = "f5925cf4cbaf5a44d686cbab595d020f85ca0518c34964d244db0eb9286d5724"
 
 [[file]]
 path = "crates/nazuchem-n2s/src/ambiguity.rs"
@@ -7595,6 +7595,15 @@ sources = [
   { project = "Nazuchem", path = "crates/nazuchem/tests/chalcogen_peroxy.rs", ref = "issue #94", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original facade regression for issue #94: generated names of chalcogen peroxols, peroxy acids, their anions and multiplied chalcogen esters, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
+
+[[file]]
+path = "crates/nazuchem/tests/polyanhydrides.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/tests/polyanhydrides.rs", ref = "issue #110", license = "MIT OR Apache-2.0" },
+]
+notes = "Original facade regression for issue #110: generated dianhydride names, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure, and Blue Book dianhydride names read by the parser."
 
 [[file]]
 path = "crates/nazuchem/tests/ir.rs"

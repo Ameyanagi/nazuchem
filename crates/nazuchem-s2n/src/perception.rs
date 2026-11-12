@@ -1598,7 +1598,7 @@ fn anhydride_end(
         .iter()
         .filter(|n| !used.contains(n))
         .filter_map(|&n| classify_chalcogen_ligand(m, x, n))
-        .filter(|l| l.role == LigandRole::DoubleBonded && l.element == "O")
+        .filter(|l| l.role == LigandRole::DoubleBonded && matches!(l.element.as_str(), "O" | "S"))
         .collect::<Vec<_>>();
     let rest = m
         .get_neighbors(x)

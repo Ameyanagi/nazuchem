@@ -3837,23 +3837,39 @@ fn anhydride_half_atoms(mol: &Molecule, start: usize, bridge: &AtomSet) -> AtomS
 }
 // Provenance: fn anhydride_half_name | adapted
 // Source: openclatura | src/openclatura/special_cases.py::anhydride_half_name
-fn anhydride_half_name(mol: &Molecule, start: usize, bridge: &AtomSet) -> Result<String, String> {
-    let mut atoms = anhydride_half_atoms(mol, start, bridge);
+/// Names the acid of one anhydride half, with a hydroxy group on each of
+/// `starts`. Also tells whether every one of them is cited as a suffix, and
+/// whether the acid is unsubstituted (all atoms in its parent or suffixes).
+fn anhydride_half_name(
+    mol: &Molecule,
+    starts: &[usize],
+    bridge: &AtomSet,
+) -> Result<(String, bool, bool), String> {
+    let mut atoms = anhydride_half_atoms(mol, starts[0], bridge);
     let mut fragment = mol.subgraph(&atoms);
-    let oh = mol.atoms.keys().max().copied().unwrap_or(0) + 100;
-    let mut oxygen = Atom::new(oh, "O");
-    oxygen.total_h_count = 1;
-    fragment.add_atom(oxygen)?;
-    let bond = fragment.bonds.keys().max().copied().unwrap_or(0) + 1;
-    fragment.add_bond(Bond::new(bond, start, oh, 1))?;
-    atoms.insert(oh);
-    super::component_namer::name_component_with_citation(
+    let first_oh = mol.atoms.keys().max().copied().unwrap_or(0) + 100;
+    let mut hydroxy = Vec::new();
+    for (oh, &start) in (first_oh..).zip(starts) {
+        let mut oxygen = Atom::new(oh, "O");
+        oxygen.total_h_count = 1;
+        fragment.add_atom(oxygen)?;
+        let bond = fragment.bonds.keys().max().copied().unwrap_or(0) + 1;
+        fragment.add_bond(Bond::new(bond, start, oh, 1))?;
+        atoms.insert(oh);
+        hydroxy.push(oh);
+    }
+    let name = super::component_namer::name_component_with_citation(
         &fragment,
         &atoms,
         Some("anhydride_half"),
         None,
-    )
-    .map(|name| name.text)
+    )?;
+    let cited = hydroxy
+        .iter()
+        .all(|oh| name.principal_group_atoms.contains(oh));
+    let unsubstituted = matches!(&name.derivation, super::component_namer::Derivation::Plan { parent_atoms, .. }
+        if atoms.iter().all(|a| parent_atoms.contains(a) || name.principal_group_atoms.contains(a)));
+    Ok((name.text, cited, unsubstituted))
 }
 // Provenance: fn anhydride_class_name | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::anhydride_class_name
@@ -4030,6 +4046,113 @@ pub(super) fn try_name_anhydride_component(
                 .is_some_and(|rule| rule.has_capability("anhydride"))
         })
         .count();
+    // P-65.7.6.1: a dibasic acid whose two acid groups each form an anhydride
+    // with a monobasic acid gives a dianhydride, as in "acetic
+    // methanedisulfonic propanoic dianhydride".
+    let links: Vec<_> = groups
+        .iter()
+        .filter(|g| {
+            g.resolved_rule
+                .as_ref()
+                .is_some_and(|r| r.has_capability("anhydride"))
+        })
+        .collect();
+    if let [g1, g2] = links[..]
+        && [g1, g2]
+            .iter()
+            .any(|g| Some(g.key.as_str()) == principal_key)
+        && let (Some(d1), Some(d2)) = (&g1.descriptor, &g2.descriptor)
+        && let (Some(p1), Some(p2)) = (d1.linker_paths.first(), d2.linker_paths.first())
+    {
+        let result = mol.candidate(|| {
+            let paths = [p1, p2];
+            // Single-atom bridges of one element (P-65.7.6.4.1); P-65.7.6.4.2
+            // names unlike bridges substitutively.
+            if paths.iter().any(|p| p.len() != 3)
+                || mol.atoms[&paths[0][1]].symbol != mol.atoms[&paths[1][1]].symbol
+            {
+                return Ok(None);
+            }
+            let bridges: AtomSet = paths.iter().map(|p| p[1]).collect();
+            let component = |atom| subgraph_component(mol, atom, &bridges);
+            // The dibasic acid holds one center of each link; each end holds
+            // a single acid group.
+            let Some((m1, m2, e1, e2)) = (0..2)
+                .flat_map(|i| (0..2).map(move |j| (i, j)))
+                .find(|&(i, j)| component(d1.centers[i]).contains(&d2.centers[j]))
+                .map(|(i, j)| {
+                    (
+                        d1.centers[i],
+                        d2.centers[j],
+                        d1.centers[1 - i],
+                        d2.centers[1 - j],
+                    )
+                })
+            else {
+                return Ok(None);
+            };
+            let (end1, end2, central) = (component(e1), component(e2), component(m1));
+            if end1.contains(&m1) || end1.contains(&e2) || end2.contains(&m2) {
+                return Ok(None);
+            }
+            let (left, _, plain_end) = anhydride_half_name(mol, &[e1], &bridges)?;
+            let (right, ..) = anhydride_half_name(mol, &[e2], &bridges)?;
+            let (dibasic, cited, plain) = anhydride_half_name(mol, &[m1, m2], &bridges)?;
+            // A multiplied thioic suffix is cited as bis(thioic) (P-65.7.6.4.3),
+            // which the acid namer does not yet write.
+            let thioxo = [m1, m2].iter().any(|&m| {
+                mol.get_neighbors(m)
+                    .iter()
+                    .any(|n| mol.bond_order(m, *n) == 2 && mol.atoms[n].symbol != "O")
+            });
+            if !cited || thioxo || !left.ends_with("ic") || !right.ends_with("ic") {
+                return Ok(None);
+            }
+            // Different ends on unlike acid groups of the dibasic acid need
+            // locants (P-65.7.6.3), which are not built here.
+            let ranks = canonical_ranks(mol, Some(&central));
+            if left != right && ranks[&m1] != ranks[&m2] {
+                return Ok(None);
+            }
+            let Some(class) = anhydride_class_name(mol, paths[0]) else {
+                return Ok(None);
+            };
+            require_stereo_free_core(mol, &bridges)?;
+            let class = if class == "anhydride" {
+                "dianhydride".to_owned()
+            } else {
+                format!("bis({class})")
+            };
+            // The acids are cited in their order of occurrence, beginning
+            // with the end acid lower in alphanumerical order (P-14.5). Two
+            // equal ends take "di", or "bis" when substituted (P-16.3.5).
+            let name = if left == right && plain_end {
+                format!("di{left} {dibasic} {class}")
+            } else if left == right {
+                format!("bis({left}) {dibasic} {class}")
+            } else {
+                let mut ends = [left, right];
+                ends.sort_by_cached_key(|end| alphanumerical_order_key(end));
+                format!("{} {dibasic} {} {class}", ends[0], ends[1])
+            };
+            // P-65.7.6.1 cites "2-methylbutanedioic" where P-14.3.4.3 omits
+            // the locant of a substituted dibasic acid; such names stay
+            // unverified.
+            Ok(Some(StructuralParentName {
+                certified: class == "dianhydride"
+                    && plain
+                    && bridges.is_disjoint(&get_cyclic_atoms(mol, &AtomSet::new())),
+                component_splits: paths
+                    .iter()
+                    .flat_map(|p| p.windows(2).map(|w| normalize_edge(w[0], w[1])))
+                    .collect(),
+                ..StructuralParentName::ordinary(name)
+            }))
+        })?;
+        if result.is_some() {
+            return Ok(result);
+        }
+    }
     for group in groups {
         let result = mol.candidate(|| {
             if Some(group.key.as_str()) != principal_key
@@ -4054,8 +4177,8 @@ pub(super) fn try_name_anhydride_component(
             if bridge.is_empty() {
                 return Ok(None);
             }
-            let left = anhydride_half_name(mol, descriptor.centers[0], &bridge)?;
-            let right = anhydride_half_name(mol, descriptor.centers[1], &bridge)?;
+            let (left, ..) = anhydride_half_name(mol, &descriptor.centers[..1], &bridge)?;
+            let (right, ..) = anhydride_half_name(mol, &descriptor.centers[1..], &bridge)?;
             // Anhydride names cite acid names (P-65.7.1). A half named for another
             // principal group, such as a nitrile, would read as a separate compound.
             if !left.ends_with("ic") || !right.ends_with("ic") {
@@ -5188,9 +5311,16 @@ mod tests {
         let mut cases = Vec::new();
         for (smiles, expected, certified) in [
             ("CC(=O)OC(C)=O", "acetic anhydride", true),
+            // P-65.7.6.1 example (issue #110).
             (
                 "CC(=O)OC(=O)CCC(=O)OC(C)=O",
-                "acetic 4-(acetyloxy)-4-oxobutanoic anhydride",
+                "diacetic butanedioic dianhydride",
+                true,
+            ),
+            // P-65.7.6.4.2 example: unlike linkages are not a dianhydride.
+            (
+                "CC(=O)OC(=O)CCCC(=O)SC(C)=O",
+                "acetic 5-(acetylsulfanyl)-5-oxopentanoic anhydride",
                 false,
             ),
         ] {
@@ -5213,7 +5343,7 @@ mod tests {
         }
         assert_eq!(
             super::super::graph_io::get_connected_components(&mol).len(),
-            2
+            3
         );
         for (atoms, expected, certified) in cases {
             let groups = component_groups(&mol, &atoms);

@@ -1169,7 +1169,7 @@ impl Builder<'_> {
         self.form_anhydride_link(smiles, a, b)
     }
     fn build_anhydride(&mut self, words: &[NodeId]) -> Result<()> {
-        if words.len() != 2 && words.len() != 3 {
+        if !(2..=4).contains(&words.len()) {
             return Err(error("Unexpected number of words in anhydride"));
         }
         let word = *words.last().unwrap();
@@ -1202,6 +1202,33 @@ impl Builder<'_> {
             .collect();
         let (first, last) = (symbols.first().cloned(), symbols.last().cloned());
         let mixed = first != last;
+        if words.len() == 4 {
+            // P-65.7.6.1: "acetic methanedisulfonic propanoic dianhydride" links
+            // the acids in their order of occurrence. In "diacetic butanedioic
+            // dianhydride" the multiplied word became two equal copies, and
+            // both link to the dibasic acid.
+            if count != 2 || locant.is_some() || mixed {
+                return Err(error("Unsupported or invalid anhydride"));
+            }
+            let mut acids = [words[0], words[1], words[2]];
+            if self.assembly.attr(acids[0], "value") == self.assembly.attr(acids[1], "value") {
+                acids.swap(1, 2);
+            }
+            let mut results = Vec::new();
+            for acid in acids {
+                self.assembly.resolve_word_or_bracket(acid)?;
+                results.push(self.results(acid)?);
+            }
+            let [mut one, mut two, mut three] = <[BuildResults; 3]>::try_from(results).unwrap();
+            if one.functional_atoms.is_empty()
+                || three.functional_atoms.is_empty()
+                || two.functional_atoms.len() != 2
+            {
+                return Err(error("Invalid dianhydride description"));
+            }
+            self.link_anhydride_results(&smiles, &mut one, &mut two)?;
+            return self.link_anhydride_results(&smiles, &mut three, &mut two);
+        }
         self.assembly.resolve_word_or_bracket(words[0])?;
         let mut one = self.results(words[0])?;
         if one.functional_atoms.is_empty() {
