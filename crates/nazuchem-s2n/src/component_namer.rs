@@ -157,8 +157,19 @@ pub(super) fn name_component_with_atom_locants(
     mol: &Molecule,
     component_atoms: &AtomSet,
     isotope_source: Option<&Molecule>,
+    // A parent to name instead of the selected one, when parents tie. With the
+    // bond from it to a linking group, the name is that of a multiplied unit.
+    tied_parent: Option<(&ParentSelection, Option<(usize, usize)>)>,
 ) -> Result<IsotopeParentName, String> {
-    match component_pipeline(mol, component_atoms, None, None, None, isotope_source, None)? {
+    match component_pipeline(
+        mol,
+        component_atoms,
+        None,
+        None,
+        None,
+        isotope_source,
+        tied_parent,
+    )? {
         ComponentResult::Shortcut(name) => Ok(IsotopeParentName {
             rendered_parent: name.name.clone(),
             text: name.name,
@@ -318,8 +329,9 @@ fn component_pipeline(
     principal_atom: Option<usize>,
     projection: Option<SpiroProjection<'_>>,
     isotope_source: Option<&Molecule>,
-    // A parent to name instead of the selected one, when parents tie.
-    tied_parent: Option<&ParentSelection>,
+    // A parent to name instead of the selected one, when parents tie. With the
+    // bond from it to a linking group, the name is that of a multiplied unit.
+    tied_parent: Option<(&ParentSelection, Option<(usize, usize)>)>,
 ) -> Result<ComponentResult, String> {
     let _depth = mol.enter_naming()?;
     let as_prefix = projection.as_ref().is_some_and(|p| {
@@ -432,7 +444,7 @@ fn component_pipeline(
                 component_atoms,
                 &exclude,
             )?
-        } else if let Some(parent) = tied_parent {
+        } else if let Some((parent, _)) = tied_parent {
             parent.clone()
         } else {
             let chains = find_all_carbon_paths(mol, &exclude)?;
@@ -469,7 +481,7 @@ fn component_pipeline(
                             None,
                             None,
                             isotope_source,
-                            Some(parent),
+                            Some((parent, None)),
                         )? {
                             let prefixes = plan.parts.substituents.clone();
                             let (name, parent) = render_component_and_parent(
@@ -707,7 +719,31 @@ fn component_pipeline(
             )?
         }
     } else {
-        build_parent_assembly_plan_with_modifiers(
+        // P-15.3.1.3: a multiplied unit keeps its numbering and gives the
+        // linking group the lowest locant that numbering allows. Citing the
+        // group first decides ties; a lower locant set of all prefixes
+        // together that moves the group is not this rule, and is refused.
+        let mut lowest = None;
+        if let Some((_, Some((root, link)))) = tied_parent {
+            let item = mapping
+                .get_mut(&root)
+                .and_then(|items| items.iter_mut().find(|i| i.atom_ids.contains(&link)))
+                .ok_or("openclatura: linking group is not a prefix of the unit")?;
+            item.name.clear();
+            let alone = build_parent_assembly_plan_with_modifiers(
+                mol,
+                &selection,
+                &principal,
+                None,
+                None,
+                &BTreeMap::from([(root, vec![item.clone()])]),
+                retained_name.clone(),
+                &maps,
+                &modifiers,
+            )?;
+            lowest = Some((root, alone.locant_map[&root].clone()));
+        }
+        let plan = build_parent_assembly_plan_with_modifiers(
             mol,
             &selection,
             &principal,
@@ -717,7 +753,11 @@ fn component_pipeline(
             retained_name,
             &maps,
             &modifiers,
-        )?
+        )?;
+        if lowest.is_some_and(|(root, locant)| plan.locant_map[&root] != locant) {
+            return Err("openclatura: linking group does not take its lowest locant".into());
+        }
+        plan
     };
     if retained_metadata.is_some() {
         plan.parts.retained_parent_metadata = retained_metadata;
@@ -753,8 +793,14 @@ fn component_pipeline(
         locants,
     );
     parts.is_spiro_side_projection = projection.is_some();
+    let mut linking = AtomSet::new();
     for &idx in numbered {
         for mut item in mapping.remove(&idx).unwrap_or_default() {
+            if item.name.is_empty() && matches!(tied_parent, Some((_, Some(_)))) {
+                // The linking group is cited by the multiplicative name.
+                linking = item.atom_ids;
+                continue;
+            }
             item.locants.push(locants[&idx].clone());
             super::subgraph_tools::add_substituent(parts, item);
         }
@@ -768,6 +814,7 @@ fn component_pipeline(
     let mut named = parent.clone();
     named.extend(principal_atoms);
     named.extend(front.consumed);
+    named.extend(linking);
     named.extend(n_subs);
     named.extend(
         parts

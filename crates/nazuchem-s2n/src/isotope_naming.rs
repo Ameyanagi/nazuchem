@@ -495,7 +495,8 @@ pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Na
     parent.mark_isotope_parent();
     parent.set_isotope_sites(sites.clone());
     let atoms: AtomSet = parent.atoms.keys().copied().collect();
-    let base = component_namer::name_component_with_atom_locants(&parent, &atoms, Some(source))?;
+    let base =
+        component_namer::name_component_with_atom_locants(&parent, &atoms, Some(source), None)?;
     let locants = &base.locants;
     super::assess_derivation(&parent, &base.derivation);
     // P-82.2.1: the substituent prefixes have cited their own labels, and a

@@ -418,7 +418,7 @@ fn name_graph(mol: molecule::Molecule, style: nazuchem_ir::IsotopeStyle) -> Resu
                 if let Some(name) = oxide {
                     return Ok(name);
                 }
-                return phane.map_or(Err(error), |text| {
+                return phane.map_or(Err(error), |(text, _)| {
                     Ok(Name {
                         text,
                         status: nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::Phane),
@@ -441,19 +441,28 @@ fn name_graph(mol: molecule::Molecule, style: nazuchem_ir::IsotopeStyle) -> Resu
     }
     let multiplicative =
         nazuchem_ir::NameStatus::NotPreferred(nazuchem_ir::NameReason::Multiplicative);
-    // P-51.3.1: the multiplicative name is preferred; the substitutive name
-    // stays as an alternative.
-    if unmarked
-        && mol.name_status() == multiplicative
-        && !requires_skeletal_replacement(&mol, &component.derivation)
-        && let Some(name) = multiplicative::name(&mol, &components[0])
+    let status = mol.name_status();
+    // P-51.3.1, P-52.2.5.3: the multiplicative or linear phane name is
+    // preferred; the substitutive name stays as an alternative.
+    let preferred = if !unmarked {
+        None
+    } else if status == multiplicative {
+        (!requires_skeletal_replacement(&mol, &component.derivation))
+            .then(|| multiplicative::name(&mol, &components[0]))
+            .flatten()
+    } else if status == nazuchem_ir::NameStatus::NotPreferred(nazuchem_ir::NameReason::LinearPhane)
     {
+        phane.clone().filter(|p| p.1).map(|p| p.0)
+    } else {
+        None
+    };
+    if let Some(name) = preferred {
         return Ok(Name {
             text: nest_enclosing_marks(&name),
             status: nazuchem_ir::NameStatus::Preferred,
             alternatives: vec![nazuchem_ir::AlternativeName {
                 name: nest_enclosing_marks(&component.text),
-                status: multiplicative,
+                status,
             }],
             omitted_stereo: vec![],
             omitted_units: 0,
@@ -461,7 +470,7 @@ fn name_graph(mol: molecule::Molecule, style: nazuchem_ir::IsotopeStyle) -> Resu
         });
     }
     let text = component.text;
-    if phane.is_some() {
+    if phane.as_ref().is_some_and(|p| !p.1) {
         mol.mark_name(nazuchem_ir::NameStatus::NotPreferred(
             nazuchem_ir::NameReason::Phane,
         ));
@@ -517,7 +526,7 @@ fn name_graph(mol: molecule::Molecule, style: nazuchem_ir::IsotopeStyle) -> Resu
             });
         }
     }
-    alternatives.extend(phane.map(|name| nazuchem_ir::AlternativeName {
+    alternatives.extend(phane.map(|(name, _)| nazuchem_ir::AlternativeName {
         name,
         status: nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::Phane),
     }));
@@ -757,44 +766,13 @@ fn has_multiplicative_pin(
         return false;
     }
     use molecule::AtomSet;
-    let cyclic = chains::get_cyclic_atoms(mol, &AtomSet::new());
-    let mut groups = perception::perceive_groups(mol);
-    let key = principal_groups::component_principal_key(mol, &groups, false);
-    let mut excluded = AtomSet::new();
-    component_group_rules::retarget_external_carbonyl_groups(
-        mol,
-        &mut groups,
-        key.as_deref(),
-        &mut excluded,
-        &cyclic,
-    );
-    let (principal, _) =
-        principal_groups::partition_principal_and_prefix_groups(&groups, key.as_deref());
-    component_group_rules::exclude_nonparent_group_atoms(mol, &groups, &mut excluded, &cyclic);
-    let (Ok(paths), Ok(rings)) = (
-        chains::find_all_carbon_paths(mol, &excluded),
-        chains::find_ring_systems(mol, &excluded),
-    ) else {
+    let Some((parents, (paths, rings))) = multiplicative::parents(mol) else {
         return false;
     };
-    let parents: Vec<_> = parent_selection::senior_parent_candidates(
-        mol, &paths, &rings, &principal, &groups, &excluded,
-    )
-    .into_iter()
-    // P-15.3.1.1 / P-15.3.4.2 exclude acyclic hydrocarbons without suffixes.
-    .filter(|p| p.is_ring || principal.iter().any(|a| p.primary_path().contains(a)))
-    .map(|p| {
-        let atoms = p.atom_set();
-        let mut complete = atoms.clone();
-        complete.extend(component_group_rules::principal_involved_atoms(
-            mol,
-            &groups,
-            key.as_deref(),
-            p.primary_path(),
-        ));
-        (p.primary_path()[0], atoms, complete)
-    })
-    .collect();
+    let parents: Vec<_> = parents
+        .into_iter()
+        .map(|(p, complete)| (p.primary_path()[0], p.atom_set(), complete))
+        .collect();
     if parents.len() < 2 {
         return false;
     }
@@ -1686,10 +1664,11 @@ mod tests {
                 "disodium 2-[(2-oxidophenyl)methyl]benzoate",
                 NameStatus::Preferred,
             ),
+            // P-52.2.5.3 Example 2: the multiplicative name is generated.
             (
                 "c1ccccc1Oc2ccc(Oc3ccccc3)cc2",
-                "1,4-diphenoxybenzene",
-                NameStatus::NotPreferred(NameReason::Multiplicative),
+                "1,1'-[1,4-phenylenebis(oxy)]dibenzene",
+                NameStatus::Preferred,
             ),
             (
                 "[Na+]",
@@ -1879,16 +1858,10 @@ mod tests {
             ),
             // P-15.3 / P-51.3.1: a more substituted core does not remove
             // identical terminal parents from multiplicative eligibility.
-            ("c1ccccc1Oc2ccc(Oc3ccccc3)cc2", "1,4-diphenoxybenzene"),
-            (
-                "c1ccccc1Oc2cc(Oc3ccccc3)cc(Oc4ccccc4)c2",
-                "1,3,5-triphenoxybenzene",
-            ),
             (
                 "c1ccccc1Oc2ccc(Oc3ccccc3)c(C)c2",
                 "2-methyl-1,4-diphenoxybenzene",
             ),
-            ("c1ccccc1Cc2ccc(Cc3ccccc3)cc2", "1,4-dibenzylbenzene"),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
@@ -2044,9 +2017,10 @@ mod tests {
                 "CC(C)CC1=CC=C(C=C1)C(C)C(=O)O",
                 "2-[4-(2-methylpropyl)phenyl]propanoic acid",
             ),
+            // P-51.3.1: the multiplicative name is generated.
             (
                 "OCCOCCOCCOCCO",
-                "2-{2-[2-(2-hydroxyethoxy)ethoxy]ethoxy}ethan-1-ol",
+                "2,2'-[oxybis(ethane-2,1-diyloxy)]di(ethan-1-ol)",
             ),
             (
                 "OCCOCCOCCOCCOCCO",
@@ -2459,17 +2433,18 @@ mod tests {
     fn linear_phane_assemblies_keep_nonpreferred_status_and_round_trip() {
         use nazuchem_ir::{NameReason, NameStatus};
         for (smiles, expected, status) in [
+            // P-52.2.5.3: unsubstituted linear phanes take the phane name.
             (
                 "c1ccccc1-c1ccc(-c2ccc(Oc3cccc(-c4cccc(-c5ccccn5)n4)n3)cc2)cc1",
-                "1^6-[([1^1,2^1:2^4,3^1-terphenyl]-1^4-yl)oxy]-1^2,2^2:2^6,3^2-terpyridine",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "4-oxa-1(2),2,3(2,6)-tripyridina-5,6(1,4),7(1)-tribenzenaheptaphane",
+                NameStatus::Preferred,
             ),
             // P-51.3.2: even identical halves require the linear phane,
             // rather than a multiplicative name, for seven skeletal nodes.
             (
                 "c1ccccc1-c1ccc(-c2ccc(Oc3ccc(-c4ccc(-c5ccccc5)cc4)cc3)cc2)cc1",
-                "1^4-[([1^1,2^1:2^4,3^1-terphenyl]-1^4-yl)oxy]-1^1,2^1:2^4,3^1-terphenyl",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "4-oxa-1,7(1),2,3,5,6(1,4)-hexabenzenaheptaphane",
+                NameStatus::Preferred,
             ),
             // P-65.6.3.3.7.2.1: the carbamate separates two two-ring
             // components; its named biphenyl junction needs no demotion.
@@ -2502,8 +2477,8 @@ mod tests {
             // A linear phane outranks the multiplicative name (P-51.3.2).
             (
                 "c1ccccc1Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2",
-                "1-phenoxy-4-(4-phenoxyphenoxy)benzene",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "2,4,6-trioxa-1,7(1),3,5(1,4)-tetrabenzenaheptaphane",
+                NameStatus::Preferred,
             ),
             (
                 "c1ccccc1-c1ccc(-c2ccc(-c3ccc(-c4ccc(-c5ccccc5)cc4)cc3)cc2)cc1",
@@ -3522,24 +3497,11 @@ mod tests {
             ),
             // P-15.3.2.4.1, P-15.3.1.2.2: substituted units and concatenated
             // linking groups are not multiplied yet.
+            // P-15.3.1.3: the unit numbering that puts the linking group
+            // at locant 1 is not built, so the substitutive name stays.
             (
-                "Brc1ccc(Oc2ccc(Br)cc2)cc1",
-                "1-bromo-4-(4-bromophenoxy)benzene",
-                R::Multiplicative,
-            ),
-            (
-                "Brc1ccc(Sc2ccc(Br)cc2)cc1",
-                "1-bromo-4-[(4-bromophenyl)sulfanyl]benzene",
-                R::Multiplicative,
-            ),
-            (
-                "O=S(c1ccc(Br)cc1)c1ccc(Br)cc1",
-                "1-bromo-4-(4-bromobenzene-1-sulfinyl)benzene",
-                R::Multiplicative,
-            ),
-            (
-                "O=S(=O)(c1ccc(Br)cc1)c1ccc(Br)cc1",
-                "1-bromo-4-(4-bromobenzene-1-sulfonyl)benzene",
+                "Brc1ccc(Oc2ccc(Br)c(Br)c2)cc1Br",
+                "1,2-dibromo-4-(3,4-dibromophenoxy)benzene",
                 R::Multiplicative,
             ),
             (
@@ -3568,9 +3530,11 @@ mod tests {
                 "1-[(2R)-butan-2-yl]-4-({4-[(2R)-butan-2-yl]phenyl}sulfanyl)benzene",
                 R::Multiplicative,
             ),
+            // P-51.4.1.1: four heterounits; the skeletal replacement name
+            // is not built.
             (
-                "O(CCOCC(=O)O)CC(=O)O",
-                "[2-(carboxymethoxy)ethoxy]acetic acid",
+                "OC(=O)COCCOCCOCCOCC(=O)O",
+                "(2-{2-[2-(carboxymethoxy)ethoxy]ethoxy}ethoxy)acetic acid",
                 R::Multiplicative,
             ),
         ] {

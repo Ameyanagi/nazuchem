@@ -3,7 +3,8 @@
 // Source: ReShiki | src/naming/openclatura/phane.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 
-//! Cyclic phanes with disjoint monocyclic mancude amplificants (PhI-2/PhI-3).
+//! Cyclic and linear phanes with disjoint monocyclic mancude amplificants
+//! (PhI-2/PhI-3, P-26).
 use super::{
     graph_kernel::{Edge, adjacency_from_edges, connected_components, normalize_edge},
     molecule::{AtomSet, Molecule},
@@ -70,8 +71,10 @@ pub(super) fn has_linear_skeleton(mol: &Molecule, splits: &BTreeSet<Edge>) -> bo
     })
 }
 
-/// Only one cycle after amplification is collapsed; every atom is accounted for.
-pub(super) fn name(mol: &Molecule) -> Option<String> {
+/// The phane name and whether it is a linear phane. Collapsing the
+/// amplificants leaves one cycle or one unbranched chain; every atom is
+/// accounted for.
+pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
     if mol
         .atoms
         .values()
@@ -183,10 +186,23 @@ pub(super) fn name(mol: &Molecule) -> Option<String> {
         attachments.insert((v, u), b.v);
     }
     let adjacency = adjacency_from_edges(&nodes, &edges);
-    // P-52.2.5.1: a cyclophane has at least six nodes.
-    if nodes.len() < 6
-        || adjacency.values().any(|neighbors| neighbors.len() != 2)
+    let terminals: Vec<_> = nodes
+        .iter()
+        .copied()
+        .filter(|n| adjacency[n].len() == 1)
+        .collect();
+    let linear = terminals.len() == 2;
+    // P-52.2.5.1: a cyclophane has at least six nodes; a linear phane has at
+    // least seven, with four rings of which two are terminal.
+    if adjacency.values().any(|neighbors| neighbors.len() > 2)
         || connected_components(&nodes, &edges).len() != 1
+        || !(if linear {
+            // The parser reads a two-digit skeletal locant such as 12 as
+            // ambiguous with a composite locant, so longer chains are left.
+            (7..=9).contains(&nodes.len()) && amplificants.len() >= 4
+        } else {
+            terminals.is_empty() && nodes.len() >= 6
+        })
     {
         return None;
     }
@@ -196,8 +212,9 @@ pub(super) fn name(mol: &Molecule) -> Option<String> {
                 .iter()
                 .map(|&n| attachments[&(i, n)])
                 .collect();
-            // P-52.2.5.2.1: adjacent attachments make a fused ring system.
-            if ends[0] == ends[1] || mol.get_neighbors(ends[0]).contains(&ends[1]) {
+            // P-52.2.5.2.1: adjacent attachments make a fused ring system
+            // of a cyclophane.
+            if !linear && (ends[0] == ends[1] || mol.get_neighbors(ends[0]).contains(&ends[1])) {
                 return None;
             }
         } else {
@@ -205,7 +222,9 @@ pub(super) fn name(mol: &Molecule) -> Option<String> {
             let hydrogens = match a.symbol.as_str() {
                 "C" => 2,
                 "O" | "S" => 0,
-                "N" => 1,
+                // An amine is a characteristic group; only ethers and
+                // sulfides are replaced in a linear phane here.
+                "N" if !linear => 1,
                 _ => return None,
             };
             if a.is_aromatic || a.total_h_count != hydrogens || mol.degree(i) != 2 {
@@ -213,16 +232,25 @@ pub(super) fn name(mol: &Molecule) -> Option<String> {
             }
         }
     }
+    let order_starts: Vec<_> = nodes.iter().copied().collect();
     // Each numbering is compared numerically, never by the rendered name.
     let mut best = None;
-    for &start in &nodes {
+    let mut ends = vec![];
+    // A chain is numbered from either end, a cycle from any node either way.
+    for &start in if linear {
+        &terminals[..]
+    } else {
+        &order_starts[..]
+    } {
         for &second in &adjacency[&start] {
             let mut order = vec![start];
             let mut previous = start;
             let mut current = second;
             while current != start {
                 order.push(current);
-                let next = *adjacency[&current].iter().find(|&&n| n != previous)?;
+                let Some(&next) = adjacency[&current].iter().find(|&&n| n != previous) else {
+                    break;
+                };
                 previous = current;
                 current = next;
             }
@@ -262,19 +290,21 @@ pub(super) fn name(mol: &Molecule) -> Option<String> {
                 };
                 let mut neighbors: Vec<_> = adjacency[&node].iter().copied().collect();
                 neighbors.sort_by_key(|n| locants[n]);
-                let ends = [neighbors[0], neighbors[1]].map(|n| attachments[&(node, n)]);
                 let (set, pair) = amplificant
                     .numberings
                     .iter()
                     .map(|numbering| {
-                        let pair = ends.map(|end| numbering[&end]);
-                        let mut set = pair;
+                        let pair: Vec<_> = neighbors
+                            .iter()
+                            .map(|&n| numbering[&attachments[&(node, n)]])
+                            .collect();
+                        let mut set = pair.clone();
                         set.sort();
                         (set, pair)
                     })
                     .min()?;
                 attachment_sets.push((amplificant.seniority, locants[&node], set));
-                attachment_order.push(pair);
+                attachment_order.push(pair.clone());
                 numbered.push((amplificant.prefix, locants[&node], pair));
             }
             // PhI-3.2.2 compares attachment sets by amplificant seniority,
@@ -288,12 +318,25 @@ pub(super) fn name(mol: &Molecule) -> Option<String> {
                 superatoms,
                 seniority,
                 attachment_sets,
+                // P-26.4.2.4 completes the hydrocarbon numbering before
+                // P-26.5.1 places the heteroatoms on it.
+                attachment_order,
                 hetero(None),
                 hetero(Some("O")),
                 hetero(Some("S")),
                 hetero(Some("N")),
-                attachment_order,
             );
+            // P-26.4.2.3 lets a single unsymmetrical amplificant choose the
+            // end before P-26.4.2.4 compares the locants in name order. That
+            // rule is not modelled, so a chain whose ends differ only in
+            // attachment order is left to the substitutive name.
+            ends.push((key.0.clone(), key.1.clone(), key.2.clone(), key.3.clone()));
+            if linear
+                && (&ends[0].0, &ends[0].1, &ends[0].2) == (&key.0, &key.1, &key.2)
+                && ends[0].3 != key.3
+            {
+                return None;
+            }
             if best.as_ref().is_none_or(|(old, _)| key < *old) {
                 let mut parts = vec![];
                 for (symbol, prefix) in [("O", "oxa"), ("S", "thia"), ("N", "aza")] {
@@ -323,8 +366,9 @@ pub(super) fn name(mol: &Molecule) -> Option<String> {
                         .iter()
                         .filter(|(prefix, _, _)| *prefix == amplificant.prefix)
                         .collect();
-                    let mut groups: Vec<([usize; 2], Vec<usize>)> = vec![];
-                    for &&(_, locant, pair) in &members {
+                    let mut groups: Vec<(&Vec<usize>, Vec<usize>)> = vec![];
+                    for (_, locant, pair) in &members {
+                        let locant = *locant;
                         if let Some((_, positions)) = groups.iter_mut().find(|(p, _)| *p == pair) {
                             positions.push(locant);
                         } else {
@@ -334,16 +378,14 @@ pub(super) fn name(mol: &Molecule) -> Option<String> {
                     let descriptor = groups
                         .iter()
                         .map(|(pair, positions)| {
-                            format!(
-                                "{}({},{})",
-                                positions
+                            let list = |locants: &[usize]| {
+                                locants
                                     .iter()
                                     .map(usize::to_string)
                                     .collect::<Vec<_>>()
-                                    .join(","),
-                                pair[0],
-                                pair[1]
-                            )
+                                    .join(",")
+                            };
+                            format!("{}({})", list(positions), list(pair))
                         })
                         .collect::<Vec<_>>()
                         .join(",");
@@ -355,15 +397,16 @@ pub(super) fn name(mol: &Molecule) -> Option<String> {
                     parts.push(format!("{descriptor}-{multiplier}{}", amplificant.prefix));
                 }
                 let name = format!(
-                    "{}cyclo{}phane",
+                    "{}{}{}phane",
                     parts.join("-"),
+                    if linear { "" } else { "cyclo" },
                     multipliers::numerical_term(nodes.len())
                 );
                 best = Some((key, name));
             }
         }
     }
-    best.map(|(_, name)| name)
+    best.map(|(_, name)| (name, linear))
 }
 
 #[cfg(test)]
