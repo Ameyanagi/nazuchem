@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/mancude.rs | issue #87
 // Source: openclatura | src/openclatura/fusion/mancude.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/fusion/mancude.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/unit/test_fusion_pi_redistribution.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -228,6 +229,32 @@ pub(super) fn saturated_nitrogen_hydrogen_sites(
     }
     indicated.clone()
 }
+/// Saturated N-H sites that the mancude parent can cite together.
+///
+/// P-14.7.1: indicated hydrogen marks the positions a mancude ring system
+/// leaves without a double bond, and P-31.2.2 hydro prefixes add hydrogen in
+/// pairs. N-H sites that are only alternative positions of one indicated
+/// hydrogen (1H- or 6H-pyrrolo[3,4-b]pyridine) are therefore not cited
+/// together: `hexahydro-1H,6H-` would strand the ninth ring atom.
+// Provenance: fn cited_saturated_nitrogen_hydrogen_sites | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/mancude.rs::cited_saturated_nitrogen_hydrogen_sites
+pub(super) fn cited_saturated_nitrogen_hydrogen_sites(
+    mol: &Molecule,
+    atoms: &AtomSet,
+    indicated: &AtomSet,
+    model: &ParentBondModel,
+) -> AtomSet {
+    let sites = saturated_nitrogen_hydrogen_sites(mol, atoms, indicated);
+    if model
+        .allowed_kekule_assignments
+        .iter()
+        .any(|assignment| sites.is_disjoint(&assignment.paired_atoms()))
+    {
+        sites
+    } else {
+        AtomSet::new()
+    }
+}
 // Provenance: fn has_complete_saturated_hydrogenation | adapted
 // Source: openclatura | src/openclatura/fusion/mancude.py::has_complete_saturated_hydrogenation
 pub(super) fn has_complete_saturated_hydrogenation(
@@ -385,7 +412,7 @@ pub(super) fn nitrogen_composition_parent_model(
     model: &ParentBondModel,
     indicated: &AtomSet,
 ) -> Result<ParentBondModel, String> {
-    let mut sites = saturated_nitrogen_hydrogen_sites(mol, atoms, indicated);
+    let mut sites = cited_saturated_nitrogen_hydrogen_sites(mol, atoms, indicated, model);
     for &id in atoms {
         let atom = &mol.atoms[&id];
         let degree = parent_degree(mol, atoms, id);

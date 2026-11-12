@@ -604,7 +604,7 @@ pub(super) fn intrinsic_carbon_parent_model(
     {
         return Ok((model, AtomSet::new()));
     }
-    if !saturated_nitrogen_hydrogen_sites(mol, &atoms, &hydrogen_atoms).is_empty() {
+    if !cited_saturated_nitrogen_hydrogen_sites(mol, &atoms, &hydrogen_atoms, &model).is_empty() {
         return Ok((model, AtomSet::new()));
     }
     let original = model.clone();
