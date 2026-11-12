@@ -2722,6 +2722,7 @@ fn hydrazine_carbonyl_parent_name(
             || mol.bond_order(carbon, x) != 2
             || mol.bond_order(carbon, y) != 1
             || mol.atoms[&x].charge != 0
+            || heavy(x).len() != 1
             || !open(y)
         {
             return None;
@@ -2736,7 +2737,7 @@ fn hydrazine_carbonyl_parent_name(
         let plain = infix.is_empty();
         let beyond: Vec<_> = heavy(y).into_iter().filter(|&z| z != carbon).collect();
         let (code, plain, text, site) = match symbol(y) {
-            "F" | "Cl" | "Br" | "I" => {
+            "F" | "Cl" | "Br" | "I" if beyond.is_empty() => {
                 let (code, word) = match symbol(y) {
                     "F" => (50, "fluoride"),
                     "Cl" => (51, "chloride"),
@@ -4390,6 +4391,15 @@ mod tests {
                 crate::test_support::canonical_smiles(smiles).unwrap(),
                 crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{expected}",
+            );
+        }
+        // A suffix needs a terminal =X and a terminal halogen.
+        for smiles in ["NNC(=[S](C)C)O", "NNC(=S(=O)=O)O", "NNC(=O)I(C)C"] {
+            let mol = read_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(
+                hydrazine_carbonyl_parent_name(&mol, &all_atoms(&mol)).unwrap(),
+                None,
+                "{smiles}"
             );
         }
         // Left to the general namer: a parent with more of the principal
