@@ -341,7 +341,10 @@ pub(super) fn name_salt(
     // no locant precedes any locant (P-14.5, P-14.5.4), then the internal
     // locants of names that differ in nothing but locants (P-14.5.4).
     // Descriptor brackets hold no such locants, and the order of enclosing
-    // marks (P-14.6) is not ranked here.
+    // marks (P-14.6) is not ranked here. Nor are composite locants with a
+    // superscript, as 1^2 (P-14.3.5): the key reads only the bonding number
+    // of lambda^5, which takes no part.
+    let superscript = |text: &str| text.replace("lambda^", "").contains('^');
     let locant_free = |text: &str| {
         let descriptor_bracket = text
             .split('[')
@@ -355,10 +358,13 @@ pub(super) fn name_salt(
                 || other.1.text == name.text
                 || match (key, other_key) {
                     (Some((a, a_text)), Some((b, b_text))) => {
-                        (&a.0, &a.1, &a.2) != (&b.0, &b.1, &b.2)
-                            || a.3 != b.3
-                                && locant_free(a_text)
-                                    .is_some_and(|x| Some(x) == locant_free(b_text))
+                        (&a.0, &a.1) != (&b.0, &b.1)
+                            || !superscript(a_text)
+                                && !superscript(b_text)
+                                && (a.2 != b.2
+                                    || a.3 != b.3
+                                        && locant_free(a_text)
+                                            .is_some_and(|x| Some(x) == locant_free(b_text)))
                     }
                     _ => false,
                 }
@@ -817,6 +823,11 @@ mod tests {
             (
                 "[Na+].[Na+].C/C=C/C(=O)[O-].C/C=C\\C(=O)[O-]",
                 "disodium (2E)-but-2-enoate (2Z)-but-2-enoate",
+            ),
+            // Composite locants with superscripts are not ranked (P-14.3.5).
+            (
+                "[Na+].[Na+].Clc1ccccc1-c1c([O-])c(C)c(-c2ccccc2)cc1.[O-]c1c(Cl)c(C)ccc1-c1ccc(-c2ccccc2)cc1",
+                "disodium 1^2-chloro-2^3-methyl[1^1,2^1:2^4,3^1-terphenyl]-2^2-olate 1^3-chloro-1^4-methyl[1^1,2^1:2^4,3^1-terphenyl]-1^2-olate",
             ),
             // Only the numerals of the von Baeyer descriptors differ.
             (
