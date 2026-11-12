@@ -337,7 +337,14 @@ pub fn collect_numbering_n_substituents(
                 .any(|group| group.attachment_carbon == **carbon)
         })
         .enumerate()
-        .map(|(index, &carbon)| (format!("N{}", "'".repeat(index)), carbon))
+        .map(|(index, &carbon)| {
+            let locant = if key == "amine" {
+                format!("N^{}", locants[&carbon])
+            } else {
+                format!("N{}", "'".repeat(index))
+            };
+            (locant, carbon)
+        })
         .collect();
     Ok(Some(NumberingNSubstituents {
         items: parts.substituents,
@@ -426,6 +433,43 @@ pub fn add_component_n_substituents(
         .filter(|g| g.key == key && path.contains(&g.attachment_carbon))
         .collect();
     selected.sort_by_key(|g| parse_locant(&locants[&g.attachment_carbon]));
+    // Geminal amines share a parent locant, so primes tell their nitrogens
+    // apart: N^3, N'^3 (P-62.2.4.1.2, P-16.9.3). The unprimed locant goes to
+    // the nitrogen with more substituents, then to the one cited first
+    // (P-14.3.5, P-14.4 (f), (g)).
+    let polyamine = key == "amine" && selected.len() > 1;
+    if polyamine {
+        let status = mol.name_status();
+        let mut ranked = Vec::with_capacity(selected.len());
+        for group in selected {
+            let carbon = group.attachment_carbon;
+            let mut names = Vec::new();
+            for &n in &group.atoms_involved {
+                if mol.atoms[&n].symbol != "N" {
+                    continue;
+                }
+                let mut blocked = exclude.clone();
+                blocked.insert(n);
+                for &r in mol.get_neighbors(n) {
+                    if r != carbon && mol.atoms[&r].symbol != "H" {
+                        let name = name_subgraph_with_upstream(mol, r, &blocked, Some(n))?;
+                        names.push(substituent_sort_key(&name));
+                    }
+                }
+            }
+            names.sort();
+            let rank = (
+                parse_locant(&locants[&carbon]),
+                std::cmp::Reverse(names.len()),
+                names,
+            );
+            ranked.push((rank, group));
+        }
+        // These provisional names only rank the nitrogens; their text is not emitted.
+        mol.set_name_status(status);
+        ranked.sort_by(|a, b| a.0.cmp(&b.0));
+        selected = ranked.into_iter().map(|(_, group)| group).collect();
+    }
     let mut global = 0;
     for (gi, group) in selected.iter().enumerate() {
         let carbon = group.attachment_carbon;
@@ -500,9 +544,17 @@ pub fn add_component_n_substituents(
                             && mol.get_bond(n, *r).is_some_and(|b| b.order == 2))
                 })
                 .collect();
-            let loc = guanidine.get(&n).cloned().unwrap_or_else(|| {
-                n_substituent_locant(key, selected.len(), nitrogens.len(), ni, global, gi)
-            });
+            let loc = if polyamine {
+                let primes = selected[..gi]
+                    .iter()
+                    .filter(|g| g.attachment_carbon == carbon)
+                    .count();
+                format!("N{}^{}", "'".repeat(primes), locants[&carbon])
+            } else {
+                guanidine.get(&n).cloned().unwrap_or_else(|| {
+                    n_substituent_locant(key, selected.len(), nitrogens.len(), ni, global, gi)
+                })
+            };
             for root in roots {
                 let mut blocked = exclude.clone();
                 blocked.insert(n);
