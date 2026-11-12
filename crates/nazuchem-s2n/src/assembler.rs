@@ -670,8 +670,11 @@ pub(super) fn assemble_name_with_parent(
     if let Some(candidate) = &fused_ion_candidate {
         consume_fused_ion_operation(parts, candidate);
     }
-    promote_acyl_substituent_name(parts);
-    promote_retained_substituent_name(parts);
+    // P-82.6.3.2: a labelled prefix keeps its numbered parent, phenyl(13C)methyl.
+    if parts.isotope_descriptor.is_empty() {
+        promote_acyl_substituent_name(parts);
+        promote_retained_substituent_name(parts);
+    }
     promote_retained_hydride_name(parts);
     select_retained_anion_name(parts);
     promote_retained_functional_parent(parts)?;
@@ -759,7 +762,16 @@ fn finish_name_with_parent(
         && !positive_parent_n_charges(parts).is_empty()
         && parts.retained_name.is_some()
         && !parts.indicated_hydrogens.is_empty();
-    let word = if !prefix.is_empty() && (needs_hyphen(&prefix, &core) || charged_hyphen) {
+    let word = if !parts.isotope_descriptor.is_empty() {
+        // P-82.2.1: the descriptor follows the prefixes, with a hyphen only
+        // before a locant, as in 4-[(3-14C)thiolan-2-yl]pyridine.
+        let hyphen = if core.starts_with(|c: char| c.is_ascii_digit()) {
+            "-"
+        } else {
+            ""
+        };
+        format!("{prefix}{}{hyphen}{core}", parts.isotope_descriptor)
+    } else if !prefix.is_empty() && (needs_hyphen(&prefix, &core) || charged_hyphen) {
         format!("{prefix}-{core}")
     } else {
         format!("{prefix}{core}")

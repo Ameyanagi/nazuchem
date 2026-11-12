@@ -37,7 +37,13 @@ fn ignored_prefix_len(text: &str) -> usize {
     let locants = prefix.split([',', ':']).all(|s| {
         let digits = s.chars().take_while(|c| c.is_ascii_digit()).count();
         if digits > 0 {
-            s[digits..].chars().all(|c| {
+            // P-82.2.2.1: a nuclide symbol such as 14c6 takes no part either.
+            let symbol = if assembly_locants {
+                &s[digits..]
+            } else {
+                s[digits..].trim_end_matches(|c: char| c.is_ascii_digit())
+            };
+            symbol.chars().all(|c| {
                 c.is_ascii_lowercase()
                     || c == 'ξ'
                     || assembly_locants && (c.is_ascii_digit() || matches!(c, '\'' | '^'))
@@ -232,7 +238,12 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
         items.push(sub);
     }
     // Python's dict preserves first citation order when alphabetical keys tie.
-    names.sort_by_key(|s| substituent_sort_key(s));
+    // P-82.2.2.1: the isotopically modified prefix precedes its unmodified twin.
+    names.sort_by_key(|s| {
+        let unmodified = grouped[s].iter().all(|item| item.isotope_atoms.is_empty());
+        let (name, initial) = substituent_sort_key(s);
+        (name, unmodified, initial)
+    });
     let groups: Vec<_> = names
         .into_iter()
         .map(|name| {
@@ -274,9 +285,14 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
             locs.len()
         } / per)
             .max(1);
-        let complex = is_complex_prefix(name) || (count > 1 && needs_complex_multiplier(name));
+        // P-82.2.1: a leading isotope descriptor leaves a simple prefix simple,
+        // 3-(2H3)methyl, though a multiplied one is enclosed: di[(13C)methyl].
+        let descriptor = items[0].isotope_descriptor.as_str();
+        let plain = name.strip_prefix(descriptor).unwrap_or(name);
+        let compound = is_complex_prefix(plain) || (count > 1 && needs_complex_multiplier(plain));
+        let complex = compound || count > 1 && !descriptor.is_empty();
         let mult = if count > 1 {
-            if complex {
+            if compound {
                 multipliers::complex_(count)
             } else {
                 multipliers::basic(count)
