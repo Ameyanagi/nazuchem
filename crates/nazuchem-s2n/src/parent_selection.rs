@@ -242,25 +242,31 @@ fn score(
     }
     // P-45.2.1: a substituent on the nitrogen of a suffix is cited as a
     // prefix with the locant N; the alkyl group of an ester is not a prefix.
-    // Of two group classes on one atom, one is itself a prefix: no count.
-    let suffixes = groups.anionic.unwrap_or_default();
-    for group in suffixes.iter().filter(|g| {
-        g.is_principal_candidate
-            && groups.principal.contains(&g.attachment_carbon)
-            && atoms.contains(&g.attachment_carbon)
-            && suffixes.iter().all(|other| {
-                !other.is_principal_candidate
-                    || other.attachment_carbon != g.attachment_carbon
-                    || other.key == g.key
-            })
+    // Of two group classes on one atom, one is itself a prefix; which one is
+    // not known here, so the molecule is left alone.
+    let suffixes: Vec<_> = groups
+        .anionic
+        .unwrap_or_default()
+        .iter()
+        .filter(|g| g.is_principal_candidate && groups.principal.contains(&g.attachment_carbon))
+        .collect();
+    if suffixes.iter().all(|g| {
+        suffixes
+            .iter()
+            .all(|other| other.attachment_carbon != g.attachment_carbon || other.key == g.key)
     }) {
-        for atom in group.atoms_involved.difference(&atoms) {
-            if !matches!(mol.atoms[atom].symbol.as_str(), "O" | "S" | "Se" | "Te") {
-                attached += mol
-                    .get_neighbors(*atom)
-                    .iter()
-                    .filter(|n| !atoms.contains(n) && !group.atoms_involved.contains(n))
-                    .count() as i64;
+        for group in suffixes
+            .iter()
+            .filter(|g| atoms.contains(&g.attachment_carbon))
+        {
+            for atom in group.atoms_involved.difference(&atoms) {
+                if !matches!(mol.atoms[atom].symbol.as_str(), "O" | "S" | "Se" | "Te") {
+                    attached += mol
+                        .get_neighbors(*atom)
+                        .iter()
+                        .filter(|n| !atoms.contains(n) && !group.atoms_involved.contains(n))
+                        .count() as i64;
+                }
             }
         }
     }
