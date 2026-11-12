@@ -72,6 +72,23 @@ fn dianhydrides_follow_the_blue_book_and_round_trip() {
             "bis(chloroacetic) butanedioic dianhydride",
             true,
         ),
+        // P-16.3.4 (c), (d), (e): di(pentanal), di(decanoic acid) and
+        // di(cyclohexane-1-carboxylic acid) enclose the multiplied acid.
+        (
+            "CCCCCCCCCC(=O)OC(=O)CCC(=O)OC(=O)CCCCCCCCC",
+            "di(decanoic) butanedioic dianhydride",
+            true,
+        ),
+        (
+            "CCCCC(=O)OC(=O)CCC(=O)OC(=O)CCCC",
+            "di(pentanoic) butanedioic dianhydride",
+            true,
+        ),
+        (
+            "C=CCC(=O)OC(=O)CCC(=O)OC(=O)CC=C",
+            "di(but-3-enoic) butanedioic dianhydride",
+            true,
+        ),
         // P-65.7.6.4.1 examples: identical chalcogen linkages.
         (
             "CC(=O)SC(=O)CCC(=O)SC(C)=O",
@@ -129,4 +146,23 @@ fn blue_book_dianhydride_names_are_read() {
     }
     // The dibasic acid stands between the two acids it links (P-65.7.6.1).
     assert!(name_to_smiles("acetic propanoic butanedioic dianhydride").is_err());
+    // P-65.7.6.3: unlike ends on unlike acid groups need locants.
+    assert!(name_to_smiles("acetic 2-methylbutanedioic propanoic dianhydride").is_err());
+}
+
+#[test]
+fn unlike_ends_on_a_chiral_dibasic_acid_keep_distinct_names() {
+    // P-65.7.6.3, P-91.2.1.1: without end locants the dianhydride name
+    // would be the same for both enantiomers, so it is not used.
+    let names = [
+        "CC(=O)OC(=O)[C@H](O)[C@H](O)C(=O)OC(=O)CC",
+        "CC(=O)OC(=O)[C@@H](O)[C@@H](O)C(=O)OC(=O)CC",
+    ]
+    .map(|smiles| {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_ne!(name.status, NameStatus::Preferred, "{smiles}");
+        same_structure(&name.text, smiles);
+        name.text
+    });
+    assert_ne!(names[0], names[1]);
 }

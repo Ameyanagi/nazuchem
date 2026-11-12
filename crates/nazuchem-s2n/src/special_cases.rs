@@ -4109,9 +4109,12 @@ pub(super) fn try_name_anhydride_component(
                 return Ok(None);
             }
             // Different ends on unlike acid groups of the dibasic acid need
-            // locants (P-65.7.6.3), which are not built here.
+            // locants (P-65.7.6.3), which are not built here. The ranks
+            // ignore configuration, so a stereocentre counts as unlike.
             let ranks = canonical_ranks(mol, Some(&central));
-            if left != right && ranks[&m1] != ranks[&m2] {
+            if left != right
+                && (ranks[&m1] != ranks[&m2] || central.iter().any(|a| mol.atoms[a].has_stereo()))
+            {
                 return Ok(None);
             }
             let Some(class) = anhydride_class_name(mol, paths[0]) else {
@@ -4125,11 +4128,23 @@ pub(super) fn try_name_anhydride_component(
             };
             // The acids are cited in their order of occurrence, beginning
             // with the end acid lower in alphanumerical order (P-14.5). Two
-            // equal ends take "di", or "bis" when substituted (P-16.3.5).
-            let name = if left == right && plain_end {
+            // equal ends take "bis" when substituted (P-16.3.5), else "di",
+            // enclosed when the acid begins with a numerical term or cites
+            // locants or brackets, as in di(decanoic) (P-16.3.4 (c)-(f)).
+            let name = if left == right && !plain_end {
+                format!("bis({left}) {dibasic} {class}")
+            } else if left == right
+                && left.bytes().all(|b| b.is_ascii_lowercase())
+                && ![
+                    "di", "tri", "tetr", "pent", "hex", "hept", "oct", "non", "dec", "undec", "do",
+                    "hen", "icos",
+                ]
+                .iter()
+                .any(|term| left.starts_with(term))
+            {
                 format!("di{left} {dibasic} {class}")
             } else if left == right {
-                format!("bis({left}) {dibasic} {class}")
+                format!("di({left}) {dibasic} {class}")
             } else {
                 let mut ends = [left, right];
                 ends.sort_by_cached_key(|end| alphanumerical_order_key(end));

@@ -1226,6 +1226,16 @@ impl Builder<'_> {
             {
                 return Err(error("Invalid dianhydride description"));
             }
+            // Unlike end acids on unlike acid groups need locants
+            // (P-65.7.6.3), which are not read.
+            if self.assembly.attr(acids[0], "value") != self.assembly.attr(acids[2], "value")
+                && !crate::ambiguity::all_atoms_equivalent(
+                    self.assembly.graph(),
+                    &two.functional_atoms,
+                )?
+            {
+                return Err(error("Dianhydride needs locants for its end acids"));
+            }
             self.link_anhydride_results(&smiles, &mut one, &mut two)?;
             return self.link_anhydride_results(&smiles, &mut three, &mut two);
         }
