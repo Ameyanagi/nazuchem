@@ -15,7 +15,7 @@
     "purpose": "development-only DFA migration and differential verification"
   },
   "resources": {
-    "resources/automata.bin": "6103335fd4ad5747e6fdad50b2542f1bd14af8f2c2a1609f48c311080d3110db",
+    "resources/automata.bin": "6e98ae99ab12526e3690a8c658dcd3d236e6b1ce4497a04751eb4ec2eb5836e3",
     "resources/xml/alkanes.xml": "2b047195ac805959da5410d3b96f896abb98ec51e502714f8cb6dbed08241fb8",
     "resources/xml/aminoAcids.xml": "2829fc6ba1562f090f38c2f89488255fc6d0a709251a502005759121462880fd",
     "resources/xml/arylGroups.xml": "16b7b7c03673499fcfd6ee0bee17c7bd1583224cebf2fd9e409e6610e840a7e8",
@@ -48,7 +48,7 @@
     "resources/xml/regexTokenList.dtd": "b4549d79af7361662fd2b01d764e15e930126502367a4004c19042a00b9c0486",
     "resources/xml/regexTokens.xml": "eb0ea506fcf0df656171b1469f3c7cdff90cf6d223fe0a70305668aaa263e536",
     "resources/xml/regexes.dtd": "ca576a00c60ba99c54954294999528c73ef8c190b6f64c8fa03e983be9c3d02e",
-    "resources/xml/regexes.xml": "79e57fc77b00cd33421fcb11d63529da118f306227d62b243245231ef41d122a",
+    "resources/xml/regexes.xml": "36467cc5d2d0051d52a9db795dd826a8eca66458b179505967569bf3aa9e6389",
     "resources/xml/simpleCyclicGroups.xml": "9d2529668f7c1e59ba3d0b2ac276b4b9f11f31467f26295362729aec608e586d",
     "resources/xml/simpleGroups.xml": "1c776c51de9fe2e2114042e1ee4fc7afe8906b685346d88c2a94c33fd106bd61",
     "resources/xml/simpleSubstituents.xml": "41348a77f2135ad2047f836b52ca2c5db983bcb26c44e04e1694818d24066876",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "e48190ae0927d79256880ff4dc652f87f1b002a56c6d568ee15075331bf13b27"
+    "sha256": "2976cdf127ea691cdd19a0ec199a2bfa29ee0ffc2cd1045e0cbf33e23c0e3f7e"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",
@@ -306,6 +306,11 @@
       "grammar": "Optional unsaturation (ene/yne with locants) after the closing bracket of a polycyclicSpiro name in regexes.xml, e.g. spiro[[1]benzofuran-2,1'-cyclohexan]-2'-ene (IUPAC 2013 P-31.1.5.2.1, P-31.2.3.3.3)",
       "automata": ["chemical", "chemical-reversed"],
       "exporter": "ExportDfa.java.txt with the checked regexTokens.xml and regexes.xml resource overrides; loading regexes.xml from disk also renumbers the states of token-69 and token-reversed-69, which stay isomorphic to the earlier tables"
+    },
+    "bracketed_group_multiplied_ions": {
+      "grammar": "bis/tris/... with a bracket pair before a multiplyable functional class or a standalone monovalent functional group in regexes.xml, e.g. bis(sulfide), bis(oxide), tris(iodide) for separate monatomic ions (IUPAC 2013 P-16.3.6 (a)); the optional brackets stay out of the parse tree, so the builder sees the same multiplier as in disulfide",
+      "automata": ["chemical", "chemical-reversed"],
+      "exporter": "ExportDfa.java.txt with the checked regexTokens.xml and regexes.xml resource overrides"
     }
   }
 }
