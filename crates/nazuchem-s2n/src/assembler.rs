@@ -612,6 +612,12 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
     if parts.front_modifiers.is_empty() {
         return word.into();
     }
+    // The letter locant of a chalcogen ester, `S-methyl` or `SO-methyl`
+    // (P-65.6.3.3.7.1), split from its organyl group.
+    let letter_locant: for<'a> fn(&'a str) -> Option<(&'a str, &'a str)> = |name| {
+        name.split_once('-')
+            .filter(|(site, _)| !site.is_empty() && site.chars().all(|c| "OSeT".contains(c)))
+    };
     let have = parts.front_modifier_locants.len() == parts.front_modifiers.len()
         && parts.front_modifier_locants.iter().all(Option::is_some);
     let distinct = parts.front_modifiers.iter().collect::<BTreeSet<_>>().len();
@@ -632,6 +638,10 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
             .into_iter()
             .map(|(name, mut locs)| {
                 locs.sort_by_key(|l| (l.len(), *l));
+                // P-65.6.3.3.7.2.1: `3-ethyl 1-S-methyl 1-thiodicarbonate`.
+                if locs.len() == 1 && letter_locant(name).is_some() {
+                    return format!("{}-{name}", locs[0]);
+                }
                 format!(
                     "{}-{}",
                     locs.join(","),
@@ -651,7 +661,18 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
     let mods = modifiers
         .into_iter()
         .map(|(m, c)| {
-            if c > 1 {
+            if let Some((site, organyl)) = letter_locant(m).filter(|_| c > 1) {
+                // P-65.6.3.3.7.1: `S,S-dimethyl ethanebis(thioate)`.
+                format!(
+                    "{}-{}",
+                    vec![site; c].join(","),
+                    format_multiplier(
+                        &super::formatting::strip_outer_parentheses(organyl),
+                        c,
+                        false
+                    )
+                )
+            } else if c > 1 {
                 format_multiplier(m, c, true)
             } else {
                 m.clone()
