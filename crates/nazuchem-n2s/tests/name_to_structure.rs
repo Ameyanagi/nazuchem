@@ -277,6 +277,41 @@ fn unsaturation_after_a_spiro_bracket_uses_the_spiro_numbering() {
     }
 }
 
+/// Issue #109, P-16.3.6 (a): `bis`/`tris` multiply separate monatomic ions,
+/// while `disulfide`, `dioxide` and `triiodide` keep naming the chains.
+#[test]
+fn bracketed_group_multipliers_name_separate_monatomic_anions() {
+    let parser = Parser::new().unwrap();
+    for (name, expected) in [
+        ("dicalcium bis(sulfide)", "[S-2].[S-2].[Ca+2].[Ca+2]"),
+        (
+            "tetrasodium bis(oxide)",
+            "[O-2].[O-2].[Na+].[Na+].[Na+].[Na+]",
+        ),
+        ("dicalcium bis(selenide)", "[Se-2].[Se-2].[Ca+2].[Ca+2]"),
+        (
+            "propane-1,2,3-triaminium tris(iodide)",
+            "[I-].[I-].[I-].C(C(C[NH3+])[NH3+])[NH3+]",
+        ),
+        ("calcium bis(chloride)", "[Cl-].[Cl-].[Ca+2]"),
+        ("butane-2,3-dione bis(oxime)", "CC(C(C)=NO)=NO"),
+        // The chain readings are unchanged.
+        ("calcium disulfide", "[S-][S-].[Ca+2]"),
+        (
+            "tetrasodium dioxide",
+            "[O-][O-].[Na+].[Na+].[Na+].[Na+].[O-][O-]",
+        ),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+}
+
 /// P-73.6 method (1) and the 2020 corrections to P-73.6 and P-74.1.3: a
 /// substituted cationic nitrogen prefix is the aminium cation name plus
 /// 'yl' or 'ylidene', e.g. (N,N-dimethylmethanaminiumyl)acetate.
