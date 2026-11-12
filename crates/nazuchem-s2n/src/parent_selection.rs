@@ -242,10 +242,17 @@ fn score(
     }
     // P-45.2.1: a substituent on the nitrogen of a suffix is cited as a
     // prefix with the locant N; the alkyl group of an ester is not a prefix.
-    for group in groups.anionic.into_iter().flatten().filter(|g| {
+    // Of two group classes on one atom, one is itself a prefix: no count.
+    let suffixes = groups.anionic.unwrap_or_default();
+    for group in suffixes.iter().filter(|g| {
         g.is_principal_candidate
             && groups.principal.contains(&g.attachment_carbon)
             && atoms.contains(&g.attachment_carbon)
+            && suffixes.iter().all(|other| {
+                !other.is_principal_candidate
+                    || other.attachment_carbon != g.attachment_carbon
+                    || other.key == g.key
+            })
     }) {
         for atom in group.atoms_involved.difference(&atoms) {
             if !matches!(mol.atoms[atom].symbol.as_str(), "O" | "S" | "Se" | "Te") {
@@ -1648,6 +1655,15 @@ mod tests {
             (
                 "2-(2-amino-4-methylphenoxy)-N-methylaniline",
                 &["CNc1ccccc1Oc1ccc(C)cc1N", "Cc1ccc(Oc2ccccc2NC)c(N)c1"][..],
+            ),
+            // P-45.2.1: the methyl groups of a dimethylamino prefix are not
+            // prefixes of the cyclohexanol; three prefixes precede two.
+            (
+                "1-amino-4-{[4-(dimethylamino)-4-hydroxycyclohexyl]oxy}-2-methylcyclohexan-1-ol",
+                &[
+                    "CN(C)C1(O)CCC(OC2CCC(O)(N)C(C)C2)CC1",
+                    "CC1CC(OC2CCC(O)(N(C)C)CC2)CCC1(N)O",
+                ][..],
             ),
             // P-45.2.2: N,N is lower than N,2.
             (
