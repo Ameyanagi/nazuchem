@@ -3257,10 +3257,29 @@ mod tests {
                 "{expected}"
             );
         }
-        // A first compound prefix keeps its parentheses. Only the outer marks are
-        // checked: the inner [(methoxycarbonyl)amino] spelling is a separate gap.
-        let name = name_smiles("OC(=O)C(NC(=O)OC)c1ccccc1", &Default::default()).unwrap();
-        assert_eq!(name.text, "(methoxycarbonylamino)(phenyl)acetic acid");
+        // A first compound prefix keeps its parentheses, as the compound heterone
+        // prefixes oxophosphanyl, oxoarsanyl and oxostibanyl (P-61.6) do. Only the
+        // outer marks are checked: [(methoxycarbonyl)amino] and triaz-1-en-1-yl
+        // (P-68.3.1.4.1) for aminodiazenyl are separate gaps.
+        for (smiles, expected) in [
+            ("OC(=O)C(P=O)c1ccccc1", "(oxophosphanyl)(phenyl)acetic acid"),
+            ("OC(=O)C([As]=O)c1ccccc1", "(oxoarsanyl)(phenyl)acetic acid"),
+            (
+                "OC(=O)C([Sb]=O)c1ccccc1",
+                "(oxostibanyl)(phenyl)acetic acid",
+            ),
+            (
+                "OC(=O)C(N=NN)c1ccccc1",
+                "(aminodiazenyl)(phenyl)acetic acid",
+            ),
+            (
+                "OC(=O)C(NC(=O)OC)c1ccccc1",
+                "(methoxycarbonylamino)(phenyl)acetic acid",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+        }
     }
 
     #[test]
