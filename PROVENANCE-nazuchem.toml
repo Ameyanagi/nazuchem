@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "becf72c71afa0a132b88968563e8149b559454d5dfbf011a5671a710a230310f"
+sha256 = "0226f71779ff18bbf5e96bb23ebf0d0bd643ef4908129589bf64733cec97f8bd"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "8ea379da97dca2f4f477514b511562c4a1401e58da465f197f3c102e5c76411e"
+sha256 = "480c5881f81a7f3842b142fc050a6d1d20f3258c071d5d40e2baab3fe2425b8d"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1626,13 +1626,13 @@ sha256 = "1c776c51de9fe2e2114042e1ee4fc7afe8906b685346d88c2a94c33fd106bd61"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/simpleSubstituents.xml"
-origin = "copy"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/simpleSubstituents.xml", license = "MIT" },
 ]
-notes = "Byte-preserved upstream data."
-sha256 = "41348a77f2135ad2047f836b52ca2c5db983bcb26c44e04e1694818d24066876"
+notes = "OPSIN simple substituents with original native additions (issue #83): the P-72.6.1 acid-anion prefixes of chalcogen-replaced sulfinic and sulfonic acids (sulfinothioato through sulfonoditelluroato). Do not claim byte equality for this file."
+sha256 = "76ccf1f8b409f8151e2eb68e8c7a3c3707fa8e63fd2d017cfb649190e866e056"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/substituents.xml"
@@ -3957,6 +3957,7 @@ sources = [
   { project = "ReShiki", path = "src/naming/openclatura/anion_spelling_tests.rs", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/unit/test_analysis.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/data/parser_xml_resources/groupStemsAllowingInlineSuffixes.json", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/anion_spelling_tests.rs", ref = "issue #83", license = "MIT OR Apache-2.0" },
 ]
 notes = "Local structured-anion spelling, charge-order and round-trip regressions. Test inputs and expected chemical names include conservatively adapted upstream cases; exact matches do not establish independent ancestry. Production helpers and local test extensions retain their individual ledger decisions."
 parts = [
@@ -3971,6 +3972,7 @@ parts = [
   { items = ["fn anion_spelling_supports_charge_citations_on_chains_and_rings"], origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/anion_spelling_tests.rs", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0", symbol = "anion_spelling_supports_charge_citations_on_chains_and_rings" }] },
   { items = ["fn retained_anion_parents_compose_supported_charge_sites"], origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/anion_spelling_tests.rs", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0", symbol = "retained_anion_parents_compose_supported_charge_sites" }] },
   { items = ["fn ketone_anions_needing_added_hydrogen_are_not_claimed_preferred"], origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/anion_spelling_tests.rs", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0", symbol = "ketone_anions_needing_added_hydrogen_are_not_claimed_preferred" }] },
+  { items = ["fn chalcogen_acid_anion_prefixes_keep_charge_and_infix"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/anion_spelling_tests.rs", ref = "issue #83", license = "MIT OR Apache-2.0", symbol = "chalcogen_acid_anion_prefixes_keep_charge_and_infix" }] },
 ]
 
 [[file]]

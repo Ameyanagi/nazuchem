@@ -507,6 +507,15 @@ fn oxido_on_sulfinyl_like_groups_keeps_its_charge() {
         ("oxidosulfinylbenzene", "[O-]S(=O)C1=CC=CC=C1"),
         ("oxidophosphinylbenzene", "[O-]P(=O)C1=CC=CC=C1"),
         ("oxidosulfinothioylbenzene", "[O-]S(=S)C1=CC=CC=C1"),
+        // Issue #83. P-72.6.1 acid-anion prefixes of the P-65.3.1.3
+        // chalcogen-replaced sulfinic and sulfonic acids.
+        (
+            "[methyl(sulfinothioato)amino]benzene",
+            "CN(S(=S)[O-])C1=CC=CC=C1",
+        ),
+        ("sulfonothioatobenzene", "S(=O)(=S)([O-])C1=CC=CC=C1"),
+        ("sulfonodithioatobenzene", "S(=S)(=S)([O-])C1=CC=CC=C1"),
+        ("sulfinoselenoatobenzene", "S(=[Se])([O-])C1=CC=CC=C1"),
         // Without an existing =O/=S the upstream oxido-to-oxo reading is kept.
         ("1-oxidothiolane", "O=S1CCCC1"),
         // An =O made from one oxido must not keep the next oxido anionic.

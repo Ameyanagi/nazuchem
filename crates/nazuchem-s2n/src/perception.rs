@@ -333,7 +333,7 @@ fn rank(element: &str) -> i64 {
 }
 // Provenance: fn infix | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::_replacement_infix
-fn infix(elements: &[String]) -> String {
+pub(super) fn infix(elements: &[String]) -> String {
     let mut es = elements
         .iter()
         .filter(|s| s.as_str() != "O")
@@ -2062,7 +2062,17 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
         template(
             &format!("central_{}_prefix", d.derivative),
             &[
-                ("stem", stem.into()),
+                // P-72.6.1: the acid-anion prefix is the anion suffix with
+                // "ate" changed to "ato", so it keeps the replacement infix
+                // (sulfinothioato, like the suffix sulfinothioate).
+                (
+                    "stem",
+                    if d.derivative == "anion" {
+                        suffix_stem.clone()
+                    } else {
+                        stem.into()
+                    },
+                ),
                 (
                     "halide_prefix",
                     leaving.map_or("", |l| l.prefix.as_str()).into(),
