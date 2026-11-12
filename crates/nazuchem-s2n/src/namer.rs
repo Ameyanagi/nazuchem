@@ -1072,9 +1072,10 @@ mod tests {
         use crate::name_smiles;
 
         for (smiles, expected) in [
+            // P-16.5.1.2: a prefix with its own locants is enclosed.
             (
                 "C1=CC=C(C=C1)/C=C/C2=CC=CC=C2",
-                "(1E)-2-phenylethenylbenzene",
+                "[(1E)-2-phenylethenyl]benzene",
             ),
             (
                 "CN1CCC[C@H]1C2=CN=CC=C2",

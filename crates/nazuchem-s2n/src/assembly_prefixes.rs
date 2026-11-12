@@ -298,7 +298,13 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
         }
         if complex && !is_fully_enclosed(&used) {
             // Upstream divergence: bracket a diazenyl sibling to preserve its attachment to the parent.
-            if count > 1 || !loc.is_empty() || (grouped.len() > 1 && name == "diazenyl") {
+            // P-16.5.1.2: a prefix with its own locants is enclosed even when
+            // its attachment locant is omitted: (naphthalen-2-yl)acetic acid.
+            if count > 1
+                || !loc.is_empty()
+                || (grouped.len() > 1 && name == "diazenyl")
+                || used.contains(|c: char| c.is_ascii_digit())
+            {
                 used = format!("({used})");
             }
         } else if loc.is_empty()

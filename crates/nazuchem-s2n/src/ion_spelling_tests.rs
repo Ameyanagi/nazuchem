@@ -359,6 +359,7 @@ fn ion_spelling_matrix() {
             "4-(diazyn-1-ium-1-yl)benzoate",
             NameStatus::Preferred,
         ),
+        // P-16.5.1.2: enclosed although its attachment locant is omitted.
         (
             "#127 diazonium prefix on a chain",
             "N#[N+]CC(=O)[O-]",
