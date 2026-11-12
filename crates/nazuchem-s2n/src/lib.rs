@@ -1186,6 +1186,21 @@ mod tests {
                 "4,4'-bipyridine 1-sulfide",
                 &["[S-][n+]1ccc(-c2ccncc2)cc1", "c1cc(-c2cc[n+]([S-])cc2)ccn1"][..],
             ),
+            // Controls: a substituent fixes the numbering, so the oxide keeps a
+            // primed locant; a stereo parent keeps its own numbering, since the
+            // other site would need inverted descriptors.
+            (
+                "2-methyl-4,4'-bipyridine 1'-oxide",
+                &["Cc1cc(-c2cc[n+]([O-])cc2)ccn1"][..],
+            ),
+            (
+                "(2R,5S)-1,2,4,5-tetramethylpiperazine 1-oxide",
+                &["C[N+]1([O-])[C@H](C)CN(C)[C@@H](C)C1"][..],
+            ),
+            (
+                "(2R,5S)-1,2,4,5-tetramethylpiperazine 4-oxide",
+                &["CN1[C@H](C)C[N+](C)([O-])[C@@H](C)C1"][..],
+            ),
             // P-66.4.1.1, P-66.4.1.2.1.1, P-66.1.6.1.1.5: amidines rank as amides,
             // in the order of their acids, so a carboximidamide is senior to
             // guanidine (the amidine of carbonic acid).
