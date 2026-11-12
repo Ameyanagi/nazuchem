@@ -8,6 +8,7 @@
 // Changes: Rust ownership, arena/container and error-handling adaptation; integrated native changes are documented in PORTING.md.
 // Changes: Validate stoichiometric graph expansion before cloning components.
 // Changes: Chalcogen locants on anhydride acids and peroxide substituents choose the bridge end (issue #26).
+// Changes: Two-symbol chalcogen locants such as SO- orient the peroxy group of an ester (issue #90).
 
 //! OPSIN word-rule assembly and finalization.
 //! Port of `StructureBuilder.java`, OPSIN 2.9.0, b91b610af5ab07560fedb20730d7aef46bb2bca0.
@@ -90,6 +91,19 @@ impl Builder<'_> {
             .fragment_manager
             .make_hydrogens_explicit()?;
         let fragment = self.assembly.state.fragment_manager.unified_fragment();
+        // P-65.1.5.3: letter locants such as SO and OS are required to
+        // specify a mixed peroxy group; without one the name is ambiguous.
+        let graph = self.assembly.graph();
+        if graph.fragment(fragment).atoms.iter().any(|&atom| {
+            let ambiguous = &graph.atom(atom).properties.ambiguous_element_assignment;
+            graph.neighbours(atom).iter().any(|other| {
+                ambiguous.contains(other) && graph.atom(*other).element != graph.atom(atom).element
+            })
+        }) {
+            return Err(error(
+                "A mixed chalcogen peroxy group needs an element locant such as SO or OS",
+            ));
+        }
         self.process_stereochemistry(molecule, fragment)?;
         if !self
             .assembly
@@ -2182,6 +2196,37 @@ impl Builder<'_> {
                         return Ok(atom);
                     }
                 }
+            }
+        } else if let Some(split) = locant.rfind(|c: char| c.is_ascii_uppercase())
+            && let Some(wanted) =
+                Element::from_symbol(&locant[..split]).zip(Element::from_symbol(&locant[split..]))
+        {
+            // P-65.6.3.3.7.1: in "SO-methyl" the first symbol is the peroxy
+            // atom bonded to the acid and the second carries the organyl
+            // group. A mixed "(thioperoxoate)" has no orientation of its own
+            // (see SuffixApplier), so the locant sets it.
+            for (index, &atom) in results.functional_atoms.iter().enumerate() {
+                let graph = self.assembly.graph();
+                let &[inner] = graph.neighbours(atom).as_slice() else {
+                    continue;
+                };
+                let found = (graph.atom(inner).element, graph.atom(atom).element);
+                let unoriented = graph
+                    .atom(atom)
+                    .properties
+                    .ambiguous_element_assignment
+                    .contains(&inner);
+                if unoriented && found == (wanted.1, wanted.0) {
+                    self.assembly.graph_mut().atom_mut(inner).element = wanted.0;
+                    self.assembly.graph_mut().atom_mut(atom).element = wanted.1;
+                } else if found != wanted {
+                    continue;
+                }
+                self.assembly
+                    .graph_mut()
+                    .remove_ambiguous_element_assignment_members(atom, &[inner, atom]);
+                results.remove_functional_atom(self.assembly.graph_mut(), index)?;
+                return Ok(atom);
             }
         }
         Err(error(format!(

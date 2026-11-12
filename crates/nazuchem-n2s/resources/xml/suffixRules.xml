@@ -300,6 +300,42 @@ sense of this -->
 		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
 		<addgroup SMILES="[*](=O)[Te|2][Te|2]" functionalIDs="4"/>
 	</rule>
+	<rule value="thioperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)S[O-]" functionalIDs="4"/>
+	</rule>
+	<rule value="selenoperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Se|2][O-]" functionalIDs="4"/>
+	</rule>
+	<rule value="telluroperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Te|2][O-]" functionalIDs="4"/>
+	</rule>
+	<rule value="selenothioperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Se|2][S-]" functionalIDs="4"/>
+	</rule>
+	<rule value="tellurothioperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Te|2][S-]" functionalIDs="4"/>
+	</rule>
+	<rule value="selenotelluroperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Te|2][Se-]" functionalIDs="4"/>
+	</rule>
+	<rule value="dithioperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)S[S-]" functionalIDs="4"/>
+	</rule>
+	<rule value="diselenoperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Se|2][Se-]" functionalIDs="4"/>
+	</rule>
+	<rule value="ditelluroperoxoate">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[Te|2][Te-]" functionalIDs="4"/>
+	</rule>
 	<rule value="ic_nonCarboxylic">
 		<addFunctionalAtomsToHydroxyGroups/>
 	</rule>

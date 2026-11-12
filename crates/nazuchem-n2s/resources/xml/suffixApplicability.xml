@@ -264,6 +264,15 @@ The value of the suffix elements corresponds to the value attribute of the suffi
 		<suffix value="peroxoic_SS_acid">peroxoic_SS_acid</suffix>
 		<suffix value="peroxoic_SeSe_acid">peroxoic_SeSe_acid</suffix>
 		<suffix value="peroxoic_TeTe_acid">peroxoic_TeTe_acid</suffix>
+		<suffix value="thioperoxoate">thioperoxoate</suffix>
+		<suffix value="selenoperoxoate">selenoperoxoate</suffix>
+		<suffix value="telluroperoxoate">telluroperoxoate</suffix>
+		<suffix value="selenothioperoxoate">selenothioperoxoate</suffix>
+		<suffix value="tellurothioperoxoate">tellurothioperoxoate</suffix>
+		<suffix value="selenotelluroperoxoate">selenotelluroperoxoate</suffix>
+		<suffix value="dithioperoxoate">dithioperoxoate</suffix>
+		<suffix value="diselenoperoxoate">diselenoperoxoate</suffix>
+		<suffix value="ditelluroperoxoate">ditelluroperoxoate</suffix>
 		<suffix value="ide">ide</suffix>
 		<suffix value="imine">imine</suffix>
 		<suffix value="iminide">iminide</suffix>

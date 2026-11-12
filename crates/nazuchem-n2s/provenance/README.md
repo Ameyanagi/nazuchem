@@ -8,15 +8,18 @@ affects parsing or structures is ported through the pinned main commit,
 including phane nomenclature (see `../PORTING.md`).
 `../LICENSE` is an unmodified upstream copy. `manifest.json` records every
 XML/DTD file, migrated table, exporter and fixture hash. The seven DTD files
-and 34 XML files are byte-equal to the pinned main checkout. The native
+and 33 XML files are byte-equal to the pinned main checkout. The native
 `regexTokens.xml` extensions permit a locant before an axial descriptor and
-recognize unlocanted Xi/xi stereodescriptors. The native `multipliers.xml`
+recognize unlocanted Xi/xi stereodescriptors, and read two chalcogen symbols
+such as `SO-` as the locant of a peroxy ester's organyl group (IUPAC
+P-65.6.3.3.7.1). The native `regexes.xml` extension permits `ene`/`yne` after
+the closing bracket of a spiro name (P-31.1.5.2.1, P-31.2.3.3.3). The native `multipliers.xml`
 additions supply the composite P-14.2 numerical terms. The native
 `inlineSuffixes.xml`, `suffixApplicability.xml` and `suffixRules.xml`
 extensions add the `aminiumyl` and `aminiumylidene` substituent suffixes
 (IUPAC P-73.6). Native dictionary additions to `suffixes.xml`,
 `suffixRules.xml`, `suffixApplicability.xml` and `functionalTerms.xml` read
-chalcogen peroxy acids, peroxols, tellanal, mixed-chalcogen peroxyanhydrides
+chalcogen peroxy acids and their `ate` forms, peroxols, tellanal, mixed-chalcogen peroxyanhydrides
 and peroxide class names. These additions only add dictionary tokens to
 existing token lists, so the DFA tables are unchanged. `native_extensions` in
 the manifest records these changes.
@@ -45,12 +48,15 @@ in `manifest.json`; the regenerated tables include the forward/reverse `phaneLoc
 and stereochemistry grammar changes.
 
 The documented export process attributes the native `regexTokens.xml`
-extensions (locanted axial and unlocanted Xi/xi descriptors) to `token-69`,
-the stereochemistry bracket recognizer, and `token-reversed-69`. The checked
-table is a full export with the checked `regexTokens.xml` as a development
-resource override. A rebuild of the pinned jar reproduces it byte for byte
-with `scripts/regenerate_opsin_grammar.py`, and a pristine export (no override)
-differs from it in `token-69` and `token-reversed-69` only. Cargo reads the
+extensions to `token-69`, the stereochemistry bracket recognizer (locanted
+axial and unlocanted Xi/xi descriptors), and to `token-108`, the locant
+recognizer (peroxy ester locants), each with its reversed table. The
+`regexes.xml` extension changes the chemical grammar tables `chemical` and
+`chemical-reversed`. The checked table is a full export with the checked
+`regexTokens.xml` and `regexes.xml` as development resource overrides. A
+rebuild of the pinned jar reproduces it byte for byte with
+`scripts/regenerate_opsin_grammar.py`, and a pristine export (no override)
+differs from it in those six tables only. Cargo reads the
 checked binary directly. Frozen upstream oracle fixtures are unchanged.
 
 ## Regenerating the grammar table
@@ -106,7 +112,7 @@ and runs it in a fresh temporary directory. Each of `regexes.xml`,
 `regexes.dtd`, `regexTokens.xml` and `regexTokenList.dtd` (the only files the
 automata are built from) that differs from the jar's upstream copy is placed
 under `resources/uk/ac/cam/ch/wwmm/opsin/resources/` as an override; today that
-is `regexTokens.xml` alone. Unchanged files are deliberately not overridden:
+is `regexTokens.xml` and `regexes.xml`. Unchanged files are deliberately not overridden:
 loading more files from disk renumbers the states of freshly built automata
 (`token-69`), producing an isomorphic but byte-different table. The script then
 rewrites `resources/automata.bin`, the `manifest.json` resource hashes and
@@ -191,7 +197,7 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`2943b86103bd26b7ee15e189251b779d080939f01ed81f464523a759828d0601`.
+`9e1e875b16ea9535ecb81c738b90bffda3cf291e4088b54e6ba3141ddf4e253d`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph

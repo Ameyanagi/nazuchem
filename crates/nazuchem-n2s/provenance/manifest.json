@@ -15,7 +15,7 @@
     "purpose": "development-only DFA migration and differential verification"
   },
   "resources": {
-    "resources/automata.bin": "47d46837e25862c4ac175ef5d51be26faf8f66e7ce19028a8b084d8768fdfdd6",
+    "resources/automata.bin": "b1fe9a199e75ed6f62d539d4c6fb7e5f7d95233f04dcf043b462121446cf3048",
     "resources/xml/alkanes.xml": "2b047195ac805959da5410d3b96f896abb98ec51e502714f8cb6dbed08241fb8",
     "resources/xml/aminoAcids.xml": "2829fc6ba1562f090f38c2f89488255fc6d0a709251a502005759121462880fd",
     "resources/xml/arylGroups.xml": "16b7b7c03673499fcfd6ee0bee17c7bd1583224cebf2fd9e409e6610e840a7e8",
@@ -46,19 +46,19 @@
     "resources/xml/nonCarboxylicAcids.xml": "732921fafe01c2d19c4793d83b91f6bec6f7d05ce7cf47fa2b01a70e691be30a",
     "resources/xml/phanes.xml": "09a2c3d671b2fe77f585eb0b721ce49729fa403973b57f2d2bff0a4a8069adb4",
     "resources/xml/regexTokenList.dtd": "b4549d79af7361662fd2b01d764e15e930126502367a4004c19042a00b9c0486",
-    "resources/xml/regexTokens.xml": "4d7d5e9a2c27a8d72dec1efca8d892daef4e4c3063c6acc111cfd1e1015e3806",
+    "resources/xml/regexTokens.xml": "38ed03908a7ca0de5d1b2a7dbe77760b0584ebc6e99478d1576fd9d9aa949a2f",
     "resources/xml/regexes.dtd": "ca576a00c60ba99c54954294999528c73ef8c190b6f64c8fa03e983be9c3d02e",
-    "resources/xml/regexes.xml": "9db20e76b9b8ab4bd0ca876ca3baa4ba11ca859c5956609333001a9fa8737a23",
+    "resources/xml/regexes.xml": "79e57fc77b00cd33421fcb11d63529da118f306227d62b243245231ef41d122a",
     "resources/xml/simpleCyclicGroups.xml": "9d2529668f7c1e59ba3d0b2ac276b4b9f11f31467f26295362729aec608e586d",
     "resources/xml/simpleGroups.xml": "1c776c51de9fe2e2114042e1ee4fc7afe8906b685346d88c2a94c33fd106bd61",
     "resources/xml/simpleSubstituents.xml": "41348a77f2135ad2047f836b52ca2c5db983bcb26c44e04e1694818d24066876",
     "resources/xml/substituents.xml": "41a7f584e7d532dd21526bacd4078d34f8b8ec2df6b833b6f5347b63e3164a35",
     "resources/xml/suffixApplicability.dtd": "50e57c6484ac2ec522cb6ca30e33d25288a74a036ad03432a40db1bb59787c16",
-    "resources/xml/suffixApplicability.xml": "6a5be89a80a09276b28abaf971fa6cce6a2929ad902c910e0c1e227e8de2a66d",
+    "resources/xml/suffixApplicability.xml": "57123f620f1321c1903687ca41936c651f40db4ed2bfb6492d929f02a9f2f8d3",
     "resources/xml/suffixPrefix.xml": "5428dbc34ce8e458f81e36ccf456023284bcf8b822d2ada7de5b41e248a7d1c5",
     "resources/xml/suffixRules.dtd": "307af66d255095c9d117493c8bddf5e2b9dcc4741e998e7dd7fdcb38304d4daf",
-    "resources/xml/suffixRules.xml": "d92e6896feb730c5ce66712d6fdffa396ecccdbcebbdf3255496e8713c1a8b10",
-    "resources/xml/suffixes.xml": "cd22e16bc15df9f62675583d9f0061eb4c3d6e0d81a0dfc1a15ff7dc68424f35",
+    "resources/xml/suffixRules.xml": "285c550ecb314ef69cf640461b836df52926c657d1c145a3f7465709d6ea31e0",
+    "resources/xml/suffixes.xml": "f8a0fe8bf12aea2f9a0a96a6393df169cd7e59540b03c75c01c180078484ca24",
     "resources/xml/tokenFiles.dtd": "3acb49df364b02a65ea20aef8d33758b047fa1426289be3811386a7450e57355",
     "resources/xml/tokenLists.dtd": "35ab7b9c52960ea27aa715dd73f1fadb5fc5c5e9081f8fdd9dd8967fdad96100",
     "resources/xml/unsaturators.xml": "d528b967c52d64a434563dc237d0a28e0784d1916784772381fe545c9bdf6bc1",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "2943b86103bd26b7ee15e189251b779d080939f01ed81f464523a759828d0601"
+    "sha256": "9e1e875b16ea9535ecb81c738b90bffda3cf291e4088b54e6ba3141ddf4e253d"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",
@@ -295,6 +295,17 @@
       "resources": ["suffixes.xml", "suffixRules.xml", "suffixApplicability.xml", "functionalTerms.xml"],
       "change": "Dictionary tokens and suffix rules for chalcogen peroxy acids with SO/OS-type acid locants (P-65.1.5.3), Table 6.1 peroxols (P-63.4.2.1), tellanal (P-66.6.3), mixed-chalcogen peroxyanhydrides (P-65.7.4) and peroxide class names (P-63.3.2); element locants on anhydride acids and peroxide substituents choose the bridge end",
       "automata": []
+    },
+    "peroxy_ester_locants": {
+      "grammar": "Two chalcogen symbols (SO, OS, OO, SS, SeO, ...) and a hyphen as a locant token before the organyl group of a peroxy ester (IUPAC 2013 P-65.6.3.3.7.1); the ester builder reads the first symbol as the atom on the acid centre",
+      "tokens": "suffixes.xml, suffixRules.xml and suffixApplicability.xml add the ate forms of the chalcogen peroxy acid suffixes, (thioperoxoate) through (ditelluroperoxoate); dictionary tokens only",
+      "automata": ["token-108", "token-reversed-108"],
+      "exporter": "ExportDfa.java.txt with the checked regexTokens.xml and regexes.xml resource overrides"
+    },
+    "unsaturation_after_spiro_bracket": {
+      "grammar": "Optional unsaturation (ene/yne with locants) after the closing bracket of a polycyclicSpiro name in regexes.xml, e.g. spiro[[1]benzofuran-2,1'-cyclohexan]-2'-ene (IUPAC 2013 P-31.1.5.2.1, P-31.2.3.3.3)",
+      "automata": ["chemical", "chemical-reversed"],
+      "exporter": "ExportDfa.java.txt with the checked regexTokens.xml and regexes.xml resource overrides; loading regexes.xml from disk also renumbers the states of token-69 and token-reversed-69, which stay isomorphic to the earlier tables"
     }
   }
 }
