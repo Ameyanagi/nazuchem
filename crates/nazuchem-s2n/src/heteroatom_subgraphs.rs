@@ -1299,6 +1299,18 @@ fn name_sulfur(
                 if let Some(acyl) = acid_sulfonyl(mol, start, *root, &b, &outside, &suffix)? {
                     return Ok(acyl);
                 }
+                // An anhydride linkage: the acyloxy prefix is enclosed, as in
+                // [(acetyloxy)sulfonyl] (P-16.5.1.1, P-65.3.2.3).
+                if mol.atoms[root].symbol == "O"
+                    && mol.get_neighbors(*root).iter().any(|&c| {
+                        c != start
+                            && mol.atoms[&c].is_carbon()
+                            && !double_bonded_neighbors(mol, c, "O").is_empty()
+                    })
+                {
+                    let b = strip_outer_parentheses(&b);
+                    return Ok(format!("({sp}({b}){suffix})"));
+                }
                 let (g, bare) = sulfonyl_group(mol, &b, &suffix);
                 Ok(if bare {
                     format!("{sp}{g}")

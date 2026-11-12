@@ -777,7 +777,7 @@
         "ester": {"seniority": 45, "families": ["central_acid", "ester_like", "peroxy_ester", "front_modifier"], "capabilities": ["central_acid", "ester_like", "front_modifier"]}
       },
       "central": {
-        "acid": {"families": ["central_acid"], "capabilities": ["central_acid"]},
+        "acid": {"citation_suffix": "{stem}ic", "families": ["central_acid"], "capabilities": ["central_acid"]},
         "anion": {"seniority": 26, "families": ["central_acid"], "capabilities": ["central_acid"]},
         "ester": {"seniority": 40, "families": ["central_acid", "ester_like", "front_modifier"], "capabilities": ["central_acid", "ester_like", "front_modifier"]},
         "amide": {"seniority": 66, "families": ["central_acid", "amide_like"], "capabilities": ["central_acid", "amide_like"]},
@@ -984,7 +984,8 @@
         },
         "seniority": 25,
         "suffix_with_locant": true,
-        "needs_locant": true
+        "needs_locant": true,
+        "citation_suffixes": {"anhydride_half": "sulfonic"}
       },
       "sulfonamide": {
         "role": "principal",

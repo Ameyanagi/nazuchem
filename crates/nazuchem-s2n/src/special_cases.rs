@@ -4444,6 +4444,59 @@ mod tests {
     }
 
     #[test]
+    fn sulfonic_and_sulfinic_anhydrides_are_named_as_anhydrides() {
+        // Issue #93. P-65.7.1 and P-65.7.2 name anhydrides of sulfonic and
+        // sulfinic acids like those of carboxylic acids, not as acyl esters.
+        for (smiles, expected) in [
+            // P-65.7.2 example, acids in alphanumerical order (P-14.5).
+            (
+                "O=C(OS(=O)(=O)c1ccc([N+](=O)[O-])cc1)CCl",
+                "chloroacetic 4-nitrobenzene-1-sulfonic anhydride",
+            ),
+            ("CC(=O)OS(=O)(=O)C", "acetic methanesulfonic anhydride"),
+            ("CS(=O)(=O)OC(C)=O", "acetic methanesulfonic anhydride"),
+            // P-65.6.3.1.1: an ester of an alcohol stays an ester.
+            ("COS(=O)(=O)C", "methyl methanesulfonate"),
+            ("CS(=O)OC", "methyl methanesulfinate"),
+            (
+                "O=S(=O)(OC(=O)c1ccccc1)c1ccc(C)cc1",
+                "benzoic 4-methylbenzene-1-sulfonic anhydride",
+            ),
+            // P-65.7.2 example.
+            (
+                "O=S(c1ccccc1)OS(=O)(=O)CC",
+                "benzenesulfinic ethanesulfonic anhydride",
+            ),
+            // P-65.7.1 examples.
+            (
+                "O=S(=O)(c1ccccc1)OS(=O)(=O)c1ccccc1",
+                "benzenesulfonic anhydride",
+            ),
+            ("ClCCS(=O)OS(=O)CCCl", "2-chloroethane-1-sulfinic anhydride"),
+            // P-41: the acid is senior to the anhydride, which becomes the
+            // enclosed compound prefix (acetyloxy)sulfonyl (P-16.5.1.1, P-65.3.2.3).
+            (
+                "OC(=O)CCS(=O)(=O)OC(C)=O",
+                "3-[(acetyloxy)sulfonyl]propanoic acid",
+            ),
+            (
+                "OC(=O)CCS(=O)(=O)OC(=O)CCl",
+                "3-{[(2-chloroacetyl)oxy]sulfonyl}propanoic acid",
+            ),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
+        }
+    }
+
+    #[test]
     // Provenance: fn tests::anhydride_certificate_counts_linkages_within_the_component | adapted
     // Source: ReShiki | src/naming/openclatura/special_cases.rs::tests::anhydride_certificate_counts_linkages_within_the_component
     // Source: openclatura | tests/unit/test_analysis.py::test_anhydride_shortcut_binds_acid_halves_and_core_separately
