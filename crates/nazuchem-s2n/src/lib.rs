@@ -3066,6 +3066,21 @@ mod tests {
                 "O=C1C=CC(=O)c2Nc3ccccc3Oc12",
                 "1H-phenoxazine-1,4(10H)-dione",
             ),
+            (
+                "O=C1C(=O)C2=C(CC1)Nc1ccccc1O2",
+                "1H-phenoxazine-3,4(2H,10H)-dione",
+            ),
+            (
+                "O=C1C=CC2=C(C1=O)Oc1ccccc1N2",
+                "3H-phenoxazine-3,4(10H)-dione",
+            ),
+            // P-58.2.3.1.4: a ketone that cannot take the indicated hydrogen
+            // leaves it at the lowest permissible site (P-58.2.3.1.3).
+            ("O=C1C=CC2=C(Nc3ccccc3O2)C1", "1H-phenoxazin-2(10H)-one"),
+            (
+                "O=C1CCC=C2Nc3ccccc3OC21",
+                "2,10-dihydro-3H-phenoxazin-4(4aH)-one",
+            ),
             ("O=C1C=CC2=Nc3ccccc3OC2=C1", "3H-phenoxazin-3-one"),
             // Controls.
             ("O=C1CNc2ccccc12", "1,2-dihydro-3H-indol-3-one"),
