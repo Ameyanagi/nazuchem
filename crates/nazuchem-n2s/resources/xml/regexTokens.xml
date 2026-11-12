@@ -37,8 +37,8 @@
 	<regex name="%RSstereochemAfterLocant%" regex="(-?%openBracket%([RSrs]|[Rr][,/]?[Ss])%closeBracket%)"/><!--e.g. 2-(S) or 2(R),3(R),4(R),5-->
 	<regex name="%allLocantForms%" regex="(%locantTypes%(%compoundLocantOrAddedHydrogen%|%RSstereochemAfterLocant%)?)"/>
 	<regex name="%formsWhereHyphenIsOptional%" regex="((%locantTypes%(%compoundLocantOrAddedHydrogen%|%RSstereochemAfterLocant%)|%locantTypesOptionalHyphen%))"/><!--cases where ommitting the hyphen is unambiguous-->
-	<regex name="%peroxyEsterLocant%" regex="((O|S|Se|Te)(O|S|Se|Te))"/><!--nazuchem: SO, OS, OO, SS etc. before the organyl group of a peroxy ester (IUPAC P-65.6.3.3.7.1)-->
-	<regexToken regex="(%allLocantForms%,)*(%allLocantForms%-|%formsWhereHyphenIsOptional%)|%peroxyEsterLocant%-" symbol="l" tagname="locant" determinise="yes" />
+	<regex name="%peroxyEsterLocant%" regex="((O|S|Se|Te)(O|S|Se|Te))"/><!--nazuchem: SO, OS, OO, SS etc. before the organyl group of a peroxy ester (IUPAC P-65.6.3.3.7.1); a comma list as in SO,SO-dimethyl-->
+	<regexToken regex="(%allLocantForms%,)*(%allLocantForms%-|%formsWhereHyphenIsOptional%)|(%peroxyEsterLocant%,)*%peroxyEsterLocant%-" symbol="l" tagname="locant" determinise="yes" />
 	<regexToken regex="(%locant%,)*%locant%-?" symbol="¯" type="bracketedLocant" tagname="locant" determinise="yes" />
 
 	<regexToken regex="(-%locantTypes%(,%locantTypes%)*)?-(d|1[34]C|15N|1[78]O)([1-9][0-9]?)?" symbol="ÿ" type="boughtonSystem" tagname="isotopeSpecification" determinise="yes" />

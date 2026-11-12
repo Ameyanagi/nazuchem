@@ -68,8 +68,12 @@ pub fn needs_hyphen(left: &str, right: &str) -> bool {
     if left.is_empty() || right.is_empty() {
         return false;
     }
+    // P-16.2.4.1(d): a hyphen sets off the italic s or as that opens the
+    // retained parents s- and as-indacene (P-25.1.1): 3-chloro-s-indacene.
     if right.starts_with(|c: char| c.is_ascii_digit())
         || left.ends_with(|c: char| c.is_ascii_digit())
+        || right.starts_with("s-")
+        || right.starts_with("as-")
     {
         return true;
     }
@@ -174,5 +178,45 @@ mod tests {
             "(4-(((3R)-thiolan-3-yl)sulfanyl)pyridin-3-yl)"
         ));
         assert!(!needs_hyphen("methyl", "SO-x"));
+    }
+
+    #[test]
+    fn italic_indacene_descriptors_keep_their_hyphen() {
+        // P-16.2.4.1(d): a hyphen separates the italic s or as of s- and
+        // as-indacene (P-25.1.1) from a substituent or hydro prefix.
+        for (smiles, expected) in [
+            ("ClC1=c2cc3c(cc2C=C1)=CC=C3", "3-chloro-s-indacene"),
+            ("ClC=1C=CC2=C3C=CC=C3C=CC12", "3-chloro-as-indacene"),
+            ("ClCC1=CC=C2C=C3C=CC=C3C=C12", "1-(chloromethyl)-s-indacene"),
+            (
+                "C1CC2=CC3=C(CCC3)C=C2C1",
+                "1,2,3,5,6,7-hexahydro-s-indacene",
+            ),
+            ("C1CCC2=CC=C3CCCC3=C12", "1,2,3,6,7,8-hexahydro-as-indacene"),
+            ("C1CCC2CC3CCCC3CC12", "dodecahydro-s-indacene"),
+            // Added indicated hydrogen cited after the suffix (P-14.7.2).
+            (
+                "O=C1CC2=CC3=C(CCC3)C=C2C1",
+                "3,5,6,7-tetrahydro-s-indacen-2(1H)-one",
+            ),
+            (
+                "O=C1CCC2=CC=C3CCCC3=C12",
+                "2,3,7,8-tetrahydro-as-indacen-1(6H)-one",
+            ),
+        ] {
+            assert_eq!(
+                super::super::name_smiles(smiles, &Default::default())
+                    .map(|name| name.text)
+                    .as_deref(),
+                Ok(expected),
+                "{smiles}"
+            );
+            // The parser reads the hyphenated spelling back to the structure.
+            let parsed = nazuchem_n2s::Parser::new()
+                .unwrap()
+                .parse(expected, &nazuchem_n2s::ParseOptions::strict());
+            let round_trip = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
+            crate::test_support::verify_identity(smiles, &round_trip).unwrap();
+        }
     }
 }
