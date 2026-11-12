@@ -95,7 +95,7 @@
       "hydroxy": 1,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "phosphonato"
+      "prefix": "(hydroxy(oxido)phosphoryl)"
     },
     {
       "symbol": "P",
@@ -230,7 +230,7 @@
       "hydroxy": 1,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "arsonato"
+      "prefix": "(hydroxy(oxido)arsoryl)"
     },
     {
       "symbol": "Sb",
@@ -239,7 +239,7 @@
       "hydroxy": 1,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "stibonato"
+      "prefix": "(hydroxy(oxido)stiboryl)"
     },
     {
       "symbol": "As",

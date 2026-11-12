@@ -1677,7 +1677,8 @@ pub fn name_heteroatom_subgraph(
             // `oxidoselanyl` for –Se-O⁻ would be read as a seleninyl group.
             if atom.charge == 0
                 && mol.get_neighbors(start).iter().any(|&n| {
-                    mol.atoms[&n].symbol == "O"
+                    Some(n) != upstream
+                        && mol.atoms[&n].symbol == "O"
                         && mol.atoms[&n].charge == -1
                         && mol.bond_order(start, n) == 1
                 })

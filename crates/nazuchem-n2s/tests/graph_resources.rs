@@ -58,8 +58,9 @@ fn build_every_literal_group_resource() {
             }
         }
     }
-    // 3,183 pinned OPSIN groups plus 12 native acid-anion prefixes (issue #83, P-72.6.1).
-    assert_eq!(examples, 3_195, "Frozen literal resource coverage changed");
+    // 3,183 pinned OPSIN groups plus 16 native acid-anion prefixes (issue #83,
+    // P-72.6.1; issue #145, P-65.6.2.3.1).
+    assert_eq!(examples, 3_199, "Frozen literal resource coverage changed");
     assert!(
         failures.is_empty(),
         "{} failures out of {examples} frozen resource groups:\n{}",

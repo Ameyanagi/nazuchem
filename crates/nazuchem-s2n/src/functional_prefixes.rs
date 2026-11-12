@@ -467,8 +467,10 @@ pub fn prefix_from_group(
     }
     if families.contains("sulfonyl") {
         let name = ester_prefix_from_group(context.mol, group, context.sub_exclude, "sulfonyl")?;
+        // P-72.6.1: without an ester group the registry prefix applies,
+        // `sulfo` for the acid and `sulfonato` for its anion.
         return Ok(if name.is_empty() {
-            "sulfo".into()
+            rule.prefix.clone().unwrap_or_default()
         } else {
             name
         });
@@ -562,6 +564,15 @@ pub fn prefix_from_group(
                     &e.acyl_center_prefix
                 })?
             ));
+        }
+        // `carboxy` would drop the charge of a chalcogen analogue of
+        // carboxylato (all-oxygen carboxylato is handled above).
+        if group
+            .descriptor
+            .as_ref()
+            .is_some_and(|d| d.derivative == "anion")
+        {
+            return Err("openclatura: chalcogen carboxylate anion prefix not ported".into());
         }
         return Ok("carboxy".into());
     }

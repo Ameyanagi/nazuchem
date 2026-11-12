@@ -51,7 +51,7 @@
     "resources/xml/regexes.xml": "36467cc5d2d0051d52a9db795dd826a8eca66458b179505967569bf3aa9e6389",
     "resources/xml/simpleCyclicGroups.xml": "9d2529668f7c1e59ba3d0b2ac276b4b9f11f31467f26295362729aec608e586d",
     "resources/xml/simpleGroups.xml": "1c776c51de9fe2e2114042e1ee4fc7afe8906b685346d88c2a94c33fd106bd61",
-    "resources/xml/simpleSubstituents.xml": "1be5a17895f332fc2351a00820b53c158217a88e9719ff3d2eacb55a0ebf80b7",
+    "resources/xml/simpleSubstituents.xml": "b0668ba0777208eb9341fdea56b2910aec0498abebe5d787ac0dc861659cfc18",
     "resources/xml/substituents.xml": "41a7f584e7d532dd21526bacd4078d34f8b8ec2df6b833b6f5347b63e3164a35",
     "resources/xml/suffixApplicability.dtd": "50e57c6484ac2ec522cb6ca30e33d25288a74a036ad03432a40db1bb59787c16",
     "resources/xml/suffixApplicability.xml": "1d10496b8e863008f909094a55cc964a9a97110b628359384ad7d58bf04a45b3",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "3ccf7ada2dda7e93b892ff9f582beb9245fe90a20c19c610a069d40fd964ff8c"
+    "sha256": "0b80910d3a2ad84b043b74a7f066fd2d2d39148510b9e033e9b63011b8e73f85"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",
@@ -313,7 +313,7 @@
       "exporter": "ExportDfa.java.txt with the checked regexTokens.xml and regexes.xml resource overrides"
     },
     "chalcogen_acid_anion_prefixes": {
-      "tokens": "simpleSubstituents.xml acid-anion prefixes of the chalcogen-replaced sulfinic and sulfonic acids, sulfinothioato through sulfonoditelluroato and the mixed sulfonoselenothioato, sulfonoselenotelluroato and sulfonotellurothioato (IUPAC 2013 P-72.6.1, P-65.3.1.3); dictionary tokens only",
+      "tokens": "simpleSubstituents.xml acid-anion prefixes of the chalcogen-replaced sulfinic and sulfonic acids, sulfinothioato through sulfonoditelluroato and the mixed sulfonoselenothioato, sulfonoselenotelluroato and sulfonotellurothioato (IUPAC 2013 P-72.6.1, P-65.3.1.3), and selenonato, seleninato, telluronato and tellurinato (P-65.6.2.3.1); dictionary tokens only",
       "automata": []
     }
   }
