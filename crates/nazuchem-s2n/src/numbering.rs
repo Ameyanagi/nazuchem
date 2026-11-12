@@ -880,18 +880,27 @@ fn substituent_citation_locants(
     let mut list = Vec::new();
     for (i, idx) in path.iter().enumerate() {
         if let Some(items) = mapping.get(idx) {
-            // P-82.2.2.1: an isotopically modified prefix is cited before its
-            // unmodified twin, so it takes the lower locant (P-82.5.2).
-            let unmodified = sites.is_empty()
-                || !mol.get_neighbors(*idx).iter().any(|&root| {
-                    !parent.contains(&root) && {
-                        let branch = super::subgraph_tools::subgraph_component(mol, root, &parent);
-                        sites.iter().any(|site| branch.contains(&site.anchor))
+            // P-82.5.2: of otherwise equal prefixes the isotopically modified
+            // one takes the lower locant, then the one whose nuclide has the
+            // higher atomic number, then the higher mass number.
+            let mut modified = None;
+            if !sites.is_empty() {
+                for &root in mol.get_neighbors(*idx) {
+                    if parent.contains(&root) {
+                        continue;
                     }
-                });
+                    let branch = super::subgraph_tools::subgraph_component(mol, root, &parent);
+                    modified = sites
+                        .iter()
+                        .filter(|site| branch.contains(&site.anchor))
+                        .map(|site| site.priority())
+                        .chain(modified)
+                        .max();
+                }
+            }
             for name in items {
                 let (name, initial) = substituent_sort_key(name);
-                list.push(((name, unmodified, initial), i + 1));
+                list.push(((name, std::cmp::Reverse(modified), initial), i + 1));
             }
         }
     }

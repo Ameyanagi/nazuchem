@@ -20,26 +20,25 @@ pub struct RenderedSubstituentName {
     pub oxy_prefix: Option<String>,
     /// Atoms whose isotope labels the text already cites (P-82.2.1).
     pub isotope_atoms: AtomSet,
-    /// The descriptor of the prefix's own parent, when the text starts with it.
-    pub isotope_descriptor: String,
+    /// The isotope descriptors that the text contains.
+    pub isotope_descriptors: Vec<String>,
 }
 // Provenance: impl RenderedSubstituentName | original
 // Source: ReShiki | src/naming/openclatura/assembly_parts.rs::RenderedSubstituentName
 impl RenderedSubstituentName {
     pub fn into_oxy_prefix(self) -> String {
         // P-82.2.1: the descriptor precedes the contracted prefix, (2H3)methoxy.
-        if !self.isotope_descriptor.is_empty()
-            && let Some(oxy) = self
-                .text
-                .strip_prefix(&self.isotope_descriptor)
-                .and_then(|alkyl| {
-                    super::nomenclature::RULES
-                        .heteroatoms
-                        .alkyl_oxy_prefixes
-                        .get(alkyl)
-                })
+        let descriptor =
+            super::isotope_naming::leading_descriptor(&self.text, &self.isotope_descriptors);
+        if !descriptor.is_empty()
+            && let Some(oxy) = self.text.strip_prefix(descriptor).and_then(|alkyl| {
+                super::nomenclature::RULES
+                    .heteroatoms
+                    .alkyl_oxy_prefixes
+                    .get(alkyl)
+            })
         {
-            return format!("{}{oxy}", self.isotope_descriptor);
+            return format!("{descriptor}{oxy}");
         }
         self.oxy_prefix
             .unwrap_or_else(|| super::formatting::oxy_prefix_from_branch(&self.text))
@@ -56,8 +55,8 @@ pub struct SubstituentItem {
     pub spiro: Option<Box<super::assembly_spiro::SpiroAssembly>>,
     /// Atoms whose isotope labels the prefix name already cites (P-82.2.1).
     pub isotope_atoms: AtomSet,
-    /// The descriptor that the name starts with, if it does.
-    pub isotope_descriptor: String,
+    /// The isotope descriptors that the name contains.
+    pub isotope_descriptors: Vec<String>,
 }
 impl SubstituentItem {
     // Provenance: fn SubstituentItem::new | adapted

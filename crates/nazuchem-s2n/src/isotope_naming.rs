@@ -24,6 +24,33 @@ pub(super) struct Site {
     mass: u16,
 }
 
+impl Site {
+    /// P-82.5.2: the higher atomic number, then the higher mass number.
+    pub(super) fn priority(&self) -> (usize, u16) {
+        let element = super::rules::elements::get(&self.symbol);
+        (element.map_or(0, |e| e.atomic_number), self.mass)
+    }
+}
+
+/// The descriptor that a prefix name starts with, as in (2H3)methyl.
+pub(super) fn leading_descriptor<'a>(name: &str, descriptors: &'a [String]) -> &'a str {
+    descriptors
+        .iter()
+        .find(|descriptor| name.starts_with(descriptor.as_str()))
+        .map_or("", String::as_str)
+}
+
+/// P-82.5.1: nuclides are considered last, so alphanumerical order and
+/// numbering use the prefix name without its descriptors.
+pub(super) fn citation_name(name: &str, descriptors: &[String]) -> String {
+    descriptors
+        .iter()
+        .fold(name.to_owned(), |name, descriptor| {
+            name.replace(&format!("{descriptor}-"), "")
+                .replace(descriptor.as_str(), "")
+        })
+}
+
 /// Keep CIP labels calculated with the isotopes present. Recalculating them
 /// after stripping can invert an existing centre or erase an isotope-created
 /// centre. The final strict parser check refuses any unsupported stereo path.
@@ -264,15 +291,23 @@ fn numbering_key(
     Ok(key)
 }
 
+/// The name part that a descriptor precedes, for the omission of locants.
+struct Unit<'a> {
+    /// The part with its substituents: no locants when all of it is modified
+    /// in the same way (P-82.6.1.3),
+    atoms: &'a AtomSet,
+    /// counting the labels that the descriptors of its prefixes cite.
+    cited: &'a [Site],
+    /// Its parent: a single atom of an element needs no locant (P-82.6.1.2).
+    parent: &'a AtomSet,
+}
+
 fn isotope_descriptors(
     mol: &Molecule,
     sites: &[Site],
     locants: &BTreeMap<usize, String>,
     symmetry: &BTreeMap<usize, usize>,
-    // The atoms of the name part that the descriptor precedes, and the labels
-    // in it that another descriptor cites (P-82.6.1.3).
-    unit: &AtomSet,
-    cited: &[Site],
+    unit: &Unit,
     style: IsotopeStyle,
 ) -> Result<String, String> {
     let mut groups = BTreeMap::<(&str, u16), Vec<usize>>::new();
@@ -287,22 +322,29 @@ fn isotope_descriptors(
     }
     let mut descriptors = Vec::new();
     for ((symbol, mass), anchors) in groups {
-        let unit = unit.iter().map(|atom| &mol.atoms[atom]);
+        let atoms = unit.atoms.iter().map(|atom| &mol.atoms[atom]);
         let available = if symbol == "H" {
-            unit.map(|a| a.total_h_count).sum()
+            atoms.map(|a| a.total_h_count).sum()
         } else {
-            unit.filter(|a| a.symbol == symbol).count()
-        } - cited
+            atoms.filter(|a| a.symbol == symbol).count()
+        } - unit
+            .cited
             .iter()
             .filter(|site| site.symbol == symbol && site.mass == mass)
             .count();
+        let single = symbol != "H"
+            && unit
+                .parent
+                .iter()
+                .filter(|atom| mol.atoms[*atom].symbol == symbol)
+                .count()
+                == 1;
         let only_carbon_parent = symbol == "H"
             && locants.len() == 1
             && anchors
                 .iter()
                 .all(|anchor| locants.contains_key(anchor) && mol.atoms[anchor].symbol == "C");
-        let omit =
-            available == anchors.len() || (symbol != "H" && available == 1) || only_carbon_parent;
+        let omit = available == anchors.len() || single || only_carbon_parent;
         let mut positions = if omit {
             vec![]
         } else {
@@ -360,11 +402,13 @@ fn with_descriptor(
 /// P-82.2.1: a substituent prefix cites its own labels before its parent, as
 /// in 4-(2-14C)ethylbenzoic acid and 4-[(3-14C)thiolan-2-yl]pyridine. Returns
 /// the descriptor and the labelled atoms of the prefix parent numbered by
-/// `locants`; `branch` is the whole prefix, the only part a numbering may move.
+/// `locants`; `branch` is the whole prefix, the only part a numbering may
+/// move, and `nested` holds the labelled atoms that its own prefixes cite.
 pub(super) fn prefix_descriptor(
     mol: &Molecule,
     locants: &BTreeMap<usize, String>,
     branch: &AtomSet,
+    nested: &AtomSet,
 ) -> Result<Option<(String, AtomSet)>, String> {
     let (sites, other): (Vec<_>, Vec<_>) = mol
         .isotope_sites()
@@ -381,15 +425,17 @@ pub(super) fn prefix_descriptor(
         .chain(other.iter().map(|site| site.anchor))
         .collect();
     let symmetry = lowest_equivalent_map(mol, &sites, locants, &pinned)?;
-    let descriptor = isotope_descriptors(
-        mol,
-        &sites,
-        locants,
-        &symmetry,
-        &locants.keys().copied().collect(),
-        &[],
-        IsotopeStyle::Iupac,
-    )?;
+    let cited: Vec<_> = other
+        .into_iter()
+        .filter(|site| nested.contains(&site.anchor))
+        .collect();
+    let unit = Unit {
+        atoms: branch,
+        cited: &cited,
+        parent: &locants.keys().copied().collect(),
+    };
+    let descriptor =
+        isotope_descriptors(mol, &sites, locants, &symmetry, &unit, IsotopeStyle::Iupac)?;
     Ok(Some((
         descriptor,
         sites.iter().map(|site| site.anchor).collect(),
@@ -467,8 +513,12 @@ pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Na
         base.text
     } else {
         let symmetry = lowest_equivalent_map(&parent, &sites, locants, &base.prefix_isotopes)?;
-        let descriptor =
-            isotope_descriptors(&parent, &sites, locants, &symmetry, &atoms, &cited, style)?;
+        let unit = Unit {
+            atoms: &atoms,
+            cited: &cited,
+            parent: &atoms,
+        };
+        let descriptor = isotope_descriptors(&parent, &sites, locants, &symmetry, &unit, style)?;
         with_descriptor(&base.text, &base.rendered_parent, &descriptor, style)?
     };
     if style == IsotopeStyle::Boughton && !base.prefix_isotopes.is_empty() {
@@ -764,6 +814,27 @@ mod tests {
             ("Cc1cccc([13CH3])c1", "1-(13C)methyl-3-methylbenzene"),
             ("CCC1CCC(C[13CH3])CC1", "1-(2-13C)ethyl-4-ethylcyclohexane"),
             ("[13CH3]CC1CCC(CC)CC1", "1-(2-13C)ethyl-4-ethylcyclohexane"),
+            // Then the higher atomic number, then the higher mass number.
+            (
+                "[13CH3]c1ccccc1[14CH3]",
+                "1-(14C)methyl-2-(13C)methylbenzene",
+            ),
+            (
+                "[14CH3]c1ccccc1[13CH3]",
+                "1-(14C)methyl-2-(13C)methylbenzene",
+            ),
+            ("[2H]Cc1ccccc1[13CH3]", "1-(13C)methyl-2-(2H1)methylbenzene"),
+            ("[13CH3]c1ccccc1C[2H]", "1-(13C)methyl-2-(2H1)methylbenzene"),
+            // P-82.5.1: a descriptor inside a prefix changes neither the
+            // alphanumerical order nor the numbering of the unmodified compound.
+            (
+                "OC1CC([13CH2]N)CC(CCN)C1",
+                "3-(2-aminoethyl)-5-[amino(13C)methyl]cyclohexan-1-ol",
+            ),
+            (
+                "OC1CC(CCN)CC([13CH2]N)C1",
+                "3-(2-aminoethyl)-5-[amino(13C)methyl]cyclohexan-1-ol",
+            ),
         ] {
             let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
@@ -813,6 +884,17 @@ mod tests {
                 "Cc1c([2H])c([2H])c([2H])c([2H])c1[2H]",
                 "1-methyl(2,3,4,5,6-2H5)benzene",
             ),
+            // The same inside a prefix: its own substituents count.
+            (
+                "OC1CCC(CC1)c1c([2H])c([2H])c(C)c([2H])c1[2H]",
+                "4-[4-methyl(2,3,5,6-2H4)phenyl]cyclohexan-1-ol",
+            ),
+            (
+                "OC1CCC(CC1)c1c([2H])c([2H])c(C([2H])([2H])[2H])c([2H])c1[2H]",
+                "4-[4-(2H3)methyl(2H4)phenyl]cyclohexan-1-ol",
+            ),
+            // P-82.6.1.2: one atom of the element in the prefix's parent.
+            ("c1ccccc1[13CH2]c1ccncc1", "4-[phenyl(13C)methyl]pyridine"),
         ] {
             let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");

@@ -920,7 +920,7 @@ fn collect_component_branch_substituents(
             let mut item = SubstituentItem::new(branch.text, vec![]);
             item.outer_parentheses_optional = branch.outer_parentheses_optional;
             item.isotope_atoms = branch.isotope_atoms;
-            item.isotope_descriptor = branch.isotope_descriptor;
+            item.isotope_descriptors = branch.isotope_descriptors;
             item.bond_ids = bond_ids_within(mol, &bond_atoms);
             item.charge_atom_ids = atoms
                 .iter()

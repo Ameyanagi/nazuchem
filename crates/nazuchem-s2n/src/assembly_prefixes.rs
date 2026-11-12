@@ -14,6 +14,7 @@ use super::{
     formatting::{
         is_complex_prefix, is_compound_prefix, needs_complex_multiplier, starts_with_multiplier,
     },
+    isotope_naming::{citation_name, leading_descriptor},
     locant_elision::{retained_parent_attachment_is_ambiguous, substituent_locant_set_is_unique},
     nomenclature::RULES,
     rules::multipliers,
@@ -37,13 +38,7 @@ fn ignored_prefix_len(text: &str) -> usize {
     let locants = prefix.split([',', ':']).all(|s| {
         let digits = s.chars().take_while(|c| c.is_ascii_digit()).count();
         if digits > 0 {
-            // P-82.2.2.1: a nuclide symbol such as 14c6 takes no part either.
-            let symbol = if assembly_locants {
-                &s[digits..]
-            } else {
-                s[digits..].trim_end_matches(|c: char| c.is_ascii_digit())
-            };
-            symbol.chars().all(|c| {
+            s[digits..].chars().all(|c| {
                 c.is_ascii_lowercase()
                     || c == 'ξ'
                     || assembly_locants && (c.is_ascii_digit() || matches!(c, '\'' | '^'))
@@ -238,11 +233,12 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
         items.push(sub);
     }
     // Python's dict preserves first citation order when alphabetical keys tie.
-    // P-82.2.2.1: the isotopically modified prefix precedes its unmodified twin.
+    // P-82.5.1: isotope descriptors take no part in the order. P-82.2.2.1:
+    // the isotopically modified prefix precedes its unmodified twin.
     names.sort_by_key(|s| {
-        let unmodified = grouped[s].iter().all(|item| item.isotope_atoms.is_empty());
-        let (name, initial) = substituent_sort_key(s);
-        (name, unmodified, initial)
+        let item = grouped[s][0];
+        let (name, initial) = substituent_sort_key(&citation_name(s, &item.isotope_descriptors));
+        (name, item.isotope_atoms.is_empty(), initial)
     });
     let groups: Vec<_> = names
         .into_iter()
@@ -287,7 +283,7 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
             .max(1);
         // P-82.2.1: a leading isotope descriptor leaves a simple prefix simple,
         // 3-(2H3)methyl, though a multiplied one is enclosed: di[(13C)methyl].
-        let descriptor = items[0].isotope_descriptor.as_str();
+        let descriptor = leading_descriptor(name, &items[0].isotope_descriptors);
         let plain = name.strip_prefix(descriptor).unwrap_or(name);
         let compound = is_complex_prefix(plain) || (count > 1 && needs_complex_multiplier(plain));
         let complex = compound || count > 1 && !descriptor.is_empty();
