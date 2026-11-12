@@ -104,9 +104,10 @@ pub fn suffix(count: usize, suffix: &str) -> String {
     if suffix.starts_with('(') {
         return format!("{}{suffix}", complex_(count));
     }
-    // P-16.3.5 (b): `thioate`, `dithioate` and their Se and Te analogues take
-    // bis/tris, as in `S,S-dimethyl ethanebis(thioate)` (P-65.6.3.3.7.1);
-    // `dithioate` is one -CS-S- group.
+    // P-16.3.5 (b): `thioate`, `dithioate`, `thioic acid`, `dithioic acid` and
+    // their Se and Te analogues take bis/tris, as in `S,S-dimethyl
+    // ethanebis(thioate)` (P-65.6.3.3.7.1) and `butanebis(thioic acid)`
+    // (P-65.1.5.1); `dithioate` is one -CS-S- group.
     let mut chalcogens = suffix;
     while let Some(rest) = ["di", "thio", "seleno", "telluro"]
         .iter()
@@ -114,11 +115,12 @@ pub fn suffix(count: usize, suffix: &str) -> String {
     {
         chalcogens = rest;
     }
-    // P-72.2.2.2.2: compound anionic suffixes such as `olate` and suffixes
-    // with a letter locant, as in `bis(OS-thioperoxolate)`, take bis/tris.
-    if chalcogens == "ate" && suffix != "ate"
+    // P-72.2.2.2.2: compound anionic suffixes such as `olate`, `peroxolate`
+    // and `dithioperoxolate`, and suffixes with a letter locant, as in
+    // `bis(OS-thioperoxolate)`, take bis/tris.
+    if matches!(chalcogens, "ate" | "ic") && suffix != chalcogens
         || suffix.contains('-')
-        || matches!(suffix, "olate" | "thiolate" | "selenolate" | "tellurolate")
+        || suffix.ends_with("olate")
     {
         return format!("{}({suffix})", complex_(count));
     }
@@ -205,6 +207,11 @@ mod tests {
             (2, "dithioate", "bis(dithioate)"),
             (3, "selenothioate", "tris(selenothioate)"),
             (2, "carbothioate", "dicarbothioate"),
+            // Issue #120. P-16.3.5 (b): bis(thioic acid), bis(dithioic acid).
+            (2, "thioic", "bis(thioic)"),
+            (2, "dithioic", "bis(dithioic)"),
+            (2, "carbothioic", "dicarbothioic"),
+            (2, "oic", "dioic"),
             (2, "peroxothioate", "diperoxothioate"),
             (2, "oate", "dioate"),
             (2, "ate", "diate"),
