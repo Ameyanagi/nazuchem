@@ -103,19 +103,20 @@ pub(super) fn name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<Name>, Stri
                 // The neutral parent's numbering ignores the chalcogenide, so
                 // symmetric parents such as 4,4′-bipyridine leave a choice: the
                 // site takes the lowest of its equivalent locants (P-14.3.5:
-                // 1 before 1′). Morgan ranks only shortlist sites; an
-                // automorphism exchanging the two must exist (it is refused
-                // when stereo is present, which could invert descriptors).
+                // 1 before 1′). Morgan ranks only shortlist sites; a symmetry
+                // carrying one onto the other must exist, and it must keep
+                // every R/S descriptor (a reflection would invert them).
                 let ranks = super::chains::canonical_ranks(&reduced, None);
                 let Some(locant) = parent_atoms
                     .iter()
                     .filter(|&&i| {
                         i == n
                             || ranks.get(&i) == ranks.get(&n)
-                                && super::locant_elision::ester_sites_are_equivalent(
+                                && super::locant_elision::site_maps_onto(
                                     &reduced,
                                     &reduced_atoms,
-                                    &[n, i],
+                                    n,
+                                    i,
                                 )
                     })
                     .filter_map(|i| parent_locants.get(i))
