@@ -772,6 +772,27 @@ mod tests {
     }
 
     #[test]
+    fn equal_parents_prefer_the_isotopically_modified_one() {
+        // P-44.4.1.11.1: the parent with more modified atoms, in either atom order.
+        for (smiles, expected) in [
+            ("OC(=O)CC(C)(C)[13CH3]", "3,3-dimethyl(4-13C)butanoic acid"),
+            ("OC(=O)CC([13CH3])(C)C", "3,3-dimethyl(4-13C)butanoic acid"),
+            ("CC(C)C(C)[13CH3]", "2,3-dimethyl(1-13C)butane"),
+            ("[13CH3]C(C)C(C)C", "2,3-dimethyl(1-13C)butane"),
+            ("CC(C)(C[2H])C(=O)O", "2,2-dimethyl(3-2H1)propanoic acid"),
+            (
+                "CC(C)([13CH3])c1ccccc1",
+                "[2-methyl(1-13C)propan-2-yl]benzene",
+            ),
+            ("CCC(CC)(CC[2H])O", "3-ethyl(1-2H1)pentan-3-ol"),
+        ] {
+            let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            verify(smiles, &name.text).unwrap();
+        }
+    }
+
+    #[test]
     fn completely_substituted_parts_omit_their_locants() {
         // P-82.6.1.3: the labels a prefix cites count towards the completely
         // substituted compound; an unlabelled hydrogen anywhere keeps locants.
