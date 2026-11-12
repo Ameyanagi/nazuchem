@@ -79,7 +79,7 @@ struct ParentScore {
     double_bonds: i64,
     assembly_junctions: Option<(Vec<LocantKey>, Vec<LocantKey>)>,
     split_acyl: usize,
-    chain_unsaturation_locants: Option<(Vec<usize>, Vec<usize>)>,
+    chain_locants: Option<(Vec<usize>, Vec<usize>, Vec<usize>)>,
     attached_prefixes: i64,
     assembly_substituent_locants: Option<Vec<LocantKey>>,
     assembly_substituent_citation: Option<AssemblyCitation>,
@@ -351,7 +351,7 @@ fn score(
         multiple_bonds: -multiple,
         double_bonds: -double,
         split_acyl,
-        chain_unsaturation_locants: None,
+        chain_locants: None,
         attached_prefixes: -attached,
         assembly_substituent_locants: None,
         assembly_substituent_citation: None,
@@ -399,7 +399,7 @@ pub(super) fn tied_principal_parents(
         &AtomSet::new(),
         true,
     );
-    prefer_chain_unsaturation_locants(mol, &mut candidates, principal_carbons);
+    prefer_chain_suffix_and_unsaturation_locants(mol, &mut candidates, principal_carbons);
     prefer_chain_prefix_locants(mol, &mut candidates, principal_carbons, groups);
     prefer_exchanged_arm_descriptors(mol, &mut candidates, principal_carbons);
     let Some(best) = candidates.iter().map(|(s, _)| earlier_score(s)).min() else {
@@ -447,13 +447,14 @@ pub(super) fn assembled_name_preference(
     )
 }
 
-/// P-44.4.1.10: chains tied through the number of double bonds prefer the
-/// lower locants for the ene and yne endings together, then for the ene
-/// endings. It precedes the number of prefixes (P-45.2.1). Chains whose
-/// numbering differs in an earlier P-44.4.1 criterion are left alone.
-// Provenance: fn prefer_chain_unsaturation_locants | original
-// Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::prefer_chain_unsaturation_locants
-fn prefer_chain_unsaturation_locants(
+/// P-44.4.1.8 and P-44.4.1.10: chains tied through the number of double
+/// bonds prefer the lower suffix locants, then the lower locants for the ene
+/// and yne endings together, then for the ene endings. Both precede the
+/// number of prefixes (P-45.2.1). Chains whose numbering differs in another
+/// earlier P-44.4.1 criterion are left alone.
+// Provenance: fn prefer_chain_suffix_and_unsaturation_locants | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::prefer_chain_suffix_and_unsaturation_locants
+fn prefer_chain_suffix_and_unsaturation_locants(
     mol: &Molecule,
     candidates: &mut [(ParentScore, ParentSelection)],
     principal: &[usize],
@@ -473,7 +474,7 @@ fn prefer_chain_unsaturation_locants(
         .enumerate()
         .filter_map(|(i, (s, _))| (earlier(s) == best).then_some(i))
         .collect();
-    if best.multiple_bonds == 0 || tied.iter().any(|&i| candidates[i].1.is_ring) {
+    if tied.iter().any(|&i| candidates[i].1.is_ring) {
         return;
     }
     let mut earlier_numbering = None;
@@ -487,7 +488,6 @@ fn prefer_chain_unsaturation_locants(
         );
         let earlier = (
             numbering.skeletal_ions,
-            numbering.principal,
             numbering.hydro,
             numbering.hetero_by_priority,
             numbering.indicated_hydrogen,
@@ -496,10 +496,17 @@ fn prefer_chain_unsaturation_locants(
             return;
         }
         earlier_numbering = Some(earlier);
-        keys.insert(i, (numbering.unsaturation, numbering.double_bonds));
+        keys.insert(
+            i,
+            (
+                numbering.principal,
+                numbering.unsaturation,
+                numbering.double_bonds,
+            ),
+        );
     }
     for (i, key) in keys {
-        candidates[i].0.chain_unsaturation_locants = Some(key);
+        candidates[i].0.chain_locants = Some(key);
     }
 }
 
@@ -880,7 +887,7 @@ pub(super) fn anion_parent_is_senior(
     ) else {
         return false;
     };
-    let candidates = parent_candidates(
+    let mut candidates = parent_candidates(
         mol,
         &paths,
         &rings,
@@ -889,6 +896,7 @@ pub(super) fn anion_parent_is_senior(
         &excluded,
         false,
     );
+    prefer_chain_suffix_and_unsaturation_locants(mol, &mut candidates, &principal);
     let Some(cited_score) = candidates
         .iter()
         .filter(|(_, selection)| selection.atom_set() == *parent)
@@ -1563,6 +1571,50 @@ mod tests {
             ),
         ] {
             assert_eq!(name(smiles), expected, "{smiles}");
+        }
+    }
+
+    // Issue #131, P-44.4.1.8: of two butane chains, the one with the lower
+    // suffix locant (1 against 2) is the parent, before the number of
+    // prefixes, N-substituents included (P-45.2.1). Each input is also
+    // written from other atoms.
+    #[test]
+    fn tied_chains_prefer_lower_suffix_locants() {
+        for (expected, inputs) in [
+            (
+                "4-[3-(methylamino)butoxy]butan-1-amine",
+                &["CNC(C)CCOCCCCN", "NCCCCOCCC(C)NC"][..],
+            ),
+            (
+                "4-(3-aminobutoxy)butan-1-amine",
+                &["NCCCCOCCC(C)N", "CC(N)CCOCCCCN"][..],
+            ),
+            (
+                "4-(3-hydroxybutoxy)butan-1-ol",
+                &["OCCCCOCCC(C)O", "CC(O)CCOCCCCO"][..],
+            ),
+            // 1,4 is lower than 2,3.
+            (
+                "2-(2,3-dihydroxybutoxy)butane-1,4-diol",
+                &["OCC(OCC(O)C(O)C)CCO", "CC(O)C(O)COC(CO)CCO"][..],
+            ),
+            // P-44.4.1.8 precedes P-44.4.1.10: suffix 1 with ene 4 against
+            // suffix 3 with ene 1.
+            (
+                "5-[(3-hydroxypent-4-en-1-yl)oxy]pent-4-en-1-ol",
+                &["OCCCC=COCCC(O)C=C", "C=CC(O)CCOC=CCCCO"][..],
+            ),
+            // The anion parent check (P-72.7) applies the same criterion.
+            (
+                "4-(2-methyl-3-sulfidobutoxy)butane-1-thiolate",
+                &["[S-]CCCCOCC(C)C([S-])C", "CC([S-])C(C)COCCCC[S-]"][..],
+            ),
+        ] {
+            for smiles in inputs {
+                let named = crate::name_smiles(smiles, &Default::default()).unwrap();
+                assert_eq!(named.text, expected, "{smiles}");
+                assert_eq!(named.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            }
         }
     }
 
