@@ -1057,7 +1057,13 @@ mod tests {
     // Provenance: fn tests::anion_parent_assessment_uses_the_cited_derivation | original
     // Source: ReShiki | src/naming/openclatura/species.rs::tests::anion_parent_assessment_uses_the_cited_derivation
     fn anion_parent_assessment_uses_the_cited_derivation() {
-        for smiles in ["C[N+](C)(C)CC[O-]", "[NH3+]CC([NH3+])C[O-]"] {
+        for smiles in [
+            "C[N+](C)(C)CC[O-]",
+            "[NH3+]CC([NH3+])C[O-]",
+            // No prefix keeps these cations, so they stay suffixes beside -ide.
+            "[CH2-]CC(=O)[NH3+]",
+            "[CH2-]CC#[NH+]",
+        ] {
             assert_eq!(
                 assess_component(smiles),
                 NameStatus::Unverified(NameReason::AnionParent),
@@ -1111,6 +1117,10 @@ mod tests {
             "Oc1ccccc1-c1[n-]ccc1C",
             "OCCc1cc[n-]c1",
             "OC(=O)c1ccccc1-c1[n-]ccc1",
+            // P-74.0: the aminium cation becomes a prefix of the -ide parent.
+            "[NH3+]CC[CH-]C#N",
+            "[NH3+][C-]1C=CC2=C1N=NO2",
+            "C[N+](C)(C)[C-](C)C",
         ] {
             assert_eq!(assess_component(smiles), NameStatus::Preferred, "{smiles}");
         }
@@ -1120,13 +1130,12 @@ mod tests {
     // Provenance: fn tests::skeletal_anion_with_characteristic_cation_has_unsettled_suffix_order | original
     // Source: ReShiki | src/naming/openclatura/species.rs::tests::skeletal_anion_with_characteristic_cation_has_unsettled_suffix_order
     fn skeletal_anion_with_characteristic_cation_has_unsettled_suffix_order() {
-        for smiles in ["[NH3+]CC[CH-]C#N", "[NH3+][C-]1C=CC2=C1N=NO2"] {
-            assert_eq!(
-                assess_component(smiles),
-                NameStatus::Unverified(NameReason::IonicSuffixOrder),
-                "{smiles}"
-            );
-        }
+        // Aminium becomes a prefix (P-74.0), but the diazonio prefix is not
+        // the preselected diazyn-1-ium-1-yl (P-73.6), so diazonium stays.
+        assert_eq!(
+            assess_component("[CH2-]CC[N+]#N"),
+            NameStatus::Unverified(NameReason::IonicSuffixOrder),
+        );
     }
 
     #[test]
@@ -2058,7 +2067,7 @@ mod tests {
             // P-73.7(a) precedes ring seniority (P-44.2).
             (
                 "C1CC[NH+](C1)CC2=C(N=C3N2C=CS3)C4=CC=CC=C4",
-                "1-[(6-phenylimidazo[2,1-b][1,3]thiazol-5-yl)methyl]pyrrolidinium",
+                "1-[(6-phenylimidazo[2,1-b][1,3]thiazol-5-yl)methyl]pyrrolidin-1-ium",
             ),
             // Cationic suffixes keep their place (P-73.7(a), (d)).
             (
@@ -2066,7 +2075,7 @@ mod tests {
                 "2-(1-methylpyridin-1-ium-4-yl)ethan-1-aminium",
             ),
             ("OCC[NH3+]", "2-hydroxyethan-1-aminium"),
-            ("OCC1CC[NH2+]C1", "3-(hydroxymethyl)pyrrolidinium"),
+            ("OCC1CC[NH2+]C1", "3-(hydroxymethyl)pyrrolidin-1-ium"),
             // Nitro is a neutral group, not a cationic centre.
             (
                 "OCc1cc[n+](cc1)c1ccc([N+](=O)[O-])cc1",

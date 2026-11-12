@@ -334,17 +334,21 @@ fn rank(element: &str) -> i64 {
 }
 // Provenance: fn infix | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::_replacement_infix
-fn infix(elements: &[String]) -> String {
-    let mut es = elements
-        .iter()
-        .filter(|s| s.as_str() != "O")
-        .collect::<Vec<_>>();
-    if es.len() == 2 && es[0] == es[1] {
-        return format!("di{}", chalcogen_replacement_infix(es[0]).unwrap_or(""));
+pub(super) fn infix(elements: &[String]) -> String {
+    // Repeated infixes are multiplied (sulfonotrithioate, selenodithio) and
+    // cited in alphanumerical order (P-65.3.1.3, P-65.3.2.3 sulfonodithioyl).
+    let mut counts = std::collections::BTreeMap::<&str, usize>::new();
+    for e in elements.iter().filter(|s| s.as_str() != "O") {
+        *counts
+            .entry(chalcogen_replacement_infix(e).unwrap_or(""))
+            .or_default() += 1;
     }
-    es.sort_by_key(|e| chalcogen_replacement_infix(e).unwrap_or(""));
-    es.into_iter()
-        .map(|e| chalcogen_replacement_infix(e).unwrap_or(""))
+    counts
+        .into_iter()
+        .map(|(word, n)| match n {
+            1 => word.to_owned(),
+            n => format!("{}{word}", super::rules::multipliers::basic(n)),
+        })
         .collect()
 }
 // Provenance: fn template | adapted
@@ -2065,7 +2069,17 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
         template(
             &format!("central_{}_prefix", d.derivative),
             &[
-                ("stem", stem.into()),
+                // P-72.6.1: the acid-anion prefix is the anion suffix with
+                // "ate" changed to "ato", so it keeps the replacement infix
+                // (sulfinothioato, like the suffix sulfinothioate).
+                (
+                    "stem",
+                    if d.derivative == "anion" {
+                        suffix_stem.clone()
+                    } else {
+                        stem.into()
+                    },
+                ),
                 (
                     "halide_prefix",
                     leaving.map_or("", |l| l.prefix.as_str()).into(),

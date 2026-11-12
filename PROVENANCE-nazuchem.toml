@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "9796210d898bf3b14d38c74c3c93a16a1dd0f36bab3fa3d9fa57d8d27fe5756f"
+sha256 = "46dd1ea7e290a9837e1c094387fa88cba7b065b240bb618734c94aafce50afa1"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "da4d939d1ef6dea93225b0144736c53d3001c0337399c22f1011d6f1cc7b38bf"
+sha256 = "1de65b18b693744b942e40c20b1f60297e5477aae6942a101c0cd5867ac5c876"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1626,13 +1626,13 @@ sha256 = "1c776c51de9fe2e2114042e1ee4fc7afe8906b685346d88c2a94c33fd106bd61"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/simpleSubstituents.xml"
-origin = "copy"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/simpleSubstituents.xml", license = "MIT" },
 ]
-notes = "Byte-preserved upstream data."
-sha256 = "41348a77f2135ad2047f836b52ca2c5db983bcb26c44e04e1694818d24066876"
+notes = "OPSIN simple substituents with original native additions (issue #83): the P-72.6.1 acid-anion prefixes of chalcogen-replaced sulfinic and sulfonic acids (sulfinothioato through sulfonoditelluroato, and the mixed sulfonoselenothioato, sulfonoselenotelluroato and sulfonotellurothioato). Do not claim byte equality for this file."
+sha256 = "1be5a17895f332fc2351a00820b53c158217a88e9719ff3d2eacb55a0ebf80b7"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/substituents.xml"
@@ -3957,6 +3957,7 @@ sources = [
   { project = "ReShiki", path = "src/naming/openclatura/anion_spelling_tests.rs", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/unit/test_analysis.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/data/parser_xml_resources/groupStemsAllowingInlineSuffixes.json", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/anion_spelling_tests.rs", ref = "issue #83", license = "MIT OR Apache-2.0" },
 ]
 notes = "Local structured-anion spelling, charge-order and round-trip regressions. Test inputs and expected chemical names include conservatively adapted upstream cases; exact matches do not establish independent ancestry. Production helpers and local test extensions retain their individual ledger decisions."
 parts = [
@@ -3971,6 +3972,7 @@ parts = [
   { items = ["fn anion_spelling_supports_charge_citations_on_chains_and_rings"], origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/anion_spelling_tests.rs", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0", symbol = "anion_spelling_supports_charge_citations_on_chains_and_rings" }] },
   { items = ["fn retained_anion_parents_compose_supported_charge_sites"], origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/anion_spelling_tests.rs", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0", symbol = "retained_anion_parents_compose_supported_charge_sites" }] },
   { items = ["fn ketone_anions_needing_added_hydrogen_are_not_claimed_preferred"], origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/anion_spelling_tests.rs", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0", symbol = "ketone_anions_needing_added_hydrogen_are_not_claimed_preferred" }] },
+  { items = ["fn chalcogen_acid_anion_prefixes_keep_charge_and_infix"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/anion_spelling_tests.rs", ref = "issue #83", license = "MIT OR Apache-2.0", symbol = "chalcogen_acid_anion_prefixes_keep_charge_and_infix" }] },
 ]
 
 [[file]]
@@ -4431,7 +4433,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/data/namer_rules.json", license = "MIT" },
 ]
 notes = "openclatura rules adapted for ion spellings, retained parents, alkoxy contractions and bond numbering; sections and keys the port never reads removed; not byte-identical."
-sha256 = "f0d6caa29317f906998ca4773ec5e11afd8b480b4c25c2dcba5394824887a62a"
+sha256 = "4268c86921992d43ed3661ee44aab4e9a45059ee4421eb10c601e3c7850b7314"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/parser_grammar_snapshot.json"
@@ -7500,7 +7502,7 @@ sources = [
   { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including the owner decision 2026-11-10 to retain bakeoff_corpus.tsv as a repository-only test fixture with PubChem (NCBI) attribution, excluded from all published packages. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
-sha256 = "4bb3d1d1715c00d33d572653952edf981ba27ae641edb8eeafc3af5a0d04879f"
+sha256 = "66f597159460b460b7cb77f5945570455d3ae009e33703d297426d260e7e8220"
 
 [[file]]
 path = "crates/nazuchem-ir/docs/cxsmiles.md"

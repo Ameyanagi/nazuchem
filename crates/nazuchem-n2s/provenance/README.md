@@ -12,7 +12,7 @@ and 33 XML files are byte-equal to the pinned main checkout. The native
 `regexTokens.xml` extensions permit a locant before an axial descriptor and
 recognize unlocanted Xi/xi stereodescriptors, and read two chalcogen symbols
 such as `SO-` as the locant of a peroxy ester's organyl group (IUPAC
-P-65.6.3.3.7.1), also in a comma list such as `SO,SO-`. The native `regexes.xml` extensions permit `ene`/`yne` after
+P-65.6.3.3.7.1). The native `regexes.xml` extensions permit `ene`/`yne` after
 the closing bracket of a spiro name (P-31.1.5.2.1, P-31.2.3.3.3) and a
 bracketed `bis`/`tris` before a functional class or halide-type ion name, such
 as `bis(sulfide)` or `tris(iodide)` (P-16.3.6 (a)). The native `multipliers.xml`
@@ -23,7 +23,9 @@ extensions add the `aminiumyl` and `aminiumylidene` substituent suffixes
 `suffixRules.xml`, `suffixApplicability.xml` and `functionalTerms.xml` read
 chalcogen peroxy acids and their `ate` forms, peroxols, tellanal, mixed-chalcogen peroxyanhydrides
 and peroxide class names, and the bracketed letter-locanted acid suffix in
-`butanebis(thioic S-acid)` (P-16.3.5 (b)). These additions only add dictionary tokens to
+`butanebis(thioic S-acid)` (P-16.3.5 (b)). Native `simpleSubstituents.xml` tokens read the
+acid-anion prefixes of chalcogen-replaced sulfinic and sulfonic acids, such as
+`sulfinothioato` (P-72.6.1, P-65.3.1.3). These additions only add dictionary tokens to
 existing token lists, so the DFA tables are unchanged. `native_extensions` in
 the manifest records these changes.
 
@@ -203,11 +205,13 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`200d96b138a554fb6daffb93c99cd1a0d7d3d5c834eed1eacd5787687f6da354`.
+`d1c3344342f04765aa9ad4d38338f97fe3a052c189e551112237fdd06a06e837`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph
-snapshots and constructs all 3,183 literal groups. `phanes.txt` contributes
+snapshots and constructs all 3,195 literal groups: the 3,183 pinned ones and
+the 12 native `simpleSubstituents.xml` acid-anion prefixes, which postdate the
+oracle and are checked natively as acyclic, kekulization-stable fragments. `phanes.txt` contributes
 174 integration names (348 strict/radical structure records); the 21 phane
 rows in `uninterpretable.txt` are also checked natively. No goldens are edited
 by hand. Regeneration uses the checked exporter sources and the pinned jar.

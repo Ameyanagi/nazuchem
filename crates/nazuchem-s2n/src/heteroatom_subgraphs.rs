@@ -1211,6 +1211,45 @@ fn name_sulfur(
     {
         return Err(unsupported("sulfur charge bonding state"));
     }
+    // P-72.6.1: –S(=X)O⁻ and –S(=X)(=Y)O⁻ (X, Y = O, S, Se, Te) are acid
+    // anions cited as sulfinato/sulfonato prefixes with the P-65.3.1.3
+    // replacement infix (sulfinothioato), not as a neutral oxo group.
+    let ligands: Vec<_> = mol
+        .get_neighbors(start)
+        .iter()
+        .copied()
+        .filter(|&n| Some(n) != upstream)
+        .collect();
+    let doubles = ligands
+        .iter()
+        .filter(|&&n| mol.bond_order(start, n) == 2 && mol.atoms[&n].charge == 0)
+        .count();
+    if order == 1
+        && atom.charge == 0
+        && (1..=2).contains(&doubles)
+        && ligands.len() == doubles + 1
+        && ligands.iter().all(|&n| {
+            mol.degree(n) == 1 && matches!(mol.atoms[&n].symbol.as_str(), "O" | "S" | "Se" | "Te")
+        })
+        && ligands.iter().any(|&n| {
+            mol.atoms[&n].symbol == "O"
+                && mol.atoms[&n].charge == -1
+                && mol.bond_order(start, n) == 1
+        })
+    {
+        let elements: Vec<_> = ligands
+            .iter()
+            .map(|n| mol.atoms[n].symbol.clone())
+            .collect();
+        let infix = super::perception::infix(&elements);
+        let stem = if doubles == 1 { "sulfin" } else { "sulfon" };
+        let sp = stereo(mol, start);
+        return Ok(if infix.is_empty() {
+            format!("{sp}{stem}ato")
+        } else {
+            format!("{sp}{stem}o{infix}ato")
+        });
+    }
     let (oxo, class) = central_oxo(mol, start, exclude)?;
     let nitrogens: Vec<_> = double_bonded_neighbors(mol, start, "N")
         .into_iter()
