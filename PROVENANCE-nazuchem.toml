@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "0226f71779ff18bbf5e96bb23ebf0d0bd643ef4908129589bf64733cec97f8bd"
+sha256 = "ed203048beb897be3c90358f456b6b9061d2df3d1af77bfee29894a4bdca9f92"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "480c5881f81a7f3842b142fc050a6d1d20f3258c071d5d40e2baab3fe2425b8d"
+sha256 = "725e6d41f3b715851fe5f105195ff79e6f65bca13b577b1e4c385e69b90d0834"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1631,8 +1631,8 @@ license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/simpleSubstituents.xml", license = "MIT" },
 ]
-notes = "OPSIN simple substituents with original native additions (issue #83): the P-72.6.1 acid-anion prefixes of chalcogen-replaced sulfinic and sulfonic acids (sulfinothioato through sulfonoditelluroato). Do not claim byte equality for this file."
-sha256 = "76ccf1f8b409f8151e2eb68e8c7a3c3707fa8e63fd2d017cfb649190e866e056"
+notes = "OPSIN simple substituents with original native additions (issue #83): the P-72.6.1 acid-anion prefixes of chalcogen-replaced sulfinic and sulfonic acids (sulfinothioato through sulfonoditelluroato, and the mixed sulfonoselenothioato, sulfonoselenotelluroato and sulfonotellurothioato). Do not claim byte equality for this file."
+sha256 = "1be5a17895f332fc2351a00820b53c158217a88e9719ff3d2eacb55a0ebf80b7"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/substituents.xml"

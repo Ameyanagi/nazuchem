@@ -464,6 +464,22 @@ fn chalcogen_acid_anion_prefixes_keep_charge_and_infix() {
             "[methyl(sulfinoselenoato)amino]benzene",
             prefix_only,
         ),
+        (
+            "c1ccccc1N(C)S(=S)(=[Se])[O-]",
+            "[methyl(sulfonoselenothioato)amino]benzene",
+            prefix_only,
+        ),
+        // A specified sulfur configuration is cited, so enantiomers differ.
+        (
+            "c1ccccc1N(C)[S@](=S)[O-]",
+            "{methyl[(S)-sulfinothioato]amino}benzene",
+            prefix_only,
+        ),
+        (
+            "c1ccccc1N(C)[S@@](=S)[O-]",
+            "{methyl[(R)-sulfinothioato]amino}benzene",
+            prefix_only,
+        ),
         // The oxygen acids keep their sulfinato/sulfonato prefixes.
         (
             "c1ccccc1N(C)S(=O)[O-]",

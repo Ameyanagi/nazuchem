@@ -1243,10 +1243,11 @@ fn name_sulfur(
             .collect();
         let infix = super::perception::infix(&elements);
         let stem = if doubles == 1 { "sulfin" } else { "sulfon" };
+        let sp = stereo(mol, start);
         return Ok(if infix.is_empty() {
-            format!("{stem}ato")
+            format!("{sp}{stem}ato")
         } else {
-            format!("{stem}o{infix}ato")
+            format!("{sp}{stem}o{infix}ato")
         });
     }
     let (oxo, class) = central_oxo(mol, start, exclude)?;

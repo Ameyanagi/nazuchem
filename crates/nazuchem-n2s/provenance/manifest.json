@@ -51,7 +51,7 @@
     "resources/xml/regexes.xml": "79e57fc77b00cd33421fcb11d63529da118f306227d62b243245231ef41d122a",
     "resources/xml/simpleCyclicGroups.xml": "9d2529668f7c1e59ba3d0b2ac276b4b9f11f31467f26295362729aec608e586d",
     "resources/xml/simpleGroups.xml": "1c776c51de9fe2e2114042e1ee4fc7afe8906b685346d88c2a94c33fd106bd61",
-    "resources/xml/simpleSubstituents.xml": "76ccf1f8b409f8151e2eb68e8c7a3c3707fa8e63fd2d017cfb649190e866e056",
+    "resources/xml/simpleSubstituents.xml": "1be5a17895f332fc2351a00820b53c158217a88e9719ff3d2eacb55a0ebf80b7",
     "resources/xml/substituents.xml": "41a7f584e7d532dd21526bacd4078d34f8b8ec2df6b833b6f5347b63e3164a35",
     "resources/xml/suffixApplicability.dtd": "50e57c6484ac2ec522cb6ca30e33d25288a74a036ad03432a40db1bb59787c16",
     "resources/xml/suffixApplicability.xml": "379fd480b6f327b8339c7783c1d335cc6cc9c8f04c9454393a13b61ed28c786c",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "81993f21f823a6b887a8085c60914d5d7a6d634981c55469abd1d0d251dd67a6"
+    "sha256": "ce39d842749db292f4aa6eec2996b813afbbc8769d6214d8fba7d3e402a942c0"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",
@@ -308,7 +308,7 @@
       "exporter": "ExportDfa.java.txt with the checked regexTokens.xml and regexes.xml resource overrides; loading regexes.xml from disk also renumbers the states of token-69 and token-reversed-69, which stay isomorphic to the earlier tables"
     },
     "chalcogen_acid_anion_prefixes": {
-      "tokens": "simpleSubstituents.xml acid-anion prefixes of the chalcogen-replaced sulfinic and sulfonic acids, sulfinothioato through sulfonoditelluroato (IUPAC 2013 P-72.6.1, P-65.3.1.3); dictionary tokens only",
+      "tokens": "simpleSubstituents.xml acid-anion prefixes of the chalcogen-replaced sulfinic and sulfonic acids, sulfinothioato through sulfonoditelluroato and the mixed sulfonoselenothioato, sulfonoselenotelluroato and sulfonotellurothioato (IUPAC 2013 P-72.6.1, P-65.3.1.3); dictionary tokens only",
       "automata": []
     }
   }

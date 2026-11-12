@@ -320,6 +320,9 @@
 		<token value="-S(=S)(=S)[O-]">sulfonodithioato</token>
 		<token value="-S(=[Se])(=[Se])[O-]">sulfonodiselenoato</token>
 		<token value="-S(=[Te])(=[Te])[O-]">sulfonoditelluroato</token>
+		<token value="-S(=S)(=[Se])[O-]">sulfonoselenothioato</token>
+		<token value="-S(=[Se])(=[Te])[O-]">sulfonoselenotelluroato</token>
+		<token value="-S(=S)(=[Te])[O-]">sulfonotellurothioato</token>
 		<token value="-SO">sulfeno</token>
 
 		<token value="-N=O">nitroso</token>
