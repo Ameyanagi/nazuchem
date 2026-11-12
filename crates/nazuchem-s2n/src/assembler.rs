@@ -654,19 +654,11 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
         .into_iter()
         .map(|(m, c)| {
             if let Some((site, organyl)) = letter_locant(m).filter(|_| c > 1) {
-                // P-65.6.3.3.7.1: `S,S-dimethyl ethanebis(thioate)`. A
-                // compound organyl group takes bis (P-16.3.5 (a)).
-                let organyl = if !super::formatting::is_complex_prefix(organyl)
-                    && super::formatting::is_compound_prefix(organyl)
-                {
-                    format!("({organyl})")
-                } else {
-                    organyl.into()
-                };
+                // P-65.6.3.3.7.1: `S,S-dimethyl ethanebis(thioate)`.
                 format!(
                     "{}-{}",
                     vec![site; c].join(","),
-                    format_multiplier(&organyl, c, false)
+                    format_multiplier(organyl, c, false)
                 )
             } else if c > 1 {
                 format_multiplier(m, c, true)

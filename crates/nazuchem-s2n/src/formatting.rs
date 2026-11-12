@@ -114,7 +114,9 @@ pub fn needs_simple_multiplier_parentheses(name: &str) -> bool {
 // Provenance: fn format_multiplier | adapted
 // Source: openclatura | src/openclatura/formatting.py::format_multiplier
 pub fn format_multiplier(name: &str, count: usize, safe_enclose: bool) -> String {
-    let complex = is_complex_prefix(name) || (count > 1 && needs_complex_multiplier(name));
+    // P-16.3.5 (a): a compound prefix takes bis, as in `bis(chloromethyl)`.
+    let complex = is_complex_prefix(name)
+        || (count > 1 && (needs_complex_multiplier(name) || is_compound_prefix(name)));
     if count == 1 {
         return if (safe_enclose || complex) && !is_fully_enclosed(name) {
             format!("({name})")
@@ -298,6 +300,10 @@ mod tests {
             ("decylidene", 2, "di(decylidene)"),
             ("decyl", 3, "tri(decyl)"),
             ("ethylidene", 2, "diethylidene"),
+            // Issue #120, P-16.3.5 (a): bis(bromomethyl).
+            ("chloromethyl", 2, "bis(chloromethyl)"),
+            ("methyl", 2, "dimethyl"),
+            ("ethenyl", 2, "diethenyl"),
         ] {
             assert_eq!(format_multiplier(name, count, false), expected);
         }

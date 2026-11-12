@@ -22,7 +22,8 @@ extensions add the `aminiumyl` and `aminiumylidene` substituent suffixes
 (IUPAC P-73.6). Native dictionary additions to `suffixes.xml`,
 `suffixRules.xml`, `suffixApplicability.xml` and `functionalTerms.xml` read
 chalcogen peroxy acids and their `ate` forms, peroxols, tellanal, mixed-chalcogen peroxyanhydrides
-and peroxide class names. Native `simpleSubstituents.xml` tokens read the
+and peroxide class names, and the bracketed letter-locanted acid suffix in
+`butanebis(thioic S-acid)` (P-16.3.5 (b)). Native `simpleSubstituents.xml` tokens read the
 acid-anion prefixes of chalcogen-replaced sulfinic and sulfonic acids, such as
 `sulfinothioato` (P-72.6.1, P-65.3.1.3). These additions only add dictionary tokens to
 existing token lists, so the DFA tables are unchanged. `native_extensions` in
@@ -204,7 +205,7 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`8675cf5ccb7316d5249a177fe7bea60dfef520f9f65ba91a1c801dd1a76212e2`.
+`d1c3344342f04765aa9ad4d38338f97fe3a052c189e551112237fdd06a06e837`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph
