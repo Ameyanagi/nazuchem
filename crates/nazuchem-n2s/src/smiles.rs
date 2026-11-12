@@ -1017,7 +1017,11 @@ impl<'a> Writer<'a> {
             if bond.order != 2 || bond.stereo.is_some() {
                 continue;
             }
-            let marked = [bond.from, bond.to].map(|atom| {
+            // Slashes at both terminal atoms of an odd cumulene specify its
+            // E/Z just as they do across one double bond (OpenSMILES 3.8.3).
+            let cumulene = crate::stereochemistry_handler::odd_cumulene(self.graph, central)
+                .map(|(refs, _)| [refs[1], refs[2]]);
+            let marked = cumulene.unwrap_or([bond.from, bond.to]).map(|atom| {
                 self.graph
                     .atom(atom)
                     .bonds
@@ -1034,6 +1038,7 @@ impl<'a> Writer<'a> {
             // Avoid specifying this bond through redundant neighbouring slashes.
             // A slash can serve stereo at either endpoint: each such endpoint
             // must retain another marked single bond after the whole side is cleared.
+            let mut cleared = false;
             for side in &marked {
                 if side.iter().all(|bond| {
                     let bond = self.graph.bond(*bond);
@@ -1052,11 +1057,19 @@ impl<'a> Writer<'a> {
                     for bond in side {
                         self.directions[bond.0] = None;
                     }
+                    cleared = true;
                     break;
                 }
             }
             // If neither side can be cleared safely, keep the slashes, as in
-            // conjugated chains with no redundant marks.
+            // conjugated chains with no redundant marks. Across a cumulene
+            // they would assert a configuration the structure does not have.
+            if cumulene.is_some() && !cleared {
+                return Err(SerializationError(
+                    "SMILES cannot leave a cumulene unspecified between specified double bonds"
+                        .into(),
+                ));
+            }
         }
         Ok(())
     }

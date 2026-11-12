@@ -199,6 +199,9 @@ fn directions_give_the_cip_descriptor() {
         // Issue #89: the Z propenyl branch is senior to the E one (rule 3).
         (r"C/C=C/C(=C=C=C/F)/C=C\C", false),
         (r"C/C=C/C(=C=C=C\F)/C=C\C", true),
+        // Both ligands of one end, consistently directed.
+        ("C/C(/F)=C=C=C/C", false),
+        (r"F\C(\C)=C=C=C\C", true),
     ] {
         let prepared = crate::smiles::prepare(text, &crate::budget::Budget::default()).unwrap();
         let [ez] = prepared.cumulene_ez.as_slice() else {
@@ -206,8 +209,17 @@ fn directions_give_the_cip_descriptor() {
         };
         assert_eq!(cumulene_is_e(&prepared.state, ez), Ok(Some(e)), "{text}");
     }
-    for text in ["CC=C=C=CC", "C/C=C=C=CC", "C/C=C=C/C", "C/C(C)=C=C=C/C"] {
-        let prepared = crate::smiles::prepare(text, &crate::budget::Budget::default()).unwrap();
-        assert!(prepared.cumulene_ez.is_empty(), "{text}");
+    for (text, dropped) in [
+        ("CC=C=C=CC", false),
+        ("C/C=C=C=CC", false),
+        ("C/C=C=C/C", false),
+        ("C/C(C)=C=C=C/C", false),
+        // Two ligands of one end on the same side contradict each other.
+        (r"C/C(\F)=C=C=C/C", true),
+        (r"F/C(\C)=C=C=C/C", true),
+    ] {
+        let imported = crate::smiles::read(text, &crate::budget::Budget::default()).unwrap();
+        assert!(imported.prepared.cumulene_ez.is_empty(), "{text}");
+        assert_eq!(imported.dropped_cumulene_ez, dropped, "{text}");
     }
 }

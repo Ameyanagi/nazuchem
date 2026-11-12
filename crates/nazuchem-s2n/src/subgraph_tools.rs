@@ -92,9 +92,7 @@ pub(super) fn emit_bond_stereo_except(
                 && (cumulated(u, v) || cumulated(v, u));
             if cumulene {
                 if !path_set.contains(&v) || cyclic.contains(&u) || cyclic.contains(&v) {
-                    return Err(
-                        "Naming supports cumulene E/Z only within one acyclic chain".into(),
-                    );
+                    return Err("Naming supports cumulene E/Z only within one acyclic chain".into());
                 }
                 if cumulated(u, v) {
                     continue;

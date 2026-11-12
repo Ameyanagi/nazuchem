@@ -2514,7 +2514,7 @@ pub fn apply_stereo_chemistry_to_stereo_bond(
 /// other terminal bond.
 // Provenance: fn odd_cumulene | original
 // Source: Nazuchem | crates/nazuchem-n2s/src/stereochemistry_handler.rs::odd_cumulene
-fn odd_cumulene(graph: &Graph, bond: BondId) -> Option<([AtomId; 4], BondId)> {
+pub(crate) fn odd_cumulene(graph: &Graph, bond: BondId) -> Option<([AtomId; 4], BondId)> {
     let doubles = |atom: AtomId| -> Vec<BondId> {
         graph
             .atom(atom)

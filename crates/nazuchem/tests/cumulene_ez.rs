@@ -103,11 +103,25 @@ fn unsupported_cumulene_configurations_are_refused() {
     ] {
         assert!(name_to_smiles(name).is_err(), "{name}");
     }
+    // Slashes at both ends of a cumulene specify it (OpenSMILES 3.8.3), so
+    // SMILES cannot leave this one unspecified between two E double bonds.
+    assert_eq!(
+        name_to_smiles("(2E,8E)-deca-2,4,5,6,8-pentaene")
+            .unwrap_err()
+            .kind(),
+        ErrorKind::Serialize
+    );
+    assert_eq!(
+        name_to_smiles("(2E)-octa-2,4,5,6-tetraene").unwrap(),
+        r"C\C=C\C=C=C=CC"
+    );
     // IR v1 has no record for this configuration.
     let error = name_to_molecule("(2E)-hexa-2,3,4-triene").unwrap_err();
     assert_eq!(error.kind(), ErrorKind::Serialize);
     // A cumulene that leaves the parent chain or lies in a ring is not named.
     for smiles in [
+        // Both ligands of one terminal atom on the same side.
+        r"C/C(\F)=C=C=C/C",
         r"C/C=C=C=C1/CCCCC1C",
         r"C/N=C=C=C\C",
         r"C1CCCC/C=C=C=C\CCCC1",

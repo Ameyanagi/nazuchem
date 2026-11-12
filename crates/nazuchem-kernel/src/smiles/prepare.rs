@@ -197,21 +197,26 @@ pub(super) fn finish(
             let (mut refs, mut up) = ([0; 2], [false; 2]);
             for (slot, &(end, inner)) in chain.ends.iter().enumerate() {
                 let old = removed.kept_atoms.get(end).ok_or(Error::Limit)?;
-                let Some(&(_, neighbor, outward)) = directed.iter().find(|d| d.0 == *old) else {
+                // Each directed ligand places the first remaining ligand on
+                // one side; a removed hydrogen or the second ligand lies
+                // opposite it. Contradictory directions specify nothing.
+                let Some(first) = state.graph.bonds.iter().find_map(|b| match (b.a, b.b) {
+                    (x, y) | (y, x) if x == end && y != inner => Some(y),
+                    _ => None,
+                }) else {
                     continue 'chains;
                 };
-                (refs[slot], up[slot]) =
-                    match removed.kept_atoms.iter().position(|&kept| kept == neighbor) {
-                        Some(kept) => (kept, outward),
-                        // A removed hydrogen lies opposite the remaining ligand.
-                        None => match state.graph.bonds.iter().find_map(|b| match (b.a, b.b) {
-                            (x, y) | (y, x) if x == end && y != inner => Some(y),
-                            _ => None,
-                        }) {
-                            Some(other) => (other, !outward),
-                            None => continue 'chains,
-                        },
-                    };
+                let mut sides = directed.iter().filter(|d| d.0 == *old).map(|d| {
+                    let kept = removed.kept_atoms.iter().position(|&kept| kept == d.1);
+                    d.2 == (kept == Some(first))
+                });
+                let Some(side) = sides.next() else {
+                    continue 'chains;
+                };
+                if sides.any(|other| other != side) {
+                    continue 'chains;
+                }
+                (refs[slot], up[slot]) = (first, side);
             }
             cumulene_ez.push(stereo::CumuleneEz {
                 ends: chain.ends.map(|(end, _)| end),
