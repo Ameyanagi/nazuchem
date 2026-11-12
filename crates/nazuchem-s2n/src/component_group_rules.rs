@@ -345,6 +345,16 @@ pub fn retarget_external_carbonyl_groups(
             .filter(|n| m.atoms[n].is_carbon() && !g.atoms_involved.contains(n))
             .collect::<Vec<_>>();
         if adj.len() == 1 {
+            // P-66.3.2.2: a hydrazide carbonyl carbon on a chain stays a
+            // chain atom, cited as hydrazinyl with oxo when it ends the
+            // parent chain (3-hydrazinyl-3-oxopropanoic acid).
+            if !cyclic.contains(&adj[0])
+                && g.resolved_rule
+                    .as_ref()
+                    .is_some_and(|r| r.has_capability("hydrazide"))
+            {
+                continue;
+            }
             g.attachment_carbon = adj[0];
             g.atoms_involved.insert(c);
             exclude.insert(c);

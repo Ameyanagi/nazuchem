@@ -1240,7 +1240,7 @@ mod tests {
             // their chalcogen analogues, carboximidamides, then sulfonamides,
             // all before hydrazides.
             (
-                "4-hydrazinecarbonylbenzene-1-carboximidamide",
+                "4-(hydrazinecarbonyl)benzene-1-carboximidamide",
                 &["NC(=N)c1ccc(cc1)C(=O)NN", "NNC(=O)c1ccc(C(N)=N)cc1"][..],
             ),
             (
@@ -1255,9 +1255,23 @@ mod tests {
                 "4-carbamimidoylbenzene-1-carbothioamide",
                 &["NC(=N)c1ccc(cc1)C(N)=S"][..],
             ),
+            // Issue #141. P-66.3.2.2: a chain-end hydrazide is hydrazinyl with
+            // oxo, on the chain that keeps the carbonyl carbon.
+            (
+                "4-hydrazinyl-4-oxobutanimidamide",
+                &["NC(=N)CCC(=O)NN", "NNC(=O)CCC(N)=N"][..],
+            ),
+            (
+                "5-hydrazinyl-3-(2-hydrazinyl-2-oxoethyl)-5-oxopentanoic acid",
+                &["OC(=O)CC(CC(=O)NN)CC(=O)NN", "NNC(=O)CC(CC(=O)NN)CC(O)=O"][..],
+            ),
+            (
+                "4-hydrazinyl-3-methyl-4-oxobutanoic acid",
+                &["OC(=O)CC(C)C(=O)NN", "CC(CC(O)=O)C(=O)NN"][..],
+            ),
             // P-66.3.2.1: the acyl prefix of hydrazinecarbothioic acid.
             (
-                "4-hydrazinecarbothioylbenzene-1-carboximidamide",
+                "4-(hydrazinecarbothioyl)benzene-1-carboximidamide",
                 &["NC(=N)c1ccc(cc1)C(=S)NN"][..],
             ),
             // P-41 classes 7a and 7b, P-66.1.6.1.1.5 (N-carbamoylbenzenesulfonamide

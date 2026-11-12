@@ -235,6 +235,12 @@ fn score(
                 !atoms.contains(&n)
                     && matches!(mol.atoms[&n].symbol.as_str(), "N" | "O" | "S")
                     && mol.get_bond(idx, n).is_some_and(|b| b.order == 1)
+                    // P-66.3.2.2: a hydrazide carbonyl ending a chain is
+                    // cited as hydrazinyl with oxo, so it is not split.
+                    && !(mol.atoms[&n].symbol == "N"
+                        && mol.get_neighbors(n).iter().any(|&t| {
+                            mol.atoms[&t].symbol == "N" && mol.bond_order(n, t) == 1
+                        }))
             })
         {
             split_acyl += 1;
