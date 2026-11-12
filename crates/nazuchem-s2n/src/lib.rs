@@ -1174,7 +1174,7 @@ mod tests {
                     "C(OC(CC(OC)=O)=O)C(C)(C)CC(=O)OC(C)(C)C",
                 ][..],
             ),
-            // Issue #97. P-73.5.3.2, P-14.4 (c): the cationic centre takes the
+            // Issue #97. P-14.4 (c): the -ium suffix takes the
             // lower of the two equivalent locants (#96 may retain naphthyridine).
             (
                 "decahydropyrido[3,4-c]pyridin-2-ium",
