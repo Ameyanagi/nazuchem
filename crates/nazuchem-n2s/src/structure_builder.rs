@@ -2213,11 +2213,17 @@ impl Builder<'_> {
                 // The inner atom must bridge to an acid centre (C=O, S=O);
                 // the sulfur of a sulfonate or sulfenate is not a peroxy atom.
                 let on_acid = match graph.neighbours(inner)[..] {
-                    [a, b] => graph
-                        .atom(if a == atom { b } else { a })
-                        .bonds
-                        .iter()
-                        .any(|&bond| graph.bond(bond).order == 2),
+                    [a, b] => {
+                        let centre = if a == atom { b } else { a };
+                        graph.atom(centre).bonds.iter().any(|&bond| {
+                            let bond = graph.bond(bond);
+                            bond.order == 2
+                                && graph
+                                    .atom(bond.other_atom(centre).unwrap())
+                                    .element
+                                    .is_chalcogen()
+                        })
+                    }
                     _ => false,
                 };
                 if !on_acid {
@@ -2230,8 +2236,13 @@ impl Builder<'_> {
                     .ambiguous_element_assignment
                     .contains(&inner);
                 if unoriented && found == (wanted.1, wanted.0) {
-                    self.assembly.graph_mut().atom_mut(inner).element = wanted.0;
-                    self.assembly.graph_mut().atom_mut(atom).element = wanted.1;
+                    // An isotope label, as in (34S), stays with its element.
+                    let isotopes = (graph.atom(atom).isotope, graph.atom(inner).isotope);
+                    let graph = self.assembly.graph_mut();
+                    graph.atom_mut(inner).element = wanted.0;
+                    graph.atom_mut(inner).isotope = isotopes.0;
+                    graph.atom_mut(atom).element = wanted.1;
+                    graph.atom_mut(atom).isotope = isotopes.1;
                 } else if found != wanted {
                     continue;
                 }

@@ -191,6 +191,8 @@ fn peroxy_ester_locants_orient_the_peroxy_group() {
             "sodium benzenecarbo(SeS-selenothioperoxoate)",
             "C1(=CC=CC=C1)C(=O)[Se][S-].[Na+]",
         ),
+        // An isotope label follows its element when the group is turned.
+        ("OS-methyl ethane(34S)(thioperoxoate)", "C(C)(=O)O[34S]C"),
         // Homo-chalcogen and single-symbol forms read as before.
         ("ethane(dithioperoxoate)", "C(C)(=O)S[S-]"),
         ("methyl ethane(dithioperoxoate)", "C(C)(=O)SSC"),
@@ -217,6 +219,7 @@ fn peroxy_ester_locants_orient_the_peroxy_group() {
         "SO-methyl ethane(dithioperoxoate)",
         "OS-methyl methanesulfenate",
         "SO-methyl methanesulfenate",
+        "SO-methyl ethenesulfenate",
         "SO-methyl methanesulfonate",
         "SO-methyl methanesulfinate",
         "OS-methyl acetate",
