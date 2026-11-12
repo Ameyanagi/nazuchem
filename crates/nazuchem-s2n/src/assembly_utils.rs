@@ -194,6 +194,15 @@ mod tests {
             ),
             ("C1CCC2=CC=C3CCCC3=C12", "1,2,3,6,7,8-hexahydro-as-indacene"),
             ("C1CCC2CC3CCCC3CC12", "dodecahydro-s-indacene"),
+            // Added indicated hydrogen cited after the suffix (P-14.7.2).
+            (
+                "O=C1CC2=CC3=C(CCC3)C=C2C1",
+                "3,5,6,7-tetrahydro-s-indacen-2(1H)-one",
+            ),
+            (
+                "O=C1CCC2=CC=C3CCCC3=C12",
+                "2,3,7,8-tetrahydro-as-indacen-1(6H)-one",
+            ),
         ] {
             assert_eq!(
                 super::super::name_smiles(smiles, &Default::default())

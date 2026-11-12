@@ -543,11 +543,7 @@ fn move_added_hydrogen(parts: &AssemblyParts, core: &str, suffix: &str) -> (Stri
         )
     } else {
         let head = head.trim_end_matches('-');
-        let sep = if !head.is_empty() && tail.starts_with(|c: char| c.is_ascii_digit()) {
-            "-"
-        } else {
-            ""
-        };
+        let sep = if needs_hyphen(head, tail) { "-" } else { "" };
         format!("{head}{sep}{tail}")
     };
     (
