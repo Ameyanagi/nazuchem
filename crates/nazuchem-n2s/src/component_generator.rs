@@ -13,6 +13,7 @@
 // Changes: A bracketed mixed chalcogen peroxy infix block is rejected; the oriented suffix tokens read it (issue #90).
 // Changes: A numeric locant before a peroxy ester locant, as in 4-SO-ethyl, is joined to it (issue #94).
 // Changes: A list of pair locants on a peroxy acid suffix must have one per acid group (issue #94).
+// Changes: Brackets around several infixes stay until the last one, so bis(selenothioic acid) multiplies the suffix (issue #120).
 // Changes: Check name-derived arithmetic and parent-chain bounds before expansion;
 // bound name-driven expansions to 1 MiB and report fallible allocation errors.
 
@@ -1122,8 +1123,13 @@ impl<'a> ComponentGenerator<'a> {
                     self.arena.detach(m);
                     self.arena.detach(id)
                 }
-                self.arena.detach(bracket.unwrap());
-                self.arena.detach(close.unwrap());
+                // In "bis(selenothioic acid)" the brackets stay until the
+                // last infix, so "bis" is not read as the multiplier of "thio".
+                let inner = self.arena.next_sibling(bracket.unwrap());
+                if !self.is(inner, INFIX_EL) && !self.is(inner, MULTIPLIER_EL) {
+                    self.arena.detach(bracket.unwrap());
+                    self.arena.detach(close.unwrap());
+                }
             } else if known {
                 let m = multiplier.unwrap();
                 for _ in 1..self.num(m, VALUE_ATR)? {

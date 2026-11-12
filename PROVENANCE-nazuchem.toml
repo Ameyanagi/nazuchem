@@ -1104,7 +1104,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/PORTING.md", license = "MIT" },
 ]
 notes = "Project-authored OPSIN source/module mapping, acceptance narrative and upstream commit classification. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "d30262d0a0362ac8940b316bb5992a1d5d1cbafae5255a7ee2fdd1cce4d57b2e"
+sha256 = "2a98b4d9321a6b6a179cfbb9618eb911dd9c1d48eafc6460bdeb7d29e6770297"
 
 [[file]]
 path = "crates/nazuchem-n2s/README.md"
@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "69061d042bc3b739fc1a262fc0c396eed422e328e697c5c78a084cced2084c6c"
+sha256 = "9796210d898bf3b14d38c74c3c93a16a1dd0f36bab3fa3d9fa57d8d27fe5756f"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "d3d0bd151d7f5353bb15455dff8163709fcbdb87b2cb547bdfb12e4dee8aa176"
+sha256 = "da4d939d1ef6dea93225b0144736c53d3001c0337399c22f1011d6f1cc7b38bf"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1702,7 +1702,7 @@ sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixes.xml", license = "MIT" },
 ]
 notes = "OPSIN suffix tokens with original native additions (issue #26): chalcogen peroxy acid suffixes with their SO/OS-type acid locants (P-65.1.5.3), Table 6.1 peroxol suffixes (P-63.4.2.1) and tellanal (P-66.6.3); and (issue #90) the ate forms of the peroxy acid suffixes for esters and anions (P-65.6.3.3.7.1). Do not claim byte equality for this file."
-sha256 = "983c60d02a5f89036766a35ba82fd897a090ffdf9b40d2ef70baaebd4677a620"
+sha256 = "d5068e49b299cbda83298e5f9fa4f3716d6eb091260d3df5110959571866275e"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/tokenFiles.dtd"
@@ -7593,6 +7593,15 @@ sources = [
   { project = "Nazuchem", path = "crates/nazuchem/tests/chalcogen_peroxy.rs", ref = "issue #94", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original facade regression for issue #94: generated names of chalcogen peroxols, peroxy acids, their anions and multiplied chalcogen esters, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
+
+[[file]]
+path = "crates/nazuchem/tests/thio_acids.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/tests/thio_acids.rs", ref = "issue #120", license = "MIT OR Apache-2.0" },
+]
+notes = "Original facade regression for issue #120: generated names of thio diacids, thio acids cited as prefixes, multiplied compound ester groups and -SSH prefixes, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
 
 [[file]]
 path = "crates/nazuchem/tests/ir.rs"

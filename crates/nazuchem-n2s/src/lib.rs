@@ -78,7 +78,7 @@ use std::sync::{Arc, OnceLock};
 pub const UPSTREAM_VERSION: &str = "3.0-SNAPSHOT";
 pub const UPSTREAM_COMMIT: &str = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91";
 pub const RESOURCE_FINGERPRINT: &str =
-    "2976cdf127ea691cdd19a0ec199a2bfa29ee0ffc2cd1045e0cbf33e23c0e3f7e";
+    "200d96b138a554fb6daffb93c99cd1a0d7d3d5c834eed1eacd5787687f6da354";
 pub const PORT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Axial stereochemistry in the atom order of the accompanying SMILES.

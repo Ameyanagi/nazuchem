@@ -1376,6 +1376,10 @@ fn name_sulfur(
         {
             return Ok(lambda(mol, start, &ns, sulfanyl_suffix));
         }
+        // P-63.4.2.2: -SSH is `disulfanyl` (disulfanylacetic acid).
+        if ns[0] == "sulfanyl" && order == 1 && mol.atoms[&start].charge == 0 {
+            return Ok(format!("{sp}disulfanyl"));
+        }
         if super::nomenclature::RULES
             .heteroatoms
             .simple_sulfanyl_prefixes
