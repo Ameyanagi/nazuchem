@@ -617,7 +617,7 @@ fn numbering_preference(
     if topology.is_von_baeyer {
         unsaturation = von_baeyer_bond_locants(mol, path);
     }
-    let substituent_citation = substituent_citation_locants(path, substituents);
+    let substituent_citation = substituent_citation_locants(mol, path, substituents);
     let stereochemistry = stereochemistry_preference(mol, path, true);
     NumberingPreference {
         free_valence,
@@ -871,14 +871,27 @@ pub fn substituent_citation_name(name: &str) -> String {
 // Provenance: fn substituent_citation_locants | adapted
 // Source: openclatura | src/openclatura/numbering.py::_substituent_citation_locants
 fn substituent_citation_locants(
+    mol: &Molecule,
     path: &[usize],
     mapping: &BTreeMap<usize, Vec<String>>,
 ) -> Vec<usize> {
+    let sites = mol.isotope_sites();
+    let parent: AtomSet = path.iter().copied().collect();
     let mut list = Vec::new();
     for (i, idx) in path.iter().enumerate() {
         if let Some(items) = mapping.get(idx) {
+            // P-82.2.2.1: an isotopically modified prefix is cited before its
+            // unmodified twin, so it takes the lower locant (P-82.5.2).
+            let unmodified = sites.is_empty()
+                || !mol.get_neighbors(*idx).iter().any(|&root| {
+                    !parent.contains(&root) && {
+                        let branch = super::subgraph_tools::subgraph_component(mol, root, &parent);
+                        sites.iter().any(|site| branch.contains(&site.anchor))
+                    }
+                });
             for name in items {
-                list.push((substituent_sort_key(name), i + 1));
+                let (name, initial) = substituent_sort_key(name);
+                list.push(((name, unmodified, initial), i + 1));
             }
         }
     }

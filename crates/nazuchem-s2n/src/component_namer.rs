@@ -146,6 +146,8 @@ pub(super) struct IsotopeParentName {
     pub rendered_parent: String,
     /// Labelled atoms that the substituent prefixes cite themselves (P-82.2.1).
     pub prefix_isotopes: AtomSet,
+    /// Every atom of a substituent prefix.
+    pub prefix_atoms: AtomSet,
     pub derivation: Derivation,
 }
 
@@ -162,6 +164,7 @@ pub(super) fn name_component_with_atom_locants(
             text: name.name,
             locants: BTreeMap::new(),
             prefix_isotopes: AtomSet::new(),
+            prefix_atoms: AtomSet::new(),
             derivation: Derivation::Shortcut {
                 component_splits: name.component_splits,
                 certified: name.certified,
@@ -200,6 +203,12 @@ pub(super) fn name_component_with_atom_locants(
                 locants: plan.locant_map.clone(),
                 rendered_parent,
                 prefix_isotopes,
+                prefix_atoms: plan
+                    .parts
+                    .substituents
+                    .iter()
+                    .flat_map(|item| item.atom_ids.iter().copied())
+                    .collect(),
                 derivation: Derivation::Plan {
                     parent_atoms,
                     parent_locants: plan.locant_map,

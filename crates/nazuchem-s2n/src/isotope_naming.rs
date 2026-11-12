@@ -203,12 +203,11 @@ fn lowest_equivalent_map(
         best: None,
     };
     search.visit(&mut BTreeMap::new(), &mut BTreeSet::new())?;
-    search
-        .best
-        .map(|(_, map)| map)
-        .ok_or_else(|| {
-            "openclatura: an isotope label on a characteristic group or on this kind of substituent prefix is not supported".into()
-        })
+    search.best.map(|(_, map)| map).ok_or_else(uncited)
+}
+
+fn uncited() -> String {
+    "openclatura: an isotope label on a characteristic group or on this kind of substituent prefix is not supported".into()
 }
 
 fn site_locant(
@@ -270,8 +269,10 @@ fn isotope_descriptors(
     sites: &[Site],
     locants: &BTreeMap<usize, String>,
     symmetry: &BTreeMap<usize, usize>,
-    // The atoms of the name part that the descriptor precedes (P-82.6.1.3).
+    // The atoms of the name part that the descriptor precedes, and the labels
+    // in it that another descriptor cites (P-82.6.1.3).
     unit: &AtomSet,
+    cited: &[Site],
     style: IsotopeStyle,
 ) -> Result<String, String> {
     let mut groups = BTreeMap::<(&str, u16), Vec<usize>>::new();
@@ -291,7 +292,10 @@ fn isotope_descriptors(
             unit.map(|a| a.total_h_count).sum()
         } else {
             unit.filter(|a| a.symbol == symbol).count()
-        };
+        } - cited
+            .iter()
+            .filter(|site| site.symbol == symbol && site.mass == mass)
+            .count();
         let only_carbon_parent = symbol == "H"
             && locants.len() == 1
             && anchors
@@ -383,6 +387,7 @@ pub(super) fn prefix_descriptor(
         locants,
         &symmetry,
         &locants.keys().copied().collect(),
+        &[],
         IsotopeStyle::Iupac,
     )?;
     Ok(Some((
@@ -418,7 +423,7 @@ fn verify(smiles: &str, name: &str) -> Result<(), String> {
 
 /// Name the already admitted graph without serializing its atom identities.
 pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Name, String> {
-    let (parent, mut sites) = stripped_parent(source)?;
+    let (parent, sites) = stripped_parent(source)?;
     if sites.is_empty() {
         return Err("openclatura: isotope naming requires an isotope".into());
     }
@@ -447,13 +452,23 @@ pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Na
     let base = component_namer::name_component_with_atom_locants(&parent, &atoms, Some(source))?;
     let locants = &base.locants;
     super::assess_derivation(&parent, &base.derivation);
-    // P-82.2.1: the substituent prefixes have cited their own labels.
-    sites.retain(|site| !base.prefix_isotopes.contains(&site.anchor));
+    // P-82.2.1: the substituent prefixes have cited their own labels, and a
+    // label left in a prefix has no place in the parent's descriptor.
+    let (cited, sites): (Vec<_>, Vec<_>) = sites
+        .into_iter()
+        .partition(|site| base.prefix_isotopes.contains(&site.anchor));
+    if sites
+        .iter()
+        .any(|site| base.prefix_atoms.contains(&site.anchor))
+    {
+        return Err(uncited());
+    }
     let text = if sites.is_empty() {
         base.text
     } else {
         let symmetry = lowest_equivalent_map(&parent, &sites, locants, &base.prefix_isotopes)?;
-        let descriptor = isotope_descriptors(&parent, &sites, locants, &symmetry, &atoms, style)?;
+        let descriptor =
+            isotope_descriptors(&parent, &sites, locants, &symmetry, &atoms, &cited, style)?;
         with_descriptor(&base.text, &base.rendered_parent, &descriptor, style)?
     };
     if style == IsotopeStyle::Boughton && !base.prefix_isotopes.is_empty() {
@@ -740,10 +755,58 @@ mod tests {
     }
 
     #[test]
+    fn labelled_prefixes_take_the_lower_parent_locant() {
+        // P-82.5.2: lowest locants to the modified groups, in either atom order.
+        for (smiles, expected) in [
+            ("[13CH3]c1ccccc1C", "1-(13C)methyl-2-methylbenzene"),
+            ("Cc1ccccc1[13CH3]", "1-(13C)methyl-2-methylbenzene"),
+            ("[13CH3]c1cccc(C)c1", "1-(13C)methyl-3-methylbenzene"),
+            ("Cc1cccc([13CH3])c1", "1-(13C)methyl-3-methylbenzene"),
+            ("CCC1CCC(C[13CH3])CC1", "1-(2-13C)ethyl-4-ethylcyclohexane"),
+            ("[13CH3]CC1CCC(CC)CC1", "1-(2-13C)ethyl-4-ethylcyclohexane"),
+        ] {
+            let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            verify(smiles, &name.text).unwrap();
+        }
+    }
+
+    #[test]
+    fn completely_substituted_parts_omit_their_locants() {
+        // P-82.6.1.3: the labels a prefix cites count towards the completely
+        // substituted compound; an unlabelled hydrogen anywhere keeps locants.
+        for (smiles, expected) in [
+            (
+                "[13CH3][13CH]([13CH3])[13CH3]",
+                "2-(13C)methyl(13C3)propane",
+            ),
+            (
+                "[2H]C([2H])([2H])c1c([2H])c([2H])c([2H])c([2H])c1[2H]",
+                "1-(2H3)methyl(2H5)benzene",
+            ),
+            (
+                "[2H]Cc1c([2H])c([2H])c([2H])c([2H])c1[2H]",
+                "1-(2H1)methyl(2,3,4,5,6-2H5)benzene",
+            ),
+            (
+                "Cc1c([2H])c([2H])c([2H])c([2H])c1[2H]",
+                "1-methyl(2,3,4,5,6-2H5)benzene",
+            ),
+        ] {
+            let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            verify(smiles, &name.text).unwrap();
+        }
+    }
+
+    #[test]
     fn labels_that_no_name_part_cites_still_decline() {
         // Characteristic groups and the substituents of a suffix nitrogen
-        // do not compose a descriptor.
+        // do not compose a descriptor. Nor does a heteroatom inside a prefix:
+        // the parent's descriptor cannot reach it (P-82.2.1).
         for smiles in [
+            "[13CH3][18O]c1ccccc1",
+            "[13CH3][18O][13CH3]",
             "CC([35Cl])CC",
             "C[13CH2]N(C)c1ccccc1",
             "c1ccccc1[13CH2]NN",
