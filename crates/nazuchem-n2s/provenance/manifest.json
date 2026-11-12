@@ -225,7 +225,7 @@
     "checks": "sorted resource (value, type, labels) input identity; ordered spare valencies, bond orders, cycle membership and indicated hydrogens before/after kekulization; exact conversion errors",
     "baseline_reproduction_sha256": "d8d463bc53aa27d99c0064671b862d1f911bf6f5bbe129b95b68d5a3c01f5758",
     "baseline_jar_sha256": "c2e29326c281f87b59a05d934d8589adac6e9d17b95b984931b3e739111b360f",
-    "native_compatibility_status": "all 2,643 snapshots exact; all 3,183 literal groups build"
+    "native_compatibility_status": "all 2,643 snapshots exact; all 3,183 literal groups build; the 12 native acid-anion prefix groups (issue #83) are checked natively and excluded from the frozen oracle"
   },
   "chalcogen_acid_locants": {
     "rows": 26,

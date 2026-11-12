@@ -59,6 +59,24 @@ fn snapshot(graph: &Graph, fragment: FragmentId) -> String {
 #[test]
 fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulization() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/xml");
+    // Native simpleSubstituents.xml acid-anion prefixes (issue #83, P-72.6.1)
+    // postdate the frozen Java oracle; they are acyclic, so they must build
+    // without spare valencies or cycles and kekulization must leave them as is.
+    const NATIVE: [&str; 12] = [
+        "-S(=S)[O-]",
+        "-S(=[Se])[O-]",
+        "-S(=[Te])[O-]",
+        "-S(=O)(=S)[O-]",
+        "-S(=O)(=[Se])[O-]",
+        "-S(=O)(=[Te])[O-]",
+        "-S(=S)(=S)[O-]",
+        "-S(=[Se])(=[Se])[O-]",
+        "-S(=[Te])(=[Te])[O-]",
+        "-S(=S)(=[Se])[O-]",
+        "-S(=[Se])(=[Te])[O-]",
+        "-S(=S)(=[Te])[O-]",
+    ];
+    let mut native = Vec::new();
     let mut inputs = BTreeSet::new();
     let mut literals = 0;
     for entry in std::fs::read_dir(root).unwrap() {
@@ -84,6 +102,10 @@ fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulizatio
                 else {
                     continue;
                 };
+                if NATIVE.contains(&value) {
+                    native.push(value.to_owned());
+                    continue;
+                }
                 inputs.insert((
                     value.to_owned(),
                     token
@@ -100,6 +122,24 @@ fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulizatio
                 literals += 1;
             }
         }
+    }
+    native.sort();
+    let mut expected_native = NATIVE;
+    expected_native.sort();
+    assert_eq!(native, expected_native);
+    for value in NATIVE {
+        let mut graph = Graph::default();
+        let fragment = build_fragment(&mut graph, value, "substituent", "none").unwrap();
+        let before = snapshot(&graph, fragment);
+        let [spare, _, cycles, indicated] = before.split('/').collect::<Vec<_>>()[..] else {
+            panic!("{value}: {before}");
+        };
+        assert!(
+            !spare.contains('1') && !cycles.contains('1') && indicated.is_empty(),
+            "{value}: {before}"
+        );
+        fragment_tools::convert_spare_valencies_to_double_bonds(&mut graph, fragment).unwrap();
+        assert_eq!(snapshot(&graph, fragment), before, "{value}");
     }
     assert_eq!(literals, 3183);
     assert_eq!(inputs.len(), 2643);

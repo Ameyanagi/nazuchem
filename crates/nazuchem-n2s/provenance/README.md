@@ -206,7 +206,9 @@ all XML/DTD files and the neutral DFA table. The exported crate constant is
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph
-snapshots and constructs all 3,183 literal groups. `phanes.txt` contributes
+snapshots and constructs all 3,195 literal groups: the 3,183 pinned ones and
+the 12 native `simpleSubstituents.xml` acid-anion prefixes, which postdate the
+oracle and are checked natively as acyclic, kekulization-stable fragments. `phanes.txt` contributes
 174 integration names (348 strict/radical structure records); the 21 phane
 rows in `uninterpretable.txt` are also checked natively. No goldens are edited
 by hand. Regeneration uses the checked exporter sources and the pinned jar.
