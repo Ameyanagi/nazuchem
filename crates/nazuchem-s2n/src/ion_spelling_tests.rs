@@ -288,10 +288,11 @@ fn ion_spelling_matrix() {
             "3-(1-methylpyrrolidin-1-ium-1-yl)propanoate",
             NameStatus::Preferred,
         ),
+        // P-16.5.1.2: enclosed although its attachment locant is omitted (#127).
         (
             "azetidine cation prefix",
             "C1C[NH+](C1)CC(=O)[O-]",
-            "azetidin-1-ium-1-ylacetate",
+            "(azetidin-1-ium-1-yl)acetate",
             NameStatus::Preferred,
         ),
         (
