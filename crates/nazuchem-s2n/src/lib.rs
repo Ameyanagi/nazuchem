@@ -1174,6 +1174,25 @@ mod tests {
                     "C(OC(CC(OC)=O)=O)C(C)(C)CC(=O)OC(C)(C)C",
                 ][..],
             ),
+            // Issue #97. P-73.5.3.2, P-14.4 (c): the cationic centre takes the
+            // lower of the two equivalent locants (#96 may retain naphthyridine).
+            (
+                "decahydropyrido[3,4-c]pyridin-2-ium",
+                &["N1CCC2C(C1)C[NH2+]CC2", "C1C[NH2+]CC2CNCCC12"][..],
+            ),
+            // P-14.3.5: on a symmetric assembly the chalcogenide nitrogen is
+            // 1, not 1′.
+            (
+                "4,4'-bipyridine 1-sulfide",
+                &["[S-][n+]1ccc(-c2ccncc2)cc1", "c1cc(-c2cc[n+]([S-])cc2)ccn1"][..],
+            ),
+            // P-66.4.1.1, P-66.4.1.2.1.1, P-66.1.6.1.1.5: amidines rank as amides,
+            // in the order of their acids, so a carboximidamide is senior to
+            // guanidine (the amidine of carbonic acid).
+            (
+                "4-{2-[(diaminomethylidene)amino]ethyl}benzene-1-carboximidamide",
+                &["NC(N)=NCCc1ccc(C(N)=N)cc1", "NC(=N)c1ccc(CCN=C(N)N)cc1"][..],
+            ),
         ] {
             let identity = crate::test_support::canonical_smiles(inputs[0]).unwrap();
             let parsed = crate::test_support::parse_strict(expected).unwrap();
