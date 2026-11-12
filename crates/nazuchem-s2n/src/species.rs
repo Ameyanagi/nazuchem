@@ -254,13 +254,6 @@ fn salt_ion_sort_key(name: &str) -> Option<SaltIonKey> {
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || " ,.-'()[]{}".contains(c))
         || name.contains("lambda")
-        // 3-chloros-indacene: the italic s or as is not told from the prefix.
-        || name.match_indices("s-indacen").any(|(i, _)| {
-            name[..i]
-                .strip_suffix('a')
-                .unwrap_or(&name[..i])
-                .ends_with(|c: char| c.is_ascii_alphanumeric())
-        })
     {
         return None;
     }
@@ -795,8 +788,6 @@ mod tests {
             "(2H3)acetate",
             "1lambda^5-phosphinin-1-ylium",
             "N1-methylbutanediamide",
-            "3-chloros-indacene-1-carboxylate",
-            "3-chloros-indacen-1-olate",
             "(2R)-butan-2-olate",
         ] {
             assert_eq!(salt_ion_sort_key(name), None, "{name}");
@@ -866,11 +857,6 @@ mod tests {
             (
                 "[Na+].[Na+].C/C=C/C(=O)[O-].C/C=C\\C(=O)[O-]",
                 "disodium (2E)-but-2-enoate (2Z)-but-2-enoate",
-            ),
-            // The italic s of this name is not set off from the prefix.
-            (
-                "[Na+].[Na+].ClC1=c2cc3c(cc2C([O-])=C1)=CC=C3.[O-]c1ccc(Cl)c2ccccc12",
-                "disodium 3-chloros-indacen-1-olate 4-chloronaphthalen-1-olate",
             ),
         ] {
             let name = name_salt(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
@@ -1018,6 +1004,13 @@ mod tests {
             (
                 "[Na+].[Na+].[O-]C(=O)C(CCl)CCCCC.[O-]C(=O)CC(CCl)CCCC",
                 "disodium 2-(chloromethyl)heptanoate 3-(chloromethyl)heptanoate",
+                NameStatus::Preferred,
+            ),
+            // P-14.5.3, P-16.2.4.1(d): the italic s of s-indacene is set off by
+            // a hyphen and is no Roman letter; chloroindacenolate first.
+            (
+                "[Na+].[Na+].ClC1=c2cc3c(cc2C([O-])=C1)=CC=C3.[O-]c1ccc(Cl)c2ccccc12",
+                "disodium 3-chloro-s-indacen-1-olate 4-chloronaphthalen-1-olate",
                 NameStatus::Preferred,
             ),
         ] {
