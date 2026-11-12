@@ -10,6 +10,7 @@
 // Copyright Daniel Lowe and OPSIN contributors; MIT (see LICENSE).
 // Copyright 2017 Daniel Lowe
 // Changes: Rust ownership, arena/container and error-handling adaptation; integrated native changes are documented in PORTING.md.
+// Changes: A bracketed mixed chalcogen peroxy infix block is rejected; the oriented suffix tokens read it (issue #90).
 // Changes: Check name-derived arithmetic and parent-chain bounds before expansion;
 // bound name-driven expansions to 1 MiB and report fallible allocation errors.
 
@@ -1083,6 +1084,20 @@ impl<'a> ComponentGenerator<'a> {
                 let close = self.arena.next_sibling(s);
                 if !self.is(close, STRUCTURALCLOSEBRACKET_EL) {
                     return err("Matching closing bracket not found around infix/suffix block");
+                }
+                // P-65.1.5.3: "(thioperoxo...)" is a thioperoxy group, -S-O-
+                // or -O-S-, not peroxy with thio elsewhere ("peroxothio").
+                // The oriented suffix tokens read it.
+                let mut next =
+                    bracket.filter(|_| multiplier.is_none() && value.starts_with("=O,-O:"));
+                while let Some(infix) = next
+                    .and_then(|id| self.arena.next_sibling(id))
+                    .filter(|&id| self.arena[id].name == INFIX_EL)
+                {
+                    if self.attr(infix, VALUE_ATR) == "-O-:OO" {
+                        return err("A mixed chalcogen peroxy group needs element locants");
+                    }
+                    next = Some(infix);
                 }
                 if let Some(m) = multiplier {
                     for _ in 1..self.num(m, VALUE_ATR)? {

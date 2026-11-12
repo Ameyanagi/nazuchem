@@ -345,7 +345,7 @@ does not define a CFG.
 	<regex name="%polycyclicSpiroIdenticalComponents%" value ="(%symPolycylicSpiro%(%ringGroupOrFusedRingSystem%%inlineChargeGroup%?|%structuralOpenBracket%%ring_CanStartWithHydro_NonDetachableFeatures%%ringGroupOrFusedRingSystem%%inlineChargeGroup%?%structuralCloseBracket%|%vonBaeyerForSpiroUnsaturationAfterBracket%))"/>
 	<regex name="%polycyclicSecondOrLaterComponent%" value="(%ring_SpiroComponent_NonDetachableFeatures%(%ringGroupOrFusedRingSystem%|%vonBaeyerForSpiroBracketedLocants%)(%inlineChargeGroup%|%inlineChargeGroupBracketedLocant%)?)" />
 	<regex name="%polycyclicSpiroContents%" value="(%ring_CanStartWithHydro_NonDetachableFeatures%%ringGroupOrFusedRingSystem%%inlineChargeGroup%?(%hyphen%?%spiroLocant%(%polycyclicSecondOrLaterComponent%|%optionalOpenBracket%%polycyclicSecondOrLaterComponent%%optionalCloseBracket%))+)" />
-	<regex name="%polycyclicSpiro%" value ="(%simpleMultiplier%?%spiro%%structuralOpenBracket%%polycyclicSpiroContents%%structuralCloseBracket%)"/>
+	<regex name="%polycyclicSpiro%" value ="(%simpleMultiplier%?%spiro%%structuralOpenBracket%%polycyclicSpiroContents%%structuralCloseBracket%%unsaturation%*)"/><!--nazuchem: ene/yne cited after the spiro bracket (IUPAC P-31.1.5.2.1, P-31.2.3.3.3)-->
 	<regex name="%polycyclicSpiroGroup%" value ="(%polycyclicSpiroIdenticalComponents%|%polycyclicSpiro%|%polycyclicSpiroOldMethod%)" />
 
 	<regex name="%ringAssemblyConjunctive%" value = "(%ring_CanStartWithHydro_NonDetachableFeatures%?(%ringGroupOrFusedRingSystem%%rootEnding%|%preSuffixedRing%))" />
