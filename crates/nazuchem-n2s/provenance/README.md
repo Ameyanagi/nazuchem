@@ -204,7 +204,7 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`f640a0e2ad4ba0ebaba5fe4cf60c7e7316b43aadec352cbf74d1249210e84a84`.
+`8675cf5ccb7316d5249a177fe7bea60dfef520f9f65ba91a1c801dd1a76212e2`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph

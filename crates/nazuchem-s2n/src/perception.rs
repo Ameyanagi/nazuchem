@@ -5,6 +5,7 @@
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/nitrogen_roles.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/perception.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | issue #94
 // Source: openclatura | src/openclatura/chains.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/molecule.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_polycyclic_descriptors.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -540,6 +541,24 @@ fn peroxo_infix(a: &str, b: &str) -> String {
         template("replaced_peroxo", &[("replacement", replacement)])
     }
 }
+/// The letter locant of a peroxy group: ` SO-acid` after an acid suffix
+/// (P-65.1.5.3), `SO-` inside the parentheses of an anion suffix
+/// (P-72.2.2.2.1.1 `ethane(OS-thioperoxoate)`). Two atoms of one element
+/// leave no choice and take no locant, and an ester cites the locant before
+/// its organyl group instead (P-65.6.3.3.7.1).
+// Provenance: fn peroxy_site | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs::peroxy_site
+fn peroxy_site(derivative: &str, first: &str, second: &str) -> String {
+    match derivative {
+        "acid" if first == second => template("acid_site_same", &[]),
+        "acid" => template(
+            "acid_site_pair",
+            &[("first", first.into()), ("second", second.into())],
+        ),
+        "anion" if first != second => format!("{first}{second}-"),
+        _ => String::new(),
+    }
+}
 // Provenance: fn resolve_peroxy | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::resolve_peroxy_acyl_rule
 fn resolve_peroxy(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGroupRule>) {
@@ -578,27 +597,17 @@ fn resolve_peroxy(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGr
         ),
         ("acid_infix", infix(&es[..1])),
         ("linker", peroxo_infix(&es[1], &es[2])),
+        ("site", peroxy_site(&d.derivative, &es[1], &es[2])),
     ];
     let ordinary = es[1] == "O" && es[2] == "O";
     let suffix = if d.derivative == "acid" {
-        format!(
-            "{}{}",
-            template(
-                if ordinary {
-                    "ordinary_peroxy_acid"
-                } else {
-                    "mixed_peroxy_acid"
-                },
-                &vals
-            ),
-            if es[1] == es[2] {
-                template("acid_site_same", &[])
+        template(
+            if ordinary {
+                "ordinary_peroxy_acid"
             } else {
-                template(
-                    "acid_site_pair",
-                    &[("first", es[1].clone()), ("second", es[2].clone())],
-                )
-            }
+                "mixed_peroxy_acid"
+            },
+            &vals,
         )
     } else {
         template(
@@ -1971,13 +1980,7 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
             ),
             (
                 "site",
-                template(
-                    "acid_site_pair",
-                    &[
-                        ("first", terminal[0].element.clone()),
-                        ("second", terminal[1].element.clone()),
-                    ],
-                ),
+                peroxy_site(&d.derivative, &terminal[0].element, &terminal[1].element),
             ),
         ];
         let suffix = template(
@@ -2846,18 +2849,6 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                 false,
             );
             d.linker_paths = vec![vec![anchor, first, end]];
-            if matches!(
-                (
-                    m.atoms[&first].symbol.as_str(),
-                    m.atoms[&end].symbol.as_str()
-                ),
-                ("O", "S") | ("S", "O")
-            ) {
-                let mut g = PerceivedGroup::new("peroxol", false, anchor, [first, end]);
-                g.descriptor = Some(d);
-                groups.push(g);
-                continue;
-            }
             let policy = NAMER_RULES
                 .chalcogen_peroxol_rules
                 .iter()

@@ -15,7 +15,7 @@
     "purpose": "development-only DFA migration and differential verification"
   },
   "resources": {
-    "resources/automata.bin": "d27a96c182b6b9daf4221a5a7dd68790a4029d83745ef8f40a2d5d4812341d5f",
+    "resources/automata.bin": "6e98ae99ab12526e3690a8c658dcd3d236e6b1ce4497a04751eb4ec2eb5836e3",
     "resources/xml/alkanes.xml": "2b047195ac805959da5410d3b96f896abb98ec51e502714f8cb6dbed08241fb8",
     "resources/xml/aminoAcids.xml": "2829fc6ba1562f090f38c2f89488255fc6d0a709251a502005759121462880fd",
     "resources/xml/arylGroups.xml": "16b7b7c03673499fcfd6ee0bee17c7bd1583224cebf2fd9e409e6610e840a7e8",
@@ -46,7 +46,7 @@
     "resources/xml/nonCarboxylicAcids.xml": "732921fafe01c2d19c4793d83b91f6bec6f7d05ce7cf47fa2b01a70e691be30a",
     "resources/xml/phanes.xml": "09a2c3d671b2fe77f585eb0b721ce49729fa403973b57f2d2bff0a4a8069adb4",
     "resources/xml/regexTokenList.dtd": "b4549d79af7361662fd2b01d764e15e930126502367a4004c19042a00b9c0486",
-    "resources/xml/regexTokens.xml": "38ed03908a7ca0de5d1b2a7dbe77760b0584ebc6e99478d1576fd9d9aa949a2f",
+    "resources/xml/regexTokens.xml": "eb0ea506fcf0df656171b1469f3c7cdff90cf6d223fe0a70305668aaa263e536",
     "resources/xml/regexes.dtd": "ca576a00c60ba99c54954294999528c73ef8c190b6f64c8fa03e983be9c3d02e",
     "resources/xml/regexes.xml": "36467cc5d2d0051d52a9db795dd826a8eca66458b179505967569bf3aa9e6389",
     "resources/xml/simpleCyclicGroups.xml": "9d2529668f7c1e59ba3d0b2ac276b4b9f11f31467f26295362729aec608e586d",
@@ -58,7 +58,7 @@
     "resources/xml/suffixPrefix.xml": "5428dbc34ce8e458f81e36ccf456023284bcf8b822d2ada7de5b41e248a7d1c5",
     "resources/xml/suffixRules.dtd": "307af66d255095c9d117493c8bddf5e2b9dcc4741e998e7dd7fdcb38304d4daf",
     "resources/xml/suffixRules.xml": "a267b913c7da4491546d34fd7c108306ae0f79973969f96fcffcef1f60116524",
-    "resources/xml/suffixes.xml": "a6c200b84a1340b46f2b4ea27778d8546c9d3d559b37ce64a96c264a7f380d16",
+    "resources/xml/suffixes.xml": "983c60d02a5f89036766a35ba82fd897a090ffdf9b40d2ef70baaebd4677a620",
     "resources/xml/tokenFiles.dtd": "3acb49df364b02a65ea20aef8d33758b047fa1426289be3811386a7450e57355",
     "resources/xml/tokenLists.dtd": "35ab7b9c52960ea27aa715dd73f1fadb5fc5c5e9081f8fdd9dd8967fdad96100",
     "resources/xml/unsaturators.xml": "d528b967c52d64a434563dc237d0a28e0784d1916784772381fe545c9bdf6bc1",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "f640a0e2ad4ba0ebaba5fe4cf60c7e7316b43aadec352cbf74d1249210e84a84"
+    "sha256": "8675cf5ccb7316d5249a177fe7bea60dfef520f9f65ba91a1c801dd1a76212e2"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",
