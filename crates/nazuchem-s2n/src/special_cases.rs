@@ -1798,15 +1798,18 @@ fn oxoacid_parent_name(mol: &Molecule, atoms: &AtomSet) -> Option<String> {
         return None;
     }
     let spec = matching_oxo_spec(mol, r)?;
-    let name = if r.count(OxoLigandRole::Oxido) > 0
-        && r.count(OxoLigandRole::Hydroxy) == 0
-        && !spec.ester_suffix.is_empty()
-    {
-        &spec.ester_suffix
-    } else {
-        &spec.name
-    };
-    Some(name.clone())
+    if r.count(OxoLigandRole::Oxido) == 0 || spec.ester_suffix.is_empty() {
+        return Some(spec.name.clone());
+    }
+    // P-65.6.2.3.2, P-72.2.2.2.1.2: an anion that keeps acid hydrogen, such
+    // as HCO3-, is `hydrogen carbonate`, and H2PO4- `dihydrogen phosphate`.
+    // A zwitterion such as O[N+](=O)[O-] has no net charge and stays the acid.
+    Some(match r.count(OxoLigandRole::Hydroxy) {
+        0 => spec.ester_suffix.clone(),
+        _ if atoms.iter().map(|a| mol.atoms[a].charge).sum::<i32>() >= 0 => spec.name.clone(),
+        1 => format!("hydrogen {}", spec.ester_suffix),
+        n => format!("{}hydrogen {}", multipliers::basic(n), spec.ester_suffix),
+    })
 }
 // Provenance: fn modifier_phrase | adapted
 // Source: openclatura | src/openclatura/special_cases.py::_ester_modifier_phrase

@@ -369,7 +369,21 @@ pub(super) fn name_salt(
                     })
                     .count()
                     >= 2);
-        ions.push((q < 0, name, component, labelled, oxoanion));
+        // P-16.3.6 (a): a monatomic anion is multiplied with `bis` when the
+        // `di` form names a homopolyatomic anion: dioxide (O2 2-) and
+        // disulfide (S2 2-) for dianions, triiodide (I3-) for halides.
+        let monatomic = q < 0
+            && atoms.len() == 1
+            && atoms[0].explicit_hydrogens == 0
+            && state.valences[0].implicit_hydrogens == 0;
+        let bis_from = if oxoanion || monatomic && q <= -2 {
+            2
+        } else if monatomic {
+            3
+        } else {
+            usize::MAX
+        };
+        ions.push((q < 0, name, component, labelled, bis_from));
     }
     // The name without its stereodescriptor and isotopic descriptor groups, such
     // as `(2R,3R)-`, `(4aS)-`, `(2E)-`, `(2H3)` and `(1-13C)`, with every
@@ -470,7 +484,7 @@ pub(super) fn name_salt(
         })
     });
     let mut grouped = BTreeMap::new();
-    for ((negative, name, component, _, oxoanion), key) in ions.into_iter().zip(keys) {
+    for ((negative, name, component, _, bis_from), key) in ions.into_iter().zip(keys) {
         let plain: String = name
             .text
             .chars()
@@ -485,7 +499,7 @@ pub(super) fn name_salt(
                 name.text.clone(),
                 component,
             ))
-            .or_insert((name, oxoanion, 0));
+            .or_insert((name, bis_from, 0));
         entry.2 += 1;
     }
     if charge != 0 {
@@ -496,7 +510,7 @@ pub(super) fn name_salt(
     }
     let mut status = NameStatus::Preferred;
     let mut words = Vec::new();
-    for (_, (name, oxoanion, count)) in grouped {
+    for (_, (name, bis_from, count)) in grouped {
         // The strongest ion downgrade wins; ties keep the first ion's reason.
         if name.status.severity() > status.severity() {
             status = name.status;
@@ -504,7 +518,7 @@ pub(super) fn name_salt(
         // P-16.3.6 (a): `bis(carbonate)` for two carbonate ions, since
         // `dicarbonate` (like `disulfate` and `diphosphate`) names the
         // condensed dinuclear anion.
-        let complex = oxoanion
+        let complex = count >= bis_from
             || name.text.chars().any(|c| !c.is_ascii_alphabetic())
             || super::formatting::starts_with_multiplier(&name.text)
             || name.text.ends_with("aminium");
@@ -1520,6 +1534,78 @@ mod tests {
             (
                 "[Na+].[Na+].[Na+].[Na+].[Na+].[Na+].[O-]C([O-])=O.[O-]C([O-])=O.[O-]C([O-])=O",
                 "hexasodium tris(carbonate)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            // Issue #109, P-65.6.2.3.2, P-72.2.2.2.1.2: acid hydrogen of an
+            // inorganic oxoanion is cited as `hydrogen`; P-16.3.6 (a) gives
+            // `bis(hydrogen sulfate)` for two such anions.
+            (
+                "[Na+].OC(=O)[O-]",
+                "sodium hydrogen carbonate",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Ca+2].OC(=O)[O-].OC(=O)[O-]",
+                "calcium bis(hydrogen carbonate)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Ca+2].OS(=O)(=O)[O-].OS(=O)(=O)[O-]",
+                "calcium bis(hydrogen sulfate)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Na+].OP(=O)([O-])[O-]",
+                "disodium hydrogen phosphate",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].OP(=O)(O)[O-]",
+                "sodium dihydrogen phosphate",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            // P-77.1.1 example.
+            (
+                "CC[NH+](CC)CC.OS(=O)(=O)[O-]",
+                "N,N-diethylethanaminium hydrogen sulfate",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            // Issue #109, P-16.3.6 (a): `disulfide` and `dioxide` name the
+            // S2(2-) and O2(2-) anions and `triiodide` names I3-, so separate
+            // monatomic anions take `bis`/`tris`; `diiodide` stays.
+            (
+                "[Ca+2].[Ca+2].[S-2].[S-2]",
+                "dicalcium bis(sulfide)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Na+].[Na+].[Na+].[O-2].[O-2]",
+                "tetrasodium bis(oxide)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Na+].[S-2]",
+                "disodium sulfide",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Ca+2].[I-].[I-].[I-]",
+                "calcium sodium tris(iodide)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Na+].[Na+].[Na+].[Na+].[Na+].[S-2].[S-2].[S-2]",
+                "hexasodium tris(sulfide)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Ca+2].[Ca+2].[Cl-].[Cl-].[Cl-].[Cl-]",
+                "dicalcium tetrakis(chloride)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Ca+2].[I-].[I-]",
+                "calcium diiodide",
                 NameStatus::Unverified(NameReason::UnauditedPath),
             ),
             // P-16.3.6 (a) applies only to ambiguous names: nitrite has no

@@ -372,8 +372,8 @@ does not define a CFG.
 	<!-- functional Groups-->
 	<regex name="%anhydride%" value="((%locant%|%colonOrSemiColonDelimitedLocant%)?%multiplier%?(%anhydrideFunctionalGroup%|%openBracket%%anhydrideFunctionalGroup%%closeBracket%))"/>
 	<regex name="%acetal%" value="(%simpleMultiplier%?%chalcogenReplacement%{0,2}%acetalClass%)" />
-	<regex name="%functionalClass%" value ="(%locant%?(%multiplierNotGroup%|%mon%%hyphen%?)?%multiplyableFunctionalClass%%closeBracket%?|%acetal%|%anhydride%|%basicFunctionalClass%)"/>
-	<regex name="%functionalGroup%" value ="(%multiplier%?(%monovalentFunctionalGroup%|%standaloneMonovalentFunctionalGroup%)|%divalentFunctionalGroup%)"/>
+	<regex name="%functionalClass%" value ="(%locant%?(%multiplierNotGroup%|%mon%%hyphen%?)?%multiplyableFunctionalClass%%closeBracket%?|%locant%?%groupMultiplier%%optionalOpenBracket%%multiplyableFunctionalClass%%optionalCloseBracket%|%acetal%|%anhydride%|%basicFunctionalClass%)"/>
+	<regex name="%functionalGroup%" value ="(%multiplier%?(%monovalentFunctionalGroup%|%standaloneMonovalentFunctionalGroup%)|%groupMultiplier%%optionalOpenBracket%%standaloneMonovalentFunctionalGroup%%optionalCloseBracket%|%divalentFunctionalGroup%)"/>
 	<regex name="%functionalTerm%" value="((%functionalClass%|%functionalGroup%)%endOfFunctionalGroup%)"/>
 
 	<regex name="%chemical%" value="((%functionalModifier%%endOfFunctionalGroup%)?(%substituent%*%mainGroup%(%hyphen%?%functionalTerm%)?|%substituent%+(%functionalTerm%|%mainGroupThatRequiresSubstituent%(%hyphen%?%functionalTerm%)?)?)|%hyphen%?%functionalTerm%|%unsubstitutableMainGroup%)"/>

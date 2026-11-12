@@ -728,7 +728,8 @@ fn set_oxide_structure(
         .filter(|&id| arena[id].name == "multiplier");
     if let Some(multiplier) = multiplier {
         multiplier_value = integer_attribute(arena, multiplier, "value")?;
-        if multiplier_value > 1 {
+        // P-16.3.6 (a): `disulfide` is the S2(2-) chain, `bis(sulfide)` two ions.
+        if multiplier_value > 1 && arena[multiplier].attribute("type") != Some("group") {
             let max = arena[elementary]
                 .attribute("commonOxidationStatesAndMax")
                 .and_then(|v| v.split(':').nth(1))
