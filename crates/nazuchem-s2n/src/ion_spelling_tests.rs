@@ -351,6 +351,20 @@ fn ion_spelling_matrix() {
             "5-chloro-2-methyl-2,3-dihydro-1H-isoindol-2-ium",
             NameStatus::Preferred,
         ),
+        // The preselected -N2+ prefix is diazyn-1-ium-1-yl, not diazonio
+        // (P-73.6 method (1); P-12.2 preselected prefixes in PINs).
+        (
+            "#127 diazonium prefix",
+            "[O-]C(=O)c1ccc(cc1)[N+]#N",
+            "4-(diazyn-1-ium-1-yl)benzoate",
+            NameStatus::Preferred,
+        ),
+        (
+            "#127 diazonium prefix on a chain",
+            "N#[N+]CC(=O)[O-]",
+            "(diazyn-1-ium-1-yl)acetate",
+            NameStatus::Preferred,
+        ),
         (
             "control nitrobenzene",
             "[O-][N+](=O)c1ccccc1",
