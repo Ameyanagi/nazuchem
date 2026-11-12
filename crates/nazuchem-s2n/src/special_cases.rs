@@ -4454,6 +4454,10 @@ mod tests {
                 "chloroacetic 4-nitrobenzene-1-sulfonic anhydride",
             ),
             ("CC(=O)OS(=O)(=O)C", "acetic methanesulfonic anhydride"),
+            ("CS(=O)(=O)OC(C)=O", "acetic methanesulfonic anhydride"),
+            // P-65.6.3.1.1: an ester of an alcohol stays an ester.
+            ("COS(=O)(=O)C", "methyl methanesulfonate"),
+            ("CS(=O)OC", "methyl methanesulfinate"),
             (
                 "O=S(=O)(OC(=O)c1ccccc1)c1ccc(C)cc1",
                 "benzoic 4-methylbenzene-1-sulfonic anhydride",
@@ -4474,6 +4478,10 @@ mod tests {
             (
                 "OC(=O)CCS(=O)(=O)OC(C)=O",
                 "3-[(acetyloxy)sulfonyl]propanoic acid",
+            ),
+            (
+                "OC(=O)CCS(=O)(=O)OC(=O)CCl",
+                "3-{[(2-chloroacetyl)oxy]sulfonyl}propanoic acid",
             ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();

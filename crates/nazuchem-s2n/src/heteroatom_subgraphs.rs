@@ -417,11 +417,6 @@ fn sulfonyl_group(mol: &Molecule, branch: &str, suffix: &str) -> (String, bool) 
     {
         mol.mark_name(NameStatus::NotPreferred(NameReason::SulfonylPrefix));
     }
-    // P-16.5.1: a compound or complex prefix is enclosed, as in the
-    // [(acetyloxy)sulfonyl] of P-65.7.6.2.
-    if is_complex_prefix(&b) || is_compound_prefix(&b) {
-        return (format!("({b}){suffix}"), false);
-    }
     (format!("{b}{suffix}"), false)
 }
 
@@ -1303,6 +1298,18 @@ fn name_sulfur(
                 let outside = with_atoms(exclude, upstream);
                 if let Some(acyl) = acid_sulfonyl(mol, start, *root, &b, &outside, &suffix)? {
                     return Ok(acyl);
+                }
+                // An anhydride linkage: the acyloxy prefix is enclosed, as in
+                // [(acetyloxy)sulfonyl] (P-16.5.1.1, P-65.7.6.2).
+                if mol.atoms[root].symbol == "O"
+                    && mol.get_neighbors(*root).iter().any(|&c| {
+                        c != start
+                            && mol.atoms[&c].is_carbon()
+                            && !double_bonded_neighbors(mol, c, "O").is_empty()
+                    })
+                {
+                    let b = strip_outer_parentheses(&b);
+                    return Ok(format!("({sp}({b}){suffix})"));
                 }
                 let (g, bare) = sulfonyl_group(mol, &b, &suffix);
                 Ok(if bare {
