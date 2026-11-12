@@ -144,6 +144,10 @@ pub(super) struct IsotopeParentName {
     pub text: String,
     pub locants: BTreeMap<usize, String>,
     pub rendered_parent: String,
+    /// Labelled atoms that the substituent prefixes cite themselves (P-82.2.1).
+    pub prefix_isotopes: AtomSet,
+    /// Every atom of a substituent prefix.
+    pub prefix_atoms: AtomSet,
     pub derivation: Derivation,
 }
 
@@ -153,25 +157,52 @@ pub(super) fn name_component_with_atom_locants(
     mol: &Molecule,
     component_atoms: &AtomSet,
     isotope_source: Option<&Molecule>,
+    // A parent to name instead of the selected one, when parents tie. With the
+    // bond from it to a linking group, the name is that of a multiplied unit.
+    tied_parent: Option<(&ParentSelection, Option<(usize, usize)>)>,
 ) -> Result<IsotopeParentName, String> {
-    match component_pipeline(mol, component_atoms, None, None, None, isotope_source, None)? {
+    match component_pipeline(
+        mol,
+        component_atoms,
+        None,
+        None,
+        None,
+        isotope_source,
+        tied_parent,
+    )? {
         ComponentResult::Shortcut(name) => Ok(IsotopeParentName {
             rendered_parent: name.name.clone(),
             text: name.name,
             locants: BTreeMap::new(),
+            prefix_isotopes: AtomSet::new(),
+            prefix_atoms: AtomSet::new(),
             derivation: Derivation::Shortcut {
                 component_splits: name.component_splits,
                 certified: name.certified,
             },
         }),
         ComponentResult::Plan(mut plan, parent_atoms, component_splits) => {
+            let prefix_isotopes: AtomSet = plan
+                .parts
+                .substituents
+                .iter()
+                .flat_map(|item| item.isotope_atoms.iter().copied())
+                .collect();
             // P-82.6.1.1: when isotopic modification requires a locant, the
-            // constitutional locants must be explicit as well.
-            plan.parts.omit_redundant_locants = false;
-            plan.parts.isotope_explicit_locants = true;
-            plan.parts.elided_substituent_locants.clear();
-            plan.parts.elided_unsaturation_locants.clear();
-            plan.parts.elide_principal_group_locants = false;
+            // constitutional locants must be explicit as well. A prefix that
+            // cites all the labels leaves this name part as it was.
+            if prefix_isotopes.is_empty()
+                || mol
+                    .isotope_sites()
+                    .iter()
+                    .any(|site| !prefix_isotopes.contains(&site.anchor))
+            {
+                plan.parts.omit_redundant_locants = false;
+                plan.parts.isotope_explicit_locants = true;
+                plan.parts.elided_substituent_locants.clear();
+                plan.parts.elided_unsaturation_locants.clear();
+                plan.parts.elide_principal_group_locants = false;
+            }
             let (text, rendered_parent) = render_component_and_parent(
                 mol,
                 &mut plan.parts,
@@ -182,6 +213,13 @@ pub(super) fn name_component_with_atom_locants(
                 text,
                 locants: plan.locant_map.clone(),
                 rendered_parent,
+                prefix_isotopes,
+                prefix_atoms: plan
+                    .parts
+                    .substituents
+                    .iter()
+                    .flat_map(|item| item.atom_ids.iter().copied())
+                    .collect(),
                 derivation: Derivation::Plan {
                     parent_atoms,
                     parent_locants: plan.locant_map,
@@ -291,8 +329,9 @@ fn component_pipeline(
     principal_atom: Option<usize>,
     projection: Option<SpiroProjection<'_>>,
     isotope_source: Option<&Molecule>,
-    // A parent to name instead of the selected one, when parents tie.
-    tied_parent: Option<&ParentSelection>,
+    // A parent to name instead of the selected one, when parents tie. With the
+    // bond from it to a linking group, the name is that of a multiplied unit.
+    tied_parent: Option<(&ParentSelection, Option<(usize, usize)>)>,
 ) -> Result<ComponentResult, String> {
     let _depth = mol.enter_naming()?;
     let as_prefix = projection.as_ref().is_some_and(|p| {
@@ -405,7 +444,7 @@ fn component_pipeline(
                 component_atoms,
                 &exclude,
             )?
-        } else if let Some(parent) = tied_parent {
+        } else if let Some((parent, _)) = tied_parent {
             parent.clone()
         } else {
             let chains = find_all_carbon_paths(mol, &exclude)?;
@@ -442,7 +481,7 @@ fn component_pipeline(
                             None,
                             None,
                             isotope_source,
-                            Some(parent),
+                            Some((parent, None)),
                         )? {
                             let prefixes = plan.parts.substituents.clone();
                             let (name, parent) = render_component_and_parent(
@@ -680,7 +719,31 @@ fn component_pipeline(
             )?
         }
     } else {
-        build_parent_assembly_plan_with_modifiers(
+        // P-15.3.1.3: a multiplied unit keeps its numbering and gives the
+        // linking group the lowest locant that numbering allows. Citing the
+        // group first decides ties; a lower locant set of all prefixes
+        // together that moves the group is not this rule, and is refused.
+        let mut lowest = None;
+        if let Some((_, Some((root, link)))) = tied_parent {
+            let item = mapping
+                .get_mut(&root)
+                .and_then(|items| items.iter_mut().find(|i| i.atom_ids.contains(&link)))
+                .ok_or("openclatura: linking group is not a prefix of the unit")?;
+            item.name.clear();
+            let alone = build_parent_assembly_plan_with_modifiers(
+                mol,
+                &selection,
+                &principal,
+                None,
+                None,
+                &BTreeMap::from([(root, vec![item.clone()])]),
+                retained_name.clone(),
+                &maps,
+                &modifiers,
+            )?;
+            lowest = Some((root, alone.locant_map[&root].clone()));
+        }
+        let plan = build_parent_assembly_plan_with_modifiers(
             mol,
             &selection,
             &principal,
@@ -690,7 +753,11 @@ fn component_pipeline(
             retained_name,
             &maps,
             &modifiers,
-        )?
+        )?;
+        if lowest.is_some_and(|(root, locant)| plan.locant_map[&root] != locant) {
+            return Err("openclatura: linking group does not take its lowest locant".into());
+        }
+        plan
     };
     if retained_metadata.is_some() {
         plan.parts.retained_parent_metadata = retained_metadata;
@@ -726,8 +793,14 @@ fn component_pipeline(
         locants,
     );
     parts.is_spiro_side_projection = projection.is_some();
+    let mut linking = AtomSet::new();
     for &idx in numbered {
         for mut item in mapping.remove(&idx).unwrap_or_default() {
+            if item.name.is_empty() && matches!(tied_parent, Some((_, Some(_)))) {
+                // The linking group is cited by the multiplicative name.
+                linking = item.atom_ids;
+                continue;
+            }
             item.locants.push(locants[&idx].clone());
             super::subgraph_tools::add_substituent(parts, item);
         }
@@ -741,6 +814,7 @@ fn component_pipeline(
     let mut named = parent.clone();
     named.extend(principal_atoms);
     named.extend(front.consumed);
+    named.extend(linking);
     named.extend(n_subs);
     named.extend(
         parts
@@ -892,6 +966,8 @@ fn collect_component_branch_substituents(
             bond_atoms.insert(idx);
             let mut item = SubstituentItem::new(branch.text, vec![]);
             item.outer_parentheses_optional = branch.outer_parentheses_optional;
+            item.isotope_atoms = branch.isotope_atoms;
+            item.isotope_descriptors = branch.isotope_descriptors;
             item.bond_ids = bond_ids_within(mol, &bond_atoms);
             item.charge_atom_ids = atoms
                 .iter()

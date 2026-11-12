@@ -2,6 +2,7 @@
 // Origin: mixed
 // Source: openclatura | src/openclatura/molecule.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/molecule.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
+// Source: Nazuchem | crates/nazuchem-s2n/src/molecule.rs | issue #27
 // Source: openclatura | src/openclatura/special_cases.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/fusion/charges.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/locant_elision.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -46,6 +47,7 @@ struct NamingBudget {
     benzo_fusion_alternative: Cell<bool>,
     acid_prefix_mode: Cell<bool>,
     isotope_parent: Cell<bool>,
+    isotope_sites: RefCell<Vec<super::isotope_naming::Site>>,
 }
 
 // Provenance: impl <NamingBudget as Default> | original
@@ -67,6 +69,7 @@ impl Default for NamingBudget {
             benzo_fusion_alternative: Cell::new(false),
             acid_prefix_mode: Cell::new(false),
             isotope_parent: Cell::new(false),
+            isotope_sites: RefCell::default(),
         }
     }
 }
@@ -265,6 +268,20 @@ impl Molecule {
     // Source: ReShiki | src/naming/openclatura/molecule.rs::Molecule::is_isotope_parent
     pub(super) fn is_isotope_parent(&self) -> bool {
         self.naming_budget.isotope_parent.get()
+    }
+
+    /// The labels stripped from an isotope parent, for descriptors that a
+    /// substituent prefix cites itself (P-82.2.1).
+    // Provenance: fn Molecule::set_isotope_sites | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/molecule.rs::Molecule::set_isotope_sites
+    pub(super) fn set_isotope_sites(&self, sites: Vec<super::isotope_naming::Site>) {
+        *self.naming_budget.isotope_sites.borrow_mut() = sites;
+    }
+
+    // Provenance: fn Molecule::isotope_sites | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/molecule.rs::Molecule::isotope_sites
+    pub(super) fn isotope_sites(&self) -> Vec<super::isotope_naming::Site> {
+        self.naming_budget.isotope_sites.borrow().clone()
     }
 
     // Provenance: fn Molecule::mark_name | original
@@ -820,22 +837,23 @@ mod tests {
 
     #[test]
     fn extracted_acid_fragments_preserve_stereo_locant_omission() {
+        // P-16.5.1.3: chloro(fluoro)methyl, chloro(fluoro)acetic acid.
         for (smiles, expected) in [
             (
                 "O=C(O)c1ccc([C@H](F)Cl)cc1",
-                "4-[(R)-chlorofluoromethyl]benzoic acid",
+                "4-[(R)-chloro(fluoro)methyl]benzoic acid",
             ),
             (
                 "CC(=O)OC(=O)c1ccc([C@H](F)Cl)cc1",
-                "acetic 4-[(R)-chlorofluoromethyl]benzoic anhydride",
+                "acetic 4-[(R)-chloro(fluoro)methyl]benzoic anhydride",
             ),
             (
                 "O=C(O)CNC(=O)c1ccc([C@H](F)Cl)cc1",
-                "{4-[(R)-chlorofluoromethyl]benzamido}acetic acid",
+                "{4-[(R)-chloro(fluoro)methyl]benzamido}acetic acid",
             ),
             (
                 "CC(=O)OC(=O)[C@H](F)Cl",
-                "acetic (R)-chlorofluoroacetic anhydride",
+                "acetic (R)-chloro(fluoro)acetic anhydride",
             ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();

@@ -19,9 +19,9 @@
 use super::assembly_prefixes::substituent_sort_key;
 use super::chains::get_cyclic_atoms;
 use super::formatting::{
-    format_center_ligands_by, format_counted_prefixes, format_element_substituent,
-    format_multiplier, is_complex_prefix, is_compound_prefix, oxy_prefix_from_branch,
-    phenylamino_spelling, strip_outer_parentheses,
+    descriptors_omitted, format_center_ligands_by, format_counted_prefixes,
+    format_element_substituent, format_multiplier, is_complex_prefix, is_compound_prefix,
+    oxy_prefix_from_branch, phenylamino_spelling, strip_outer_parentheses,
 };
 use super::molecule::{AtomSet, Molecule};
 use super::namer::{capped_acid_name, name_subgraph_rendered, name_subgraph_with_upstream};
@@ -146,6 +146,7 @@ fn stereo(mol: &Molecule, idx: usize) -> String {
     mol.atoms[&idx]
         .stereo
         .as_ref()
+        .filter(|_| !descriptors_omitted())
         .map(|s| format!("({s})-"))
         .unwrap_or_default()
 }
@@ -303,18 +304,22 @@ pub fn format_amino_from_branches(
             _ => {}
         }
     }
+    // P-16.5.1.1: an acyl prefix such as methoxycarbonyl is compound, so it is
+    // enclosed inside amino: [(methoxycarbonyl)amino], [(methoxycarbonyl)(methyl)amino].
+    let acyl = |s: &str| {
+        ["carbonyl", "sulfonyl", "sulfinyl", "carbonothioyl"]
+            .iter()
+            .any(|a| s.ends_with(a))
+    };
     if names.len() == 1 {
         let n = strip_outer_parentheses(&names[0]);
-        if ["carbonyl", "sulfonyl", "sulfinyl", "carbonothioyl"]
-            .iter()
-            .any(|s| n.ends_with(s))
-            && !n.starts_with('(')
-        {
-            return format!("{n}amino");
-        }
         // X-amino + amino stays unenclosed so the retained hydrazinyl
-        // rewrite (namer_rules: aminoamino) still applies.
-        return if is_complex_prefix(&n) || (is_compound_prefix(&n) && !n.ends_with("amino")) {
+        // rewrite (namer_rules: aminoamino) still applies, also to
+        // [(methoxycarbonyl)amino]amino.
+        let x_amino = n
+            .strip_suffix("amino")
+            .is_some_and(|x| !is_complex_prefix(x) || acyl(&strip_outer_parentheses(x)));
+        return if acyl(&n) || (!x_amino && (is_complex_prefix(&n) || is_compound_prefix(&n))) {
             format!("(({n})amino)")
         } else {
             format!("({n}amino)")
@@ -328,7 +333,18 @@ pub fn format_amino_from_branches(
             format_counted_prefixes(&plain)
         )
     } else {
-        center(names)
+        let names: Vec<_> = names
+            .iter()
+            .map(|n| {
+                let p = strip_outer_parentheses(n);
+                if acyl(&p) {
+                    format!("({p})")
+                } else {
+                    n.clone()
+                }
+            })
+            .collect();
+        center(&names)
     };
     format!("({modifier}amino)")
 }
@@ -865,7 +881,7 @@ fn name_nitrogen(
                 let stereo = bond
                     .stereo
                     .as_ref()
-                    .filter(|s| matches!(s.as_str(), "E" | "Z"))
+                    .filter(|s| matches!(s.as_str(), "E" | "Z") && !descriptors_omitted())
                     .map(|s| format!("({s})-"))
                     .unwrap_or_default();
                 return Ok(format!("({stereo}{modifier}diazenyl)"));
@@ -1929,6 +1945,9 @@ fn guanidino_prefix(
         .collect::<Vec<_>>()
         .join("-");
     mol.mark_name(NameStatus::NotPreferred(NameReason::AminoPrefix));
+    if descriptors_omitted() {
+        return Ok(Some(format!("({prefixes}guanidino)")));
+    }
     Ok(Some(format!("({stereo}{prefixes}guanidino)")))
 }
 
@@ -2079,9 +2098,10 @@ mod tests {
     #[test]
     fn heteroatom_branches_preserve_acyl_ligands_and_oxo_roles() -> Result<(), String> {
         for (smiles, expected) in [
-            ("CNC(=S)CC(C)C", "2-methylpropylcarbonothioylamino"),
+            // P-16.5.1.1: an acyl prefix is enclosed inside amino.
+            ("CNC(=S)CC(C)C", "((2-methylpropylcarbonothioyl)amino)"),
             ("CNC(=S)N(C)C", "((dimethylcarbamothioyl)amino)"),
-            ("CN(C(=O)OC)C", "(methoxycarbonyl(methyl)amino)"),
+            ("CN(C(=O)OC)C", "((methoxycarbonyl)(methyl)amino)"),
             ("COC(=S)N(C)C", "(dimethylaminocarbonothioyloxy)"),
             ("CP(=O)(O)ON", "((aminooxy)(hydroxy)phosphoryl)"),
             // P-16.5.1.1: the compound prefix ethylideneamino is enclosed.

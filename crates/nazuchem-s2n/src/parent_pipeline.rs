@@ -454,7 +454,13 @@ pub fn build_parent_assembly_plan_with_parent(
     }
     let names = substituents
         .iter()
-        .map(|(&idx, items)| (idx, items.iter().map(|item| item.name.clone()).collect()))
+        .map(|(&idx, items)| {
+            // P-82.5.1: nuclides are considered last in numbering.
+            let names = items.iter().map(|item| {
+                super::isotope_naming::citation_name(&item.name, &item.isotope_descriptors)
+            });
+            (idx, names.collect())
+        })
         .collect();
     // A von Baeyer descriptor and its accepted numbering paths are one
     // topology proof. Upstream consumes those paths as locant maps, whose

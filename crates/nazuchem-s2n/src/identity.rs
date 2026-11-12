@@ -273,11 +273,9 @@ mod tests {
     #[test]
     fn radical_identity_retains_isotopic_h_while_folding_ordinary_h() {
         let budget = Budget::default();
-        let expected_error = crate::name_smiles("[2H][CH2]", &budget).unwrap_err();
-        assert_eq!(
-            expected_error,
-            "openclatura: combined isotope and radical nomenclature is not supported"
-        );
+        // Issue #27, P-82.2.1: the radical cites its label as the prefix does.
+        let expected = crate::name_smiles("[2H][CH2]", &budget).unwrap();
+        assert_eq!(expected.text, "(2H1)methyl");
         for isotopes in [vec![Some(2)], vec![None, Some(2)]] {
             let molecule = methyl_radical_with_hydrogen_vertices(&isotopes);
             let original = molecule.clone();
@@ -299,10 +297,12 @@ mod tests {
             assert_eq!(graph.atoms[&isotope].isotope, Some(2));
             assert_eq!(graph.atoms[&carbon].total_h_count, 2);
             assert_eq!(graph.atoms[&carbon].radical_electrons, 1);
-            assert_eq!(
+            let actual =
                 crate::name_molecule(&molecule, nazuchem_ir::IsotopeStyle::default(), &budget)
-                    .unwrap_err(),
-                expected_error
+                    .unwrap();
+            assert_eq!(
+                serde_json::to_value(actual).unwrap(),
+                serde_json::to_value(&expected).unwrap()
             );
             assert_eq!(molecule, original);
         }

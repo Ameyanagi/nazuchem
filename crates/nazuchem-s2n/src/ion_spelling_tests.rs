@@ -288,10 +288,11 @@ fn ion_spelling_matrix() {
             "3-(1-methylpyrrolidin-1-ium-1-yl)propanoate",
             NameStatus::Preferred,
         ),
+        // P-16.5.1.2: enclosed although its attachment locant is omitted (#127).
         (
             "azetidine cation prefix",
             "C1C[NH+](C1)CC(=O)[O-]",
-            "azetidin-1-ium-1-ylacetate",
+            "(azetidin-1-ium-1-yl)acetate",
             NameStatus::Preferred,
         ),
         (
@@ -409,6 +410,21 @@ fn ion_spelling_matrix() {
             "#30 substituted isoindolinium",
             "Clc1ccc2C[NH+](C)Cc2c1",
             "5-chloro-2-methyl-2,3-dihydro-1H-isoindol-2-ium",
+            NameStatus::Preferred,
+        ),
+        // The preselected -N2+ prefix is diazyn-1-ium-1-yl, not diazonio
+        // (P-73.6 method (1); P-12.2 preselected prefixes in PINs).
+        (
+            "#127 diazonium prefix",
+            "[O-]C(=O)c1ccc(cc1)[N+]#N",
+            "4-(diazyn-1-ium-1-yl)benzoate",
+            NameStatus::Preferred,
+        ),
+        // P-16.5.1.2: enclosed although its attachment locant is omitted.
+        (
+            "#127 diazonium prefix on a chain",
+            "N#[N+]CC(=O)[O-]",
+            "(diazyn-1-ium-1-yl)acetate",
             NameStatus::Preferred,
         ),
         (

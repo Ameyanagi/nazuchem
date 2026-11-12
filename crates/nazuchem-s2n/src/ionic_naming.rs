@@ -562,6 +562,15 @@ mod tests {
                 "[B-](C1=CC=C(C=C1)Cl)(C2=CC=C(C=C2)Cl)(C3=CC=C(C=C3)Cl)C4=CC=C(C=C4)Cl.CCCCCCCCCCCC[NH+]=C(N)N",
                 "1,1-diamino-N-dodecylmethaniminium tetrakis(4-chlorophenyl)boranuide",
             ),
+            // P-72.3: diphenyliodanuide. P-41: the anion is senior to the
+            // characteristic groups of its ligands (CID 147780734).
+            ("c1ccccc1[I-]c1ccccc1", "diphenyliodanuide"),
+            ("C[I-]C.[Na+]", "sodium dimethyliodanuide"),
+            (
+                "CCC([C@](C)(CC)N)[I-]CN/C(=C/N)/C",
+                "[(4S)-4-amino-4-methylhexan-3-yl]({[(1E)-1-aminoprop-1-en-2-yl]amino}methyl)iodanuide",
+            ),
+            ("C[B-](C)(C)CCN", "(2-aminoethyl)tri(methyl)boranuide"),
             // P-72.2.2.1: hydron loss keeps "ide".
             ("C[CH-]C", "propan-2-ide"),
         ] {
@@ -569,6 +578,18 @@ mod tests {
             assert_eq!(name.text, expected, "{smiles}");
             let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        // An anion cited over a characteristic group is not a certified form.
+        for smiles in ["C[B-](C)(C)CCN", "CCC(C(C)(CC)N)[I-]C"] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_ne!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+        }
+        // Iodine keeps its other charge states and bonding numbers declined.
+        for smiles in ["C[I+]C", "F[I-](F)(F)(F)(F)F", "C[Br-]C"] {
+            assert!(
+                super::super::name_smiles(smiles, &Default::default()).is_err(),
+                "{smiles}"
+            );
         }
         // P-72.4: these need a lambda parent, and mixed ide/uide is not composed.
         for smiles in [

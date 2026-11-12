@@ -1290,7 +1290,8 @@ mod tests {
             ("FC(F)(F)C(=O)OC", "methyl trifluoroacetate"),
             ("ClC(Cl)C(=O)OCC", "ethyl dichloroacetate"),
             ("COC(=O)Cc1ccc2[nH]ccc2c1", "methyl (1H-indol-5-yl)acetate"),
-            ("COC(=O)[C@H](F)Cl", "methyl (R)-chlorofluoroacetate"),
+            // P-16.5.1.3.2: bromo(chloro)acetic acid.
+            ("COC(=O)[C@H](F)Cl", "methyl (R)-chloro(fluoro)acetate"),
             ("OCC(=O)OCC", "ethyl hydroxyacetate"),
             ("FCC(=O)Oc1ccccc1", "phenyl fluoroacetate"),
             ("FCC(=O)OCC(=O)OC", "2-methoxy-2-oxoethyl fluoroacetate"),
@@ -1306,13 +1307,13 @@ mod tests {
             ("FCCOC(=O)CF", "2-fluoroethyl fluoroacetate"),
             (
                 "C[C@H](CC)OC(=O)[C@H](F)Cl",
-                "(2R)-butan-2-yl (R)-chlorofluoroacetate",
+                "(2R)-butan-2-yl (R)-chloro(fluoro)acetate",
             ),
             (
                 "C[C@@H](CC)OC(=O)[C@H](F)Cl",
-                "(2S)-butan-2-yl (R)-chlorofluoroacetate",
+                "(2S)-butan-2-yl (R)-chloro(fluoro)acetate",
             ),
-            ("O=C(O)[C@H](F)Cl", "(R)-chlorofluoroacetic acid"),
+            ("O=C(O)[C@H](F)Cl", "(R)-chloro(fluoro)acetic acid"),
         ] {
             let canonical = crate::test_support::canonical_smiles(smiles).unwrap();
             let name = super::super::name_smiles(&canonical, &Default::default()).unwrap();
@@ -1471,7 +1472,9 @@ mod tests {
             ("ClC1=C(Cl)C1(Cl)Cl", "tetrachlorocyclopropene"),
             ("FC=C(F)F", "trifluoroethene"),
             ("ClC(Cl)C(Cl)(Cl)Cl", "pentachloroethane"),
-            ("BrC(Cl)=C(Cl)Cl", "bromotrichloroethene"),
+            // P-14.3.4.4, P-16.5.1.3.1: unlocanted later prefixes are enclosed,
+            // as in chloro(silylidene)hydrazine and ethyldi(methyl)phosphane.
+            ("BrC(Cl)=C(Cl)Cl", "bromotri(chloro)ethene"),
             ("FC(F)(F)C(F)=C(F)F", "hexafluoropropene"),
             ("ClC1=C(Cl)C(Cl)(Cl)C1(Cl)Cl", "hexachlorocyclobutene"),
             (

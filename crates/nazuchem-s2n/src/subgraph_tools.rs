@@ -365,6 +365,7 @@ pub fn add_substituent(
         existing.atom_ids.extend(item.atom_ids);
         existing.bond_ids.extend(item.bond_ids);
         existing.charge_atom_ids.extend(item.charge_atom_ids);
+        existing.isotope_atoms.extend(item.isotope_atoms);
     } else {
         parts.substituents.push(item);
     }

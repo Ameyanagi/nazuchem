@@ -561,6 +561,9 @@ fn move_added_hydrogen(parts: &AssemblyParts, core: &str, suffix: &str) -> (Stri
 // Provenance: fn add_stereo | adapted
 // Source: openclatura | src/openclatura/assembler.py::_add_stereo_prefix
 fn add_stereo(parts: &AssemblyParts, word: &str, cites_locants: bool) -> String {
+    if super::formatting::descriptors_omitted() {
+        return word.into();
+    }
     let mut features = vec![];
     for feature in &parts.stereo_features {
         if !features.contains(&feature) {
@@ -695,8 +698,11 @@ pub(super) fn assemble_name_with_parent(
     if let Some(candidate) = &fused_ion_candidate {
         consume_fused_ion_operation(parts, candidate);
     }
-    promote_acyl_substituent_name(parts);
-    promote_retained_substituent_name(parts);
+    // P-82.6.3.2: a labelled prefix keeps its numbered parent, phenyl(13C)methyl.
+    if parts.isotope_descriptor.is_empty() {
+        promote_acyl_substituent_name(parts);
+        promote_retained_substituent_name(parts);
+    }
     promote_retained_hydride_name(parts);
     select_retained_anion_name(parts);
     promote_retained_functional_parent(parts)?;
@@ -784,7 +790,16 @@ fn finish_name_with_parent(
         && !positive_parent_n_charges(parts).is_empty()
         && parts.retained_name.is_some()
         && !parts.indicated_hydrogens.is_empty();
-    let word = if !prefix.is_empty() && (needs_hyphen(&prefix, &core) || charged_hyphen) {
+    let word = if !parts.isotope_descriptor.is_empty() {
+        // P-82.2.1: the descriptor follows the prefixes, with a hyphen only
+        // before a locant, as in 4-[(3-14C)thiolan-2-yl]pyridine.
+        let hyphen = if core.starts_with(|c: char| c.is_ascii_digit()) {
+            "-"
+        } else {
+            ""
+        };
+        format!("{prefix}{}{hyphen}{core}", parts.isotope_descriptor)
+    } else if !prefix.is_empty() && (needs_hyphen(&prefix, &core) || charged_hyphen) {
         format!("{prefix}-{core}")
     } else {
         format!("{prefix}{core}")
@@ -796,7 +811,7 @@ fn finish_name_with_parent(
             relative.push(p.as_str());
         }
     }
-    if !relative.is_empty() {
+    if !relative.is_empty() && !super::formatting::descriptors_omitted() {
         word = format!("{}-{word}", relative.join("-"));
     }
     Ok((add_front_modifiers(parts, &word), core))
@@ -931,25 +946,26 @@ mod tests {
             ("C1CCCC/C=C/CC1", "(E)-cyclononene"),
             ("C1CCCC/C=C\\CC1", "(Z)-cyclononene"),
             ("C1CCCCC/C=C/CC1", "(E)-cyclodecene"),
-            ("F[C@H](Cl)Br", "(R)-bromochlorofluoromethane"),
-            ("F[C@@H](Cl)Br", "(S)-bromochlorofluoromethane"),
-            ("F[C@H](Cl)I", "(R)-chlorofluoroiodomethane"),
-            ("F[C@H](Cl)c1ccccc1", "[(R)-chlorofluoromethyl]benzene"),
+            // P-16.5.1.3, P-91.3: (R)-bromo(chloro)(fluoro)methane.
+            ("F[C@H](Cl)Br", "(R)-bromo(chloro)(fluoro)methane"),
+            ("F[C@@H](Cl)Br", "(S)-bromo(chloro)(fluoro)methane"),
+            ("F[C@H](Cl)I", "(R)-chloro(fluoro)(iodo)methane"),
+            ("F[C@H](Cl)c1ccccc1", "[(R)-chloro(fluoro)methyl]benzene"),
             (
                 "F[C@@H](Cl)c1ccc([C@H](F)Br)cc1",
-                "1-[(R)-bromofluoromethyl]-4-[(S)-chlorofluoromethyl]benzene",
+                "1-[(R)-bromo(fluoro)methyl]-4-[(S)-chloro(fluoro)methyl]benzene",
             ),
             (
                 "O[C@H](F)c1ccc(Cl)cc1",
-                "(R)-(4-chlorophenyl)fluoromethanol",
+                "(R)-(4-chlorophenyl)(fluoro)methanol",
             ),
-            ("O=C(O)C(F)Cl", "chlorofluoroacetic acid"),
+            ("O=C(O)C(F)Cl", "chloro(fluoro)acetic acid"),
             ("O=C(O)C(Cl)Cl", "dichloroacetic acid"),
             ("O=C(O)C(Cl)CCl", "2,3-dichloropropanoic acid"),
             ("O=C(N)CF", "2-fluoroacetamide"),
             ("O=C(NC)CF", "2-fluoro-N-methylacetamide"),
-            ("O=C(O)[C@H](F)Cl", "(R)-chlorofluoroacetic acid"),
-            ("O=C(O)[C@@H](F)Cl", "(S)-chlorofluoroacetic acid"),
+            ("O=C(O)[C@H](F)Cl", "(R)-chloro(fluoro)acetic acid"),
+            ("O=C(O)[C@@H](F)Cl", "(S)-chloro(fluoro)acetic acid"),
             (
                 "C1CCC[C@H]2C3CCCCC3CCC12",
                 "(4aR)-tetradecahydrophenanthrene",
@@ -1249,9 +1265,10 @@ mod tests {
         for (smiles, expected) in [
             (
                 "CCCC1=NN(C2=C1N=C(NC2=O)C3=C(C=CC(=C3)S(=O)(=O)N4CCN(CC4)C)OCC)C",
-                // #16/#29: the substituted N-1 keeps the parent's indicated hydrogen,
-                // which takes the low locant before added hydrogen (P-31.0, P-58.2.1.1).
-                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-1H-pyrazolo[4,3-d]pyrimidin-7(6H)-one",
+                // #95: one indicated hydrogen and one ketone, so the ketone takes
+                // it and the N-H positions are hydro positions (P-58.2.3.1.1;
+                // P-64.3.1 '1,2-dihydro-3H-indol-3-one, not 1H-indol-3(2H)-one').
+                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-1,6-dihydro-7H-pyrazolo[4,3-d]pyrimidin-7-one",
             ),
             (
                 "CCCCCN1C(=O)COC2=C1C=C(C(=C2)F)N3C(=O)C4=CC=CC=C4N=N3",
@@ -1365,18 +1382,19 @@ mod tests {
                 "1-({[(E)-phenylmethylidene]amino}amino)formamide",
             ),
             // The parent is right, but the preferred prefix numbers the
-            // hydrazine: 2-carbamoylhydrazin-1-yl (P-68.3.1.2.4).
+            // hydrazine: 2-carbamoylhydrazin-1-yl (P-68.3.1.2.4). The acyl
+            // prefix is enclosed (P-16.5.1.1).
             (
                 "OC(=O)CC(C(=O)O)NNC(=O)O",
-                "(hydroxycarbonylhydrazinyl)butanedioic acid",
+                "[(hydroxycarbonyl)hydrazinyl]butanedioic acid",
             ),
             (
                 "OC(=O)c1ccncc1NNC(=O)O",
-                "3-(hydroxycarbonylhydrazinyl)pyridine-4-carboxylic acid",
+                "3-[(hydroxycarbonyl)hydrazinyl]pyridine-4-carboxylic acid",
             ),
             (
                 "OC(=O)CCNNC(=O)OC",
-                "3-(methoxycarbonylhydrazinyl)propanoic acid",
+                "3-[(methoxycarbonyl)hydrazinyl]propanoic acid",
             ),
             (
                 "OC(=O)CCNNC(N)=O",
@@ -1389,7 +1407,7 @@ mod tests {
             // 2-(2-sulfoethyl)hydrazine-1-carboxylic acid (P-41, class 7a)
             (
                 "OS(=O)(=O)CCNNC(=O)O",
-                "2-(hydroxycarbonylhydrazinyl)ethane-1-sulfonic acid",
+                "2-[(hydroxycarbonyl)hydrazinyl]ethane-1-sulfonic acid",
             ),
             // 3-(hydrazinecarbohydrazido)propanamide (P-68.3.1.2.6)
             (
