@@ -195,7 +195,7 @@ pub(super) fn finish(
     if !directed.is_empty() {
         'chains: for chain in stereo::stereogenic_odd_cumulenes(&state).map_err(Error::Stereo)? {
             let (mut refs, mut up) = ([0; 2], [false; 2]);
-            for (slot, &(end, inner)) in chain.ends.iter().enumerate() {
+            for ((&(end, inner), reference), up) in chain.ends.iter().zip(&mut refs).zip(&mut up) {
                 let old = removed.kept_atoms.get(end).ok_or(Error::Limit)?;
                 // Each directed ligand places the first remaining ligand on
                 // one side; a removed hydrogen or the second ligand lies
@@ -216,7 +216,7 @@ pub(super) fn finish(
                 if sides.any(|other| other != side) {
                     continue 'chains;
                 }
-                (refs[slot], up[slot]) = (first, side);
+                (*reference, *up) = (first, side);
             }
             cumulene_ez.push(stereo::CumuleneEz {
                 ends: chain.ends.map(|(end, _)| end),

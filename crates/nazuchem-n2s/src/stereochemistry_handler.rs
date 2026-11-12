@@ -1635,20 +1635,18 @@ impl<'a> StereochemistryHandler<'a> {
                     .iter()
                     .any(|&n| self.graph().atom(n).element == Element::H)
             };
-            if self
-                .cumulenes
-                .iter()
-                .any(|(_, bonds, _)| bonds.contains(&bond))
+            // An unknown (ξ) cumulene has no representation yet.
+            if !matches!(value, "E" | "Z")
+                || self
+                    .cumulenes
+                    .iter()
+                    .any(|(_, bonds, _)| bonds.contains(&bond))
                 || located.is_some_and(|atom| atom != refs[1] && atom != refs[2])
                 || cis_trans && !(has_hydrogen(refs[1]) && has_hydrogen(refs[2]))
             {
                 continue;
             }
-            match value {
-                "E" | "Z" => self.cumulenes.push((refs, [bond, far], value == "E")),
-                "EZ" => {}
-                _ => return structure(format!("Unexpected stereochemistry type: {value}")),
-            }
+            self.cumulenes.push((refs, [bond, far], value == "E"));
             return Ok(Some(bond));
         }
         Ok(None)

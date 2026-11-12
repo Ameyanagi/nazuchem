@@ -115,6 +115,18 @@ fn unsupported_cumulene_configurations_are_refused() {
         name_to_smiles("(2E)-octa-2,4,5,6-tetraene").unwrap(),
         r"C\C=C\C=C=C=CC"
     );
+    // Two identical ligands on a terminal atom leave nothing to specify.
+    assert!(name_to_smiles("(2E,8E)-4-[(1E)-prop-1-en-1-yl]deca-2,4,5,6,8-pentaene").is_ok());
+    // An unknown configuration of a cumulene has no representation yet.
+    assert!(name_to_smiles("(2Ξ)-hexa-2,3,4-triene").is_err());
+    // The ligands of the central cumulene differ only in the E/Z of the two
+    // cumulenyl branches, which the ranking cannot see: refused, not dropped.
+    for smiles in [
+        r"F/C=C=C=C(/C=C=C=C/C)\C=C=C=C/C",
+        r"F/C=C=C=C(\C=C=C=C\C)/C=C=C=C\C",
+    ] {
+        assert!(smiles_to_name(smiles).is_err(), "{smiles}");
+    }
     // IR v1 has no record for this configuration.
     let error = name_to_molecule("(2E)-hexa-2,3,4-triene").unwrap_err();
     assert_eq!(error.kind(), ErrorKind::Serialize);

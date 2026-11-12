@@ -128,7 +128,11 @@ fn identity(
     if cumulenes {
         for (chain, e) in cumulene_markers(state)? {
             for (end, _) in chain.ends {
-                let atom = &mut encoded.metadata.atoms[end];
+                let atom = encoded
+                    .metadata
+                    .atoms
+                    .get_mut(end)
+                    .ok_or(IdentityRejection::NonclassicalStereo)?;
                 atom.map_number = if e { CUMULENE_E } else { CUMULENE_Z };
                 atom.map_present = true;
             }

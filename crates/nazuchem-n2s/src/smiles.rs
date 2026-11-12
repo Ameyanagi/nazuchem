@@ -1019,8 +1019,17 @@ impl<'a> Writer<'a> {
             }
             // Slashes at both terminal atoms of an odd cumulene specify its
             // E/Z just as they do across one double bond (OpenSMILES 3.8.3).
+            // Constitutionally identical ligands at an end leave nothing to
+            // specify.
             let cumulene = crate::stereochemistry_handler::odd_cumulene(self.graph, central)
-                .map(|(refs, _)| [refs[1], refs[2]]);
+                .map(|(refs, _)| [refs[1], refs[2]])
+                .filter(|ends| {
+                    ends.iter().all(|&end| {
+                        crate::cip::CipSequenceRules::new(self.graph, end)
+                            .get_neighbouring_atoms_in_cip_order()
+                            .is_ok()
+                    })
+                });
             let marked = cumulene.unwrap_or([bond.from, bond.to]).map(|atom| {
                 self.graph
                     .atom(atom)

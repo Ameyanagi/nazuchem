@@ -26,8 +26,8 @@ pub struct Imported {
     pub prepared: Prepared,
     pub conformers: Vec<Conformer>,
     pub name: Option<String>,
-    /// SMILES directions specified odd-cumulene E/Z that `prepared.cumulene_ez`
-    /// cannot hold: a terminal atom's only ligand is a removed hydrogen.
+    /// SMILES directions specified, or may have specified, odd-cumulene E/Z
+    /// that `prepared.cumulene_ez` does not hold.
     pub dropped_cumulene_ez: bool,
     /// Original molecule-level CX `r` marker, normalized into stereo groups.
     #[serde(skip)]
@@ -606,12 +606,17 @@ pub fn read(text: &str, budget: &Budget) -> Result<Imported> {
     )?;
     let (mut prepared, conformers, kept_atoms) =
         prepare::finish(parsed, annotations.context, budget)?;
+    // A directed chain that preparation did not record lost its E/Z when its
+    // terminal ligands differ, or may differ only by the E/Z of a recorded
+    // cumulene, which the ranking of `state` cannot see.
     let mut dropped_cumulene_ez = false;
-    for chain in stereo::stereogenic_odd_cumulenes(&prepared.state).map_err(Error::Stereo)? {
+    let stereogenic = stereo::stereogenic_odd_cumulenes(&prepared.state).map_err(Error::Stereo)?;
+    for chain in stereo::odd_cumulenes(&prepared.state).map_err(Error::Stereo)? {
         let [(a, _), (b, _)] = chain.ends;
         if *at(&directed, *at(&kept_atoms, a)?)?
             && *at(&directed, *at(&kept_atoms, b)?)?
             && !prepared.cumulene_ez.iter().any(|ez| ez.ends == [a, b])
+            && (!prepared.cumulene_ez.is_empty() || stereogenic.contains(&chain))
         {
             dropped_cumulene_ez = true;
             break;

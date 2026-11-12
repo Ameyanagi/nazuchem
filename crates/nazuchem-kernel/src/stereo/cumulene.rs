@@ -132,11 +132,15 @@ fn without_maps(state: &State) -> Result<State, String> {
     Ok(unmapped)
 }
 
-/// Find maximal chains of an odd number (at least three) of double bonds whose
-/// ends each have two different ligands. The state must be prepared, with
-/// perceived ordinary stereo and caches belonging to the same graph. Isotopes
-/// and stereo distinguish ligands; atom maps do not. No configuration is assigned.
-pub fn stereogenic_odd_cumulenes(state: &State) -> Result<Vec<Cumulene>, String> {
+/// Maximal chains of an odd number (at least three) of double bonds, whatever
+/// their terminal ligands.
+pub fn odd_cumulenes(state: &State) -> Result<Vec<Cumulene>, String> {
+    Ok(chains(state)?.0)
+}
+
+type Neighbors = Vec<Vec<(usize, usize)>>;
+
+fn chains(state: &State) -> Result<(Vec<Cumulene>, Neighbors), String> {
     let mut neighbors = vec![Vec::new(); state.graph.atoms.len()];
     let mut doubles = neighbors.clone();
     for (id, bond) in state.graph.bonds.iter().enumerate() {
@@ -173,6 +177,15 @@ pub fn stereogenic_odd_cumulenes(state: &State) -> Result<Vec<Cumulene>, String>
             });
         }
     }
+    Ok((chains, neighbors))
+}
+
+/// Find maximal chains of an odd number (at least three) of double bonds whose
+/// ends each have two different ligands. The state must be prepared, with
+/// perceived ordinary stereo and caches belonging to the same graph. Isotopes
+/// and stereo distinguish ligands; atom maps do not. No configuration is assigned.
+pub fn stereogenic_odd_cumulenes(state: &State) -> Result<Vec<Cumulene>, String> {
+    let (chains, neighbors) = chains(state)?;
     if chains.is_empty() {
         return Ok(chains);
     }
