@@ -1598,6 +1598,12 @@ mod tests {
                 "2-(2,3-dihydroxybutoxy)butane-1,4-diol",
                 &["OCC(OCC(O)C(O)C)CCO", "CC(O)C(O)COC(CO)CCO"][..],
             ),
+            // P-44.4.1.8 precedes P-44.4.1.10: suffix 1 with ene 4 against
+            // suffix 3 with ene 1.
+            (
+                "5-[(3-hydroxypent-4-en-1-yl)oxy]pent-4-en-1-ol",
+                &["OCCCC=COCCC(O)C=C", "C=CC(O)CCOC=CCCCO"][..],
+            ),
             // The anion parent check (P-72.7) applies the same criterion.
             (
                 "4-(2-methyl-3-sulfidobutoxy)butane-1-thiolate",
