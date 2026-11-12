@@ -622,6 +622,25 @@ pub fn read(text: &str, budget: &Budget) -> Result<Imported> {
             break;
         }
     }
+    // Likewise a double bond that lost its directions' configuration because
+    // its ligands differ only by the E/Z of a recorded cumulene.
+    dropped_cumulene_ez |= !prepared.cumulene_ez.is_empty()
+        && prepared
+            .state
+            .graph
+            .bonds
+            .iter()
+            .zip(&prepared.state.metadata.bonds)
+            .any(|(bond, meta)| {
+                bond.order == 2
+                    && meta.stereo == 0
+                    && [bond.a, bond.b].iter().all(|&end| {
+                        kept_atoms
+                            .get(end)
+                            .and_then(|&old| directed.get(old))
+                            .is_some_and(|&directed| directed)
+                    })
+            });
     // After cumulene detection: an `r` group would make enantiomorphic ligands
     // rank equal and hide the dropped E/Z.
     if annotations.relative {

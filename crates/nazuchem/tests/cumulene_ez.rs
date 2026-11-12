@@ -67,8 +67,7 @@ fn odd_cumulene_ez_names_follow_the_blue_book_and_round_trip() {
 
 #[test]
 fn odd_cumulene_configuration_is_part_of_the_identity() {
-    let [e, z, unspecified] =
-        ["C/C=C=C=C/C", r"C/C=C=C=C\C", "CC=C=C=CC"].map(|smiles| identity(smiles));
+    let [e, z, unspecified] = ["C/C=C=C=C/C", r"C/C=C=C=C\C", "CC=C=C=CC"].map(identity);
     assert_ne!(e, z);
     assert_ne!(e, unspecified);
     assert_ne!(z, unspecified);
@@ -124,6 +123,13 @@ fn unsupported_cumulene_configurations_are_refused() {
     for smiles in [
         r"F/C=C=C=C(/C=C=C=C/C)\C=C=C=C/C",
         r"F/C=C=C=C(\C=C=C=C\C)/C=C=C=C\C",
+    ] {
+        assert!(smiles_to_name(smiles).is_err(), "{smiles}");
+    }
+    // Nor can it see that this double bond is stereogenic.
+    for smiles in [
+        r"F/C=C(/C=C=C=C/C)\C=C=C=C/C",
+        r"F\C=C(/C=C=C=C/C)\C=C=C=C/C",
     ] {
         assert!(smiles_to_name(smiles).is_err(), "{smiles}");
     }

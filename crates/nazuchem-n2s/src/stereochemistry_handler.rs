@@ -596,8 +596,10 @@ impl<'a> StereochemistryHandler<'a> {
             }
         }
         self.warning_or_error(result)?;
-        let result = self.resolve_cumulenes();
-        self.warning_or_error(result)?;
+        for cumulene in std::mem::take(&mut self.cumulenes) {
+            let result = self.resolve_cumulene(cumulene);
+            self.warning_or_error(result)?;
+        }
         self.apply_cage_stereo_groups()?;
         if global.len() > 1 {
             let message = "More than one global indicator of rac- or rel- was specified";
@@ -1332,34 +1334,32 @@ impl<'a> StereochemistryHandler<'a> {
     /// P-93.4.2.3: E/Z of an odd cumulene relates the CIP-senior ligands of
     /// its terminal atoms. Full CIP ranks them once the other descriptors,
     /// which can distinguish those ligands, are applied.
-    // Provenance: fn StereochemistryHandler::resolve_cumulenes | original
-    // Source: Nazuchem | crates/nazuchem-n2s/src/stereochemistry_handler.rs::StereochemistryHandler::resolve_cumulenes
-    fn resolve_cumulenes(&mut self) -> Result {
-        for (refs, bonds, e) in std::mem::take(&mut self.cumulenes) {
-            let (state, indices) = crate::modern_cip::state(self.graph())?;
-            let cis = CumuleneEz {
-                ends: [indices[&refs[1]], indices[&refs[2]]],
-                refs: [indices[&refs[0]], indices[&refs[3]]],
-                cis: true,
-            };
-            let Some(cis_is_e) =
-                cumulene_is_e(&state, &cis).map_err(StereochemistryError::Uninterpretable)?
-            else {
-                return stereo("Could not rank the ligands at the ends of a cumulene for E/Z");
-            };
-            let record = BondStereo {
-                atom_refs: refs,
-                value: if cis_is_e == e {
-                    BondStereoValue::Cis
-                } else {
-                    BondStereoValue::Trans
-                },
-            };
-            // Both terminal bonds hold the record, so the slashes at either
-            // end are treated as serving a stereo bond.
-            for bond in bonds {
-                self.state.graph_mut().bond_mut(bond).stereo = Some(record.clone());
-            }
+    // Provenance: fn StereochemistryHandler::resolve_cumulene | original
+    // Source: Nazuchem | crates/nazuchem-n2s/src/stereochemistry_handler.rs::StereochemistryHandler::resolve_cumulene
+    fn resolve_cumulene(&mut self, (refs, bonds, e): ([AtomId; 4], [BondId; 2], bool)) -> Result {
+        let (state, indices) = crate::modern_cip::state(self.graph())?;
+        let cis = CumuleneEz {
+            ends: [indices[&refs[1]], indices[&refs[2]]],
+            refs: [indices[&refs[0]], indices[&refs[3]]],
+            cis: true,
+        };
+        let Some(cis_is_e) =
+            cumulene_is_e(&state, &cis).map_err(StereochemistryError::Uninterpretable)?
+        else {
+            return stereo("Could not rank the ligands at the ends of a cumulene for E/Z");
+        };
+        let record = BondStereo {
+            atom_refs: refs,
+            value: if cis_is_e == e {
+                BondStereoValue::Cis
+            } else {
+                BondStereoValue::Trans
+            },
+        };
+        // Both terminal bonds hold the record, so the slashes at either end
+        // are treated as serving a stereo bond.
+        for bond in bonds {
+            self.state.graph_mut().bond_mut(bond).stereo = Some(record.clone());
         }
         Ok(())
     }
