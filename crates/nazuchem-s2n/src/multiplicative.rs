@@ -325,11 +325,14 @@ fn parts(mol: &Molecule, component: &AtomSet) -> Option<String> {
             })
             .collect();
         // P-51.3.1 (1): single bonds throughout. Rings other than benzene
-        // are not named as linking groups.
-        if ports.iter().any(|&(u, n)| !plain(u, n))
-            || atoms
-                .iter()
-                .any(|a| cyclic.contains(a) && !mol.atoms[a].is_aromatic)
+        // are not named as linking groups, nor are heteroatom chains, which
+        // have names of their own such as triselanediyl (P-68.4.1.2).
+        if ports.iter().any(|&(u, n)| {
+            !plain(u, n)
+                || linker.contains(&n) && !mol.atoms[&u].is_carbon() && !mol.atoms[&n].is_carbon()
+        }) || atoms
+            .iter()
+            .any(|a| cyclic.contains(a) && !mol.atoms[a].is_aromatic)
         {
             return None;
         }
@@ -930,6 +933,11 @@ mod tests {
             (
                 "c1ccccc1C(c1ccccc1)(c1ccccc1)c1ccccc1",
                 "(triphenylmethyl)benzene",
+            ),
+            // P-68.4.1.2: the PIN is 4,4'-triselanediyldibenzoic acid.
+            (
+                "O=C(O)c1ccc([Se][Se][Se]c2ccc(C(=O)O)cc2)cc1",
+                "4-({[(4-carboxyphenyl)selanyl]selanyl}selanyl)benzoic acid",
             ),
             // P-16.3.6 (c): Hantzsch-Widman units take 'bis'.
             ("C1CCOC1OC1CCCO1", "2-[(oxolan-2-yl)oxy]oxolane"),

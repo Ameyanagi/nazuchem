@@ -317,11 +317,13 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
                 superatoms,
                 seniority,
                 attachment_sets,
+                // P-26.4.2.4 completes the hydrocarbon numbering before
+                // P-26.5.1 places the heteroatoms on it.
+                attachment_order,
                 hetero(None),
                 hetero(Some("O")),
                 hetero(Some("S")),
                 hetero(Some("N")),
-                attachment_order,
             );
             if best.as_ref().is_none_or(|(old, _)| key < *old) {
                 let mut parts = vec![];

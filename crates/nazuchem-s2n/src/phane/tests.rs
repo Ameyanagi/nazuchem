@@ -205,6 +205,12 @@ fn linear_phanes_number_from_the_end_with_the_lower_locants() -> Result<(), Stri
             "c1ccccc1Cc1ccc(cn1)Cc1cccc(n1)Cc1ccccc1",
             "3(2,5),5(2,6)-dipyridina-1,7(1)-dibenzenaheptaphane",
         ),
+        // P-26.4.2.4, P-26.5.1: the attachment locants in name order are
+        // settled before the heteroatom takes its locant.
+        (
+            "c1ccccc1Cc1ccc(Cc2ccc(Oc3ccccc3)cn2)cn1",
+            "6-oxa-3,5(2,5)-dipyridina-1,7(1)-dibenzenaheptaphane",
+        ),
         (
             "c1ccccc1-c1ccc(-c2ccc(Oc3cccc(-c4cccc(-c5ccccn5)n4)n3)cc2)cc1",
             "4-oxa-1(2),2,3(2,6)-tripyridina-5,6(1,4),7(1)-tribenzenaheptaphane",
