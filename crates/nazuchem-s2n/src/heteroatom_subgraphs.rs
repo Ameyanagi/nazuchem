@@ -417,6 +417,11 @@ fn sulfonyl_group(mol: &Molecule, branch: &str, suffix: &str) -> (String, bool) 
     {
         mol.mark_name(NameStatus::NotPreferred(NameReason::SulfonylPrefix));
     }
+    // P-16.5.1: a compound or complex prefix is enclosed, as in the
+    // [(acetyloxy)sulfonyl] of P-65.7.6.2.
+    if is_complex_prefix(&b) || is_compound_prefix(&b) {
+        return (format!("({b}){suffix}"), false);
+    }
     (format!("{b}{suffix}"), false)
 }
 
