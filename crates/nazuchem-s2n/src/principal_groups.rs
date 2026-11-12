@@ -451,6 +451,9 @@ mod tests {
             ("NC(=O)NCCC(N)=O", "amide"),
             ("NC(=O)NCCC(=O)NN", "urea"),
             ("NC(=S)NCCS(N)(=O)=O", "sulfonamide"),
+            ("NC(=[Se])NCCS(N)(=O)=O", "sulfonamide"),
+            ("NC(N)=NCCNC(N)=[Se]", "selenourea"),
+            ("NC(N)=NCCNC(N)=[Te]", "tellurourea"),
             ("O=CCCC=S", "aldehyde"),
             ("S=Cc1ccc(C=O)cc1", "ring_aldehyde"),
         ] {

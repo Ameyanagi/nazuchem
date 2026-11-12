@@ -705,8 +705,7 @@ fn sites_correspond(
         let atom = &mol.atoms[&id];
         // An unlabeled graph cannot establish preservation of stereochemical
         // configurations or relative stereo under the proposed exchange.
-        if atom.has_stereo() && !(cip_labels && matches!(atom.stereo.as_deref(), Some("R" | "S")))
-        {
+        if atom.has_stereo() && !(cip_labels && matches!(atom.stereo.as_deref(), Some("R" | "S"))) {
             return false;
         }
         let locant = id.to_string();
