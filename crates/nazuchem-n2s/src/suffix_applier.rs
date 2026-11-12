@@ -5,6 +5,7 @@
 // Copyright Daniel Lowe and contributors; MIT (see the retained license).
 // Copyright 2017 Daniel Lowe
 // Changes: The native tellanal suffix keeps its aldehydic hydrogen like al (issue #26).
+// Changes: A mixed chalcogen peroxoate suffix is marked as unoriented until an ester locant orients it (issue #90).
 
 //! Ordered suffix effects translated from OPSIN `SuffixApplier.java`.
 //!
@@ -164,6 +165,22 @@ impl<'a> SuffixApplier<'a> {
                                 "OPSIN Bug: Suffix was expected to have an associated fragment but it wasn't found".into()
                             ))?;
                             suffix_fragment = Some(sf);
+                            // P-65.1.5.3: "(thioperoxoate)" does not say which
+                            // chalcogen is on the acid; an ester locant such
+                            // as SO decides (StructureBuilder). Rule values
+                            // such as OS_thioperoxoate are already oriented.
+                            let graph = &mut self.state.fragment_manager.graph;
+                            if value.ends_with("peroxoate")
+                                && !value.contains('_')
+                                && let &[end] = graph.fragment(sf).functional_atoms.as_slice()
+                                && let &[inner] = graph.neighbours(end).as_slice()
+                                && graph.atom(inner).element != graph.atom(end).element
+                            {
+                                graph.set_ambiguous_element_assignment(
+                                    &[inner, end],
+                                    vec![inner, end],
+                                );
+                            }
                             let dummy = first_atom(&self.state.fragment_manager.graph, sf)?;
                             if self
                                 .state

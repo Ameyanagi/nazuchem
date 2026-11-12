@@ -140,6 +140,143 @@ fn chalcogen_peroxy_names_keep_their_element_order() {
     }
 }
 
+/// Issue #90, P-65.6.3.3.7.1: an element symbol pair such as SO in front of
+/// the organyl group gives the peroxy atom on the acid, then the atom that
+/// carries the organyl group.
+#[test]
+fn peroxy_ester_locants_orient_the_peroxy_group() {
+    let parser = Parser::new().unwrap();
+    for (name, expected) in [
+        // The two P-65.6.3.3.7.1 examples (the namer's bracket placement).
+        (
+            "SO-methyl benzenecarbo(thioperoxoate)",
+            "C1(=CC=CC=C1)C(=O)SOC",
+        ),
+        ("OS-ethyl ethanesulfono(thioperoxoate)", "C(C)S(=O)(=O)OSCC"),
+        ("SO-methyl ethane(thioperoxoate)", "C(C)(=O)SOC"),
+        ("OS-methyl ethane(thioperoxoate)", "C(C)(=O)OSC"),
+        (
+            "OS-(tert-butyl) 3-oxobutane(thioperoxoate)",
+            "O=C(CC(=O)OSC(C)(C)C)C",
+        ),
+        ("SO-methyl methanesulfono(thioperoxoate)", "CS(=O)(=O)SOC"),
+        // P-65.1.5.3: "peroxothio" keeps the peroxy group and has C=S.
+        ("OO-methyl ethaneperoxothioate", "C(C)(OOC)=S"),
+        ("SO-methyl ethanethio(thioperoxoate)", "C(C)(SOC)=S"),
+        ("SS-methyl ethane(dithioperoxoate)", "C(C)(=O)SSC"),
+        (
+            "SS-(1,2-dichloroethenyl) 2,4,5-trichlorobenzene-1-carbo(dithioperoxoate)",
+            "ClC1=C(C=C(C(=C1)Cl)Cl)C(=O)SSC(=CCl)Cl",
+        ),
+        ("SeO-methyl ethane(selenoperoxoate)", "C(C)(=O)[Se]OC"),
+        ("OSe-methyl ethane(selenoperoxoate)", "C(C)(=O)O[Se]C"),
+        ("SSe-methyl ethane(selenothioperoxoate)", "C(C)(=O)S[Se]C"),
+        (
+            "SeTe-methyl ethane(selenotelluroperoxoate)",
+            "C(C)(=O)[Se][Te]C",
+        ),
+        (
+            "OS-ethyl SO-methyl butanedi(thioperoxoate)",
+            "C(CCC(=O)SOC)(=O)OSCC",
+        ),
+        // Copies of a multiplied acid parent are oriented one by one.
+        (
+            "OS-ethyl SO-methyl 2,2'-oxydiethane(thioperoxoate)",
+            "O(CC(=O)SOC)CC(=O)OSCC",
+        ),
+        // P-72.2.2.2.1.1: the anion carries its locant inside the brackets.
+        ("ethane(OS-thioperoxoate)", "C(C)(=O)O[S-]"),
+        ("ethane(SO-thioperoxoate)", "C(C)(=O)S[O-]"),
+        (
+            "sodium benzenecarbo(SeS-selenothioperoxoate)",
+            "C1(=CC=CC=C1)C(=O)[Se][S-].[Na+]",
+        ),
+        // An isotope label follows its element when the group is turned.
+        ("OS-methyl ethane(34S)(thioperoxoate)", "C(C)(=O)O[34S]C"),
+        // Homo-chalcogen and single-symbol forms read as before.
+        ("ethane(dithioperoxoate)", "C(C)(=O)S[S-]"),
+        ("methyl ethane(dithioperoxoate)", "C(C)(=O)SSC"),
+        ("ethaneperoxothioate", "C(C)(O[O-])=S"),
+        ("S-methyl ethanethioate", "C(C)(SC)=O"),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+    for name in [
+        // P-65.1.5.3: letter locants are required to specify a mixed peroxy
+        // group, so these do not say which chalcogen is on the acid.
+        "ethane(thioperoxoate)",
+        "methyl ethane(thioperoxoate)",
+        "sodium ethane(selenothioperoxoate)",
+        // The locant must fit the group it addresses.
+        "OO-methyl ethane(thioperoxoate)",
+        "SO-methyl ethaneperoxothioate",
+        "SO-methyl ethane(dithioperoxoate)",
+        "OS-methyl methanesulfenate",
+        "SO-methyl methanesulfenate",
+        "SO-methyl ethenesulfenate",
+        "SO-methyl methanesulfonate",
+        "SO-methyl methanesulfinate",
+        "OS-methyl acetate",
+        "SO-methylbenzene",
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Failure, "{name}");
+    }
+}
+
+/// Issue #90, P-31.1.5.2.1 and the P-31.2.3.3.3 example
+/// 4,5-dihydro-3H-spiro[[1]benzofuran-2,1'-cyclohexan]-2'-ene: 'ene' for a
+/// saturated spiro component is cited after the closing bracket.
+#[test]
+fn unsaturation_after_a_spiro_bracket_uses_the_spiro_numbering() {
+    let parser = Parser::new().unwrap();
+    for (name, expected) in [
+        (
+            "4,5-dihydro-3H-spiro[[1]benzofuran-2,1'-cyclohexan]-2'-ene",
+            "C12(C=CCCC1)OC1=C(C2)CCC=C1",
+        ),
+        (
+            "spiro[cyclohexane-1,1'-inden]-2-ene",
+            "C12(C=CC3=CC=CC=C13)C=CCCC2",
+        ),
+        (
+            "spiro[cyclohexane-1,1'-cyclopentane]-2,2'-diene",
+            "C12(C=CCC1)C=CCCC2",
+        ),
+        (
+            "spiro[cyclohexane-1,1'-inden]-2-en-4-one",
+            "C12(C=CC3=CC=CC=C13)C=CC(CC2)=O",
+        ),
+        (
+            "2-(spiro[cyclohexane-1,1'-cyclopentan]-2-en-2'-yl)ethanol",
+            "C12(C(CCC1)CCO)C=CCCC2",
+        ),
+        // Names without the ending are unchanged.
+        (
+            "spiro[cyclohexane-1,1'-indene]",
+            "C12(C=CC3=CC=CC=C13)CCCCC2",
+        ),
+        (
+            "2,2'-spirobi[bicyclo[2.2.1]heptan]-5-ene",
+            "C12C3(CC(C=C1)C2)C2CCC(C3)C2",
+        ),
+    ] {
+        let result = parser.parse(name, &ParseOptions::strict());
+        assert_eq!(result.status, Status::Success, "{name}: {}", result.message);
+        assert_eq!(
+            result.structure.unwrap().semantic_cxsmiles().unwrap(),
+            expected,
+            "{name}"
+        );
+    }
+}
+
 /// P-73.6 method (1) and the 2020 corrections to P-73.6 and P-74.1.3: a
 /// substituted cationic nitrogen prefix is the aminium cation name plus
 /// 'yl' or 'ylidene', e.g. (N,N-dimethylmethanaminiumyl)acetate.
