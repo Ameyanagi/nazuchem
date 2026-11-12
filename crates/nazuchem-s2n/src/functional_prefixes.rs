@@ -623,6 +623,15 @@ pub fn collect_component_prefix_substituents(
             .as_ref()
             .is_some_and(|r| r.families.contains("prefix_skip"))
             || !parent.contains(&group.attachment_carbon)
+            // P-66.1.1.4.1.1: an amide carbonyl carbon ending a parent chain
+            // of two or more carbons is cited as amino with oxo, both named
+            // as ordinary substituents (4-amino-4-oxobutanoic acid).
+            || path.len() > 1
+                && group.descriptor.as_ref().is_some_and(|d| {
+                    d.family == "acyl"
+                        && d.derivative == "amide"
+                        && d.centers.contains(&group.attachment_carbon)
+                })
         {
             continue;
         }
@@ -735,6 +744,88 @@ mod tests {
                 super::prefix_from_group(&context, &group).unwrap(),
                 expected
             );
+        }
+    }
+
+    /// Issue #148: an amide cited as a prefix.
+    #[test]
+    fn amide_prefixes_follow_p_66_1_1_4_1() {
+        use nazuchem_ir::NameStatus;
+
+        for (smiles, expected) in [
+            // P-66.1.1.4.1.1 (1), P-65.1.6.1: -CO-NH2 ending a chain of two
+            // or more carbons is amino + oxo (4-amino-4-oxobutanoic acid,
+            // 3-amino-3-oxopropanoic acid).
+            ("OC(=O)CCC(N)=O", "4-amino-4-oxobutanoic acid"),
+            ("OC(=O)CC(N)=O", "3-amino-3-oxopropanoic acid"),
+            ("NC(=O)CCC(=O)OC", "methyl 4-amino-4-oxobutanoate"),
+            ("OS(=O)(=O)CC(N)=O", "2-amino-2-oxoethane-1-sulfonic acid"),
+            // P-103.1.1.1: asparagine and glutamine.
+            ("NC(=O)CC(N)C(O)=O", "2,4-diamino-4-oxobutanoic acid"),
+            ("NC(=O)CCC(N)C(O)=O", "2,5-diamino-5-oxopentanoic acid"),
+            // P-66.1.1.4.1.2: -CO-CO-NH2 (4-amino-3,4-dioxobutanoic acid).
+            ("OC(=O)CC(=O)C(N)=O", "4-amino-3,4-dioxobutanoic acid"),
+            // P-66.1.4.4: chalcogen analogues
+            // (3-amino-3-sulfanylidenepropanoic acid).
+            ("OC(=O)CC(N)=S", "3-amino-3-sulfanylidenepropanoic acid"),
+            ("OC(=O)CC(N)=[Se]", "3-amino-3-selanylidenepropanoic acid"),
+            ("NC(=O)CCC(N)=S", "4-amino-4-sulfanylidenebutanamide"),
+            // P-66.1.1.4.1.1, P-65.1.6.2: the amino group is substituted in
+            // the normal way (5-anilino-5-oxopentanoic acid,
+            // anilino(oxo)acetic acid).
+            ("OC(=O)CCCC(=O)Nc1ccccc1", "5-anilino-5-oxopentanoic acid"),
+            ("OC(=O)C(=O)Nc1ccccc1", "anilino(oxo)acetic acid"),
+            ("OC(=O)CCC(=O)NC", "4-(methylamino)-4-oxobutanoic acid"),
+            ("OC(=O)CCC(=O)N(C)C", "4-(dimethylamino)-4-oxobutanoic acid"),
+            // P-45.2.1: of two chains of equal length, the one through the
+            // amide carbon has more substituents cited as prefixes, as in
+            // 2-methyl-3-(methylamino)-3-oxopropyl.
+            ("OC(=O)CC(C)C(N)=O", "4-amino-3-methyl-4-oxobutanoic acid"),
+            (
+                "OC(=O)c1ccc(cc1)CC(C)C(N)=O",
+                "4-(3-amino-2-methyl-3-oxopropyl)benzoic acid",
+            ),
+            (
+                "OC(=O)CC(CC(N)=O)CC(N)=O",
+                "5-amino-3-(2-amino-2-oxoethyl)-5-oxopentanoic acid",
+            ),
+            // P-66.1.1.4.1.1 (2): carbamoyl on a ring and on a nonterminal
+            // chain atom (2-carbamoylbenzoic acid,
+            // 3-(dimethylcarbamoyl)pentanedioic acid).
+            ("OC(=O)c1ccccc1C(N)=O", "2-carbamoylbenzoic acid"),
+            (
+                "OC(=O)CC(CC(O)=O)C(=O)N(C)C",
+                "3-(dimethylcarbamoyl)pentanedioic acid",
+            ),
+            ("OC(=O)CC(CC)C(N)=O", "3-carbamoylpentanoic acid"),
+            (
+                "OC(=O)CC(C(N)=O)C(N)=O",
+                "4-amino-3-carbamoyl-4-oxobutanoic acid",
+            ),
+            (
+                "OC(=O)c1ccc(o1)CC(N)=O",
+                "5-(2-amino-2-oxoethyl)furan-2-carboxylic acid",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                "{expected}"
+            );
+        }
+        // P-65.1.1.1, P-65.1.6.1: oxamic acid is retained and is not
+        // generated; its systematic name is not labelled preferred.
+        for (smiles, expected) in [
+            ("OC(=O)C(N)=O", "amino(oxo)acetic acid"),
+            ("COC(=O)C(N)=O", "methyl amino(oxo)acetate"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_ne!(name.status, NameStatus::Preferred, "{smiles}");
         }
     }
 

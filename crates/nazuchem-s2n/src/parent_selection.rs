@@ -240,9 +240,6 @@ fn score(
                     // cited as hydrazinyl with oxo, so it is not split. The
                     // nitrogen of a ring is not a hydrazide nitrogen.
                     && !(mol.atoms[&n].symbol == "N"
-                        && mol.get_neighbors(n).iter().any(|&t| {
-                            mol.atoms[&t].symbol == "N" && mol.bond_order(n, t) == 1
-                        })
                         && !super::chains::get_cyclic_atoms(mol, &AtomSet::new()).contains(&n))
             })
         {

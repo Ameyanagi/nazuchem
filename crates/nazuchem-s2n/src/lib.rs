@@ -1247,6 +1247,20 @@ mod tests {
                 "4-hydrazinyl-3-methyl-4-oxobutanoic acid",
                 &["OC(=O)CC(C)C(=O)NN", "CC(CC(O)=O)C(=O)NN"][..],
             ),
+            // Issue #148. P-66.1.1.4.1.1 (1): a chain-end amide is amino with
+            // oxo, on the chain that keeps the carbonyl carbon (P-45.2.1).
+            (
+                "4-amino-4-oxobutanoic acid",
+                &["OC(=O)CCC(N)=O", "NC(=O)CCC(O)=O"][..],
+            ),
+            (
+                "4-amino-3-methyl-4-oxobutanoic acid",
+                &["OC(=O)CC(C)C(N)=O", "CC(CC(O)=O)C(N)=O"][..],
+            ),
+            (
+                "5-amino-3-(2-amino-2-oxoethyl)-5-oxopentanoic acid",
+                &["OC(=O)CC(CC(N)=O)CC(N)=O", "NC(=O)CC(CC(N)=O)CC(O)=O"][..],
+            ),
             // P-66.3.2.1: the acyl prefix of hydrazinecarbothioic acid.
             (
                 "4-(hydrazinecarbothioyl)benzene-1-carboximidamide",
