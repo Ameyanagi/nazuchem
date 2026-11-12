@@ -3218,7 +3218,7 @@ mod tests {
     #[test]
     fn first_locantless_simple_prefix_is_not_enclosed() {
         // P-16.5.1.3.1, P-16.5.1.3.2: the first cited simple prefix is not enclosed
-        // and later ones are, as in cyclopropyl(phenyl)methanol and
+        // (a compound one is) and later ones are, as in cyclopropyl(phenyl)methanol and
         // hydroxydi(phenyl)acetic acid (P-65.1.1.2.4); a first prefix with a
         // locant keeps its parentheses. The tellanyl prefixes follow
         // hydroxy(oxo)-lambda^5-azanylidene (P-61.5.3) and
@@ -3257,6 +3257,10 @@ mod tests {
                 "{expected}"
             );
         }
+        // A first compound prefix keeps its parentheses. Only the outer marks are
+        // checked: the inner [(methoxycarbonyl)amino] spelling is a separate gap.
+        let name = name_smiles("OC(=O)C(NC(=O)OC)c1ccccc1", &Default::default()).unwrap();
+        assert_eq!(name.text, "(methoxycarbonylamino)(phenyl)acetic acid");
     }
 
     #[test]

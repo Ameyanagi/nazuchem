@@ -11,7 +11,9 @@
 use super::{
     assembly_parts::AssemblyParts,
     assembly_utils::{is_fully_enclosed, needs_hyphen, parse_locant},
-    formatting::{is_complex_prefix, needs_complex_multiplier, starts_with_multiplier},
+    formatting::{
+        is_complex_prefix, is_compound_prefix, needs_complex_multiplier, starts_with_multiplier,
+    },
     locant_elision::{retained_parent_attachment_is_ambiguous, substituent_locant_set_is_unique},
     nomenclature::RULES,
     rules::multipliers,
@@ -300,9 +302,10 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
                 used = format!("({used})");
             }
         } else if loc.is_empty()
-            // P-16.5.1.3.1/P-16.5.1.3.2: the first cited unlocanted simple
-            // prefix is not enclosed: hydroxy(phenyl)acetic acid.
-            && i > 0
+            && grouped.len() > 1
+            // P-16.5.1.3.1/P-16.5.1.3.2: the first cited unlocanted prefix is
+            // enclosed only when compound: hydroxy(phenyl)acetic acid.
+            && (i > 0 || is_compound_prefix(name))
             && !optional
             && !is_fully_enclosed(&used)
             && !["fluoro", "chloro", "bromo", "iodo"].contains(&name)
