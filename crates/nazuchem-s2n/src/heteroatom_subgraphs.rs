@@ -1300,7 +1300,7 @@ fn name_sulfur(
                     return Ok(acyl);
                 }
                 // An anhydride linkage: the acyloxy prefix is enclosed, as in
-                // [(acetyloxy)sulfonyl] (P-16.5.1.1, P-65.7.6.2).
+                // [(acetyloxy)sulfonyl] (P-16.5.1.1, P-65.3.2.3).
                 if mol.atoms[root].symbol == "O"
                     && mol.get_neighbors(*root).iter().any(|&c| {
                         c != start

@@ -4474,7 +4474,7 @@ mod tests {
             ),
             ("ClCCS(=O)OS(=O)CCCl", "2-chloroethane-1-sulfinic anhydride"),
             // P-41: the acid is senior to the anhydride, which becomes the
-            // enclosed compound prefix (acetyloxy)sulfonyl (P-16.5.1, P-65.7.6.2).
+            // enclosed compound prefix (acetyloxy)sulfonyl (P-16.5.1.1, P-65.3.2.3).
             (
                 "OC(=O)CCS(=O)(=O)OC(C)=O",
                 "3-[(acetyloxy)sulfonyl]propanoic acid",
