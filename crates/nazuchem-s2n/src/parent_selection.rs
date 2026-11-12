@@ -240,6 +240,23 @@ fn score(
             split_acyl += 1;
         }
     }
+    // P-45.2.1: a substituent on the nitrogen of a suffix is cited as a
+    // prefix with the locant N; the alkyl group of an ester is not a prefix.
+    for group in groups.anionic.into_iter().flatten().filter(|g| {
+        g.is_principal_candidate
+            && groups.principal.contains(&g.attachment_carbon)
+            && atoms.contains(&g.attachment_carbon)
+    }) {
+        for atom in group.atoms_involved.difference(&atoms) {
+            if !matches!(mol.atoms[atom].symbol.as_str(), "O" | "S" | "Se" | "Te") {
+                attached += mol
+                    .get_neighbors(*atom)
+                    .iter()
+                    .filter(|n| !atoms.contains(n) && !group.atoms_involved.contains(n))
+                    .count() as i64;
+            }
+        }
+    }
     // P-72.7(a)-(d), before characteristic suffix and parent seniority.
     // Characteristic anions contribute to (a), but only skeletal atoms to (b)/(c).
     let centres = groups
@@ -1625,6 +1642,17 @@ mod tests {
             (
                 "N-benzyl-N-methyl-N'-{3-[(phenylcarbamoyl)amino]propyl}urea",
                 &["O=C(Nc1ccccc1)NCCCNC(=O)N(C)Cc1ccccc1"][..],
+            ),
+            // P-45.2.1 counts N-substituents; then P-45.2.2 example (1), N,2
+            // against 2,5.
+            (
+                "2-(2-amino-4-methylphenoxy)-N-methylaniline",
+                &["CNc1ccccc1Oc1ccc(C)cc1N", "Cc1ccc(Oc2ccccc2NC)c(N)c1"][..],
+            ),
+            // P-45.2.2: N,N is lower than N,2.
+            (
+                "N-methyl-N-[2-(2-methylbutanamido)ethyl]butanamide",
+                &["CCC(C)C(=O)NCCN(C)C(=O)CCC", "CCCC(=O)N(C)CCNC(=O)C(C)CC"][..],
             ),
             // P-45.5 example (4): difluoro precedes dinitro.
             (
