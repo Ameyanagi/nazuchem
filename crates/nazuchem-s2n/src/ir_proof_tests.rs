@@ -472,7 +472,7 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
     assert_eq!(counts.names.records, 1650);
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (1620, 30)
+        (1622, 28)
     );
     counts
         .names
@@ -483,7 +483,7 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
             counts.rejection_messages_identical,
             counts.rejection_messages_differing
         ),
-        (30, 0)
+        (28, 0)
     );
     assert_eq!(
         (
@@ -704,7 +704,7 @@ fn stereo_free_corpus_ordinary_hydrogen_variants_retain_complete_name_results() 
             counts.names.identical,
             counts.names.both_rejected
         ),
-        (1376, 1348, 28)
+        (1376, 1350, 26)
     );
     counts.names.assert_routes(&[("salt", 9)], 1366);
     assert_eq!(
@@ -716,7 +716,7 @@ fn stereo_free_corpus_ordinary_hydrogen_variants_retain_complete_name_results() 
             counts.radical_identical,
             counts.radical_both_rejected
         ),
-        (5, 0, 0, 5, 1, 4)
+        (5, 0, 0, 5, 3, 2)
     );
     assert_eq!(
         counts.sources,
@@ -1046,7 +1046,7 @@ fn every_n2s_structure_oracle_structure_retains_complete_name_results() {
     assert_n2s_coverage(&counts, (2624, 2535, 70, 19));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (2367, 238)
+        (2405, 200)
     );
     counts
         .names
@@ -1128,7 +1128,8 @@ fn every_n2s_golden_structure_retains_complete_name_results() {
     finish("n2s generated-name golden", &counts, differences, started);
     assert_eq!(records, 1650);
     // One generated name cites impossible hydro/indicated hydrogen (P-14.7.1, P-31.2.2; #34).
-    assert_n2s_coverage(&counts, (1658, 1654, 0, 4));
+    // Two are lambda radicals (P-71.2.1.2; #27), which strict parsing refuses.
+    assert_n2s_coverage(&counts, (1660, 1654, 0, 6));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
         (1653, 1)

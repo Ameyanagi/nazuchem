@@ -88,6 +88,23 @@ pub(super) fn name_radical(mol: &Molecule) -> Result<Option<Name>, String> {
                     None => name,
                 }
             }
+            // P-71.2.1.2 with the lambda-convention (P-14.1): a free valence on a
+            // centre two above its standard bonding number, as in
+            // tert-butoxytri(phenyl)-lambda5-phosphanyl.
+            "P" | "As" | "S" | "Se"
+                if center.radical_electrons == 1
+                    && mononuclear_center(mol, center.idx)
+                    && center.element().is_some_and(|e| {
+                        mol.degree(center.idx) + center.total_h_count + 1 == e.standard_valence + 2
+                    }) =>
+            {
+                let name = substituent_radical(mol, center.idx, 1)?;
+                // The unsubstituted hydride radical is rendered without its lambda.
+                if !name.contains("lambda") {
+                    return Err(unsupported());
+                }
+                name
+            }
             "N" => amine_radical(mol, center.idx, center.radical_electrons)?,
             "O" | "S" | "Se" if center.radical_electrons == 1 => {
                 chalcogen_radical(mol, center.idx)?
@@ -178,12 +195,19 @@ fn substituent_radical(mol: &Molecule, root: usize, order: usize) -> Result<Stri
     atom.total_h_count = 4 - order;
     attached.add_atom(atom)?;
     attached.add_bond(Bond::new(bond, root, parent, order))?;
-    let name = super::namer::name_subgraph_with_upstream(
+    let name = super::namer::name_subgraph_rendered(
         &attached,
         root,
         &AtomSet::from([parent]),
         Some(parent),
+        false,
     )?;
+    // P-82.2.1: the name cites isotope labels as the prefix does; the isotope
+    // route declines whatever is left uncited.
+    let mut uncited = mol.isotope_sites();
+    uncited.retain(|site| !name.isotope_atoms.contains(&site.anchor));
+    mol.set_isotope_sites(uncited);
+    let name = name.text;
     // P-71.2.1.2: 2-methylpropan-2-yl (PIN), not the tert-butyl prefix; the
     // "yl" suffix goes on a parent hydride, which the benzyl prefix is not.
     Ok(match strip_outer_parentheses(&name).as_str() {
@@ -561,6 +585,38 @@ mod tests {
         }
         // Disilanyl, disiloxanyl and silylidene parents are not composed.
         for smiles in ["[SiH3][SiH2]", "C[Si](C)O[Si](C)(C)C", "C[Si]C"] {
+            assert!(
+                super::super::name_smiles(smiles, &Default::default()).is_err(),
+                "{smiles}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    // Provenance: fn tests::lambda_convention_radicals_roundtrip | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/radical_naming.rs::tests::lambda_convention_radicals_roundtrip
+    fn lambda_convention_radicals_roundtrip() -> Result<(), String> {
+        // Issue #27. P-71.2.1.2 with the lambda-convention of P-14.1; the Blue
+        // Book example is tert-butoxytri(phenyl)-lambda5-phosphanyl.
+        for (smiles, name) in [
+            (
+                "CC(C)(C)O[P](c1ccccc1)(c1ccccc1)c1ccccc1",
+                "(tert-butoxy)tri(phenyl)-lambda^5-phosphanyl",
+            ),
+            (
+                "CC(C)(C)O[PH](OC(C)(C)C)OC(C)(C)C",
+                "tris(tert-butoxy)-lambda^5-phosphanyl",
+            ),
+            ("C[SeH]CCO", "(2-hydroxyethyl)(methyl)-lambda^4-selanyl"),
+            ("C[S](C)C", "trimethyl-lambda^4-sulfanyl"),
+            ("C[As](C)(C)C", "tetramethyl-lambda^5-arsanyl"),
+        ] {
+            roundtrip(smiles, name)?;
+        }
+        // Unsubstituted hydrides, standard bonding numbers and centres more
+        // than two above the standard bonding number are not composed.
+        for smiles in ["[PH4]", "[SH3]", "C[PH]", "C[S](C)(C)(C)C", "C[PH3]"] {
             assert!(
                 super::super::name_smiles(smiles, &Default::default()).is_err(),
                 "{smiles}"

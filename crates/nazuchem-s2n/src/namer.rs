@@ -335,6 +335,8 @@ fn collect_subgraph_substituents(
             item.bond_ids = bond_ids_within(mol, &attached);
             item.charge_atom_ids = charged_atoms(mol, &atoms);
             item.outer_parentheses_optional = name.outer_parentheses_optional;
+            item.isotope_atoms = name.isotope_atoms;
+            item.isotope_descriptors = name.isotope_descriptors;
             mapping.entry(idx).or_default().push(item);
             handled.extend(atoms);
         }
@@ -413,18 +415,47 @@ fn name_subgraph_rendered_except_stereo(
             name_heteroatom_subgraph(mol, start, exclude, upstream)?
         };
         if let Some(text) = name {
-            return Ok(RenderedSubstituentName {
+            let mut rendered = RenderedSubstituentName {
                 text,
-                outer_parentheses_optional: false,
-                oxy_prefix: None,
-            });
+                ..Default::default()
+            };
+            // P-82.2.1: the groups on the heteroatom cite their own labels, as
+            // in (2H3)methoxy. A label counts as cited only when the prefix
+            // holds that group's name, or is exactly its alkoxy form.
+            if mol
+                .isotope_sites()
+                .iter()
+                .any(|site| component.contains(&site.anchor))
+            {
+                let mut blocked = exclude.clone();
+                blocked.insert(start);
+                for root in
+                    super::heteroatom_subgraphs::subgraph_neighbors(mol, start, exclude, upstream)
+                {
+                    let Ok(group) = name_subgraph_rendered(mol, root, &blocked, Some(start), false)
+                    else {
+                        continue;
+                    };
+                    let atoms = group.isotope_atoms.clone();
+                    let descriptors = group.isotope_descriptors.clone();
+                    if !atoms.is_empty()
+                        && (rendered
+                            .text
+                            .contains(strip_outer_parentheses(&group.text).as_str())
+                            || group.into_oxy_prefix() == rendered.text)
+                    {
+                        rendered.isotope_atoms.extend(atoms);
+                        rendered.isotope_descriptors.extend(descriptors);
+                    }
+                }
+            }
+            return Ok(rendered);
         }
     }
     if let Some(text) = direct_subgraph_prefix(mol, start, &component)? {
         return Ok(RenderedSubstituentName {
             text,
-            outer_parentheses_optional: false,
-            oxy_prefix: None,
+            ..Default::default()
         });
     }
     let sub_exclude: AtomSet = mol
@@ -516,6 +547,20 @@ fn name_subgraph_rendered_except_stereo(
         &maps,
     )?;
     let mut parts = plan.parts;
+    let mut isotope_atoms: AtomSet = mapping
+        .values()
+        .flatten()
+        .flat_map(|item| item.isotope_atoms.iter().copied())
+        .collect();
+    let isotopes = super::isotope_naming::prefix_descriptor(
+        mol,
+        &plan.locant_map,
+        &component,
+        &isotope_atoms,
+    )?;
+    if let Some((descriptor, _)) = &isotopes {
+        parts.isotope_descriptor = descriptor.clone();
+    }
     if let Some(metadata) = retained_metadata {
         parts.retained_parent_metadata = Some(metadata);
     }
@@ -576,6 +621,21 @@ fn name_subgraph_rendered_except_stereo(
     }
     let raw = carbanion.unwrap_or(raw);
     let text = finalize_subgraph_name(raw, &parts);
+    let mut isotope_descriptors: Vec<_> = mapping
+        .values()
+        .flatten()
+        .flat_map(|item| item.isotope_descriptors.iter().cloned())
+        .collect();
+    if let Some((descriptor, atoms)) = isotopes {
+        if !text.contains(&descriptor) {
+            return Err(
+                "openclatura: an isotope label on this kind of substituent prefix is not supported"
+                    .into(),
+            );
+        }
+        isotope_atoms.extend(atoms);
+        isotope_descriptors.push(descriptor);
+    }
     if !fusion_parent {
         super::ionic_naming::validate_anionic_parent(
             mol,
@@ -596,8 +656,10 @@ fn name_subgraph_rendered_except_stereo(
     super::assembler::mark_assembled_name(mol, &parts);
     Ok(RenderedSubstituentName {
         oxy_prefix: substituted_alkoxy_prefix(&text, &parts),
-        text,
         outer_parentheses_optional: !parts.stereo_features.is_empty(),
+        isotope_atoms,
+        isotope_descriptors,
+        text,
     })
 }
 

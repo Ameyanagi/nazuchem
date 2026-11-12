@@ -7,6 +7,7 @@
 // Source: openclatura | tests/data/parser_xml_resources/simpleGroups.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_chalcogen_functional_groups.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs | issue 13
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs | issue #27
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Inherited parent scoring/candidate pipeline with original anion, ring-assembly, tied-chain prefix-locant and exchanged-arm stereochemical preference extensions.
@@ -402,6 +403,7 @@ pub(super) fn tied_principal_parents(
     prefer_chain_suffix_and_unsaturation_locants(mol, &mut candidates, principal_carbons);
     prefer_chain_prefix_locants(mol, &mut candidates, principal_carbons, groups);
     prefer_exchanged_arm_descriptors(mol, &mut candidates, principal_carbons);
+    prefer_isotopically_modified(mol, &mut candidates);
     let Some(best) = candidates.iter().map(|(s, _)| earlier_score(s)).min() else {
         return Vec::new();
     };
@@ -696,6 +698,50 @@ fn prefer_chain_prefix_locants(
     }
 }
 
+/// P-44.4.1.11.1 to .3: of the parents that tie through every earlier
+/// criterion, the senior one has more isotopically modified atoms, then more
+/// nuclides of higher atomic number, then of higher mass number.
+// Provenance: fn prefer_isotopically_modified | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::prefer_isotopically_modified
+fn prefer_isotopically_modified(
+    mol: &Molecule,
+    candidates: &mut Vec<(ParentScore, ParentSelection)>,
+) {
+    let sites = mol.isotope_sites();
+    if sites.is_empty() {
+        return;
+    }
+    // The prefix criteria of P-45 and the stereo criteria come later.
+    let earlier = |score: &ParentScore| {
+        let mut score = earlier_score(score);
+        score.attached_prefixes = 0;
+        score.assembly_substituent_locants = None;
+        score.assembly_substituent_citation = None;
+        score.chain_prefix_locants = None;
+        score.exchanged_arm_stereo = 0;
+        score
+    };
+    let Some(best) = candidates.iter().map(|(s, _)| earlier(s)).min() else {
+        return;
+    };
+    let modified = |selection: &ParentSelection| {
+        let atoms = selection.atom_set();
+        let mut nuclides: Vec<_> = sites
+            .iter()
+            .filter(|site| atoms.contains(&site.anchor))
+            .map(|site| site.priority())
+            .collect();
+        nuclides.sort_by(|a, b| b.cmp(a));
+        (nuclides.len(), nuclides)
+    };
+    let most = candidates
+        .iter()
+        .filter(|(s, _)| earlier(s) == best)
+        .map(|(_, selection)| modified(selection))
+        .max();
+    candidates.retain(|(s, selection)| earlier(s) != best || Some(modified(selection)) == most);
+}
+
 /// The score through the last structural criterion, without the atom-order key.
 // Provenance: fn earlier_score | original
 // Source: ReShiki | src/naming/openclatura/parent_selection.rs::prefer_single_centre_exchanged_arms
@@ -926,8 +972,7 @@ pub fn select_principal_parent_with_excluded(
     principal_carbons: &[usize],
     excluded: &AtomSet,
 ) -> Option<ParentSelection> {
-    // `min_by_key` keeps the first tied item, as does Python's stable sort.
-    parent_candidates(
+    let mut candidates = parent_candidates(
         mol,
         chains,
         ring_systems,
@@ -935,10 +980,13 @@ pub fn select_principal_parent_with_excluded(
         None,
         excluded,
         true,
-    )
-    .into_iter()
-    .min_by(|a, b| a.0.cmp(&b.0))
-    .map(|(_, selection)| selection)
+    );
+    prefer_isotopically_modified(mol, &mut candidates);
+    // `min_by_key` keeps the first tied item, as does Python's stable sort.
+    candidates
+        .into_iter()
+        .min_by(|a, b| a.0.cmp(&b.0))
+        .map(|(_, selection)| selection)
 }
 
 /// P-15.3 / P-51.3.1: multiplicative units must tie on parent seniority,

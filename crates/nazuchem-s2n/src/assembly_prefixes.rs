@@ -14,6 +14,7 @@ use super::{
     formatting::{
         is_complex_prefix, is_compound_prefix, needs_complex_multiplier, starts_with_multiplier,
     },
+    isotope_naming::{citation_name, leading_descriptor},
     locant_elision::{retained_parent_attachment_is_ambiguous, substituent_locant_set_is_unique},
     nomenclature::RULES,
     rules::multipliers,
@@ -232,7 +233,13 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
         items.push(sub);
     }
     // Python's dict preserves first citation order when alphabetical keys tie.
-    names.sort_by_key(|s| substituent_sort_key(s));
+    // P-82.5.1: isotope descriptors take no part in the order. P-82.2.2.1:
+    // the isotopically modified prefix precedes its unmodified twin.
+    names.sort_by_key(|s| {
+        let item = grouped[s][0];
+        let (name, initial) = substituent_sort_key(&citation_name(s, &item.isotope_descriptors));
+        (name, item.isotope_atoms.is_empty(), initial)
+    });
     let groups: Vec<_> = names
         .into_iter()
         .map(|name| {
@@ -274,9 +281,14 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
             locs.len()
         } / per)
             .max(1);
-        let complex = is_complex_prefix(name) || (count > 1 && needs_complex_multiplier(name));
+        // P-82.2.1: a leading isotope descriptor leaves a simple prefix simple,
+        // 3-(2H3)methyl, though a multiplied one is enclosed: di[(13C)methyl].
+        let descriptor = leading_descriptor(name, &items[0].isotope_descriptors);
+        let plain = name.strip_prefix(descriptor).unwrap_or(name);
+        let compound = is_complex_prefix(plain) || (count > 1 && needs_complex_multiplier(plain));
+        let complex = compound || count > 1 && !descriptor.is_empty();
         let mult = if count > 1 {
-            if complex {
+            if compound {
                 multipliers::complex_(count)
             } else {
                 multipliers::basic(count)

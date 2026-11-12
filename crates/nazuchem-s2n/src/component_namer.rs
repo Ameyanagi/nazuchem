@@ -144,6 +144,10 @@ pub(super) struct IsotopeParentName {
     pub text: String,
     pub locants: BTreeMap<usize, String>,
     pub rendered_parent: String,
+    /// Labelled atoms that the substituent prefixes cite themselves (P-82.2.1).
+    pub prefix_isotopes: AtomSet,
+    /// Every atom of a substituent prefix.
+    pub prefix_atoms: AtomSet,
     pub derivation: Derivation,
 }
 
@@ -159,19 +163,35 @@ pub(super) fn name_component_with_atom_locants(
             rendered_parent: name.name.clone(),
             text: name.name,
             locants: BTreeMap::new(),
+            prefix_isotopes: AtomSet::new(),
+            prefix_atoms: AtomSet::new(),
             derivation: Derivation::Shortcut {
                 component_splits: name.component_splits,
                 certified: name.certified,
             },
         }),
         ComponentResult::Plan(mut plan, parent_atoms, component_splits) => {
+            let prefix_isotopes: AtomSet = plan
+                .parts
+                .substituents
+                .iter()
+                .flat_map(|item| item.isotope_atoms.iter().copied())
+                .collect();
             // P-82.6.1.1: when isotopic modification requires a locant, the
-            // constitutional locants must be explicit as well.
-            plan.parts.omit_redundant_locants = false;
-            plan.parts.isotope_explicit_locants = true;
-            plan.parts.elided_substituent_locants.clear();
-            plan.parts.elided_unsaturation_locants.clear();
-            plan.parts.elide_principal_group_locants = false;
+            // constitutional locants must be explicit as well. A prefix that
+            // cites all the labels leaves this name part as it was.
+            if prefix_isotopes.is_empty()
+                || mol
+                    .isotope_sites()
+                    .iter()
+                    .any(|site| !prefix_isotopes.contains(&site.anchor))
+            {
+                plan.parts.omit_redundant_locants = false;
+                plan.parts.isotope_explicit_locants = true;
+                plan.parts.elided_substituent_locants.clear();
+                plan.parts.elided_unsaturation_locants.clear();
+                plan.parts.elide_principal_group_locants = false;
+            }
             let (text, rendered_parent) = render_component_and_parent(
                 mol,
                 &mut plan.parts,
@@ -182,6 +202,13 @@ pub(super) fn name_component_with_atom_locants(
                 text,
                 locants: plan.locant_map.clone(),
                 rendered_parent,
+                prefix_isotopes,
+                prefix_atoms: plan
+                    .parts
+                    .substituents
+                    .iter()
+                    .flat_map(|item| item.atom_ids.iter().copied())
+                    .collect(),
                 derivation: Derivation::Plan {
                     parent_atoms,
                     parent_locants: plan.locant_map,
@@ -892,6 +919,8 @@ fn collect_component_branch_substituents(
             bond_atoms.insert(idx);
             let mut item = SubstituentItem::new(branch.text, vec![]);
             item.outer_parentheses_optional = branch.outer_parentheses_optional;
+            item.isotope_atoms = branch.isotope_atoms;
+            item.isotope_descriptors = branch.isotope_descriptors;
             item.bond_ids = bond_ids_within(mol, &bond_atoms);
             item.charge_atom_ids = atoms
                 .iter()

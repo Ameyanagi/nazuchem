@@ -1405,12 +1405,13 @@ fn simple_central_parent_hydride_name(
         .iter()
         .copied()
         .filter(|i| {
-            RULES
+            // P-72.3: iodane takes a hydride as well (diphenyliodanuide).
+            (RULES
                 .components
                 .mononuclear_parent_hydrides
                 .contains_key(&mol.atoms[i].symbol)
+                || mol.atoms[i].symbol == "I" && mol.atoms[i].charge == -1)
                 && (mol.atoms[i].symbol != "O" || mol.atoms[i].charge == 1)
-                && !matches!(mol.atoms[i].symbol.as_str(), "F" | "Cl" | "Br" | "I")
                 && (mol.degree(*i) >= 2
                     || mol.degree(*i) == 1
                         && mol.atoms[i].charge == 1
@@ -1419,10 +1420,12 @@ fn simple_central_parent_hydride_name(
         .collect();
     // P-41, P-73.1.2: a cation outranks every neutral class, so a cationic
     // chalcogen centre is the parent over neutral heteroatoms such as an amine.
+    // An anion is senior to cations and neutral classes alike.
     if centers.len() > 1 {
         centers.retain(|i| {
-            mol.atoms[i].charge == 1
-                && matches!(mol.atoms[i].symbol.as_str(), "O" | "S" | "Se" | "Te")
+            mol.atoms[i].charge == -1
+                || mol.atoms[i].charge == 1
+                    && matches!(mol.atoms[i].symbol.as_str(), "O" | "S" | "Se" | "Te")
         });
     }
     if centers.len() != 1 {
@@ -1499,7 +1502,7 @@ fn simple_central_parent_hydride_name(
     // P-72.3: a hydride added to the neutral hydride gives the suffix "uide"
     // (tetramethylboranuide).
     let uide = a.charge == -1
-        && senior
+        && (senior || a.symbol == "I")
         && mol
             .get_neighbors(c)
             .iter()
@@ -1509,7 +1512,8 @@ fn simple_central_parent_hydride_name(
     if a.charge != 0 && !oxide && !onium && !uide {
         return Ok(None);
     }
-    let hydrocarbyl = chalcogen_onium || senior && !has_principal_group(mol, atoms);
+    // P-41: the anion outranks any characteristic group on its ligands.
+    let hydrocarbyl = chalcogen_onium || uide || senior && !has_principal_group(mol, atoms);
     let mut names = Vec::new();
     let mut chalcogen = None;
     for &n in mol.get_neighbors(c) {
@@ -1581,7 +1585,11 @@ fn simple_central_parent_hydride_name(
         };
     let mut parent = format!(
         "{lambda}{}",
-        RULES.components.mononuclear_parent_hydrides[&a.symbol]
+        RULES
+            .components
+            .mononuclear_parent_hydrides
+            .get(&a.symbol)
+            .map_or("iodane", String::as_str)
     );
     if class_oxide {
         parent.push_str(" oxide");
@@ -1632,18 +1640,21 @@ fn simple_central_parent_hydride_name(
     // P-44.1.2 and P-68.3.2.3.1: senior hydrides with organyl ligands,
     // including a terminal chalcogen suffix on P, As or Sb. The charge-separated
     // P+-O- representation (and its analogues) has the same ligand role as P=O.
+    // An anion cited over its ligands' characteristic groups is not audited.
     let certified = chalcogen_onium
-        || matches!(
-            a.symbol.as_str(),
-            "B" | "Si" | "Ge" | "Sn" | "Pb" | "P" | "As" | "Sb" | "Bi"
-        ) && mol.get_neighbors(c).iter().all(|&n| {
-            mol.bond_order(c, n) == 1 && mol.atoms[&n].is_carbon()
-                || (mol.bond_order(c, n) == 2
-                    || oxide && mol.bond_order(c, n) == 1 && mol.atoms[&n].charge == -1)
-                    && matches!(a.symbol.as_str(), "P" | "As" | "Sb")
-                    && is_chalcogen(n)
-                    && mol.degree(n) == 1
-        });
+        || !(uide && has_principal_group(mol, atoms))
+            && matches!(
+                a.symbol.as_str(),
+                "B" | "Si" | "Ge" | "Sn" | "Pb" | "P" | "As" | "Sb" | "Bi"
+            )
+            && mol.get_neighbors(c).iter().all(|&n| {
+                mol.bond_order(c, n) == 1 && mol.atoms[&n].is_carbon()
+                    || (mol.bond_order(c, n) == 2
+                        || oxide && mol.bond_order(c, n) == 1 && mol.atoms[&n].charge == -1)
+                        && matches!(a.symbol.as_str(), "P" | "As" | "Sb")
+                        && is_chalcogen(n)
+                        && mol.degree(n) == 1
+            });
     let name = if !prefix.is_empty() && !lambda.is_empty() {
         format!("{prefix}-{parent}")
     } else {
