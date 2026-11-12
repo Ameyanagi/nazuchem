@@ -40,7 +40,9 @@ pub fn read_smiles(
     if canonical.contains('.') {
         return Err("Openclatura requires a single connected molecule".into());
     }
-    let prepared = smiles::prepare(text, budget).map_err(|error| error.to_string())?;
+    let mut prepared = smiles::prepare(text, budget).map_err(|error| error.to_string())?;
+    nazuchem_kernel::identity::mark_cumulenes(&mut prepared)
+        .map_err(|_| "openclatura: unassignable cumulene E/Z".to_owned())?;
     let state = nazuchem_kernel::identity::apply_axis_markers(&prepared.state, budget)
         .map_err(|_| "openclatura: invalid biaryl axis markers".to_owned())?;
     read_state(state, None)
@@ -72,6 +74,16 @@ pub(crate) fn read_state(
     mut state: perception::State,
     input: Option<&nazuchem_ir::Molecule>,
 ) -> Result<Molecule, String> {
+    // P-93.4.2.3: an odd cumulene has one E/Z descriptor; each of its bonds
+    // carries it. Only SMILES input can hold the reserved markers.
+    let mut cumulene_stereo = BTreeMap::new();
+    if input.is_none() {
+        for (chain, e) in nazuchem_kernel::identity::cumulene_markers(&state)
+            .map_err(|_| "openclatura: invalid cumulene E/Z markers".to_owned())?
+        {
+            cumulene_stereo.extend(chain.bonds.into_iter().map(|bond| (bond, e)));
+        }
+    }
     // Upstream divergence: aromatic atom endpoints cannot identify localized
     // inter-ring bonds; retain bond aromaticity for the final fusion pi audit.
     let aromatic_bonds: Vec<_> = state.graph.bonds.iter().map(|b| b.aromatic).collect();
@@ -200,7 +212,10 @@ pub(crate) fn read_state(
                 "openclatura: pseudoasymmetric bond stereochemistry is not supported".into(),
             );
         }
-        let stereo = modern_stereo.cloned().or(legacy_stereo);
+        let stereo = match cumulene_stereo.get(&idx) {
+            Some(&e) => Some(if e { "E" } else { "Z" }.into()),
+            None => modern_stereo.cloned().or(legacy_stereo),
+        };
         let in_small_ring = legacy.rings.atoms.iter().any(|ring| {
             (3..=7).contains(&ring.len())
                 && ring

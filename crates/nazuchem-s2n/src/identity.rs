@@ -26,12 +26,26 @@ pub(crate) fn canonical_state(
     state: &chemistry::stereo::perception::State,
     budget: &Budget,
 ) -> Result<String, String> {
+    canonical(state, false, budget)
+}
+
+/// `cumulenes` keeps the odd-cumulene E/Z markers of a state read from SMILES.
+fn canonical(
+    state: &chemistry::stereo::perception::State,
+    cumulenes: bool,
+    budget: &Budget,
+) -> Result<String, String> {
     if state.graph.atoms.is_empty() || state.graph.atoms.len() > MAX_NAMING_ATOMS {
         return Err("Naming supports molecular graphs with 1–512 atoms".into());
     }
     // The kernel checks chemical semantics; this adapter retains the naming
     // bounds, diagnostics and admission order.
-    molecule_names::canonical_identity(state, budget).map_err(|error| match error {
+    if cumulenes {
+        molecule_names::canonical_smiles_identity(state, budget)
+    } else {
+        molecule_names::canonical_identity(state, budget)
+    }
+    .map_err(|error| match error {
         IdentityRejection::UnsupportedAtomsOrBonds => {
             "Naming does not support query atoms, radicals, exotic bonds or relative stereo groups"
                 .into()
@@ -67,9 +81,11 @@ pub fn canonical_smiles(text: &str, budget: &Budget) -> Result<String, String> {
         .iter()
         .filter(|m| is_tetrahedral(m.chiral_tag))
         .count();
-    let imported = chemistry::smiles::read(text, budget).map_err(|e| e.to_string())?;
-    if imported.dropped_cumulene_ez {
-        return Err("Naming does not support cumulene E/Z configuration yet; no less specific name was substituted".into());
+    let mut imported = chemistry::smiles::read(text, budget).map_err(|e| e.to_string())?;
+    if imported.dropped_cumulene_ez
+        || molecule_names::mark_cumulenes(&mut imported.prepared).is_err()
+    {
+        return Err("Naming does not support this cumulene E/Z configuration yet; no less specific name was substituted".into());
     }
     if specified_atoms
         != imported
@@ -85,7 +101,7 @@ pub fn canonical_smiles(text: &str, budget: &Budget) -> Result<String, String> {
     }
     let state = molecule_names::apply_axis_markers(&imported.prepared.state, budget)
         .map_err(|_| "Naming received invalid biaryl axis markers".to_owned())?;
-    canonical_state(&state, budget)
+    canonical(&state, true, budget)
 }
 
 /// Reject oversized output before native sanitization/ranking can allocate or

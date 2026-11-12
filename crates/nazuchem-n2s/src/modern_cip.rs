@@ -78,7 +78,10 @@ pub(crate) fn state(
         };
     }
     for (index, bond) in source_bonds.iter().enumerate() {
-        if let Some(stereo) = &bond.stereo {
+        // An odd cumulene's E/Z record is not a property of one double bond.
+        if let Some(stereo) = &bond.stereo
+            && bond.other_atom(stereo.atom_refs[1]) == Some(stereo.atom_refs[2])
+        {
             metadata.bonds[index].stereo = match stereo.value {
                 BondStereoValue::Cis => 4,
                 BondStereoValue::Trans => 5,

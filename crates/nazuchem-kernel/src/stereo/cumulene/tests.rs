@@ -2,7 +2,7 @@
 // Origin: original
 // Source: ReShiki | crates/chemistry/src/stereo/cumulene/tests.rs | be63a799aa03a83dc6ec74bb294f4d42b89298d3
 
-// Copied from crates/chemistry/src/stereo/cumulene/tests.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: pass explicit default preparation/import budgets; format affected calls
+// Copied from crates/chemistry/src/stereo/cumulene/tests.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: pass explicit default preparation/import budgets; format affected calls; expect retained E/Z where preparation now records it
 use super::*;
 
 #[test]
@@ -144,10 +144,10 @@ fn canonical_symmetry_distinguishes_e_and_z_ligands() -> Result<(), String> {
 #[test]
 fn lost_directions_follow_retained_and_removed_hydrogens() {
     for (text, dropped) in [
-        ("[H]/N=C=C=C/C", true),
-        (r"[H]/N=C=C=C\C", true),
-        ("[2H]/C([H])=C=C=C/C", true),
-        ("[H]/C([2H])=C=C=C/C", true),
+        ("[H]/N=C=C=C/C", false),
+        (r"[H]/N=C=C=C\C", false),
+        ("[2H]/C([H])=C=C=C/C", false),
+        ("[H]/C([2H])=C=C=C/C", false),
         ("[H]/C=C=C=C/C", false),
         ("[1H]/C=C=C=C/C", false),
         (r"[1H]/C=C=C=C\C", false),
@@ -156,8 +156,8 @@ fn lost_directions_follow_retained_and_removed_hydrogens() {
         ("[CH3:1]/C([CH3:2])=C=C=C/C", false),
         ("[H]/N=C=C=CC", false),
         ("[H]N=C=C=C/C", false),
-        ("C[C@H](F)/C([C@H](F)C)=C=C=C/[C@H](O)Cl", true),
-        ("C[C@H](F)/C([C@H](F)C)=C=C=C/[C@H](O)Cl |r|", true),
+        ("C[C@H](F)/C([C@H](F)C)=C=C=C/[C@H](O)Cl", false),
+        ("C[C@H](F)/C([C@H](F)C)=C=C=C/[C@H](O)Cl |r|", false),
     ] {
         let imported = crate::smiles::read(text, &crate::budget::Budget::default()).unwrap();
         assert_eq!(imported.dropped_cumulene_ez, dropped, "{text}");
@@ -174,4 +174,52 @@ fn lost_directions_follow_retained_and_removed_hydrogens() {
             .all(|a| a.atomic_number != 1 || a.isotope != 0),
         "directional ordinary H was removed"
     );
+}
+
+// P-93.4.2.3: E/Z of an odd cumulene relates the CIP-senior ligands of its
+// two terminal atoms.
+#[test]
+fn directions_give_the_cip_descriptor() {
+    for (text, e) in [
+        ("C/C=C=C=C/C", true),
+        (r"C/C=C=C=C\C", false),
+        (r"C(\C)=C=C=C/C", true),
+        (r"C\C=C=C=C\C", true),
+        ("C/C=C=C=C=C=C/C", true),
+        // A removed hydrogen lies opposite the methyl group.
+        ("[H]/C(C)=C=C=C/C", false),
+        ("[2H]/C(C)=C=C=C/C", false),
+        // The reference methyl is junior to fluorine.
+        ("C/C(F)=C=C=C/C", false),
+        ("F/C(C)=C=C=C/C", true),
+        ("C/N=C=C=N/C", true),
+        // A directed hydrogen on an imine nitrogen stays as the reference.
+        ("[H]/N=C=C=C/C", true),
+        (r"[H]/N=C=C=C\C", false),
+        // Issue #89: the Z propenyl branch is senior to the E one (rule 3).
+        (r"C/C=C/C(=C=C=C/F)/C=C\C", false),
+        (r"C/C=C/C(=C=C=C\F)/C=C\C", true),
+        // Both ligands of one end, consistently directed.
+        ("C/C(/F)=C=C=C/C", false),
+        (r"F\C(\C)=C=C=C\C", true),
+    ] {
+        let prepared = crate::smiles::prepare(text, &crate::budget::Budget::default()).unwrap();
+        let [ez] = prepared.cumulene_ez.as_slice() else {
+            panic!("{text}: {:?}", prepared.cumulene_ez)
+        };
+        assert_eq!(cumulene_is_e(&prepared.state, ez), Ok(Some(e)), "{text}");
+    }
+    for (text, dropped) in [
+        ("CC=C=C=CC", false),
+        ("C/C=C=C=CC", false),
+        ("C/C=C=C/C", false),
+        ("C/C(C)=C=C=C/C", false),
+        // Two ligands of one end on the same side contradict each other.
+        (r"C/C(\F)=C=C=C/C", true),
+        (r"F/C(\C)=C=C=C/C", true),
+    ] {
+        let imported = crate::smiles::read(text, &crate::budget::Budget::default()).unwrap();
+        assert!(imported.prepared.cumulene_ez.is_empty(), "{text}");
+        assert_eq!(imported.dropped_cumulene_ez, dropped, "{text}");
+    }
 }

@@ -308,6 +308,9 @@ impl Structure {
                 continue;
             };
             let refs = configuration.atom_refs;
+            if bond.other_atom(refs[1]) != Some(refs[2]) {
+                return Err(invalid("IR v1 cannot represent odd-cumulene E/Z"));
+            }
             let refs = if refs[1] == bond.from && refs[2] == bond.to {
                 [index(refs[0])?, index(refs[3])?]
             } else if refs[2] == bond.from && refs[1] == bond.to {

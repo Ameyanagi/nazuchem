@@ -1455,8 +1455,9 @@ mod tests {
                 assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
             }
         }
-        let error = super::super::name_smiles("F/C=C=C=C/Cl", &Default::default()).unwrap_err();
-        assert!(error.contains("cumulene E/Z"), "{error}");
+        // P-93.4.2.3: E/Z of an odd cumulene, cited at its first locant.
+        let name = super::super::name_smiles("F/C=C=C=C/Cl", &Default::default()).unwrap();
+        assert_eq!(name.text, "(1E)-1-chloro-4-fluorobuta-1,2,3-triene");
     }
 
     #[test]

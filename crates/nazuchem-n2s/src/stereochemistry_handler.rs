@@ -13,6 +13,7 @@
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/StereochemistryException.java | 42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/StructureBuildingException.java | 42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/StructureBuildingMethods.java | 42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91
+// Source: Nazuchem | crates/nazuchem-n2s/src/stereochemistry_handler.rs | issue #89
 // Copyright 2017 Daniel Lowe
 // Changes: Rust ownership, arena/container and error-handling adaptation; integrated native changes are documented in PORTING.md. Original function boundaries are marked below.
 
@@ -34,8 +35,9 @@ use crate::parse_tree::{Arena, NodeId};
 use crate::stereo_analyser::{StereoBond, StereoCentre};
 use crate::xml_declarations::*;
 use nazuchem_kernel::stereo::{
-    axis_ends_distinct,
+    CumuleneEz, axis_ends_distinct,
     cip::label,
+    cumulene_is_e,
     perception::{RingCache, RingKind},
 };
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -264,6 +266,9 @@ pub struct StereochemistryHandler<'a> {
     pseudo_stereo_centres: Vec<(AtomId, String)>,
     preassigned_pseudo_stereo_centres: Vec<(AtomId, String)>,
     deferred_full_cip_centres: Vec<(AtomId, String)>,
+    /// Odd cumulenes with an E/Z descriptor: a ligand of each terminal atom
+    /// around the two terminal atoms, the terminal bonds, and whether E.
+    cumulenes: Vec<([AtomId; 4], [BondId; 2], bool)>,
     replaced_parities: Vec<(AtomId, Option<AtomParity>)>,
     cage_stereo_groups: BTreeMap<AtomId, CageStereochemistry>,
     unknown_stereo_centres: Vec<UnknownStereoCentre>,
@@ -318,6 +323,7 @@ impl<'a> StereochemistryHandler<'a> {
             pseudo_stereo_centres: Vec::new(),
             preassigned_pseudo_stereo_centres: Vec::new(),
             deferred_full_cip_centres: Vec::new(),
+            cumulenes: Vec::new(),
             replaced_parities: Vec::new(),
             cage_stereo_groups: BTreeMap::new(),
             unknown_stereo_centres: Vec::new(),
@@ -590,6 +596,10 @@ impl<'a> StereochemistryHandler<'a> {
             }
         }
         self.warning_or_error(result)?;
+        for cumulene in std::mem::take(&mut self.cumulenes) {
+            let result = self.resolve_cumulene(cumulene);
+            self.warning_or_error(result)?;
+        }
         self.apply_cage_stereo_groups()?;
         if global.len() > 1 {
             let message = "More than one global indicator of rac- or rel- was specified";
@@ -1321,6 +1331,38 @@ impl<'a> StereochemistryHandler<'a> {
         }
         mismatch.map_or(Ok(()), stereo)
     }
+    /// P-93.4.2.3: E/Z of an odd cumulene relates the CIP-senior ligands of
+    /// its terminal atoms. Full CIP ranks them once the other descriptors,
+    /// which can distinguish those ligands, are applied.
+    // Provenance: fn StereochemistryHandler::resolve_cumulene | original
+    // Source: Nazuchem | crates/nazuchem-n2s/src/stereochemistry_handler.rs::StereochemistryHandler::resolve_cumulene
+    fn resolve_cumulene(&mut self, (refs, bonds, e): ([AtomId; 4], [BondId; 2], bool)) -> Result {
+        let (state, indices) = crate::modern_cip::state(self.graph())?;
+        let cis = CumuleneEz {
+            ends: [indices[&refs[1]], indices[&refs[2]]],
+            refs: [indices[&refs[0]], indices[&refs[3]]],
+            cis: true,
+        };
+        let Some(cis_is_e) =
+            cumulene_is_e(&state, &cis).map_err(StereochemistryError::Uninterpretable)?
+        else {
+            return stereo("Could not rank the ligands at the ends of a cumulene for E/Z");
+        };
+        let record = BondStereo {
+            atom_refs: refs,
+            value: if cis_is_e == e {
+                BondStereoValue::Cis
+            } else {
+                BondStereoValue::Trans
+            },
+        };
+        // Both terminal bonds hold the record, so the slashes at either end
+        // are treated as serving a stereo bond.
+        for bond in bonds {
+            self.state.graph_mut().bond_mut(bond).stereo = Some(record.clone());
+        }
+        Ok(())
+    }
     /// Why the current parities contradict a full-CIP descriptor, if they do.
     fn full_cip_mismatch(&self) -> Result<Option<String>> {
         let labels = crate::modern_cip::atom_labels(self.graph())?;
@@ -1564,7 +1606,7 @@ impl<'a> StereochemistryHandler<'a> {
             bonds.extend(inter);
             bonds
         };
-        for bond in candidates {
+        for &bond in &candidates {
             if let Some(stereo_bond) = self
                 .not_explicitly_defined_stereo_bond_map
                 .get(&bond)
@@ -1575,6 +1617,37 @@ impl<'a> StereochemistryHandler<'a> {
                 self.not_explicitly_defined_stereo_bond_map.remove(&bond);
                 return Ok(Some(bond));
             }
+        }
+        // P-93.4.2.3: E/Z on an odd cumulene relates the senior ligands of
+        // its two terminal atoms and is cited at a terminal atom's locant.
+        let located = locant.and_then(|locant| {
+            let base = crate::tree_tools::split_compound_locant(locant).map(|(base, _)| base);
+            self.graph()
+                .atom_by_locant(fragment, base.as_deref().unwrap_or(locant))
+        });
+        for bond in candidates {
+            let Some((refs, far)) = odd_cumulene(self.graph(), bond) else {
+                continue;
+            };
+            let has_hydrogen = |atom| {
+                self.graph()
+                    .neighbours(atom)
+                    .iter()
+                    .any(|&n| self.graph().atom(n).element == Element::H)
+            };
+            // An unknown (ξ) cumulene has no representation yet.
+            if !matches!(value, "E" | "Z")
+                || self
+                    .cumulenes
+                    .iter()
+                    .any(|(_, bonds, _)| bonds.contains(&bond))
+                || located.is_some_and(|atom| atom != refs[1] && atom != refs[2])
+                || cis_trans && !(has_hydrogen(refs[1]) && has_hydrogen(refs[2]))
+            {
+                continue;
+            }
+            self.cumulenes.push((refs, [bond, far], value == "E"));
+            return Ok(Some(bond));
         }
         Ok(None)
     }
@@ -2432,6 +2505,69 @@ pub fn apply_stereo_chemistry_to_stereo_bond(
         _ => return structure(format!("Unexpected stereochemistry type: {value}")),
     };
     Ok(())
+}
+/// For a terminal bond of an odd cumulene (three or more cumulated double
+/// bonds) whose terminal atoms can each carry two different ligands: a ligand,
+/// its terminal atom, the other terminal atom and a ligand of it, with the
+/// other terminal bond.
+// Provenance: fn odd_cumulene | original
+// Source: Nazuchem | crates/nazuchem-n2s/src/stereochemistry_handler.rs::odd_cumulene
+pub(crate) fn odd_cumulene(graph: &Graph, bond: BondId) -> Option<([AtomId; 4], BondId)> {
+    let doubles = |atom: AtomId| -> Vec<BondId> {
+        graph
+            .atom(atom)
+            .bonds
+            .iter()
+            .copied()
+            .filter(|&b| graph.bond(b).order == 2)
+            .collect()
+    };
+    let first = graph.bond(bond);
+    if first.order != 2 {
+        return None;
+    }
+    let start = [first.from, first.to]
+        .into_iter()
+        .find(|&atom| doubles(atom).len() == 1)?;
+    let (mut previous, mut atom, mut last, mut length) = (start, first.other_atom(start)?, bond, 1);
+    while let [a, b] = doubles(atom)[..] {
+        last = if a == last { b } else { a };
+        (previous, atom) = (atom, graph.bond(last).other_atom(atom)?);
+        length += 1;
+    }
+    if length < 3 || length % 2 == 0 || doubles(atom).len() != 1 {
+        return None;
+    }
+    // The reference is a ligand the SMILES writer keeps: not a plain hydrogen
+    // unless it is the only ligand, opposite an imine lone pair.
+    let ligand = |end: AtomId, inner: AtomId| {
+        let plain_hydrogen = |atom: &AtomId| {
+            let atom = graph.atom(*atom);
+            atom.element == Element::H && atom.isotope.is_none()
+        };
+        let ligands: Vec<_> = graph
+            .neighbours(end)
+            .into_iter()
+            .filter(|&ligand| ligand != inner)
+            .collect();
+        let end = graph.atom(end);
+        match ligands[..] {
+            [a, b] if !(plain_hydrogen(&a) && plain_hydrogen(&b)) => {
+                Some(if plain_hydrogen(&a) { b } else { a })
+            }
+            [a] if end.element == Element::N && end.charge == 0 => Some(a),
+            _ => None,
+        }
+    };
+    Some((
+        [
+            ligand(start, first.other_atom(start)?)?,
+            start,
+            atom,
+            ligand(atom, previous)?,
+        ],
+        last,
+    ))
 }
 // Provenance: fn cis_trans_unambiguous_on_bond | adapted
 // Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/StereochemistryHandler.java::cisTransUnambiguousOnBond

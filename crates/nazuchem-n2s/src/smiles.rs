@@ -1017,7 +1017,20 @@ impl<'a> Writer<'a> {
             if bond.order != 2 || bond.stereo.is_some() {
                 continue;
             }
-            let marked = [bond.from, bond.to].map(|atom| {
+            // Slashes at both terminal atoms of an odd cumulene specify its
+            // E/Z just as they do across one double bond (OpenSMILES 3.8.3).
+            // Constitutionally identical ligands at an end leave nothing to
+            // specify.
+            let cumulene = crate::stereochemistry_handler::odd_cumulene(self.graph, central)
+                .map(|(refs, _)| [refs[1], refs[2]])
+                .filter(|ends| {
+                    ends.iter().all(|&end| {
+                        crate::cip::CipSequenceRules::new(self.graph, end)
+                            .get_neighbouring_atoms_in_cip_order()
+                            .is_ok()
+                    })
+                });
+            let marked = cumulene.unwrap_or([bond.from, bond.to]).map(|atom| {
                 self.graph
                     .atom(atom)
                     .bonds
@@ -1034,6 +1047,7 @@ impl<'a> Writer<'a> {
             // Avoid specifying this bond through redundant neighbouring slashes.
             // A slash can serve stereo at either endpoint: each such endpoint
             // must retain another marked single bond after the whole side is cleared.
+            let mut cleared = false;
             for side in &marked {
                 if side.iter().all(|bond| {
                     let bond = self.graph.bond(*bond);
@@ -1052,11 +1066,19 @@ impl<'a> Writer<'a> {
                     for bond in side {
                         self.directions[bond.0] = None;
                     }
+                    cleared = true;
                     break;
                 }
             }
             // If neither side can be cleared safely, keep the slashes, as in
-            // conjugated chains with no redundant marks.
+            // conjugated chains with no redundant marks. Across a cumulene
+            // they would assert a configuration the structure does not have.
+            if cumulene.is_some() && !cleared {
+                return Err(SerializationError(
+                    "SMILES cannot leave a cumulene unspecified between specified double bonds"
+                        .into(),
+                ));
+            }
         }
         Ok(())
     }
@@ -1064,8 +1086,11 @@ impl<'a> Writer<'a> {
     fn assign_one_stereo(&mut self, central: BondId) -> Result<Vec<BondId>, SerializationError> {
         let stereo = self.graph.bond(central).stereo.as_ref().unwrap();
         let refs = stereo.atom_refs;
+        // An odd cumulene's record sits on its two terminal bonds, each
+        // holding one of the terminal atoms `refs[1]` and `refs[2]`.
         if self.graph.bond(central).order != 2
-            || self.graph.bond(central).other_atom(refs[1]) != Some(refs[2])
+            || self.graph.bond(central).other_atom(refs[1]).is_none()
+                && self.graph.bond(central).other_atom(refs[2]).is_none()
         {
             return Err(SerializationError(
                 "Bond stereo has invalid central bond references".into(),
@@ -1110,7 +1135,9 @@ impl<'a> Writer<'a> {
                 .bonds
                 .iter()
                 .copied()
-                .filter(|bond| *bond != primary && *bond != central)
+                .filter(|bond| {
+                    *bond != primary && *bond != central && self.graph.bond(*bond).order == 1
+                })
                 .collect();
             if bonds.len() == 1 && self.next[bonds[0].0].is_some() {
                 Some(bonds[0])
