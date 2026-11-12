@@ -4109,11 +4109,11 @@ pub(super) fn try_name_anhydride_component(
                 return Ok(None);
             }
             // Different ends on unlike acid groups of the dibasic acid need
-            // locants (P-65.7.6.3), which are not built here. The ranks
-            // ignore configuration, so a stereocentre counts as unlike.
+            // locants (P-65.7.6.2, P-65.7.6.3), which are not built here. The
+            // ranks ignore configuration, so any stereo counts as unlike.
             let ranks = canonical_ranks(mol, Some(&central));
             if left != right
-                && (ranks[&m1] != ranks[&m2] || central.iter().any(|a| mol.atoms[a].has_stereo()))
+                && (ranks[&m1] != ranks[&m2] || require_stereo_free_core(mol, &central).is_err())
             {
                 return Ok(None);
             }
@@ -4135,12 +4135,7 @@ pub(super) fn try_name_anhydride_component(
                 format!("bis({left}) {dibasic} {class}")
             } else if left == right
                 && left.bytes().all(|b| b.is_ascii_lowercase())
-                && ![
-                    "di", "tri", "tetr", "pent", "hex", "hept", "oct", "non", "dec", "undec", "do",
-                    "hen", "icos",
-                ]
-                .iter()
-                .any(|term| left.starts_with(term))
+                && !super::formatting::starts_with_multiplier(&left)
             {
                 format!("di{left} {dibasic} {class}")
             } else if left == right {
