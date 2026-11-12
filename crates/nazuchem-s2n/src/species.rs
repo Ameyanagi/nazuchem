@@ -354,7 +354,16 @@ pub(super) fn name_salt(
         let labelled = state.graph.atoms.iter().any(|a| a.isotope != 0)
             || state.metadata.atoms.iter().any(|a| a.chiral_tag != 0)
             || state.metadata.bonds.iter().any(|b| b.stereo != 0);
-        ions.push((q < 0, name, component, labelled));
+        // A mononuclear oxoanion such as carbonate, sulfate or phosphate: one
+        // central atom without hydrogen, every other atom oxygen.
+        let central: Vec<_> = (0..state.graph.atoms.len())
+            .filter(|&i| state.graph.atoms[i].atomic_number != 8)
+            .collect();
+        let oxoanion = q < 0
+            && state.graph.atoms.len() > 1
+            && matches!(central[..], [c] if state.graph.atoms[c].explicit_hydrogens == 0
+                && state.valences[c].implicit_hydrogens == 0);
+        ions.push((q < 0, name, component, labelled, oxoanion));
     }
     // The name without its stereodescriptor and isotopic descriptor groups, such
     // as `(2R,3R)-`, `(4aS)-`, `(2E)-`, `(2H3)` and `(1-13C)`, with every
@@ -403,7 +412,7 @@ pub(super) fn name_salt(
     };
     let keys: Vec<_> = ions
         .iter()
-        .map(|(negative, name, component, labelled)| {
+        .map(|(negative, name, component, labelled, _)| {
             if !labelled {
                 return salt_ion_sort_key(&name.text);
             }
@@ -455,7 +464,7 @@ pub(super) fn name_salt(
         })
     });
     let mut grouped = BTreeMap::new();
-    for ((negative, name, component, _), key) in ions.into_iter().zip(keys) {
+    for ((negative, name, component, _, oxoanion), key) in ions.into_iter().zip(keys) {
         let plain: String = name
             .text
             .chars()
@@ -470,8 +479,8 @@ pub(super) fn name_salt(
                 name.text.clone(),
                 component,
             ))
-            .or_insert((name, 0));
-        entry.1 += 1;
+            .or_insert((name, oxoanion, 0));
+        entry.2 += 1;
     }
     if charge != 0 {
         return Err(
@@ -481,12 +490,16 @@ pub(super) fn name_salt(
     }
     let mut status = NameStatus::Preferred;
     let mut words = Vec::new();
-    for (_, (name, count)) in grouped {
+    for (_, (name, oxoanion, count)) in grouped {
         // The strongest ion downgrade wins; ties keep the first ion's reason.
         if name.status.severity() > status.severity() {
             status = name.status;
         }
-        let complex = name.text.chars().any(|c| !c.is_ascii_alphabetic())
+        // P-16.3.6 (a): `bis(carbonate)` for two carbonate ions, since
+        // `dicarbonate` (like `disulfate` and `diphosphate`) names the
+        // condensed dinuclear anion.
+        let complex = oxoanion
+            || name.text.chars().any(|c| !c.is_ascii_alphabetic())
             || super::formatting::starts_with_multiplier(&name.text)
             || name.text.ends_with("aminium");
         let word = if count == 1 {
@@ -1465,6 +1478,39 @@ mod tests {
                 "calcium diacetate",
                 NameStatus::Preferred,
             ),
+            // Issue #92, P-16.3.6 (a): two mononuclear oxoanions take `bis`,
+            // because `dicarbonate`, `disulfate`, `disulfite`, `diphosphate`
+            // and `diborate` name the condensed dinuclear anions.
+            (
+                "[K+].[K+].[K+].[K+].[O-]C([O-])=O.[O-]C([O-])=O",
+                "tetrapotassium bis(carbonate)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Ca+2].[Ca+2].[O-]C([O-])=O.[O-]C([O-])=O",
+                "dicalcium bis(carbonate)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Na+].[Na+].[Na+].[O-]S([O-])(=O)=O.[O-]S([O-])(=O)=O",
+                "tetrasodium bis(sulfate)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Na+].[Na+].[Na+].[O-]S([O-])=O.[O-]S([O-])=O",
+                "tetrasodium bis(sulfite)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Na+].[Na+].[Na+].[Na+].[Na+].[O-]P([O-])([O-])=O.[O-]P([O-])([O-])=O",
+                "hexasodium bis(phosphate)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
+            (
+                "[Na+].[Na+].[Na+].[Na+].[Na+].[Na+].[O-]B([O-])[O-].[O-]B([O-])[O-]",
+                "hexasodium bis(borate)",
+                NameStatus::Unverified(NameReason::UnauditedPath),
+            ),
             (
                 "C[NH3+].C[NH3+].O=S(=O)([O-])[O-]",
                 "bis(methanaminium) sulfate",
@@ -1614,6 +1660,13 @@ mod tests {
                 "[bis(methanaminium) sulfate]\u{2014}water (1/2)",
                 mixed,
                 Some("bis(methanaminium) sulfate dihydrate"),
+            ),
+            // Issue #92, P-16.3.6 (a): the hydrate keeps `bis(carbonate)`.
+            (
+                "[K+].[K+].[K+].[K+].[O-]C([O-])=O.[O-]C([O-])=O.O",
+                "[tetrapotassium bis(carbonate)]\u{2014}water (1/1)",
+                mixed,
+                Some("tetrapotassium bis(carbonate) monohydrate"),
             ),
             (
                 "Nc1ccccc1.Nc1ccccc1.O",
