@@ -856,6 +856,29 @@ mod tests {
                 "[2-methyl(1-13C)propan-2-yl]benzene",
             ),
             ("CCC(CC)(CC[2H])O", "3-ethyl(1-2H1)pentan-3-ol"),
+            // It precedes the number of prefixes (P-45.2.1).
+            (
+                "[13CH3]CCC(CC[13CH3])C(C)CC",
+                "4-(butan-2-yl)(1,7-13C2)heptane",
+            ),
+            // P-44.4.1.11.2, P-44.4.1.11.3: then the higher atomic number
+            // and the higher mass number.
+            (
+                "OC(=O)CC(C[2H])([13CH3])C",
+                "3-(2H1)methyl-3-methyl(4-13C)butanoic acid",
+            ),
+            (
+                "OC(=O)CC([13CH3])(C[2H])C",
+                "3-(2H1)methyl-3-methyl(4-13C)butanoic acid",
+            ),
+            (
+                "OC(=O)CC([13CH3])([14CH3])C",
+                "3-(13C)methyl-3-methyl(4-14C)butanoic acid",
+            ),
+            (
+                "OC(=O)CC([14CH3])([13CH3])C",
+                "3-(13C)methyl-3-methyl(4-14C)butanoic acid",
+            ),
         ] {
             let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");

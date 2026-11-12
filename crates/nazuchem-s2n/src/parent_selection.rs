@@ -691,8 +691,9 @@ fn prefer_chain_prefix_locants(
     }
 }
 
-/// P-44.4.1.11.1: of the parents that tie through every earlier criterion,
-/// the one with more isotopically modified atoms is senior.
+/// P-44.4.1.11.1 to .3: of the parents that tie through every earlier
+/// criterion, the senior one has more isotopically modified atoms, then more
+/// nuclides of higher atomic number, then of higher mass number.
 // Provenance: fn prefer_isotopically_modified | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::prefer_isotopically_modified
 fn prefer_isotopically_modified(
@@ -703,23 +704,35 @@ fn prefer_isotopically_modified(
     if sites.is_empty() {
         return;
     }
-    let Some(best) = candidates.iter().map(|(s, _)| earlier_score(s)).min() else {
+    // The prefix criteria of P-45 and the stereo criteria come later.
+    let earlier = |score: &ParentScore| {
+        let mut score = earlier_score(score);
+        score.attached_prefixes = 0;
+        score.assembly_substituent_locants = None;
+        score.assembly_substituent_citation = None;
+        score.chain_prefix_locants = None;
+        score.exchanged_arm_stereo = 0;
+        score
+    };
+    let Some(best) = candidates.iter().map(|(s, _)| earlier(s)).min() else {
         return;
     };
     let modified = |selection: &ParentSelection| {
         let atoms = selection.atom_set();
-        sites
+        let mut nuclides: Vec<_> = sites
             .iter()
             .filter(|site| atoms.contains(&site.anchor))
-            .count()
+            .map(|site| site.priority())
+            .collect();
+        nuclides.sort_by(|a, b| b.cmp(a));
+        (nuclides.len(), nuclides)
     };
     let most = candidates
         .iter()
-        .filter(|(s, _)| earlier_score(s) == best)
+        .filter(|(s, _)| earlier(s) == best)
         .map(|(_, selection)| modified(selection))
         .max();
-    candidates
-        .retain(|(s, selection)| earlier_score(s) != best || Some(modified(selection)) == most);
+    candidates.retain(|(s, selection)| earlier(s) != best || Some(modified(selection)) == most);
 }
 
 /// The score through the last structural criterion, without the atom-order key.
