@@ -42,6 +42,12 @@ fn chalcogen_anion_names_follow_the_blue_book_and_round_trip() {
         ("[S-]Sc1ccc(cc1)C(=O)[O-]", "4-(disulfanidyl)benzoate"),
         ("[S-]SCC[S-]", "2-(disulfanidyl)ethane-1-thiolate"),
         ("[O-]OCC(=O)[O-]", "dioxidanidylacetate"),
+        // P-73.6, P-74.1.3: in a zwitterion the cation is a prefix on the
+        // anionic parent.
+        ("[O-]OCC[NH3+]", "2-azaniumylethane-1-peroxolate"),
+        ("[O-]SCC[NH3+]", "2-azaniumylethane-1-(SO-thioperoxolate)"),
+        // P-72.6.3: azanidyl on sulfanyl is not a chalcogen anion prefix.
+        ("[NH-]SCC(=O)[O-]", "(azanidylsulfanyl)acetate"),
         // P-65.1.4.1: ethanediperoxoic acid; P-72.2.2.2.1.1 for the anion.
         ("OOC(=O)C(=O)OO", "ethanediperoxoic acid"),
         ("OOC(=O)CCC(=O)OO", "butanediperoxoic acid"),
@@ -79,5 +85,24 @@ fn anionic_chalcogen_prefixes_that_read_back_wrong_are_declined() {
     // and selenosulfinyl groups, so no name is better than a wrong one.
     for smiles in ["[O-]SCC(=O)[O-]", "[O-][Se]CC(=O)[O-]", "[Se-]SCC(=O)[O-]"] {
         assert!(smiles_to_name(smiles).is_err(), "{smiles}");
+    }
+}
+
+#[test]
+fn multiplied_peroxy_infix_beside_another_infix_stays_on_one_acid() {
+    // P-65.2.1.2 (carbonodiperoxoic acid): the two singly bonded oxygens take
+    // the peroxy groups and thio replaces the doubly bonded one.
+    let budget = Budget::default();
+    for (name, smiles) in [
+        ("carbonodiperoxothioic acid", "OOC(=S)OO"),
+        ("carbonodiperoxoic acid", "OOC(=O)OO"),
+        ("phosphorotriperoxothioic acid", "OOP(=S)(OO)OO"),
+    ] {
+        let parsed = name_to_smiles(name).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        assert_eq!(
+            canonical_smiles(&parsed, &budget),
+            canonical_smiles(smiles, &budget),
+            "{name}"
+        );
     }
 }

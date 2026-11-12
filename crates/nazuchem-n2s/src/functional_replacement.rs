@@ -925,9 +925,10 @@ pub fn process_infix_functional_replacement_nomenclature(
         )?;
         let oxygen_available = single.len() + double.len();
         // A peroxy infix replaces only a singly bonded oxygen, so the "di" of
-        // ethanediperoxoic acid (P-65.1.4.1) multiplies the suffix.
+        // ethanediperoxoic acid (P-65.1.4.1) multiplies the suffix, while
+        // carbonodiperoxothioic acid has room for every infix.
         let replaceable = if transformations[0].starts_with("-O-:") {
-            single.len()
+            oxygen_available.min(single.len() + transformations.len() - 1)
         } else {
             oxygen_available
         };

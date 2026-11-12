@@ -1260,6 +1260,7 @@ fn name_sulfur(
         && atom.charge == 0
         && let [end] = ligands[..]
         && mol.degree(end) == 1
+        && matches!(mol.atoms[&end].symbol.as_str(), "O" | "S" | "Se" | "Te")
         && mol.atoms[&end].charge == -1
         && mol.bond_order(start, end) == 1
     {

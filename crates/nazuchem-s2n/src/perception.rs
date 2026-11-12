@@ -1571,7 +1571,7 @@ pub(super) fn is_anionic_group_key(key: &str) -> bool {
     matches!(
         key,
         "olate" | "thiolate" | "aminide" | "carboxylate" | "ring_carboxylate" | "sulfonate"
-    )
+    ) || key.starts_with("peroxolate_")
 }
 
 // An acid residue bonded to `link`: an acyl carbon, or the sulfur of a
