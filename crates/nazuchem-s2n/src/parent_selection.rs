@@ -16,6 +16,7 @@
 use super::{
     assembly_parts::SubstituentItem,
     assembly_prefixes::substituent_sort_key,
+    assembly_utils::parse_locant,
     chains::{RingSystem, canonical_ranks},
     locants::{LocantKey, retained_locant_sort_key},
     molecule::{AtomSet, Molecule},
@@ -23,6 +24,7 @@ use super::{
     numbering::{chain_orientations_before_stereo, chain_preference_before_stereo},
     perception::PerceivedGroup,
     ring_assembly::{RingAssembly, discover_ring_assemblies},
+    special_cases::alphanumerical_order_key,
 };
 use std::collections::BTreeMap;
 
@@ -380,10 +382,11 @@ pub(super) fn tied_principal_parents(
     candidates.into_iter().map(|(_, s)| s).collect()
 }
 
-/// P-45.2.2, P-45.2.3 and P-45.5 for one assembled candidate name: the
-/// prefix locant set, the prefix locants in order of citation, the nonitalic
-/// letters of the name, then its numerical locants in order of appearance.
-/// A letter locant such as N is lower than a numeral (P-14.3.5).
+/// P-45.2 and P-45.5 for one assembled candidate name: the most prefixes,
+/// the lower prefix locant set, the lower prefix locants in order of
+/// citation, then the alphanumerical order of the name (P-14.5): nonitalic
+/// letters, italic letters, locants in order of appearance. A letter locant
+/// such as N is lower than a numeral (P-14.3.5).
 // Provenance: fn assembled_name_preference | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::assembled_name_preference
 pub(super) fn assembled_name_preference(
@@ -393,35 +396,25 @@ pub(super) fn assembled_name_preference(
     let mut cited: Vec<_> = prefixes
         .iter()
         .flat_map(|prefix| {
-            prefix.locants.iter().map(|locant| {
-                (
-                    substituent_sort_key(&prefix.name),
-                    (
-                        locant.starts_with(|c: char| c.is_ascii_digit()),
-                        retained_locant_sort_key(locant),
-                    ),
-                )
-            })
+            prefix
+                .locants
+                .iter()
+                .map(|locant| (substituent_sort_key(&prefix.name), parse_locant(locant)))
         })
         .collect();
     cited.sort();
     let cited: Vec<_> = cited.into_iter().map(|(_, locant)| locant).collect();
     let mut locants = cited.clone();
     locants.sort();
-    // Capitals are locants and hydrogen; a letter after a digit is a locant.
-    let name = name.replace("tert-", "");
-    let letters: String = name
-        .char_indices()
-        .filter(|&(i, c)| {
-            c.is_ascii_lowercase() && !name[..i].ends_with(|c: char| c.is_ascii_digit())
-        })
-        .map(|(_, c)| c)
-        .collect();
-    let numbers: Vec<usize> = name
-        .split(|c: char| !c.is_ascii_digit())
-        .filter_map(|n| n.parse().ok())
-        .collect();
-    (locants, cited, letters, numbers)
+    let (roman, italic, _, numbers, _) = alphanumerical_order_key(name);
+    (
+        std::cmp::Reverse(cited.len()),
+        locants,
+        cited,
+        roman,
+        italic,
+        numbers,
+    )
 }
 
 /// P-44.4.1.10: chains tied through the number of double bonds prefer the
@@ -1612,6 +1605,27 @@ mod tests {
                     "CC(Br)C(Cl)C(C(=O)NC)C(Br)C(Cl)C",
                 ][..],
             ),
+            // P-45.2.2 and P-14.3.5: N^2 is lower than N^10.
+            (
+                "N^2-(11-aminododecan-3-yl)dodecane-2,10-diamine",
+                &[
+                    "CC(NC(CC)CCCCCCCC(N)C)CCCCCCCC(N)CC",
+                    "CCC(N)CCCCCCCC(C)NC(CC)CCCCCCCC(C)N",
+                ][..],
+            ),
+            // P-45.2.3: a stereocentre outside the tied rings takes no part.
+            (
+                "2-bromo-N-(4-bromo-2-chlorophenyl)-N-[(2R)-butan-2-yl]-4-chloroaniline",
+                &[
+                    "Brc1cc(Cl)ccc1N([C@H](C)CC)c1ccc(Br)cc1Cl",
+                    "Clc1cc(Br)ccc1N([C@H](C)CC)c1ccc(Cl)cc1Br",
+                ][..],
+            ),
+            // P-45.2.1: the urea with three N-substituents, not two.
+            (
+                "N-benzyl-N-methyl-N'-{3-[(phenylcarbamoyl)amino]propyl}urea",
+                &["O=C(Nc1ccccc1)NCCCNC(=O)N(C)Cc1ccccc1"][..],
+            ),
             // P-45.5 example (4): difluoro precedes dinitro.
             (
                 "4-(1,2-difluoropropyl)-5,6-dinitroheptanoic acid",
@@ -1643,9 +1657,9 @@ mod tests {
         }
     }
 
-    // P-45.2.2, P-45.2.3 and P-45.5: the locant sets, the locants in order of
-    // citation, the letters, then the numerical locants. N is lower than a
-    // numeral (P-14.3.5).
+    // P-45.2.1, P-45.2.2, P-45.2.3 and P-45.5: the number of prefixes, the
+    // locant sets, the locants in order of citation, the letters, then the
+    // numerical locants. N is lower than a numeral (P-14.3.5).
     #[test]
     fn assembled_name_preference_orders_locants_before_letters() {
         let key = |prefixes: &[(&str, &str)], name: &str| {
@@ -1655,6 +1669,8 @@ mod tests {
                 .collect();
             assembled_name_preference(&prefixes, name)
         };
+        // P-45.2.1: an N-substituent is a prefix like any other.
+        assert!(key(&[("methyl", "5"), ("phenyl", "N")], "z") < key(&[("methyl", "1")], "a"));
         // P-45.2.2 example (1): N,2 is lower than 2,5.
         assert!(
             key(&[("methyl", "N"), ("phenoxy", "2")], "z")
@@ -1665,10 +1681,14 @@ mod tests {
             key(&[("bromo", "2"), ("phenyl", "N"), ("chloro", "4")], "z")
                 < key(&[("bromo", "4"), ("phenyl", "N"), ("chloro", "2")], "a")
         );
+        // P-14.3.5: the superscript of a nitrogen locant is a number.
+        assert!(key(&[("methyl", "N^2")], "z") < key(&[("methyl", "N^10")], "a"));
         // P-45.5: letters, without locants such as N, 4a and 2H, then numbers.
         assert!(key(&[], "4a-bromo-2H-N") < key(&[], "1-chloro"));
         assert!(key(&[], "1-bromo-3-chloro") < key(&[], "2-bromo-1-chloro"));
+        // P-14.5.3: italic letters count after the Roman letters.
         assert!(key(&[], "2-tert-butyl") < key(&[], "1-chloro"));
+        assert!(key(&[], "2-(s-indacen-1-yl)") < key(&[], "1-(naphthalen-1-yl)"));
     }
 
     #[test]

@@ -413,10 +413,11 @@ fn component_pipeline(
             let mut tied = tied_principal_parents(mol, &chains, &rings, &principal, &groups);
             // P-45.2.2, P-45.2.3 and P-45.5 compare the assembled names of
             // the tied parents. Isotopes (P-44.4.1.11, P-45.4), nonstandard
-            // bonding numbers (P-45.3) and stereodescriptors (P-44.4.1.12,
-            // P-45.6) are not modelled, and a difference in the parent with
-            // its suffix is an earlier P-44.4.1 criterion; the atom-order
-            // choice stands in those cases.
+            // bonding numbers (P-45.3) and configuration in a tied parent
+            // (P-44.4.1.12) are not modelled, and a difference in the parent
+            // with its suffix is an earlier P-44.4.1 criterion; the
+            // atom-order choice stands in those cases.
+            let in_tied = |atom: &usize| tied.iter().any(|p| p.primary_path().contains(atom));
             let mut best = 0;
             if tied.len() > 1
                 && principal_atom.is_none()
@@ -424,8 +425,11 @@ fn component_pipeline(
                 && mol
                     .atoms
                     .values()
-                    .all(|a| a.isotope.is_none() && !a.has_stereo())
-                && mol.bonds.values().all(|b| b.stereo.is_none())
+                    .all(|a| a.isotope.is_none() && !(a.has_stereo() && in_tied(&a.idx)))
+                && mol
+                    .bonds
+                    .values()
+                    .all(|b| b.stereo.is_none() || !(in_tied(&b.u) || in_tied(&b.v)))
             {
                 let mut names = Vec::new();
                 for parent in &tied {
