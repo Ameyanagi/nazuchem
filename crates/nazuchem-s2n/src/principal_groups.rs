@@ -84,14 +84,17 @@ pub fn demote_neutral_suffixes_for_skeletal_anion(
         .collect();
     for group in groups {
         // The attachment may itself be anionic; only the characteristic
-        // group's own charge decides whether its suffix is junior.
+        // group's own charge decides whether its suffix is junior. Of the
+        // cationic classes, only those with charge-preserving prefixes
+        // (aminiumyl, azaniumyl, diazonio) are demoted, as in perception.
         let charge = group
             .atom_ids()
             .iter()
             .filter(|id| !skeletal_anions.contains(id))
             .map(|id| mol.atoms[id].charge)
             .sum::<i32>();
-        if charge >= 0
+        if (charge == 0
+            || charge > 0 && matches!(group.key.as_str(), "aminium" | "iminium" | "diazonio"))
             && !(group.key == "ketone"
                 && protected_ketone_rings
                     .iter()

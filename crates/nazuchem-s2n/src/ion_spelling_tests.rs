@@ -249,6 +249,19 @@ fn ion_spelling_matrix() {
             "2-(N,N-dimethylmethanaminiumyl)propan-2-ide",
             NameStatus::Preferred,
         ),
+        // P-16.3.6(a): diazaniumyl would be the hydrazinium group.
+        (
+            "two azaniumyl prefixes on an -ide",
+            "[NH3+]CC[CH-]CC[NH3+]",
+            "1,5-bis(azaniumyl)pentan-3-ide",
+            NameStatus::Preferred,
+        ),
+        (
+            "two azaniumyl prefixes on a carboxylate",
+            "[NH3+]CCC([NH3+])C(=O)[O-]",
+            "2,4-bis(azaniumyl)butanoate",
+            NameStatus::Preferred,
+        ),
         (
             "pyrrolidine cation",
             "C1CC[NH2+]C1",

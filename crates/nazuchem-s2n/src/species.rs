@@ -1040,7 +1040,13 @@ mod tests {
     // Provenance: fn tests::anion_parent_assessment_uses_the_cited_derivation | original
     // Source: ReShiki | src/naming/openclatura/species.rs::tests::anion_parent_assessment_uses_the_cited_derivation
     fn anion_parent_assessment_uses_the_cited_derivation() {
-        for smiles in ["C[N+](C)(C)CC[O-]", "[NH3+]CC([NH3+])C[O-]"] {
+        for smiles in [
+            "C[N+](C)(C)CC[O-]",
+            "[NH3+]CC([NH3+])C[O-]",
+            // No prefix keeps these cations, so they stay suffixes beside -ide.
+            "[CH2-]CC(=O)[NH3+]",
+            "[CH2-]CC#[NH+]",
+        ] {
             assert_eq!(
                 assess_component(smiles),
                 NameStatus::Unverified(NameReason::AnionParent),
