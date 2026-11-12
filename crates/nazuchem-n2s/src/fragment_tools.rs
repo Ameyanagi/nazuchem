@@ -544,13 +544,25 @@ fn compare_element_symbols(
     b: AtomId,
     order: &HashMap<AtomId, u8>,
 ) -> Ordering {
+    // Bonds to other fragments are prefixes the name has already attached.
+    // Counting them back as hydrogen keeps N3 and N'3 on the same geminal
+    // nitrogens while N3,N3,N'3 substituents are added (P-62.2.4.1.2).
+    let hydrogens = |atom: AtomId| {
+        let fragment = graph.atom(atom).fragment;
+        let attached: i32 = graph
+            .atom(atom)
+            .bonds
+            .iter()
+            .map(|bond| graph.bond(*bond))
+            .filter(|bond| graph.atom(bond.other_atom(atom).unwrap()).fragment != fragment)
+            .map(|bond| i32::from(bond.order))
+            .sum();
+        calculate_substitutable_hydrogen_atoms(graph, atom) + attached
+    };
     order[&a]
         .cmp(&order[&b])
         .then_with(|| graph.atom(b).out_valency.cmp(&graph.atom(a).out_valency))
-        .then_with(|| {
-            calculate_substitutable_hydrogen_atoms(graph, b)
-                .cmp(&calculate_substitutable_hydrogen_atoms(graph, a))
-        })
+        .then_with(|| hydrogens(b).cmp(&hydrogens(a)))
 }
 fn assign_element_locant(graph: &mut Graph, atom: AtomId, count: &mut HashMap<String, usize>) {
     let element = graph.atom(atom).element.symbol().to_owned();
