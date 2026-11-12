@@ -356,9 +356,9 @@ pub(super) fn name_salt(
             || state.metadata.bonds.iter().any(|b| b.stereo != 0);
         // A mononuclear oxoanion with two or more oxido or hydroxy groups on
         // its central atom, such as carbonate, sulfate or phosphate. Its acid
-        // condenses to a dinuclear one (dicarbonic acid, P-65.2), so
-        // `dicarbonate` would name that anion; nitrite and perchlorate have
-        // a single such group and keep `di`.
+        // condenses to a polynuclear one (dicarbonic acid, P-65.2.3;
+        // disulfuric acid, P-67.2.1), so `dicarbonate` would name that anion;
+        // nitrite has a single such group and keeps `di`.
         let (atoms, bonds) = (&state.graph.atoms, &state.graph.bonds);
         let central: Vec<_> = (0..atoms.len())
             .filter(|&i| atoms[i].atomic_number != 8)
