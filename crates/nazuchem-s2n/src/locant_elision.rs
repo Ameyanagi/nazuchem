@@ -669,15 +669,44 @@ pub fn ester_sites_are_equivalent(
     acid_atoms: &super::molecule::AtomSet,
     sites: &[usize],
 ) -> bool {
-    if sites.len() != 2 || sites[0] == sites[1] {
-        return false;
-    }
+    sites.len() == 2
+        && sites[0] != sites[1]
+        && sites_correspond(mol, acid_atoms, sites, &[sites[1], sites[0]], false)
+}
+
+/// Whether a symmetry of the component carries `from` onto `to`; unlike an
+/// exchange this also covers sites related only by a rotation of order three
+/// or more. R and S centres must map onto centres with the same descriptor,
+/// so the mapped structure is the same stereoisomer.
+// Provenance: fn site_maps_onto | adapted
+// Source: openclatura | src/openclatura/locant_elision.py::_elision_is_safe
+// Source: openclatura | src/openclatura/locant_elision.py::_decorated_labels
+pub fn site_maps_onto(
+    mol: &super::molecule::Molecule,
+    atoms: &super::molecule::AtomSet,
+    from: usize,
+    to: usize,
+) -> bool {
+    sites_correspond(mol, atoms, &[from], &[to], true)
+}
+
+// Provenance: fn sites_correspond | adapted
+// Source: openclatura | src/openclatura/locant_elision.py::_elision_is_safe
+// Source: openclatura | src/openclatura/locant_elision.py::_decorated_labels
+fn sites_correspond(
+    mol: &super::molecule::Molecule,
+    acid_atoms: &super::molecule::AtomSet,
+    sites: &[usize],
+    images: &[usize],
+    cip_labels: bool,
+) -> bool {
     let mut parts = AssemblyParts::new(acid_atoms.len());
     for &id in acid_atoms {
         let atom = &mol.atoms[&id];
         // An unlabeled graph cannot establish preservation of stereochemical
         // configurations or relative stereo under the proposed exchange.
-        if atom.has_stereo() {
+        if atom.has_stereo() && !(cip_labels && matches!(atom.stereo.as_deref(), Some("R" | "S")))
+        {
             return false;
         }
         let locant = id.to_string();
@@ -708,11 +737,11 @@ pub fn ester_sites_are_equivalent(
     let Some(g) = graph(&parts, true) else {
         return false;
     };
-    let positions: Option<Vec<_>> = sites
-        .iter()
-        .map(|id| g.locants.iter().position(|l| l == &id.to_string()))
-        .collect();
-    let Some(positions) = positions else {
+    let position = |id: &usize| g.locants.iter().position(|l| l == &id.to_string());
+    let (Some(positions), Some(images)) = (
+        sites.iter().map(position).collect::<Option<Vec<_>>>(),
+        images.iter().map(position).collect::<Option<Vec<_>>>(),
+    ) else {
         return false;
     };
     let mut all: Vec<_> = g
@@ -724,8 +753,11 @@ pub fn ester_sites_are_equivalent(
             Feature {
                 category: "atom_state",
                 key: format!(
-                    "{}:{}:{}",
-                    atom.total_h_count, atom.radical_electrons, atom.is_aromatic
+                    "{}:{}:{}:{}",
+                    atom.total_h_count,
+                    atom.radical_electrons,
+                    atom.is_aromatic,
+                    atom.stereo.as_deref().unwrap_or("")
                 ),
                 positions: vec![Position::Node(i)],
             }
@@ -740,8 +772,9 @@ pub fn ester_sites_are_equivalent(
         });
     }
     let actual = decorate(&g, &all);
-    all[fixed].positions[0] = Position::Node(positions[1]);
-    all[fixed + 1].positions[0] = Position::Node(positions[0]);
+    for (i, &image) in images.iter().enumerate() {
+        all[fixed + i].positions[0] = Position::Node(image);
+    }
     let candidate = decorate(&g, &all);
     let mut budget = MAX_CANDIDATE_PLACEMENTS;
     isomorphic(&g, &actual, &candidate, &mut budget) == Some(true)

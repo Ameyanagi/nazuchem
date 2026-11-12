@@ -759,8 +759,8 @@
         "anion": {"suffix": "{carbo}{infix}ate", "prefix": "{infix}carboxylato", "seniority": 21, "families": ["carboxy_prefix", "chain_external_carbonyl"], "capabilities": ["chain_external_carbonyl"]},
         "ester": {"suffix": "{carbo}{infix}ate", "prefix": "{infix}oxycarbonyl", "seniority": 40, "families": ["ester_like", "front_modifier", "chain_external_carbonyl"], "capabilities": ["ester_like", "front_modifier", "chain_external_carbonyl"]},
         "amide": {"suffix": "{carbo}{infix}amide", "prefix": "carbamo{infix}yl", "seniority": 60, "ranked_seniority": true, "families": ["amide_like", "chain_external_carbonyl"], "capabilities": ["amide_like", "chain_external_carbonyl"]},
-        "hydrazide": {"suffix": "{carbo}{infix}hydrazide", "prefix": "hydrazinecarb{infix}oyl", "seniority": 68, "families": ["amide_like", "hydrazide", "chain_external_carbonyl"], "capabilities": ["amide_like", "hydrazide", "chain_external_carbonyl"]},
-        "urea": {"suffix": "{infix}urea", "prefix": "carbamo{infix}ylamino", "seniority": 60, "families": ["amide_like", "urea"], "capabilities": ["amide_like", "urea"]},
+        "hydrazide": {"suffix": "{carbo}{infix}hydrazide", "prefix": "hydrazinecarbo{infix}yl", "seniority": 68, "families": ["amide_like", "hydrazide", "chain_external_carbonyl"], "capabilities": ["amide_like", "hydrazide", "chain_external_carbonyl"]},
+        "urea": {"suffix": "{infix}urea", "prefix": "carbamo{infix}ylamino", "seniority": 67, "families": ["amide_like", "urea"], "capabilities": ["amide_like", "urea"]},
         "acid_halide": {"suffix": "{carbo}{infix}yl {halide_word}", "prefix": "{halide_prefix}{infix}carbonyl", "seniority": 50, "families": ["acid_halide", "chain_external_carbonyl"], "capabilities": ["acid_halide", "acyl_leaving_group", "chain_external_carbonyl"]},
         "acyl_pseudohalide": {"suffix": "{carbo}{infix}yl {halide_word}", "prefix": "{halide_prefix}{infix}carbonyl", "seniority": 50, "families": ["acid_halide", "chain_external_carbonyl"], "capabilities": ["acid_halide", "acyl_leaving_group", "chain_external_carbonyl"]}
       },
@@ -1218,7 +1218,7 @@
             0
           ]
         },
-        "seniority": [60, 1],
+        "seniority": [67, 1],
         "suffix_with_locant": false,
         "needs_locant": true,
         "families": ["amide_like", "urea"]
@@ -1232,7 +1232,7 @@
             0
           ]
         },
-        "seniority": [60, 2],
+        "seniority": [67, 2],
         "suffix_with_locant": false,
         "needs_locant": true,
         "families": ["amide_like", "urea"]
@@ -1242,7 +1242,7 @@
         "prefix": "carbamoselenoylamino",
         "suffix": "selenourea",
         "multi_suffix": {"multiplier_positions": [0]},
-        "seniority": 62,
+        "seniority": [67, 3],
         "suffix_with_locant": false,
         "needs_locant": true,
         "families": ["amide_like", "urea"]
@@ -1252,7 +1252,7 @@
         "prefix": "carbamotelluroylamino",
         "suffix": "tellurourea",
         "multi_suffix": {"multiplier_positions": [0]},
-        "seniority": 63,
+        "seniority": [67, 4],
         "suffix_with_locant": false,
         "needs_locant": true,
         "families": ["amide_like", "urea"]
@@ -1307,7 +1307,7 @@
             0
           ]
         },
-        "seniority": 69,
+        "seniority": [65, 1],
         "suffix_with_locant": false,
         "needs_locant": true
       },
@@ -1320,7 +1320,7 @@
             0
           ]
         },
-        "seniority": 69,
+        "seniority": [65, 1],
         "suffix_with_locant": true,
         "needs_locant": true
       },
@@ -1333,7 +1333,7 @@
             0
           ]
         },
-        "seniority": [69, 1],
+        "seniority": [67, 9],
         "suffix_with_locant": false,
         "needs_locant": true
       },
@@ -1450,7 +1450,7 @@
             0
           ]
         },
-        "seniority": 80,
+        "seniority": 81,
         "suffix_with_locant": false,
         "needs_locant": true
       },

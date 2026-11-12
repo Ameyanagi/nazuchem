@@ -264,9 +264,10 @@ pub fn component_principal_key(
         }
         // P-70.2: ions precede neutral classes, including charge-separated
         // neutral groups such as azides and nitrile oxides.
-        (charge == 0, best, seniority.to_vec())
+        // Classes the rules leave level (the hydrazone spellings) fall back
+        // to the group key, so the choice does not follow the atom order.
+        (charge == 0, best, seniority.to_vec(), group.key.clone())
     };
-    // min_by keeps the first minimum, as Python's min does.
     groups
         .iter()
         .filter(|g| g.is_principal_candidate)
@@ -420,6 +421,43 @@ mod tests {
             assert_eq!(
                 candidate_principal_attachments(&mol, &groups, key.as_deref()).len(),
                 2,
+                "{smiles}"
+            );
+        }
+    }
+
+    /// P-41 classes 11 and 12 with P-43 Table 4.4: amides in the order of
+    /// their acids (carboxamides and chalcogen analogues, carboximidamides,
+    /// sulfonamides, then urea and guanidine from carbonic acid, class 7b;
+    /// P-66.1.6.1.1.5, P-66.4.1.2.1.3), all senior to hydrazides. P-41 class
+    /// 15: aldehydes before their chalcogen analogues.
+    #[test]
+    fn principal_class_follows_the_blue_book_suffix_order() {
+        use super::super::graph_io::read_smiles;
+        for (smiles, expected) in [
+            ("NC(=N)c1ccc(cc1)C(=O)NN", "ring_amidine"),
+            ("NC(=N)CCC(=O)NN", "amidine"),
+            ("NC(=N)CCS(=O)(=O)NN", "amidine"),
+            ("NC(=N)c1ccc(cc1)S(N)(=O)=O", "ring_amidine"),
+            ("NC(=N)c1ccc(cc1)C(N)=S", "ring_thioamide"),
+            ("NC(=N)c1ccc(cc1)C(N)=O", "ring_amide"),
+            ("NC(N)=NCCC(=O)NN", "guanidine"),
+            ("NC(N)=NCCS(N)(=O)=O", "sulfonamide"),
+            ("NC(N)=NCCC(N)=N", "amidine"),
+            ("NC(N)=NCCNC(N)=O", "urea"),
+            ("NC(=O)NCCS(N)(=O)=O", "sulfonamide"),
+            ("NC(=O)NCCC(N)=S", "thioamide"),
+            ("NC(=O)NCCC(N)=N", "amidine"),
+            ("NC(=O)NCCC(N)=O", "amide"),
+            ("NC(=O)NCCC(=O)NN", "urea"),
+            ("NC(=S)NCCS(N)(=O)=O", "sulfonamide"),
+            ("O=CCCC=S", "aldehyde"),
+            ("S=Cc1ccc(C=O)cc1", "ring_aldehyde"),
+        ] {
+            let mol = read_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(
+                component_principal_key(&mol, &perceive_groups(&mol), false).as_deref(),
+                Some(expected),
                 "{smiles}"
             );
         }
