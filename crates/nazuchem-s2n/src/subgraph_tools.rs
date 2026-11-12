@@ -134,7 +134,7 @@ pub fn add_parent_features(
     locants: &BTreeMap<usize, String>,
 ) -> Result<(), String> {
     use super::assembly_parts::{SubstituentItem, UnsaturationItem};
-    use super::nomenclature::section;
+    use super::nomenclature::NAMER_RULES;
     use super::rules::elements;
     if parts.retained_name.is_some() {
         for &idx in numbered_path {
@@ -200,16 +200,15 @@ pub fn add_parent_features(
             .filter_map(|&n| mol.get_bond(idx, n))
             .map(|b| b.order)
             .sum();
-        let charged = section("replacement_charge_states")
-            .as_array()
-            .and_then(|rows| {
-                rows.iter().find(|row| {
-                    row["symbol"].as_str() == Some(atom.symbol.as_str())
-                        && row["charge"].as_i64() == Some(atom.charge as i64)
-                        && row["valence"].as_u64() == Some((valence + atom.total_h_count) as u64)
-                })
+        let charged = NAMER_RULES
+            .replacement_charge_states
+            .iter()
+            .find(|row| {
+                row.symbol == atom.symbol
+                    && row.charge == atom.charge
+                    && row.valence == valence + atom.total_h_count
             })
-            .and_then(|row| row["prefix"].as_str());
+            .map(|row| row.prefix.as_str());
         let mut loc = locants[&idx].clone();
         // Upstream divergence: replacement lambda citations include every attached hydrogen in the bonding number.
         let bonding = valence + atom.total_h_count;

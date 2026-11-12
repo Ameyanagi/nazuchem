@@ -4430,8 +4430,8 @@ license = "MIT"
 sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/data/namer_rules.json", license = "MIT" },
 ]
-notes = "openclatura rules adapted for ion spellings, retained parents, alkoxy contractions and bond numbering; not byte-identical."
-sha256 = "a4f030cb3dcb704de38fd5d7951a751b919ee55ab0835df360c4e725e65512f6"
+notes = "openclatura rules adapted for ion spellings, retained parents, alkoxy contractions and bond numbering; sections and keys the port never reads removed; not byte-identical."
+sha256 = "9d4d38e4d28181cb91619e9f4f225b286e88773d7680c0f1b6922967b2cd7593"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/parser_grammar_snapshot.json"

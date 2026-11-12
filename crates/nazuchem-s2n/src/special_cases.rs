@@ -1754,7 +1754,10 @@ fn oxo_roles(mol: &Molecule, atoms: &AtomSet) -> Vec<OxoRole> {
 }
 // Provenance: fn matching_oxo_spec | adapted
 // Source: openclatura | src/openclatura/special_cases.py::_matching_oxoacid_spec
-fn matching_oxo_spec<'a>(mol: &Molecule, role: &OxoRole) -> Option<&'a serde_json::Value>
+fn matching_oxo_spec<'a>(
+    mol: &Molecule,
+    role: &OxoRole,
+) -> Option<&'a super::nomenclature::OxoacidSpec>
 where
     'static: 'a,
 {
@@ -1773,12 +1776,10 @@ where
         .replacement_parent_oxoacid_specs
         .iter()
         .find(|spec| {
-            spec["central"].as_str() == Some(atom.symbol.as_str())
-                && spec["single_o"].as_u64() == Some(single as u64)
-                && spec["double_o"].as_u64() == Some(double as u64)
-                && spec
-                    .get("charge")
-                    .is_none_or(|c| c.as_i64() == Some(i64::from(atom.charge)))
+            spec.central == atom.symbol
+                && spec.single_o == single
+                && spec.double_o == double
+                && spec.charge.is_none_or(|c| c == atom.charge)
         })
 }
 // Provenance: fn oxoacid_parent_name | adapted
@@ -1796,15 +1797,15 @@ fn oxoacid_parent_name(mol: &Molecule, atoms: &AtomSet) -> Option<String> {
         return None;
     }
     let spec = matching_oxo_spec(mol, r)?;
-    let field = if r.count(OxoLigandRole::Oxido) > 0
+    let name = if r.count(OxoLigandRole::Oxido) > 0
         && r.count(OxoLigandRole::Hydroxy) == 0
-        && spec["ester_suffix"].as_str().is_some_and(|s| !s.is_empty())
+        && !spec.ester_suffix.is_empty()
     {
-        "ester_suffix"
+        &spec.ester_suffix
     } else {
-        "name"
+        &spec.name
     };
-    spec[field].as_str().map(str::to_owned)
+    Some(name.clone())
 }
 // Provenance: fn modifier_phrase | adapted
 // Source: openclatura | src/openclatura/special_cases.py::_ester_modifier_phrase
@@ -1935,9 +1936,10 @@ fn oxoacid_ester_name(
         let Some(spec) = matching_oxo_spec(mol, &role) else {
             continue;
         };
-        let Some(base) = spec["ester_suffix"].as_str().filter(|s| !s.is_empty()) else {
+        let base = spec.ester_suffix.as_str();
+        if base.is_empty() {
             continue;
-        };
+        }
         let esters: Vec<_> = role
             .ligands
             .iter()
@@ -1976,7 +1978,7 @@ fn oxoacid_ester_name(
         }
         require_stereo_free_core(mol, &core)?;
         let hydroxy = role.count(OxoLigandRole::Hydroxy);
-        let suffix = if hydroxy == 0 || spec.get("charge").is_some() {
+        let suffix = if hydroxy == 0 || spec.charge.is_some() {
             base.to_owned()
         } else {
             let hydrogen = if hydroxy == 1 {
@@ -3122,7 +3124,7 @@ fn nitrogen_chalcogenide_name(
     mol: &Molecule,
     atoms: &AtomSet,
 ) -> Result<Option<StructuralParentName>, String> {
-    use super::nomenclature::section;
+    use super::nomenclature::NAMER_RULES;
     let mut matches = Vec::new();
     for &n in atoms {
         let a = &mol.atoms[&n];
@@ -3135,8 +3137,10 @@ fn nitrogen_chalcogenide_name(
                 || e.charge >= 0
                 || mol.degree(ch) != 1
                 || mol.bond_order(n, ch) != 1
-                || section("chalcogen_elements")[&e.symbol]["nitrogen_chalcogenide_citation"]
-                    .as_str()
+                || NAMER_RULES
+                    .chalcogen_elements
+                    .get(&e.symbol)
+                    .and_then(|c| c.nitrogen_chalcogenide_citation.as_deref())
                     != Some("functional_class")
             {
                 continue;
@@ -3186,7 +3190,10 @@ fn nitrogen_chalcogenide_name(
     if parent.text.is_empty() || !names_the_amine {
         return Ok(None);
     }
-    let Some(class) = section("chalcogenide_class_names")[&mol.atoms[&ch].symbol].as_str() else {
+    let Some(class) = NAMER_RULES
+        .chalcogenide_class_names
+        .get(&mol.atoms[&ch].symbol)
+    else {
         return Ok(None);
     };
     mol.mark_name(NameStatus::Unverified(NameReason::AmineChalcogenide));
@@ -3203,11 +3210,11 @@ fn nitrogen_chalcogenide_name(
 // Provenance: fn peroxide_linkage_name | adapted
 // Source: openclatura | src/openclatura/special_cases.py::peroxide_linkage_result
 fn peroxide_linkage_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>, String> {
-    use super::nomenclature::section;
+    use super::nomenclature::NAMER_RULES;
     let is_chalcogen = |i: usize| {
-        section("chalcogen_elements")
-            .get(&mol.atoms[&i].symbol)
-            .is_some()
+        NAMER_RULES
+            .chalcogen_elements
+            .contains_key(&mol.atoms[&i].symbol)
     };
     let mut matches = Vec::new();
     for bond in mol.bonds.values() {
@@ -3277,21 +3284,15 @@ fn peroxide_linkage_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<Strin
     let mut unique = vec![le.as_str(), re.as_str()];
     unique.sort();
     unique.dedup();
-    let Some(class) = section("chalcogen_peroxide_class_names")
-        .as_array()
-        .into_iter()
-        .flatten()
+    let Some(class) = NAMER_RULES
+        .chalcogen_peroxide_class_names
+        .iter()
         .find(|row| {
-            let mut e: Vec<_> = row["elements"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(serde_json::Value::as_str)
-                .collect();
+            let mut e: Vec<_> = row.elements.iter().map(String::as_str).collect();
             e.sort();
             e == unique
         })
-        .and_then(|row| row["name"].as_str())
+        .map(|row| &row.name)
     else {
         return Ok(None);
     };
@@ -3341,7 +3342,7 @@ fn anhydride_half_name(mol: &Molecule, start: usize, bridge: &AtomSet) -> Result
 // Provenance: fn anhydride_class_name | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::anhydride_class_name
 fn anhydride_class_name(mol: &Molecule, path: &[usize]) -> Option<String> {
-    use super::nomenclature::section;
+    use super::nomenclature::{NAMER_RULES, chalcogen_replacement_infix};
     let elements: Vec<_> = path[1..path.len() - 1]
         .iter()
         .map(|i| mol.atoms[i].symbol.as_str())
@@ -3350,9 +3351,7 @@ fn anhydride_class_name(mol: &Molecule, path: &[usize]) -> Option<String> {
         ["O"] => ("anhydride", String::new()),
         [element] => (
             "single_replacement_anhydride",
-            section("chalcogen_elements")[*element]["replacement_infix"]
-                .as_str()?
-                .to_owned(),
+            chalcogen_replacement_infix(element)?.to_owned(),
         ),
         ["O", "O"] => ("peroxyanhydride", String::new()),
         [a, b] => {
@@ -3360,21 +3359,17 @@ fn anhydride_class_name(mol: &Molecule, path: &[usize]) -> Option<String> {
             if replacements.len() == 1 {
                 (
                     "single_replacement_peroxyanhydride",
-                    section("chalcogen_elements")[replacements[0]]["replacement_infix"]
-                        .as_str()?
-                        .to_owned(),
+                    chalcogen_replacement_infix(replacements[0])?.to_owned(),
                 )
             } else if a == b {
                 (
                     "double_replacement_peroxyanhydride",
-                    section("chalcogen_elements")[*a]["replacement_infix"]
-                        .as_str()?
-                        .to_owned(),
+                    chalcogen_replacement_infix(a)?.to_owned(),
                 )
             } else {
                 let mut infixes = Vec::new();
                 for e in replacements {
-                    infixes.push(section("chalcogen_elements")[e]["replacement_infix"].as_str()?);
+                    infixes.push(chalcogen_replacement_infix(e)?);
                 }
                 infixes.sort();
                 ("mixed_replacement_peroxyanhydride", infixes.concat())
@@ -3383,8 +3378,9 @@ fn anhydride_class_name(mol: &Molecule, path: &[usize]) -> Option<String> {
         _ => return None,
     };
     Some(
-        section("chalcogen_templates")[template]
-            .as_str()?
+        NAMER_RULES
+            .chalcogen_templates
+            .get(template)?
             .replace("{replacement}", &replacement),
     )
 }

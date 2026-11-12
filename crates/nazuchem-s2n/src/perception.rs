@@ -24,7 +24,7 @@
 //! Structural functional-group detectors in the same priority order as Openclatura.
 use super::molecule::{AtomSet, Molecule};
 use super::nomenclature::{
-    FunctionalGroupRule, RULES, rule_from_value, section, table_rows, table_string,
+    FunctionalGroupRule, NAMER_RULES, RULES, chalcogen_replacement_infix, policy_rule,
 };
 use std::collections::{BTreeSet, VecDeque};
 
@@ -326,9 +326,10 @@ fn descriptor(
 // Provenance: fn rank | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::_element_rank
 fn rank(element: &str) -> i64 {
-    section("chalcogen_elements")[element]["rank"]
-        .as_i64()
-        .unwrap_or(4)
+    NAMER_RULES
+        .chalcogen_elements
+        .get(element)
+        .map_or(4, |e| e.rank)
 }
 // Provenance: fn infix | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::_replacement_infix
@@ -338,31 +339,21 @@ fn infix(elements: &[String]) -> String {
         .filter(|s| s.as_str() != "O")
         .collect::<Vec<_>>();
     if es.len() == 2 && es[0] == es[1] {
-        return format!(
-            "di{}",
-            section("chalcogen_elements")[es[0]]["replacement_infix"]
-                .as_str()
-                .unwrap_or("")
-        );
+        return format!("di{}", chalcogen_replacement_infix(es[0]).unwrap_or(""));
     }
-    es.sort_by_key(|e| {
-        section("chalcogen_elements")[*e]["replacement_infix"]
-            .as_str()
-            .unwrap_or("")
-    });
+    es.sort_by_key(|e| chalcogen_replacement_infix(e).unwrap_or(""));
     es.into_iter()
-        .map(|e| {
-            section("chalcogen_elements")[e]["replacement_infix"]
-                .as_str()
-                .unwrap_or("")
-        })
+        .map(|e| chalcogen_replacement_infix(e).unwrap_or(""))
         .collect()
 }
 // Provenance: fn template | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::inline in resolve_acyl_rule
 fn template(name: &str, values: &[(&str, String)]) -> String {
     format_template(
-        section("chalcogen_templates")[name].as_str().unwrap_or(""),
+        NAMER_RULES
+            .chalcogen_templates
+            .get(name)
+            .map_or("", String::as_str),
         values,
     )
 }
@@ -378,36 +369,33 @@ fn format_template(t: &str, values: &[(&str, String)]) -> String {
 // Provenance: fn simple_key | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::simple_group_key
 fn simple_key(family: &str, derivative: &str, element: &str, external: bool) -> Option<String> {
-    section("chalcogen_simple_group_keys")
-        .as_array()?
+    NAMER_RULES
+        .chalcogen_simple_group_keys
         .iter()
         .find(|v| {
-            v["family"] == family
-                && v["derivative"] == derivative
-                && v["element"] == element
-                && v["external"].as_bool().unwrap_or(false) == external
-        })?
-        .get("key")?
-        .as_str()
-        .map(str::to_owned)
+            v.family == family
+                && v.derivative == derivative
+                && v.element == element
+                && v.external == external
+        })
+        .map(|v| v.key.clone())
 }
 // Provenance: fn dynamic_rule | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::inline in resolve_acyl_rule
 fn dynamic_rule(
     key: &str,
-    policy: &serde_json::Value,
+    families: &BTreeSet<String>,
+    capabilities: &BTreeSet<String>,
     prefix: Option<String>,
     suffix: Option<String>,
     seniority: Vec<i64>,
     external: bool,
 ) -> FunctionalGroupRule {
-    let mut r = rule_from_value(key, policy);
-    r.role = "principal".into();
+    let mut r = policy_rule(key, families, capabilities);
     r.prefix = prefix;
     r.suffix = suffix;
     r.seniority = Some(seniority);
     r.suffix_with_locant = external;
-    r.suffix_multiplier_positions = vec![0];
     r
 }
 // Provenance: fn resolve_acyl | adapted
@@ -416,30 +404,25 @@ fn resolve_acyl(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGrou
     let double = &d.ligands[0];
     let single = d.ligands.get(1);
     let leaving = d.leaving_group.as_ref();
-    let leaving_data = leaving.map(|g| &section("chalcogen_acyl_leaving_groups")[&g.kind]);
+    let leaving_data = leaving.and_then(|g| NAMER_RULES.chalcogen_acyl_leaving_groups.get(&g.kind));
     if matches!(d.derivative.as_str(), "acid_halide" | "acyl_pseudohalide")
         && double.element == "O"
         && let Some(ld) = leaving_data
-        && let Some(k) = ld[if d.is_external {
-            "external_key"
+    {
+        let key = if d.is_external {
+            &ld.external_key
         } else {
-            "chain_key"
-        }]
-        .as_str()
-    {
-        return (k.to_owned(), None);
+            &ld.chain_key
+        };
+        return (key.clone(), None);
     }
-    if let Some(k) = table_rows("chalcogen_standard_acyl_keys")
-        .iter()
-        .find(|v| {
-            v["derivative"] == d.derivative
-                && v["double_element"] == double.element
-                && v["single_element"].as_str() == single.map(|l| l.element.as_str())
-                && v["external"].as_bool().unwrap_or(false) == d.is_external
-        })
-        .and_then(|v| v["key"].as_str())
-    {
-        return (k.to_owned(), None);
+    if let Some(row) = NAMER_RULES.chalcogen_standard_acyl_keys.iter().find(|v| {
+        v.derivative == d.derivative
+            && v.double_element == double.element
+            && v.single_element.as_deref() == single.map(|l| l.element.as_str())
+            && v.external == d.is_external
+    }) {
+        return (row.key.clone(), None);
     }
     let mut sites = double.element.clone();
     if let Some(s) = single {
@@ -456,29 +439,32 @@ fn resolve_acyl(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGrou
         sites,
         if d.is_external { "external" } else { "chain" }
     );
-    let policy = &section("chalcogen_rule_policies")["acyl"][&d.derivative];
+    let policy = NAMER_RULES
+        .chalcogen_rule_policies
+        .acyl
+        .get(&d.derivative)
+        .cloned()
+        .unwrap_or_default();
     let mut es = vec![double.element.clone()];
     if let Some(s) = single {
         es.push(s.element.clone());
     }
-    let mut seniority = vec![policy["seniority"].as_i64().unwrap_or(60)];
-    if policy["ranked_seniority"].as_bool().unwrap_or(false) {
+    let mut seniority = vec![policy.seniority.unwrap_or(60)];
+    if policy.ranked_seniority {
         seniority[0] += rank(&double.element);
     } else {
         seniority.extend(es.iter().map(|e| rank(e)));
-        if let Some(ld) = leaving_data {
-            seniority.push(ld["rank"].as_i64().unwrap_or(0));
+        if leaving.is_some() {
+            seniority.push(leaving_data.map_or(0, |ld| ld.rank));
         }
     }
-    if es
-        .iter()
-        .any(|e| section("chalcogen_elements")[e]["replacement_infix"].is_null())
-    {
+    if es.iter().any(|e| chalcogen_replacement_infix(e).is_none()) {
         return (
             key.clone(),
             Some(dynamic_rule(
                 &key,
-                policy,
+                &policy.families,
+                &policy.capabilities,
                 None,
                 None,
                 seniority,
@@ -508,28 +494,23 @@ fn resolve_acyl(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGrou
         ("site", site),
         (
             "halide_word",
-            leaving_data
-                .and_then(|l| l["word"].as_str())
-                .unwrap_or("")
-                .into(),
+            leaving_data.map_or("", |l| l.word.as_str()).into(),
         ),
         (
             "halide_prefix",
-            leaving_data
-                .and_then(|l| l["prefix"].as_str())
-                .unwrap_or("")
-                .into(),
+            leaving_data.map_or("", |l| l.prefix.as_str()).into(),
         ),
     ];
     let mut r = dynamic_rule(
         &key,
-        policy,
-        policy["prefix"].as_str().map(|p| format_template(p, &vals)),
-        policy["suffix"].as_str().map(|p| format_template(p, &vals)),
+        &policy.families,
+        &policy.capabilities,
+        policy.prefix.as_deref().map(|p| format_template(p, &vals)),
+        policy.suffix.as_deref().map(|p| format_template(p, &vals)),
         seniority,
         d.is_external,
     );
-    if let Some(t) = policy["citation_suffix"].as_str() {
+    if let Some(t) = &policy.citation_suffix {
         r.citation_suffixes
             .insert("anhydride_half".into(), format_template(t, &vals));
     }
@@ -548,10 +529,7 @@ fn peroxo_infix(a: &str, b: &str) -> String {
             "doubly_replaced_peroxo",
             &[(
                 "replacement",
-                section("chalcogen_elements")[a]["replacement_infix"]
-                    .as_str()
-                    .unwrap_or("")
-                    .into(),
+                chalcogen_replacement_infix(a).unwrap_or("").into(),
             )],
         )
     } else {
@@ -564,15 +542,12 @@ fn resolve_peroxy(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGr
     let ds = &d.ligands;
     let es = ds.iter().map(|l| l.element.clone()).collect::<Vec<_>>();
     if es.iter().all(|s| s == "O")
-        && let Some(k) = table_rows("chalcogen_standard_peroxy_acyl_keys")
+        && let Some(row) = NAMER_RULES
+            .chalcogen_standard_peroxy_acyl_keys
             .iter()
-            .find(|v| {
-                v["derivative"] == d.derivative
-                    && v["external"].as_bool().unwrap_or(false) == d.is_external
-            })
-            .and_then(|v| v["key"].as_str())
+            .find(|v| v.derivative == d.derivative && v.external == d.is_external)
     {
-        return (k.to_owned(), None);
+        return (row.key.clone(), None);
     }
     let key = format!(
         "acyl_{}_{}_{}",
@@ -580,8 +555,13 @@ fn resolve_peroxy(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGr
         es.join("_"),
         if d.is_external { "external" } else { "chain" }
     );
-    let policy = &section("chalcogen_rule_policies")["peroxy_acyl"][&d.derivative];
-    let mut seniority = vec![policy["seniority"].as_i64().unwrap_or(45)];
+    let policy = NAMER_RULES
+        .chalcogen_rule_policies
+        .peroxy_acyl
+        .get(&d.derivative)
+        .cloned()
+        .unwrap_or_default();
+    let mut seniority = vec![policy.seniority.unwrap_or(45)];
     seniority.extend(es.iter().map(|e| rank(e)));
     let vals = [
         (
@@ -629,7 +609,8 @@ fn resolve_peroxy(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGr
     let prefix = template("peroxy_prefix", &vals);
     let r = dynamic_rule(
         &key,
-        policy,
+        &policy.families,
+        &policy.capabilities,
         Some(prefix),
         Some(suffix),
         seniority,
@@ -1182,11 +1163,11 @@ fn acyl_group(
                 })
         });
     let registered = |l: &ChalcogenLigand| {
-        table_rows("chalcogen_standard_acyl_keys").iter().any(|v| {
-            v["derivative"] == "ester"
-                && v["double_element"] == double.element
-                && v["single_element"] == l.element
-                && v["external"].as_bool().unwrap_or(false) == external
+        NAMER_RULES.chalcogen_standard_acyl_keys.iter().any(|v| {
+            v.derivative == "ester"
+                && v.double_element == double.element
+                && v.single_element.as_deref() == Some(l.element.as_str())
+                && v.external == external
         })
     };
     let singles = ligands
@@ -1511,17 +1492,15 @@ fn cyclic_imide(
     let mut d = descriptor("acyl", "imide", cs.clone(), vec![l, r], cs[0], false);
     d.linker_paths = vec![vec![cs[0], n, cs[1]]];
     d.shared_atoms = vec![n];
-    let policy = &section("chalcogen_rule_policies")["imide_route"];
-    let key = policy["key"]
-        .as_str()
-        .unwrap_or("chalcogen_imide_route")
-        .to_owned();
+    let policy = &NAMER_RULES.chalcogen_rule_policies.imide_route;
+    let key = policy.key.clone();
     let rule = dynamic_rule(
         &key,
-        policy,
+        &policy.families,
+        &policy.capabilities,
         None,
         None,
-        vec![policy["seniority"].as_i64().unwrap_or(65)],
+        vec![policy.seniority],
         false,
     );
     Some(desc_group(key, Some(rule), cs[0], atoms, d))
@@ -1694,9 +1673,11 @@ fn anhydride_groups(m: &Molecule, used: &AtomSet) -> Vec<PerceivedGroup> {
                 };
                 let mut seniority = vec![30];
                 seniority.extend(es.iter().map(|e| rank(e)));
+                let policy = &NAMER_RULES.chalcogen_rule_policies.anhydride;
                 let r = dynamic_rule(
                     &key,
-                    &section("chalcogen_rule_policies")["anhydride"],
+                    &policy.families,
+                    &policy.capabilities,
                     None,
                     Some(suffix),
                     seniority,
@@ -1880,26 +1861,24 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
         .iter()
         .filter(|l| l.role != LigandRole::DoubleBonded)
         .collect::<Vec<_>>();
-    let origin = section("chalcogen_central_acid_origins")
-        .as_array()?
+    let origin = NAMER_RULES
+        .chalcogen_central_acid_origins
         .iter()
-        .find(|v| {
-            v["element"] == central && v["double_bond_count"].as_u64() == Some(doubles.len() as u64)
-        })?;
-    let stem = origin["stem"].as_str()?;
-    let origin_rank = origin["rank"].as_i64()?;
+        .find(|v| v.element == central && v.double_bond_count == doubles.len())?;
+    let stem = origin.stem.as_str();
+    let origin_rank = origin.rank;
     let all_o = d.ligands.iter().all(|l| l.element == "O");
-    let standard_field = match d.derivative.as_str() {
-        "acid" => "acid_key",
-        "anion" | "ester" => "ester_key",
-        "amide" => "amide_key",
-        _ => "",
+    let standard_key = match d.derivative.as_str() {
+        "acid" => &origin.acid_key,
+        "anion" | "ester" => &origin.ester_key,
+        "amide" => &origin.amide_key,
+        _ => &None,
     };
     if all_o
         && terminal.len() != 2
-        && let Some(k) = origin[standard_field].as_str()
+        && let Some(k) = standard_key
     {
-        return Some((k.into(), None));
+        return Some((k.clone(), None));
     }
     let es = d
         .ligands
@@ -1908,7 +1887,12 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
         .collect::<Vec<_>>();
     let key = format!("central_{}_{}_{}", central, d.derivative, es.join("_"));
     if terminal.len() == 2 {
-        let policy = &section("chalcogen_rule_policies")["central_peroxy"][&d.derivative];
+        let policy = NAMER_RULES
+            .chalcogen_rule_policies
+            .central_peroxy
+            .get(&d.derivative)
+            .cloned()
+            .unwrap_or_default();
         let di = infix(
             &doubles
                 .iter()
@@ -1952,11 +1936,12 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
                 .chain(es.iter().map(|e| rank(e)))
                 .collect()
         } else {
-            vec![policy["seniority"].as_i64().unwrap_or(45), origin_rank]
+            vec![policy.seniority.unwrap_or(45), origin_rank]
         };
         let rule = dynamic_rule(
             &key,
-            policy,
+            &policy.families,
+            &policy.capabilities,
             Some(template("central_peroxy_prefix", &vals)),
             Some(suffix),
             seniority,
@@ -1964,7 +1949,16 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
         );
         return Some((key, Some(rule)));
     }
-    let policy = &section("chalcogen_rule_policies")["central"][&d.derivative];
+    let policy = NAMER_RULES
+        .chalcogen_rule_policies
+        .central
+        .get(&d.derivative)
+        .cloned()
+        .unwrap_or_default();
+    let leaving = d
+        .leaving_group
+        .as_ref()
+        .and_then(|l| NAMER_RULES.chalcogen_acyl_leaving_groups.get(&l.kind));
     let infix = infix(&es);
     let suffix_stem = if infix.is_empty() {
         stem.into()
@@ -1974,21 +1968,12 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
     let mut seniority = if d.derivative == "acid" {
         vec![origin_rank]
     } else {
-        vec![policy["seniority"].as_i64().unwrap_or(66), origin_rank]
+        vec![policy.seniority.unwrap_or(66), origin_rank]
     };
     if matches!(d.derivative.as_str(), "amide" | "hydrazide") {
         seniority.extend(doubles.iter().map(|l| rank(&l.element)));
     } else if d.derivative == "acid_halide" {
-        seniority.push(
-            d.leaving_group
-                .as_ref()
-                .map(|l| {
-                    section("chalcogen_acyl_leaving_groups")[&l.kind]["rank"]
-                        .as_i64()
-                        .unwrap_or(0)
-                })
-                .unwrap_or(0),
-        );
+        seniority.push(leaving.map_or(0, |l| l.rank));
     } else {
         seniority.extend(es.iter().map(|e| rank(e)));
     }
@@ -2005,11 +1990,7 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
         ("site", site),
         (
             "halide_word",
-            d.leaving_group
-                .as_ref()
-                .and_then(|l| section("chalcogen_acyl_leaving_groups")[&l.kind]["word"].as_str())
-                .unwrap_or("")
-                .into(),
+            leaving.map_or("", |l| l.word.as_str()).into(),
         ),
     ];
     let suffix = if d.derivative == "hydrazide" && infix.is_empty() {
@@ -2018,7 +1999,7 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
         template(&format!("central_{}_suffix", d.derivative), &vals)
     };
     let prefix = if d.derivative == "acid" {
-        if let Some(prefix) = origin["acid_prefix"].as_str().filter(|_| all_o) {
+        if let Some(prefix) = origin.acid_prefix.as_deref().filter(|_| all_o) {
             prefix.into()
         } else {
             format!("{stem}o{infix}o")
@@ -2030,18 +2011,20 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
                 ("stem", stem.into()),
                 (
                     "halide_prefix",
-                    d.leaving_group
-                        .as_ref()
-                        .and_then(|l| {
-                            section("chalcogen_acyl_leaving_groups")[&l.kind]["prefix"].as_str()
-                        })
-                        .unwrap_or("")
-                        .into(),
+                    leaving.map_or("", |l| l.prefix.as_str()).into(),
                 ),
             ],
         )
     };
-    let rule = dynamic_rule(&key, policy, Some(prefix), Some(suffix), seniority, true);
+    let rule = dynamic_rule(
+        &key,
+        &policy.families,
+        &policy.capabilities,
+        Some(prefix),
+        Some(suffix),
+        seniority,
+        true,
+    );
     Some((key, Some(rule)))
 }
 // Provenance: fn composable_groups | adapted
@@ -2389,10 +2372,8 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                     } else if is_halogen(&m.atoms[&h].symbol) && m.degree(h) == 1 {
                         Some(format!(
                             "sulfonyl_{}",
-                            table_string(
-                                &section("chalcogen_acyl_leaving_groups")
-                                    [m.atoms[&h].symbol.as_str()]["word"]
-                            )
+                            NAMER_RULES.chalcogen_acyl_leaving_groups[m.atoms[&h].symbol.as_str()]
+                                .word
                         ))
                     } else {
                         None
@@ -2539,30 +2520,34 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
             let (attach, external) = external_attachment(m, c, &cyclic);
             let element = m.atoms[&e].symbol.as_str();
             let key = format!("{}nitrile_{}", if external { "ring_" } else { "" }, element);
-            let policy = &section("chalcogen_rule_policies")["nitrile_chalcogenide"];
+            let policy = &NAMER_RULES.chalcogen_rule_policies.nitrile_chalcogenide;
             let vals = [
                 ("carbo", if external { "carbo".into() } else { "".into() }),
                 (
                     "class_name",
-                    section("chalcogenide_class_names")[element]
-                        .as_str()
-                        .unwrap_or("oxide")
+                    NAMER_RULES
+                        .chalcogenide_class_names
+                        .get(element)
+                        .map_or("oxide", String::as_str)
                         .into(),
                 ),
                 (
                     "additive_prefix",
-                    section("chalcogen_elements")[element]["additive_prefix"]
-                        .as_str()
+                    NAMER_RULES
+                        .chalcogen_elements
+                        .get(element)
+                        .and_then(|e| e.additive_prefix.as_deref())
                         .unwrap_or("oxido")
                         .into(),
                 ),
             ];
             let r = dynamic_rule(
                 &key,
-                policy,
-                Some(format_template(table_string(&policy["prefix"]), &vals)),
-                Some(format_template(table_string(&policy["suffix"]), &vals)),
-                vec![policy["seniority"].as_i64().unwrap_or(5), rank(element)],
+                &policy.families,
+                &BTreeSet::new(),
+                Some(format_template(&policy.prefix, &vals)),
+                Some(format_template(&policy.suffix, &vals)),
+                vec![policy.seniority, rank(element)],
                 external,
             );
             let Some(ligand) = classify_chalcogen_ligand(m, n, e) else {
@@ -2801,30 +2786,27 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                 groups.push(g);
                 continue;
             }
-            let policy = section("chalcogen_peroxol_rules")
-                .as_array()
-                .and_then(|rows| {
-                    rows.iter().find(|r| {
-                        r["first"] == m.atoms[&first].symbol.as_str()
-                            && r["terminal"] == m.atoms[&end].symbol.as_str()
-                    })
-                });
+            let policy = NAMER_RULES
+                .chalcogen_peroxol_rules
+                .iter()
+                .find(|r| r.first == m.atoms[&first].symbol && r.terminal == m.atoms[&end].symbol);
             if let Some(policy) = policy {
                 let key = format!(
                     "peroxol_{}_{}",
                     m.atoms[&first].symbol.as_str(),
                     m.atoms[&end].symbol.as_str()
                 );
-                let fp = &section("chalcogen_rule_policies")["peroxol"];
+                let fp = &NAMER_RULES.chalcogen_rule_policies.peroxol;
                 let mut rule = dynamic_rule(
                     &key,
-                    fp,
+                    &fp.families,
+                    &fp.capabilities,
                     None,
-                    policy["suffix"].as_str().map(str::to_owned),
-                    vec![105, policy["rank"].as_i64().unwrap_or(0)],
+                    Some(policy.suffix.clone()),
+                    vec![105, policy.rank],
                     true,
                 );
-                rule.capabilities = super::nomenclature::values_strings(&policy["capabilities"]);
+                rule.capabilities = policy.capabilities.clone();
                 groups.push(desc_group(key, Some(rule), anchor, [first, end], d));
                 consumed.extend([first, end]);
             }

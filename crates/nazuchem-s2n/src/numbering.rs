@@ -154,9 +154,14 @@ pub struct NumberingPreference {
     pub stereochemistry: Vec<usize>,
 }
 
-#[derive(Clone, Copy)]
-enum NumberingCriterion {
+/// The registry lists the criteria by name; the two free-valence and ion
+/// criteria are inserted by `numbering_criteria` and cannot be listed.
+#[derive(Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NumberingCriterion {
+    #[serde(skip)]
     FreeValence,
+    #[serde(skip)]
     SkeletalIons,
     Principal,
     HeteroByPriority,
@@ -169,33 +174,10 @@ enum NumberingCriterion {
     Stereochemistry,
 }
 
-#[allow(
-    clippy::expect_used,
-    clippy::panic,
-    reason = "The immutable checked-in registry supplies arrays of known criterion names."
-)]
 // Provenance: fn numbering_criteria | adapted
 // Source: openclatura | src/openclatura/numbering.py::NUMBERING_CRITERIA module mapping
-fn numbering_criteria(parent_kind: &str) -> Vec<NumberingCriterion> {
-    let mut criteria: Vec<_> = super::nomenclature::section("numbering_criteria")[parent_kind]
-        .as_array()
-        .expect("numbering criteria")
-        .iter()
-        .map(
-            |criterion| match criterion.as_str().expect("numbering criterion") {
-                "principal" => NumberingCriterion::Principal,
-                "hetero_by_priority" => NumberingCriterion::HeteroByPriority,
-                "indicated_hydrogen" => NumberingCriterion::IndicatedHydrogen,
-                "hydro" => NumberingCriterion::Hydro,
-                "unsaturation" => NumberingCriterion::Unsaturation,
-                "double_bonds" => NumberingCriterion::DoubleBonds,
-                "substituent_and_unsaturation" => NumberingCriterion::SubstituentAndUnsaturation,
-                "substituent_citation" => NumberingCriterion::SubstituentCitation,
-                "stereochemistry" => NumberingCriterion::Stereochemistry,
-                name => panic!("unknown numbering criterion {name}"),
-            },
-        )
-        .collect();
+fn numbering_criteria(criteria: &[NumberingCriterion]) -> Vec<NumberingCriterion> {
+    let mut criteria = criteria.to_vec();
     // P-72.6.3: substituent free valences precede anionic centres, which
     // precede characteristic suffixes (P-72.5.3, P-74.1.1). Skeletal
     // cationic centres of a cation take the same place (P-73.6, P-73.5.3.2,
@@ -211,10 +193,11 @@ fn numbering_criteria(parent_kind: &str) -> Vec<NumberingCriterion> {
     criteria
 }
 
-static CHAIN_CRITERIA: LazyLock<Vec<NumberingCriterion>> =
-    LazyLock::new(|| numbering_criteria("chain"));
+static CHAIN_CRITERIA: LazyLock<Vec<NumberingCriterion>> = LazyLock::new(|| {
+    numbering_criteria(&super::nomenclature::NAMER_RULES.numbering_criteria.chain)
+});
 static RING_CRITERIA: LazyLock<Vec<NumberingCriterion>> =
-    LazyLock::new(|| numbering_criteria("ring"));
+    LazyLock::new(|| numbering_criteria(&super::nomenclature::NAMER_RULES.numbering_criteria.ring));
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 enum Criterion<'a> {

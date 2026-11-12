@@ -17,13 +17,12 @@
 //! Retained monocyclic and cage parents and graph-derived Hantzsch-Widman names.
 use super::super::{
     molecule::{AtomSet, Molecule},
-    nomenclature::section,
+    nomenclature::NAMER_RULES,
     retained_fused_templates::{GRAPH_DATA, RetainedGraphRow},
 };
 use super::{elements, elision, multipliers};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::LazyLock;
 
 #[derive(Clone, Debug)]
 pub struct RetainedMatch {
@@ -32,6 +31,7 @@ pub struct RetainedMatch {
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MonocycleSpec {
     pub name: String,
     pub size: usize,
@@ -46,18 +46,14 @@ pub struct MonocycleSpec {
     pub chalcogen_nitrogen_distance_multiset: Option<Vec<usize>>,
 }
 
-#[allow(
-    clippy::expect_used,
-    reason = "Monocycle specs are immutable checked-in registry data."
-)]
-static SPECS: LazyLock<Vec<MonocycleSpec>> = LazyLock::new(|| {
-    serde_json::from_value(section("retained_monocycle_specs").clone()).expect("monocycle specs")
-});
-
 // Provenance: fn monocycle_spec_for_name | adapted
 // Source: openclatura | src/openclatura/namer_config.py::_monocycle_spec
 fn monocycle_spec_for_name(name: &str) -> Option<MonocycleSpec> {
-    SPECS.iter().find(|spec| spec.name == name).cloned()
+    NAMER_RULES
+        .retained_monocycle_specs
+        .iter()
+        .find(|spec| spec.name == name)
+        .cloned()
 }
 
 /// Upstream memoizes generated specs by name for later hydro/indicated-H use.
@@ -230,7 +226,8 @@ fn match_monocycle_spec(
     symbols: &[String],
     hydro: bool,
 ) -> Option<String> {
-    SPECS
+    NAMER_RULES
+        .retained_monocycle_specs
         .iter()
         .find(|spec| {
             if spec.size != path.len() {

@@ -184,14 +184,11 @@ pub fn resolve_retained_parent(
     }
     let path = selection.primary_path();
     let retained = super::rules::retained::get_retained_ring(mol, path)?;
-    let allowed = super::nomenclature::section("retained_ring_elements");
-    if path.iter().any(|idx| {
-        !allowed
-            .as_array()
-            .into_iter()
-            .flatten()
-            .any(|value| value.as_str() == Some(mol.atoms[idx].symbol.as_str()))
-    }) {
+    let allowed = &super::nomenclature::NAMER_RULES.retained_ring_elements;
+    if path
+        .iter()
+        .any(|idx| !allowed.contains(&mol.atoms[idx].symbol))
+    {
         return None;
     }
     if retained.locant_maps.is_empty()
