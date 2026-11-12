@@ -1193,6 +1193,12 @@ mod tests {
                 "2-methyl-4,4'-bipyridine 1'-oxide",
                 &["Cc1cc(-c2cc[n+]([O-])cc2)ccn1"][..],
             ),
+            // Every nitrogen shares one Morgan rank, but N1 and N4 are not
+            // equivalent.
+            (
+                "4-[2-(aziridin-1-yl)ethyl]-1,4,7-triazabicyclo[5.2.2]undecane 4-oxide",
+                &["[N+]1([O-])(CCN2CC2)CCN3CCN(CC1)CC3"][..],
+            ),
             (
                 "(2R,5S)-1,2,4,5-tetramethylpiperazine 1-oxide",
                 &["C[N+]1([O-])[C@H](C)CN(C)[C@@H](C)C1"][..],
