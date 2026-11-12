@@ -2,7 +2,7 @@
 
 The release workflow publishes the five Rust libraries, the `nazuchem` PyPI
 wheels, the unscoped `nazuchem` npm package, and a GitHub Release with generated
-notes, the wheels and the npm package. All versions are currently **0.1.0**.
+notes, the wheels and the npm package. All versions are currently **0.2.0**.
 Releases accept only numeric **X.Y.Z** versions and matching **vX.Y.Z** tags; prerelease
 and build-metadata suffixes are not supported.
 
