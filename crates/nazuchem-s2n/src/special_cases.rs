@@ -6,6 +6,7 @@
 // Source: openclatura | src/openclatura/component_namer.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/special_cases.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #17
 // Source: openclatura | tests/exploratory/test_group14_ether_ligand_parent_selection.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_substituents.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -2629,6 +2630,518 @@ fn homonuclear_chain_parent_name(
     Ok(Some(name))
 }
 
+/// Hydrazine as the parent hydride of an acid, ester, acid halide, amide or
+/// hydrazide carbon on one of its nitrogens: N-N-C(=X)-Y is named with a
+/// `carbo...` suffix on hydrazine, numbered 1 and 2, as in
+/// 2-methylhydrazine-1-carboxylic acid, N,1-dimethylhydrazine-1-carboxamide
+/// and hydrazinecarbohydrazide (P-65.1.2.2.2, P-68.3.1.2.1, P-68.3.1.2.4,
+/// P-68.3.1.2.6). Hydrazine is the parent only while it carries at least as
+/// many principal characteristic groups as any other parent (P-44.1.1) and
+/// no ring nitrogen or second hydrazine competes (P-44.1.2, P-44.1.2.2);
+/// anything this cannot decide is left to the general namer.
+// Provenance: fn hydrazine_carbonyl_parent_name | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::hydrazine_carbonyl_parent_name
+fn hydrazine_carbonyl_parent_name(
+    mol: &Molecule,
+    atoms: &AtomSet,
+) -> Result<Option<String>, String> {
+    // A suffix carbon as seen from one hydrazine nitrogen. `code` is the
+    // class seniority used by the functional-group rules (20 acid, 22 peroxy
+    // acid, 40 ester, 50-53 acid halide, 60 amide, 68 hydrazide); `plain`
+    // marks the unreplaced suffix, the only one compared with other groups.
+    struct Suffix {
+        carbon: usize,
+        nitrogen: usize,
+        code: i64,
+        plain: bool,
+        text: String,
+        // Italic element locant of a chalcogen acid or ester (P-65.1.5.1).
+        site: &'static str,
+        y: usize,
+    }
+    if mol.is_isotope_parent() {
+        return Ok(None);
+    }
+    let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
+    let symbol = |i: usize| mol.atoms[&i].symbol.as_str();
+    let heavy = |i: usize| -> Vec<usize> {
+        mol.get_neighbors(i)
+            .iter()
+            .copied()
+            .filter(|&x| symbol(x) != "H")
+            .collect()
+    };
+    let chalcogen = |i: usize| matches!(symbol(i), "O" | "S" | "Se" | "Te");
+    let open = |i: usize| mol.atoms[&i].charge == 0 && !cyclic.contains(&i);
+    for &i in atoms {
+        let atom = &mol.atoms[&i];
+        // Ions, other elements and sulfur oxoacids have their own classes.
+        if !matches!(
+            symbol(i),
+            "C" | "H" | "N" | "O" | "S" | "Se" | "Te" | "F" | "Cl" | "Br" | "I"
+        ) || atom.charge != 0
+            && !mol
+                .get_neighbors(i)
+                .iter()
+                .any(|&x| mol.atoms[&x].charge == -atom.charge)
+            || chalcogen(i)
+                && heavy(i).len() > 2
+                && heavy(i)
+                    .iter()
+                    .any(|&x| mol.bond_order(i, x) == 1 && !matches!(symbol(x), "C" | "N"))
+        {
+            return Ok(None);
+        }
+    }
+    // The other nitrogen of an acyclic N-N single bond whose nitrogens carry
+    // only carbon.
+    let partner = |n: usize| -> Option<usize> {
+        let carbon_only = |a: usize, b: usize| {
+            symbol(a) == "N" && open(a) && heavy(a).iter().all(|&x| x == b || symbol(x) == "C")
+        };
+        let ns: Vec<_> = heavy(n).into_iter().filter(|&x| symbol(x) == "N").collect();
+        match ns[..] {
+            [m] if mol.bond_order(n, m) == 1 && carbon_only(n, m) && carbon_only(m, n) => Some(m),
+            _ => None,
+        }
+    };
+    let suffix_at = |carbon: usize, nitrogen: usize| -> Option<Suffix> {
+        let others: Vec<_> = heavy(carbon)
+            .into_iter()
+            .filter(|&x| x != nitrogen)
+            .collect();
+        let [p, q] = others[..] else { return None };
+        let (x, y) = if mol.bond_order(carbon, p) == 2 {
+            (p, q)
+        } else {
+            (q, p)
+        };
+        if symbol(carbon) != "C"
+            || !open(carbon)
+            || mol.bond_order(carbon, nitrogen) != 1
+            || mol.bond_order(carbon, x) != 2
+            || mol.bond_order(carbon, y) != 1
+            || mol.atoms[&x].charge != 0
+            || heavy(x).len() != 1
+            || !open(y)
+        {
+            return None;
+        }
+        let infix = match symbol(x) {
+            "O" => "",
+            "S" => "thio",
+            "Se" => "seleno",
+            "Te" => "telluro",
+            _ => return None,
+        };
+        let plain = infix.is_empty();
+        let beyond: Vec<_> = heavy(y).into_iter().filter(|&z| z != carbon).collect();
+        let (code, plain, text, site) = match symbol(y) {
+            "F" | "Cl" | "Br" | "I" if beyond.is_empty() => {
+                let (code, word) = match symbol(y) {
+                    "F" => (50, "fluoride"),
+                    "Cl" => (51, "chloride"),
+                    "Br" => (52, "bromide"),
+                    _ => (53, "iodide"),
+                };
+                let acyl = if plain { "carbonyl" } else { "carbo" };
+                let yl = if plain { "" } else { "yl" };
+                (code, plain, format!("{acyl}{infix}{yl} {word}"), "")
+            }
+            "N" if beyond.iter().all(|&z| mol.bond_order(y, z) == 1) => {
+                match beyond
+                    .iter()
+                    .filter(|&&z| symbol(z) == "N")
+                    .collect::<Vec<_>>()[..]
+                {
+                    [] if plain => (60, true, "carboxamide".into(), ""),
+                    [] => (60, false, format!("carbo{infix}amide"), ""),
+                    [_] if partner(y).is_some() => {
+                        (68, plain, format!("carbo{infix}hydrazide"), "")
+                    }
+                    _ => return None,
+                }
+            }
+            "O" | "S" | "Se" | "Te" => {
+                let ending = match beyond[..] {
+                    [] if mol.atoms[&y].total_h_count == 1 => "ic acid",
+                    // An acyl carbon here would make an anhydride.
+                    [r] if symbol(r) == "C"
+                        && heavy(r)
+                            .iter()
+                            .all(|&z| symbol(z) == "C" || mol.bond_order(r, z) == 1) =>
+                    {
+                        "ate"
+                    }
+                    // P-65.1.4.1: -CO-OOH, carboperoxoic acid.
+                    [o] if plain
+                        && symbol(y) == "O"
+                        && symbol(o) == "O"
+                        && mol.atoms[&o].charge == 0
+                        && heavy(o).len() == 1
+                        && mol.atoms[&o].total_h_count == 1 =>
+                    {
+                        return Some(Suffix {
+                            carbon,
+                            nitrogen,
+                            code: 22,
+                            plain: false,
+                            text: "carboperoxoic acid".into(),
+                            site: "",
+                            y,
+                        });
+                    }
+                    _ => return None,
+                };
+                let code = if ending == "ate" { 40 } else { 20 };
+                let replaced = match symbol(y) {
+                    "O" => "",
+                    "S" => "thio",
+                    "Se" => "seleno",
+                    _ => "telluro",
+                };
+                // P-65.1.5.1: one replaced chalcogen needs the O/S/Se/Te
+                // locant of the acid or ester site; mixed pairs are left out.
+                match (infix, replaced) {
+                    ("", "") if ending == "ate" => (code, true, "carboxylate".into(), ""),
+                    ("", "") => (code, true, "carboxylic acid".into(), ""),
+                    (a, b) if a == b => (code, false, format!("carbodi{a}{ending}"), ""),
+                    (a, "") | ("", a) => {
+                        let site = match symbol(y) {
+                            "O" => "O-",
+                            "S" => "S-",
+                            "Se" => "Se-",
+                            _ => "Te-",
+                        };
+                        (code, false, format!("carbo{a}{ending}"), site)
+                    }
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        };
+        Some(Suffix {
+            carbon,
+            nitrogen,
+            code,
+            plain,
+            text,
+            site,
+            y,
+        })
+    };
+    // A carbon substituent the prefix namer can cite: alkyl, aryl or acyl.
+    let citable = |root: usize, from: usize| {
+        let multiple: Vec<_> = heavy(root)
+            .into_iter()
+            .filter(|&x| x != from && symbol(x) != "C" && mol.bond_order(root, x) > 1)
+            .collect();
+        symbol(root) == "C"
+            && match multiple[..] {
+                [] => true,
+                [x] => {
+                    mol.bond_order(root, x) == 2
+                        && chalcogen(x)
+                        && heavy(root)
+                            .iter()
+                            .all(|&z| z == from || z == x || symbol(z) == "C")
+                }
+                _ => false,
+            }
+    };
+    let mut suffixes = Vec::new();
+    for &n in atoms {
+        if partner(n).is_some() {
+            suffixes.extend(heavy(n).into_iter().filter_map(|c| suffix_at(c, n)));
+        }
+    }
+    // Every acid-type carbon on an N-N nitrogen must be one of those suffixes.
+    for &c in atoms {
+        if symbol(c) == "C"
+            && !suffixes.iter().any(|s: &Suffix| s.carbon == c)
+            && open(c)
+            && heavy(c).iter().any(|&n| {
+                symbol(n) == "N" && heavy(n).iter().any(|&m| symbol(m) == "N") && !citable(c, n)
+            })
+        {
+            return Ok(None);
+        }
+    }
+    let Some(code) = suffixes.iter().map(|s| s.code).min() else {
+        return Ok(None);
+    };
+    // P-41 classes: acids, anhydrides, esters, acid halides, amides,
+    // hydrazides, then everything junior.
+    let class = |code: i64| match code {
+        ..20 => 0,
+        20..30 => 1,
+        30..40 => 2,
+        40..50 => 3,
+        50..60 => 4,
+        60..68 => 5,
+        68 => 6,
+        _ => 7,
+    };
+    let principal: Vec<_> = suffixes.iter().filter(|s| s.code == code).collect();
+    let first = principal[0];
+    if suffixes.iter().any(|s| {
+        class(s.code) == class(code) && (s.code, &s.text, s.site) != (code, &first.text, first.site)
+    }) {
+        return Ok(None);
+    }
+    // Groups elsewhere: a senior class wins outright and the same suffix
+    // competes by count (P-44.1.1). Within a class the unreplaced carbon
+    // suffix leads (P-41, classes 7a and 9 to 12), with amidines, as amides
+    // of imidic acids, ahead of hydrazides; other sub-class orders are not
+    // decided here.
+    let mut outside = 0;
+    for group in perceive_groups(mol) {
+        let own = group.atom_ids();
+        if !atoms.contains(&group.attachment_carbon)
+            || suffixes.iter().any(|s| own.contains(&s.carbon))
+        {
+            continue;
+        }
+        let Some(seniority) = group
+            .resolved_rule
+            .as_ref()
+            .and_then(|r| r.seniority.clone())
+        else {
+            continue;
+        };
+        if class(seniority[0]) < class(code) || seniority[0] == 69 && code == 68 {
+            return Ok(None);
+        }
+        if class(seniority[0]) == class(code) {
+            if first.plain && seniority == [code] {
+                outside += 1;
+            } else if !first.plain || seniority[0] <= code {
+                return Ok(None);
+            }
+        }
+    }
+    let mut units: Vec<[usize; 2]> = principal
+        .iter()
+        .filter_map(|s| Some([s.nitrogen, partner(s.nitrogen)?]))
+        .map(|[a, b]| [a.min(b), a.max(b)])
+        .collect();
+    units.sort();
+    units.dedup();
+    let on_unit = |unit: &[usize; 2]| {
+        principal
+            .iter()
+            .filter(|s| unit.contains(&s.nitrogen))
+            .count()
+    };
+    let count = units.iter().map(on_unit).max().unwrap_or(0);
+    units.retain(|unit| on_unit(unit) == count);
+    // Two hydrazines tie only as the two ends of one carbohydrazide.
+    let shared = units.len() == 2
+        && count == 1
+        && principal.len() == 2
+        && principal[0].carbon == principal[1].carbon;
+    if units.len() > 1 && !shared
+        || outside > count
+        || outside == count
+            && atoms
+                .iter()
+                .any(|&i| symbol(i) == "N" && cyclic.contains(&i))
+        || count > 2
+        || count == 2 && !(first.plain || first.code == 60)
+    {
+        return Ok(None);
+    }
+    let rank = |locant: &str| ["N", "N'", "1", "2"].iter().position(|l| *l == locant);
+    type Key = (usize, Vec<usize>, Vec<Option<usize>>, Vec<Option<usize>>);
+    let mut best: Option<(Key, String)> = None;
+    for unit in &units {
+        let own: Vec<_> = principal
+            .iter()
+            .filter(|s| unit.contains(&s.nitrogen))
+            .collect();
+        if own.len() == 2 && own[0].nitrogen == own[1].nitrogen {
+            return Ok(None);
+        }
+        for [one, two] in [[unit[0], unit[1]], [unit[1], unit[0]]] {
+            let mut core: AtomSet = unit.iter().copied().collect();
+            // Substituent prefixes with their locants, and ester words.
+            let mut cited: Vec<(&str, String)> = Vec::new();
+            let mut esters = Vec::new();
+            let mut sites: Vec<(&str, usize, usize)> = vec![("1", one, two), ("2", two, one)];
+            for s in &own {
+                core.extend([s.carbon, s.y]);
+                core.extend(heavy(s.carbon));
+                match s.code {
+                    40 => {
+                        let root = heavy(s.y).into_iter().find(|&r| r != s.carbon);
+                        let root = root.ok_or("openclatura: ester without alkyl group")?;
+                        esters.push(ester_modifier_name(
+                            mol,
+                            atoms,
+                            root,
+                            s.y,
+                            &set([s.carbon, s.y]),
+                        )?);
+                    }
+                    60 => sites.push(("N", s.y, s.carbon)),
+                    68 => {
+                        let far = partner(s.y).ok_or("openclatura: hydrazide without N'")?;
+                        core.insert(far);
+                        sites.extend([("N", s.y, s.carbon), ("N'", far, s.y)]);
+                    }
+                    _ => {}
+                }
+            }
+            let mut bonds = 0;
+            for &(locant, n, back) in &sites {
+                for root in heavy(n) {
+                    if root == back || core.contains(&root) {
+                        continue;
+                    }
+                    let order = mol.bond_order(n, root);
+                    let numeric = rank(locant) > Some(1);
+                    // No Blue Book example places an E/Z descriptor here.
+                    let ylidene = order == 2
+                        && heavy(root).iter().all(|&z| z == n || symbol(z) == "C")
+                        && mol.get_bond(n, root).is_some_and(|b| b.stereo.is_none());
+                    // A junior acid-type group on hydrazine is a prefix.
+                    let junior = suffix_at(root, n).filter(|_| numeric && order == 1);
+                    if !(ylidene || junior.is_some() || order == 1 && citable(root, n)) {
+                        return Ok(None);
+                    }
+                    let name = match &junior {
+                        // P-65.2.1.5: Cl-CO- is carbonochloridoyl.
+                        Some(s) if matches!(s.code, 50..=53) && s.plain => format!(
+                            "carbono{}oyl",
+                            s.text["carbonyl ".len()..].trim_end_matches('e')
+                        ),
+                        // P-66.3.2.1: H2N-NH-CO- is hydrazinecarbonyl.
+                        Some(s)
+                            if s.code == 68
+                                && s.plain
+                                && heavy(s.y).len() == 2
+                                && partner(s.y).is_some_and(|far| heavy(far).len() == 1) =>
+                        {
+                            "(hydrazinecarbonyl)".into()
+                        }
+                        Some(s) if s.code != 60 && !(s.code == 40 && s.plain) => {
+                            return Ok(None);
+                        }
+                        _ => branch_name(mol, atoms, root, &set([n]), n)?,
+                    };
+                    if name.is_empty()
+                        || ylidene != strip_outer_parentheses(&name).ends_with("ylidene")
+                    {
+                        return Ok(None);
+                    }
+                    // P-29.6.2.1: unsubstituted benzylidene is preferred.
+                    let name = if name == "(phenylmethylidene)" {
+                        "benzylidene".into()
+                    } else {
+                        name
+                    };
+                    bonds += order;
+                    cited.push((locant, name));
+                }
+            }
+            if require_stereo_free_core(mol, &core).is_err() || esters.iter().any(String::is_empty)
+            {
+                return Ok(None);
+            }
+            let mut names: Vec<_> = cited.iter().map(|(_, name)| name.clone()).collect();
+            names.sort_by_key(|name| substituent_sort_key(name));
+            names.dedup();
+            cited
+                .sort_by_key(|(locant, name)| (names.iter().position(|n| n == name), rank(locant)));
+            let numbered = cited.iter().any(|(locant, _)| rank(locant) > Some(1));
+            // Not spelled here: N^1/N^2 locants and unlike ester words on two
+            // suffixes, and two suffixes with every position substituted
+            // alike (P-14.3.4.5).
+            if own.len() == 2
+                && (cited.iter().any(|(locant, _)| rank(locant) < Some(2))
+                    || esters.iter().any(|e| *e != esters[0])
+                    || names.len() == 1 && bonds == 2)
+            {
+                return Ok(None);
+            }
+            // P-14.3.4.5: no locants when every position carries the same
+            // substituent.
+            let full = own.len() == 1
+                && names.len() == 1
+                && bonds == 2 * sites.len() - 1 - usize::from(code == 68);
+            let prefixes = names
+                .iter()
+                .map(|name| {
+                    let locants: Vec<_> = cited
+                        .iter()
+                        .filter(|(_, n)| n == name)
+                        .map(|(locant, _)| *locant)
+                        .collect();
+                    let text = format_multiplier(name, locants.len(), false);
+                    if full {
+                        text
+                    } else {
+                        format!("{}-{text}", locants.join(","))
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("-");
+            let mut locants: Vec<_> = own
+                .iter()
+                .map(|s| if s.nitrogen == one { "1" } else { "2" })
+                .collect();
+            locants.sort();
+            // P-14.3.4.2 (b): monosubstituted hydrazine needs no locant, as
+            // in N-phenylhydrazinecarboxamide.
+            let position = if own.len() == 1 && (full || !numbered) {
+                String::new()
+            } else {
+                format!("-{}-", locants.join(","))
+            };
+            let suffix = if own.len() == 1 {
+                first.text.clone()
+            } else {
+                // hydrazine-1,2-dicarbonyl dichloride
+                first
+                    .text
+                    .split(' ')
+                    .map(|word| {
+                        if word == "acid" {
+                            word.into()
+                        } else {
+                            format!("di{word}")
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            };
+            let ester = if esters.is_empty() {
+                String::new()
+            } else if first.site.is_empty() {
+                format!("{} ", modifier_phrase(&esters, false))
+            } else {
+                format!("{}{} ", first.site, format_multiplier(&esters[0], 1, false))
+            };
+            let suffix = suffix.replace(" acid", &format!(" {}acid", first.site));
+            let key: Key = (
+                usize::MAX - cited.iter().filter(|(l, _)| rank(l) > Some(1)).count(),
+                locants.iter().map(|l| usize::from(*l == "2")).collect(),
+                {
+                    let mut all: Vec<_> = cited.iter().map(|(l, _)| rank(l)).collect();
+                    all.sort();
+                    all
+                },
+                cited.iter().map(|(l, _)| rank(l)).collect(),
+            );
+            let name = format!("{ester}{prefixes}hydrazine{position}{suffix}");
+            if best.as_ref().is_none_or(|(k, _)| key < *k) {
+                best = Some((key, name));
+            }
+        }
+    }
+    Ok(best.map(|(_, name)| name))
+}
+
 // Provenance: fn nitrogen_ligands | adapted
 // Source: openclatura | src/openclatura/special_cases.py::_urea_n_ligand_names
 fn nitrogen_ligands(
@@ -3679,6 +4192,12 @@ pub(super) fn structural_replacement_parent_result(
         require_stereo_free_core(mol, atoms)?;
         return Ok(Some(StructuralParentName::ordinary(name)));
     }
+    if let Some(name) = mol.candidate(|| hydrazine_carbonyl_parent_name(mol, atoms))? {
+        return Ok(Some(StructuralParentName {
+            certified: true,
+            ..StructuralParentName::ordinary(name)
+        }));
+    }
     if let Some(name) = mol.candidate(|| simple_azine_parent_name(mol, atoms))? {
         return Ok(Some(StructuralParentName::ordinary(name)));
     }
@@ -3741,6 +4260,167 @@ mod tests {
     fn special(smiles: &str) -> Option<String> {
         let mol = read_smiles(smiles, &Default::default()).unwrap();
         structural_replacement_parent_name(&mol, &all_atoms(&mol)).unwrap()
+    }
+
+    #[test]
+    fn hydrazine_carries_carbon_acid_suffixes() {
+        // Issue #17. An acid, ester, acid halide, amide or hydrazide carbon
+        // on hydrazine is a suffix on hydrazine, numbered 1 and 2
+        // (P-65.1.2.2.2, P-68.3.1.2.1).
+        for (smiles, expected) in [
+            ("NNC(=O)O", "hydrazinecarboxylic acid"),
+            ("CNNC(=O)O", "2-methylhydrazine-1-carboxylic acid"),
+            ("OC(=O)N(C)N", "1-methylhydrazine-1-carboxylic acid"),
+            ("OC(=O)NN(C)C", "2,2-dimethylhydrazine-1-carboxylic acid"),
+            ("OC(=O)NNC(=O)O", "hydrazine-1,2-dicarboxylic acid"),
+            (
+                "CN(C(=O)O)NC(=O)O",
+                "1-methylhydrazine-1,2-dicarboxylic acid",
+            ),
+            // An acyl hydrazide is junior to the acid (P-41).
+            ("CC(=O)NNC(=O)O", "2-acetylhydrazine-1-carboxylic acid"),
+            // P-14.3.4.5: every position substituted alike.
+            ("CN(C)N(C)C(=O)O", "trimethylhydrazinecarboxylic acid"),
+            ("CN(C)N(C)C(=O)N(C)C", "pentamethylhydrazinecarboxamide"),
+            // P-65.1.4.1: peroxy acid.
+            ("NNC(=O)OO", "hydrazinecarboperoxoic acid"),
+            // P-65.1.5.1: chalcogen acids, with the O/S locant of the site.
+            ("NNC(=S)O", "hydrazinecarbothioic O-acid"),
+            ("NNC(=O)S", "hydrazinecarbothioic S-acid"),
+            ("NNC(=S)S", "hydrazinecarbodithioic acid"),
+            ("NNC(=O)[SeH]", "hydrazinecarboselenoic Se-acid"),
+            // P-65.6.3.2.1: esters.
+            ("NNC(=O)OC", "methyl hydrazinecarboxylate"),
+            ("CNNC(=O)OC", "methyl 2-methylhydrazine-1-carboxylate"),
+            ("NNC(=O)OC(C)(C)C", "tert-butyl hydrazinecarboxylate"),
+            ("NNC(=S)OC", "O-methyl hydrazinecarbothioate"),
+            ("NNC(=O)SC", "S-methyl hydrazinecarbothioate"),
+            ("NNC(=S)SC", "methyl hydrazinecarbodithioate"),
+            // P-65.5.1: acid halides.
+            ("NNC(=O)Cl", "hydrazinecarbonyl chloride"),
+            ("NNC(=S)Cl", "hydrazinecarbothioyl chloride"),
+            ("ClC(=O)NNC(=O)Cl", "hydrazine-1,2-dicarbonyl dichloride"),
+            // P-68.3.1.2.4: semicarbazides, with the Blue Book examples
+            // N-phenylhydrazinecarboxamide and
+            // N,1-dimethylhydrazine-1-carboxamide; P-66.1.4.1.1 for the
+            // chalcogen analogues.
+            ("NNC(N)=O", "hydrazinecarboxamide"),
+            ("NNC(=O)Nc1ccccc1", "N-phenylhydrazinecarboxamide"),
+            ("CN(N)C(=O)NC", "N,1-dimethylhydrazine-1-carboxamide"),
+            ("NC(=O)N(C)N", "1-methylhydrazine-1-carboxamide"),
+            ("CNNC(=S)N", "2-methylhydrazine-1-carbothioamide"),
+            ("NNC(N)=[Se]", "hydrazinecarboselenoamide"),
+            ("NC(=S)NNC(N)=S", "hydrazine-1,2-dicarbothioamide"),
+            (
+                "NC(=O)NN(C(N)=O)C([N+](=O)[O-])[N+](=O)[O-]",
+                "1-(dinitromethyl)hydrazine-1,2-dicarboxamide",
+            ),
+            // P-68.3.1.2.5: semicarbazones; benzylidene is the preferred
+            // prefix (P-29.6.2.1).
+            (
+                "CCCC(CC)=NNC(=O)N(c1ccccc1)c1ccccc1",
+                "2-(hexan-3-ylidene)-N,N-diphenylhydrazine-1-carboxamide",
+            ),
+            (
+                "CC(C)=NNC(N)=S",
+                "2-(propan-2-ylidene)hydrazine-1-carbothioamide",
+            ),
+            ("NC(=O)NN=Cc1ccccc1", "2-benzylidenehydrazine-1-carboxamide"),
+            // P-68.3.1.2.6, P-66.3.4: carbohydrazides; the hydrazine with
+            // more substituents is the parent.
+            ("NNC(=O)NN", "hydrazinecarbohydrazide"),
+            ("NNC(=S)NN", "hydrazinecarbothiohydrazide"),
+            ("NNC(=O)NNC", "2-methylhydrazine-1-carbohydrazide"),
+            ("CNNC(=O)N(C)N", "N,2-dimethylhydrazine-1-carbohydrazide"),
+            ("CC(=O)NNC(=O)NN", "2-acetylhydrazine-1-carbohydrazide"),
+            // A junior group on the same hydrazine is a prefix: carbamoyl
+            // (P-68.3.1.2.4), carbonochloridoyl (P-65.2.1.5),
+            // hydrazinecarbonyl (P-66.3.2.1).
+            ("NC(=O)NNC(=O)O", "2-carbamoylhydrazine-1-carboxylic acid"),
+            (
+                "COC(=O)NNC(=O)O",
+                "2-(methoxycarbonyl)hydrazine-1-carboxylic acid",
+            ),
+            (
+                "ClC(=O)NNC(=O)O",
+                "2-carbonochloridoylhydrazine-1-carboxylic acid",
+            ),
+            (
+                "NNC(=O)NNC(=O)O",
+                "2-(hydrazinecarbonyl)hydrazine-1-carboxylic acid",
+            ),
+            // P-44.1.1, P-44.1.2: with equal numbers of the principal group,
+            // nitrogen makes hydrazine senior to a carbon chain or ring, as
+            // in 2-(2-carboxyethyl)disilane-1-carboxylic acid (P-44.1.2.1).
+            (
+                "COC(=O)CNNC(=O)O",
+                "2-(2-methoxy-2-oxoethyl)hydrazine-1-carboxylic acid",
+            ),
+            (
+                "O=C(Cl)CNNC(=O)O",
+                "2-(2-chloro-2-oxoethyl)hydrazine-1-carboxylic acid",
+            ),
+            (
+                "NC(=O)CCNNC(=O)O",
+                "2-(3-amino-3-oxopropyl)hydrazine-1-carboxylic acid",
+            ),
+            (
+                "OC(=O)c1ccccc1NNC(=O)O",
+                "2-(2-carboxyphenyl)hydrazine-1-carboxylic acid",
+            ),
+            (
+                "NC(=O)CCNNC(N)=O",
+                "2-(3-amino-3-oxopropyl)hydrazine-1-carboxamide",
+            ),
+            (
+                "O=C(O)NNc1ccccn1",
+                "2-(pyridin-2-yl)hydrazine-1-carboxylic acid",
+            ),
+            // P-41, class 11: amides rank as their acids, carboxylic before
+            // sulfonic.
+            (
+                "NS(=O)(=O)CCNNC(N)=O",
+                "2-(2-sulfamoylethyl)hydrazine-1-carboxamide",
+            ),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}",
+            );
+        }
+        // A suffix needs a terminal =X and a terminal halogen.
+        for smiles in ["NNC(=[S](C)C)O", "NNC(=S(=O)=O)O", "NNC(=O)I(C)C"] {
+            let mol = read_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(
+                hydrazine_carbonyl_parent_name(&mol, &all_atoms(&mol)).unwrap(),
+                None,
+                "{smiles}"
+            );
+        }
+        // Left to the general namer: a parent with more of the principal
+        // group (P-44.1.1), a nitrogen ring with as many (P-44.1.2.2), two
+        // hydrazines with one each, a senior class elsewhere (P-41), and
+        // acylhydrazides (P-66.3.1.1).
+        for smiles in [
+            "OC(=O)CC(C(=O)O)NNC(=O)O",
+            "OC(=O)c1ccncc1NNC(=O)O",
+            "OC(=O)NNCCNNC(=O)O",
+            "OC(=O)CCNNC(N)=O",
+            "NNC=O",
+            "CC(=O)NNC(C)=O",
+        ] {
+            let mol = read_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(
+                hydrazine_carbonyl_parent_name(&mol, &all_atoms(&mol)).unwrap(),
+                None,
+                "{smiles}"
+            );
+        }
     }
 
     #[test]
