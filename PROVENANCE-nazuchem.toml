@@ -5907,7 +5907,7 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/phane.rs", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original graph-collapse and amplificant-numbering implementation for cyclic phane alternatives and linear-phane status detection."
+notes = "Original graph-collapse and amplificant-numbering implementation for cyclic phane alternatives, linear phane names and linear-phane status detection."
 
 [[file]]
 path = "crates/nazuchem-s2n/src/phane/tests.rs"
@@ -5917,6 +5917,7 @@ sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-inchi/src/test/resources/uk/ac/cam/ch/wwmm/opsin/phanes.txt", license = "MIT" },
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/phane/tests.rs", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/unit/test_analysis.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/phane/tests.rs", ref = "issue #4", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Rust phane test harness with explicit OPSIN phane-oracle fixture selectors and assertions."
 parts = [
@@ -5925,6 +5926,7 @@ parts = [
   { origin = "adapted", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/phane/tests.rs", license = "MIT OR Apache-2.0", symbol = "declines_out_of_scope_graphs" }, { project = "openclatura", path = "tests/unit/test_analysis.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT", symbol = "test_biphenyl_is_graph_selected_not_exact_name_rewritten" }], items = ["fn declines_out_of_scope_graphs"], notes = "Conservatively adapted exact upstream test inputs/expected names; exact coincidence does not establish independent ancestry. Local harness, assertions, status checks and additional cases remain local extensions. Conservative test-data attribution required by the requested audit rule: shared SMILES/chemical-name literals are attributed even when common chemistry or independent introduction is plausible. Implementation ancestry is uncertain; this decision attributes the test data and does not assert a mechanical port." },
   { origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/phane/tests.rs", license = "MIT OR Apache-2.0", symbol = "mixed_attachment_sets_follow_amplificant_seniority" }], items = ["fn mixed_attachment_sets_follow_amplificant_seniority"] },
   { origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/phane/tests.rs", license = "MIT OR Apache-2.0", symbol = "ordinary_names_with_phane_alternatives_are_never_preferred" }], items = ["fn ordinary_names_with_phane_alternatives_are_never_preferred"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/phane/tests.rs", ref = "issue #4", license = "MIT OR Apache-2.0", symbol = "linear_phanes_number_from_the_end_with_the_lower_locants" }], items = ["fn linear_phanes_number_from_the_end_with_the_lower_locants"] },
 ]
 
 [[file]]

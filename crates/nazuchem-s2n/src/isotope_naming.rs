@@ -389,7 +389,8 @@ pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Na
     super::validate_parent(&parent)?;
     parent.mark_isotope_parent();
     let atoms = parent.atoms.keys().copied().collect();
-    let base = component_namer::name_component_with_atom_locants(&parent, &atoms, Some(source))?;
+    let base =
+        component_namer::name_component_with_atom_locants(&parent, &atoms, Some(source), None)?;
     let locants = &base.locants;
     super::assess_derivation(&parent, &base.derivation);
     let symmetry = lowest_equivalent_map(&parent, &sites, locants)?;
