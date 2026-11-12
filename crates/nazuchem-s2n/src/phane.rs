@@ -235,6 +235,7 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
     let order_starts: Vec<_> = nodes.iter().copied().collect();
     // Each numbering is compared numerically, never by the rendered name.
     let mut best = None;
+    let mut ends = vec![];
     // A chain is numbered from either end, a cycle from any node either way.
     for &start in if linear {
         &terminals[..]
@@ -325,6 +326,17 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
                 hetero(Some("S")),
                 hetero(Some("N")),
             );
+            // P-26.4.2.3 lets a single unsymmetrical amplificant choose the
+            // end before P-26.4.2.4 compares the locants in name order. That
+            // rule is not modelled, so a chain whose ends differ only in
+            // attachment order is left to the substitutive name.
+            ends.push((key.0.clone(), key.1.clone(), key.2.clone(), key.3.clone()));
+            if linear
+                && (&ends[0].0, &ends[0].1, &ends[0].2) == (&key.0, &key.1, &key.2)
+                && ends[0].3 != key.3
+            {
+                return None;
+            }
             if best.as_ref().is_none_or(|(old, _)| key < *old) {
                 let mut parts = vec![];
                 for (symbol, prefix) in [("O", "oxa"), ("S", "thia"), ("N", "aza")] {
