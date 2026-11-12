@@ -334,16 +334,20 @@ fn rank(element: &str) -> i64 {
 // Provenance: fn infix | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::_replacement_infix
 pub(super) fn infix(elements: &[String]) -> String {
-    let mut es = elements
-        .iter()
-        .filter(|s| s.as_str() != "O")
-        .collect::<Vec<_>>();
-    if es.len() == 2 && es[0] == es[1] {
-        return format!("di{}", chalcogen_replacement_infix(es[0]).unwrap_or(""));
+    // Repeated infixes are multiplied (sulfonotrithioate, selenodithio) and
+    // cited in alphanumerical order (P-65.3.1.3, P-65.3.2.3 sulfonodithioyl).
+    let mut counts = std::collections::BTreeMap::<&str, usize>::new();
+    for e in elements.iter().filter(|s| s.as_str() != "O") {
+        *counts
+            .entry(chalcogen_replacement_infix(e).unwrap_or(""))
+            .or_default() += 1;
     }
-    es.sort_by_key(|e| chalcogen_replacement_infix(e).unwrap_or(""));
-    es.into_iter()
-        .map(|e| chalcogen_replacement_infix(e).unwrap_or(""))
+    counts
+        .into_iter()
+        .map(|(word, n)| match n {
+            1 => word.to_owned(),
+            n => format!("{}{word}", super::rules::multipliers::basic(n)),
+        })
         .collect()
 }
 // Provenance: fn template | adapted

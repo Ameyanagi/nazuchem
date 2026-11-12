@@ -502,7 +502,25 @@ fn chalcogen_acid_anion_prefixes_keep_charge_and_infix() {
             "4-sulfinothioatobenzoate",
             NameStatus::Preferred,
         ),
+        // Repeated replacement infixes are multiplied, not repeated.
+        (
+            "c1ccccc1S(=S)(=S)[S-]",
+            "benzenesulfonotrithioate",
+            prefix_only,
+        ),
     ] {
         assert_name_and_round_trip(&parser, smiles, expected, status);
+    }
+    for (smiles, expected) in [
+        (
+            "[S-]S(=S)(=S)c1ccc(cc1)C(=O)[O-]",
+            "4-sulfonotrithioatobenzoate",
+        ),
+        (
+            "[Se-]S(=S)(=S)c1ccc(cc1)C(=O)[O-]",
+            "4-sulfonoselenodithioatobenzoate",
+        ),
+    ] {
+        assert_eq!(name(smiles).unwrap().text, expected, "{smiles}");
     }
 }
