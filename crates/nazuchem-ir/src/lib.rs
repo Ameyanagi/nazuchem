@@ -113,6 +113,7 @@ pub enum NameReason {
     EndoExoStereo,
     UnknownConfiguration,
     AxialAlternative,
+    ParentConfiguration,
 }
 
 /// All naming reason values, serialized by binding declaration checks.
@@ -160,6 +161,7 @@ pub const NAME_REASONS: &[NameReason] = &[
     NameReason::EndoExoStereo,
     NameReason::UnknownConfiguration,
     NameReason::AxialAlternative,
+    NameReason::ParentConfiguration,
 ];
 
 impl NameReason {
@@ -257,6 +259,9 @@ impl NameReason {
             }
             Self::UnknownConfiguration => {
                 "Omits a descriptor for unknown configuration; preferred IUPAC names indicate unknown configuration with Ξ or ξ (P-91.2.1.2.1)."
+            }
+            Self::ParentConfiguration => {
+                "Equally senior parents differ in configuration that needs CIP sequence rules 4 and 5; the senior parent (P-44.4.1.12) has not been verified."
             }
             Self::PrincipalGroupTie => {
                 "Equally senior principal groups, such as a chain and a ring carboxylic acid, were chosen by atom order; the preferred parent (P-44.1) has not been verified."

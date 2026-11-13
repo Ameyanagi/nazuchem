@@ -16,7 +16,7 @@ export type NameReason =
   | "anion_parent" | "cation_parent" | "fusion_nitrogen_hydron" | "ionic_suffix_order"
   | "salt_ion_order"
   | "adduct" | "phane" | "relative_ring_stereo" | "endo_exo_stereo" | "unknown_configuration"
-  | "axial_alternative";
+  | "axial_alternative" | "parent_configuration";
 
 export type NameStatus = "preferred" | "not_preferred" | "unverified";
 

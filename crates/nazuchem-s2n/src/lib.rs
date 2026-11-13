@@ -1368,6 +1368,16 @@ mod tests {
                 "4-(hydrazono)pentanal hydrazone",
                 &["NN=CCCC(C)=NN", "C(CC(=NN)C)C=NN"][..],
             ),
+            // P-44.4.1.12.2: of two butan-2-ol parents the like pair (2R,3R)
+            // precedes the unlike pair (2R,3S).
+            (
+                "(2R,3R)-3-[(3-{[(2S,3R)-3-hydroxybutan-2-yl]amino}hexan-3-yl)amino]butan-2-ol",
+                &[
+                    "CCC(N[C@H](C)[C@@H](C)O)(N[C@@H](C)[C@@H](C)O)CCC",
+                    "CCC(N[C@@H](C)[C@@H](C)O)(N[C@H](C)[C@@H](C)O)CCC",
+                    "O[C@H](C)[C@H](C)NC(CC)(CCC)N[C@H](C)[C@@H](C)O",
+                ][..],
+            ),
         ] {
             let identity = crate::test_support::canonical_smiles(inputs[0]).unwrap();
             let parsed = crate::test_support::parse_strict(expected).unwrap();
@@ -3792,6 +3802,18 @@ mod tests {
                 "C12=CC=C(C3=CC=CC=C13)O2",
                 "1,4-epoxynaphthalene",
                 R::BridgedFusedParent,
+            ),
+            // P-44.4.1.12.2: three centres, and RS against SR, need CIP
+            // rules 4 and 5.
+            (
+                "CCC(N[C@H](C)[C@@H](Cl)[C@@H](C)O)(N[C@@H](C)[C@@H](Cl)[C@@H](C)O)CCC",
+                "(2R,3R,4R)-3-chloro-4-[(3-{[(2S,3R,4R)-3-chloro-4-hydroxypentan-2-yl]amino}hexan-3-yl)amino]pentan-2-ol",
+                R::ParentConfiguration,
+            ),
+            (
+                "CCC(N[C@H](C)[C@H](C)O)(N[C@@H](C)[C@@H](C)O)CCC",
+                "(2S,3R)-3-[(3-{[(2S,3R)-3-hydroxybutan-2-yl]amino}hexan-3-yl)amino]butan-2-ol",
+                R::ParentConfiguration,
             ),
             (
                 "c1oc2cc3nc4ccccc4nc3cc2c1",
