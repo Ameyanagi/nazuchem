@@ -4189,14 +4189,26 @@ mod tests {
                 "1,3,7-trimethyl-3,7-dihydro-1H-purine-2,6-dione",
             ),
             ("O=C1NC(=O)c2ccccc12", "1H-isoindole-1,3(2H)-dione"),
-            // Issue #95 leftovers. P-14.7.1: a fusion N takes no double bond,
-            // so the parent's indicated hydrogen is counted without it.
+            // Issue #95 leftovers. P-25.7.1.1, P-14.7.1: a fusion N takes no
+            // double bond, so the parent's indicated hydrogen is counted
+            // without it.
             // P-58.2.3.1.4, the Blue Book example: neither ketone position
             // can take the hydrogen, and the two ketones remove one double
             // bond, so no added hydrogen is cited (P-58.2.2.3).
             (
                 "C1C=CN2CC(=O)C=C3C(=O)C=CC1=C23",
                 "1H,5H-pyrido[3,2,1-ij]quinoline-6,8-dione",
+            ),
+            (
+                "O=C1C=C2C(=O)C=CC3=C2N(C1)C=CC3",
+                "1H,5H-pyrido[3,2,1-ij]quinoline-6,8-dione",
+            ),
+            // P-58.2.3.1.4 with P-58.2.3.1.3 (1)-(3): 5,6 cannot both take
+            // the hydrogen; one stays at the lowest position (3), the other
+            // goes to ketone 5, and ketone 6 takes added hydrogen.
+            (
+                "O=C1C(=O)CN2N=CCN12",
+                "3H,5H-pyrazolo[1,2-a][1,2,3]triazole-5,6(7H)-dione",
             ),
             // P-58.2.3.1.1: as many indicated hydrogens as ketones.
             (
@@ -4243,6 +4255,7 @@ mod tests {
             // saturated positions', also when the double bonds between them
             // move ('1,2-dihydro-3H-indol-3-one' in P-64.3.1).
             ("O=C1CC=CC2=CNC=C12", "2,5-dihydro-4H-isoindol-4-one"),
+            ("O=C1CC=Cc2c[nH]cc12", "2,5-dihydro-4H-isoindol-4-one"),
             // P-58.2.2.2: without indicated hydrogen in the parent, the added
             // hydrogen takes the lowest position the double bonds allow.
             (

@@ -1151,13 +1151,17 @@ fn suffix_hydrogen_rank(
         .collect();
     (
         lowest_indicated,
-        // P-58.2.2.3, P-58.2.3.1.4: no added hydrogen is cited where the
-        // suffixes simply remove a double bond
-        // ('1H,5H-pyrido[3,2,1-ij]quinoline-6,8-dione').
-        (state.bond_delta.added_hydrogen_operations.iter())
-            .map(|op| op.locants.len())
-            .sum::<usize>(),
-        std::cmp::Reverse(indicated.iter().filter(|l| suffix.contains(*l)).count()),
+        // P-58.2.3.1.1, P-58.2.3.1.3: indicated hydrogen goes to the suffix
+        // atoms. One that still leaves an added hydrogen to cite is no gain
+        // over suffixes that simply remove a double bond (P-58.2.2.3); the
+        // lowest locants then decide (P-58.2.3.1.4,
+        // '1H,5H-pyrido[3,2,1-ij]quinoline-6,8-dione', not '1H,8H-...-6,8(5H)-dione').
+        std::cmp::Reverse(
+            indicated.iter().filter(|l| suffix.contains(*l)).count() as isize
+                - (state.bond_delta.added_hydrogen_operations.iter())
+                    .map(|op| op.locants.len() as isize)
+                    .sum::<isize>(),
+        ),
         indicated
             .iter()
             .map(|l| parse_locant(l))
@@ -1257,8 +1261,9 @@ pub(super) fn systematic_suffix_hydrogen_state(
     {
         return Ok(None);
     }
-    // A fusion N takes no double bond (P-14.7.1), so it is not counted in the
-    // parent's indicated hydrogen.
+    // P-25.7.1.1: the double bonds are those 'consistent with the appropriate
+    // bonding number of the skeletal atoms', so a fusion N takes none and is
+    // not counted in the parent's indicated hydrogen.
     let fixed = valence_saturated_atoms(&plan.abstract_parent_graph);
     let mut graph = plan.abstract_parent_graph.clone();
     for atom in &mut graph.atoms {
