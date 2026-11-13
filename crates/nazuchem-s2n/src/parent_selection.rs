@@ -512,9 +512,9 @@ pub(super) fn assembled_name_preference(
 /// settled. It is not when the choice needs the full CIP rules 4 and 5.
 /// Parents whose descriptors sit at different locants do not differ only in
 /// configuration, and all remain. Double bonds come first (P-44.4.1.12.3):
-/// more Z, then the lower Z locants (P-44.4.1.12.1). One centre: R precedes
-/// S and r precedes s. Two centres: a like pair precedes an unlike pair, then
-/// RR precedes SS and rr precedes ss (P-44.4.1.12.2).
+/// more Z, then the lower Z locants (P-44.4.1.12.1). Then, for at most two
+/// R/S centres and two r/s centres: a like pair precedes an unlike pair, r
+/// precedes s, R precedes S (P-44.4.1.12.2).
 // Provenance: fn senior_configurations | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::senior_configurations
 pub(super) fn senior_configurations(parents: &[&[(String, String)]]) -> (Vec<usize>, bool) {
@@ -550,11 +550,22 @@ pub(super) fn senior_configurations(parents: &[&[(String, String)]]) -> (Vec<usi
     senior.retain(|&i| keys.iter().all(|k| keys[i].1 <= k.1));
     let differ = |senior: &[usize]| senior.iter().any(|&i| keys[i].2 != keys[senior[0]].2);
     if differ(&senior) {
-        let rank = |i: usize| match keys[i].2[..] {
-            ["R" | "r"] | ["R", "R"] | ["r", "r"] => Some(0),
-            ["S" | "s"] | ["S", "S"] | ["s", "s"] => Some(1),
-            ["R", "S"] | ["S", "R"] => Some(2),
-            _ => None,
+        // (unlike, s rather than r, S rather than R).
+        let rank = |i: usize| {
+            let (chiral, pseudo): (Vec<_>, Vec<_>) = keys[i]
+                .2
+                .iter()
+                .copied()
+                .partition(|d| matches!(*d, "R" | "S"));
+            let single = |d: &[&str], second: &str| match d {
+                [] => Some(false),
+                [a] | [a, _] if d.iter().all(|b| b == a) => Some(*a == second),
+                _ => None,
+            };
+            Some(match chiral[..] {
+                ["R", "S"] | ["S", "R"] => (true, single(&pseudo, "s")?, false),
+                _ => (false, single(&pseudo, "s")?, single(&chiral, "S")?),
+            })
         };
         let Some(ranks) = senior.iter().map(|&i| rank(i)).collect::<Option<Vec<_>>>() else {
             return (senior, false);
@@ -2064,6 +2075,15 @@ mod tests {
                     "C[C@@H](Br)c1ccccc1[C@H](C)Br",
                 ],
             ),
+            // P-14.4(j): the descriptors of the ring are numbered first, so
+            // the S prefix keeps locant 1.
+            (
+                "(1R,3S)-3-[(1R)-1-bromoethyl]-1-[(1S)-1-bromoethyl]cyclohexane",
+                [
+                    "C[C@H](Br)[C@H]1C[C@@H]([C@@H](C)Br)CCC1",
+                    "C[C@H](Br)[C@@H]1CCC[C@H]([C@@H](C)Br)C1",
+                ],
+            ),
             (
                 "N-[(1R)-1-bromoethyl]-N-[(1S)-1-bromoethyl]aniline",
                 [
@@ -2164,6 +2184,16 @@ mod tests {
         assert_eq!(senior(&[&rs, &sr]), (vec![0, 1], false));
         assert_eq!(
             senior(&[&three, &[("1", "S"), ("2", "S"), ("3", "R")]]),
+            (vec![0, 1], false)
+        );
+        // r precedes s before R and S are compared.
+        assert_eq!(
+            senior(&[&[("2", "R"), ("3", "s")], &[("2", "S"), ("3", "r")]]),
+            (vec![1], true)
+        );
+        assert_eq!(senior(&[&[("1", "s")], &[("1", "r")]]), (vec![1], true));
+        assert_eq!(
+            senior(&[&[("1", "r"), ("4", "s")], &[("1", "s"), ("4", "r")]]),
             (vec![0, 1], false)
         );
         // An unsettled choice of centres keeps the choice of double bonds.
