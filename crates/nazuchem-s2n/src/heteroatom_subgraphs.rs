@@ -1583,7 +1583,29 @@ pub fn name_heteroatom_subgraph(
             } else {
                 None
             };
-            let (oxo, class) = central_oxo(mol, start, exclude)?;
+            let (mut oxo, class) = central_oxo(mol, start, exclude)?;
+            // Only =O (or the O(-) of a charge-separated E(+)-O(-)) is absorbed
+            // by an acyl prefix. Hydroxy, alkoxy and oxido (P-72.6.2) ligands
+            // are cited: hydroxy(methyl)arsoryl, methoxy(oxido)phosphoryl
+            // (P-67.1.4.1.1.5), hydroxyarsanyl (P-67.1.4.1.1.6).
+            if class.is_none() {
+                oxo.retain(|&n| {
+                    mol.bond_order(start, n) == 2 || atom.charge > 0 && mol.atoms[&n].charge < 0
+                });
+            }
+            // The parser reads `oxidophosphanyl` as the phosphane oxide P=O.
+            if symbol == "P"
+                && atom.charge == 0
+                && oxo.is_empty()
+                && mol.get_neighbors(start).iter().any(|&n| {
+                    Some(n) != upstream
+                        && !exclude.contains(&n)
+                        && mol.atoms[&n].symbol == "O"
+                        && mol.atoms[&n].charge == -1
+                })
+            {
+                return Err(unsupported("oxido on phosphanyl"));
+            }
             // Upstream divergence: a charged pnictogen prefix cannot absorb unrendered oxo ligands.
             if charged.is_some() && !oxo.is_empty() {
                 return Err(unsupported("charged pnictogen oxo attachment"));
@@ -1618,7 +1640,13 @@ pub fn name_heteroatom_subgraph(
             }
             let sp = stereo(mol, start);
             if roots.is_empty() {
-                format!("{sp}{suffix}")
+                // P-16.5.1.1: a compound prefix such as oxido(oxo)phosphanyl
+                // is enclosed.
+                if suffix.contains('(') && !suffix.starts_with('(') {
+                    format!("({sp}{suffix})")
+                } else {
+                    format!("{sp}{suffix}")
+                }
             } else {
                 // Substituted P=O, As=O and Sb=O are acid-derived acyl groups,
                 // dimethylphosphinoyl, methyl(phenyl)arsinoyl, or a phosphanone
@@ -1628,6 +1656,14 @@ pub fn name_heteroatom_subgraph(
                     suffix.as_str(),
                     "oxophosphanyl" | "oxoarsanyl" | "oxostibanyl"
                 ) {
+                    mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
+                }
+                // P-67.1.4.1.1.5: the preferred prefix concatenates hydroxy
+                // with the substituted acyl group, as in
+                // hydroxy(methylphosphonoyl), not hydroxy(methyl)arsoryl.
+                if matches!(suffix.as_str(), "arsoryl" | "stiboryl")
+                    && roots.iter().any(|n| mol.atoms[n].is_carbon())
+                {
                     mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
                 }
                 let ns = branches(
