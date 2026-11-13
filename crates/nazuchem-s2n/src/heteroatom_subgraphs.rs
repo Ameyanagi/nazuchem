@@ -670,6 +670,9 @@ fn name_oxygen(
         return Ok(if let Some(&n) = other.first() {
             let b = plain_branch(mol, n, &with_atoms(exclude, [start, next]), next)?;
             format_element_substituent("", &b, "peroxy", false)
+        } else if mol.atoms[&next].charge == -1 {
+            // P-72.6.3: the parent anion name and `yl`, as in disulfanidyl.
+            "dioxidanidyl".into()
         } else {
             "hydroperoxy".into()
         });
@@ -1266,6 +1269,23 @@ fn name_sulfur(
             format!("{sp}{stem}o{infix}ato")
         });
     }
+    // P-72.6.3: –S-S⁻ is disulfanidyl. `oxidosulfanyl` for –S-O⁻ (and its
+    // Se and Te analogues) would be read as a sulfinyl group, so those
+    // prefixes are not generated.
+    if order == 1
+        && atom.charge == 0
+        && let [end] = ligands[..]
+        && mol.degree(end) == 1
+        && matches!(mol.atoms[&end].symbol.as_str(), "O" | "S" | "Se" | "Te")
+        && mol.atoms[&end].charge == -1
+        && mol.bond_order(start, end) == 1
+    {
+        return if mol.atoms[&end].symbol == "S" {
+            Ok("disulfanidyl".into())
+        } else {
+            Err(unsupported("anionic chalcogen on sulfanyl"))
+        };
+    }
     let (oxo, class) = central_oxo(mol, start, exclude)?;
     let nitrogens: Vec<_> = double_bonded_neighbors(mol, start, "N")
         .into_iter()
@@ -1430,6 +1450,10 @@ fn name_sulfur(
             && substituent_bonding_number(mol, start) != 2
         {
             return Ok(lambda(mol, start, &ns, sulfanyl_suffix));
+        }
+        // P-63.4.2.2: -SSH is `disulfanyl` (disulfanylacetic acid).
+        if ns[0] == "sulfanyl" && order == 1 && mol.atoms[&start].charge == 0 {
+            return Ok(format!("{sp}disulfanyl"));
         }
         if super::nomenclature::RULES
             .heteroatoms
@@ -1649,6 +1673,17 @@ pub fn name_heteroatom_subgraph(
                     && substituent_bonding_number(mol, start) == 1)
             {
                 return Err(unsupported("chalcogen charge bonding state"));
+            }
+            // `oxidoselanyl` for –Se-O⁻ would be read as a seleninyl group.
+            if atom.charge == 0
+                && mol.get_neighbors(start).iter().any(|&n| {
+                    Some(n) != upstream
+                        && mol.atoms[&n].symbol == "O"
+                        && mol.atoms[&n].charge == -1
+                        && mol.bond_order(start, n) == 1
+                })
+            {
+                return Err(unsupported("oxido on selanyl or tellanyl"));
             }
             let (oxo, class) = central_oxo(mol, start, exclude)?;
             let suffix = prefix(symbol, 0).ok_or_else(|| unsupported(symbol))?;
