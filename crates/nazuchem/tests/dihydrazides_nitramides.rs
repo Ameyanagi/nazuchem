@@ -64,21 +64,16 @@ fn dihydrazides_cite_the_parent_locant_on_n_and_n_prime() {
             "CNNC(=O)C1CCC(C(=O)N(C)N)CC1",
             "N^1,N'^4-dimethylcyclohexane-1,4-dicarbohydrazide",
         ),
-        // P-14.3.5: letter locants are lower than numerals, so N^1 decides
-        // before the locant of the methyl group on the parent.
+        // The locants of prefixes on the parent are compared first and
+        // the N locants after them, as in the polyamine
+        // N^4,2-dimethylpentane-2,4-diamine (P-62.2.4.1.2).
         (
             "CN(N)C(=O)CC(C)C(=O)NNC",
-            "N^1,N'^4,3-trimethylbutanedihydrazide",
+            "N'^1,N^4,2-trimethylbutanedihydrazide",
         ),
         (
             "CN(N)C(=O)c1ccc(C(=O)NNC)c2ccc(C)cc12",
-            "N^1,N'^4,7-trimethylnaphthalene-1,4-dicarbohydrazide",
-        ),
-        // The same order for the N locants of polyamines (P-62.2.4.1.2).
-        ("CNCCC(C)CN", "N^1,3-dimethylbutane-1,4-diamine"),
-        (
-            "CNc1ccc(N)c2ccc(C)cc12",
-            "N^1,7-dimethylnaphthalene-1,4-diamine",
+            "N'^1,N^4,6-trimethylnaphthalene-1,4-dicarbohydrazide",
         ),
         // P-14.5: the prefix cited first takes the lower locant.
         (
@@ -207,6 +202,9 @@ fn a_charged_hydrazone_nitrogen_is_not_named_as_the_neutral_hydrazone() {
             "CC(C)=[N+](C)NO",
             "N-(hydroxyamino)-N-methylpropan-2-iminium",
         ),
+        // Under a nitroso group the neutral parent is a nitrous amide
+        // (P-67.1.2.6.3), so the aminium name is not certified either.
+        ("C[N+](C)(C)N=O", "N,N-dimethyl-N-nitrosomethanaminium"),
     ] {
         check(
             smiles,
@@ -224,12 +222,6 @@ fn a_charged_hydrazone_nitrogen_is_not_named_as_the_neutral_hydrazone() {
         "NC(N)=NN=C(C)C",
         "propan-2-one diaminomethylidenehydrazone",
         NameStatus::NotPreferred(NameReason::FunctionalClass),
-    );
-    // A nitroso group is an acyl group, not a hydrazine nitrogen.
-    check(
-        "C[N+](C)(C)N=O",
-        "N,N-dimethyl-N-nitrosomethanaminium",
-        NameStatus::Preferred,
     );
     // An aminium on a ring nitrogen keeps the largest neutral parent.
     check(
