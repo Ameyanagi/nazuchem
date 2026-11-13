@@ -1176,7 +1176,21 @@ mod tests {
                     "CC(N[C@@H](C)CC)(N[C@@H](C)CC)N[C@H](C)CC",
                 ][..],
             ),
-            // Control: P-14.4 (g) comes before (j), so the nitrogen carrying
+            // A descriptor nested in the substituent name counts the same way.
+            (
+                "N^3-{2-[(2R)-butan-2-yl]phenyl}-N'^3-{2-[(2S)-butan-2-yl]phenyl}hexane-3,3-diamine",
+                &[
+                    "CCC(Nc1ccccc1[C@H](C)CC)(Nc1ccccc1[C@@H](C)CC)CCC",
+                    "CCC(Nc1ccccc1[C@@H](C)CC)(Nc1ccccc1[C@H](C)CC)CCC",
+                ][..],
+            ),
+            (
+                "N^3-{[(2R)-oxolan-2-yl]methyl}-N'^3-{[(2S)-oxolan-2-yl]methyl}hexane-3,3-diamine",
+                &[
+                    "CCC(NC[C@H]1CCCO1)(NC[C@@H]1CCCO1)CCC",
+                    "CCC(NC[C@@H]1CCCO1)(NC[C@H]1CCCO1)CCC",
+                ][..],
+            ),
             // ethyl, cited before methyl, stays unprimed although it is S.
             (
                 "N^3-[(2S)-butan-2-yl]-N'^3-[(2R)-butan-2-yl]-N^3-ethyl-N'^3-methylhexane-3,3-diamine",

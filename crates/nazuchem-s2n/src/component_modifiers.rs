@@ -454,9 +454,29 @@ pub fn add_component_n_substituents(
                 for &r in mol.get_neighbors(n) {
                     if r != carbon && mol.atoms[&r].symbol != "H" {
                         let name = name_subgraph_with_upstream(mol, r, &blocked, Some(n))?;
-                        let descriptors: Vec<_> =
-                            name.chars().filter_map(|c| "ZERSMPrs".find(c)).collect();
-                        names.push((substituent_sort_key(&name), descriptors));
+                        // P-14.5: stereodescriptors, nested ones too, take no
+                        // part in alphanumerical order, so each is replaced by
+                        // the first of its pair and ranked separately.
+                        const PAIRS: &str = "ZERSMPrs";
+                        let chars: Vec<_> = name.chars().collect();
+                        let mut descriptors = Vec::new();
+                        let constitution: String = chars
+                            .iter()
+                            .enumerate()
+                            .map(|(i, &c)| match PAIRS.find(c) {
+                                Some(rank)
+                                    if i > 0
+                                        && (chars[i - 1] == '('
+                                            || chars[i - 1].is_ascii_digit())
+                                        && matches!(chars.get(i + 1), Some(',' | ')')) =>
+                                {
+                                    descriptors.push(rank);
+                                    PAIRS.as_bytes()[rank & !1] as char
+                                }
+                                _ => c,
+                            })
+                            .collect();
+                        names.push((substituent_sort_key(&constitution), descriptors));
                     }
                 }
             }
