@@ -405,6 +405,25 @@ pub fn prefix_from_group(
     if is_carboxylate_group(group) {
         return Ok("carboxylato".into());
     }
+    // P-72.6.3: -O-O(-) is dioxidanidyl, formed like disulfanidyl, here on
+    // carbonyl. The preferred P-72.6.1 `ato` prefix of a peroxy acid anion
+    // has not been audited, so the name is not certified; a chalcogen
+    // analogue has no validated one.
+    if let Some(d) = &group.descriptor
+        && d.family == "acyl"
+        && d.derivative == "anion"
+        && d.ligands.len() == 3
+    {
+        if d.ligands.iter().any(|l| l.element != "O")
+            || d.centers.iter().any(|c| context.parent_path.contains(c))
+        {
+            return Err("openclatura: peroxy acid anion prefix not ported".into());
+        }
+        context
+            .mol
+            .mark_name(NameStatus::Unverified(NameReason::AnionParent));
+        return Ok("(dioxidanidylcarbonyl)".into());
+    }
     if RULES.functional_groups.get(&group.key).is_none()
         && let Some(d) = &group.descriptor
         && d.family == "central_acid"

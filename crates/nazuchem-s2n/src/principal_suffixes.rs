@@ -40,7 +40,9 @@ pub fn render_principal_suffix(rule: &FunctionalGroupRule, count: usize) -> Stri
         .enumerate()
         .map(|(i, w)| {
             if positions.contains(&i) {
-                if w == "aminium" {
+                // P-72.2.2.2.3: "bis" marks two aminide suffixes, as in
+                // ethane-1,2-bis(aminide).
+                if matches!(w, "aminium" | "aminide") {
                     format!("{}({w})", multipliers::complex_(count))
                 } else {
                     multipliers::suffix(count, w)
@@ -90,6 +92,8 @@ mod tests {
             ("aminium", 1, "aminium"),
             ("aminium", 2, "bis(aminium)"),
             ("aminium", 3, "tris(aminium)"),
+            ("aminide", 1, "aminide"),
+            ("aminide", 2, "bis(aminide)"),
             ("ring_carboxylic_acid", 4, "tetracarboxylic acid"),
         ] {
             let rule = RULES.functional_groups.get(key).unwrap();

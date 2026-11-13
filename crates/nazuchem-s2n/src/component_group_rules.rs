@@ -318,10 +318,21 @@ pub fn retarget_external_carbonyl_groups(
         .iter()
         .map(|g| is_suffix_class_variant(m, groups, principal_key, g))
         .collect();
+    // P-72.7(a), (b): another anionic suffix on carbon was chosen (aminide,
+    // or the class with more anionic centres), so a carboxylate beside it is
+    // the prefix carboxylato.
+    let selects_other_anion = groups.iter().any(|g| {
+        g.is_principal_candidate
+            && Some(g.key.as_str()) == principal_key
+            && super::perception::is_anionic_group_key(&g.key)
+            && !is_carboxylate_group(g)
+            && m.atoms[&g.attachment_carbon].is_carbon()
+    });
     for (g, variant) in groups.iter_mut().zip(variants) {
         // Only an established prefix excludes an acid-anion carbon. Other
         // carboxylates must remain available as parent candidates.
-        let prefix_carboxylate = principal_key.is_none() && is_carboxylate_group(g);
+        let prefix_carboxylate =
+            (principal_key.is_none() || selects_other_anion) && is_carboxylate_group(g);
         if g.is_principal_candidate
             && (Some(g.key.as_str()) == principal_key
                 || neutral_amides && is_neutral_amide(m, g)

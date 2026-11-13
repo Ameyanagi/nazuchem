@@ -1688,11 +1688,8 @@ mod tests {
                 "2,7'-spirobi[bicyclo[2.2.1]heptane]",
                 NameStatus::Preferred,
             ),
-            (
-                "CC(=O)[NH-]",
-                "acetamide",
-                NameStatus::Unverified(NameReason::AnionParent),
-            ),
+            // P-72.2.2.2.4: acetylazanide (PIN).
+            ("CC(=O)[NH-]", "acetylazanide", NameStatus::Preferred),
             (
                 "c1ccccc1C1=CC2(C3=CC=CC=C13)C=CC1=CC=CC=C12",
                 "3-phenyl-1,1'-spirobi[indene]",
