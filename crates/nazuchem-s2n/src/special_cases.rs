@@ -4194,8 +4194,15 @@ fn anhydride_half_name(
     let unsubstituted = matches!(&name.derivation, super::component_namer::Derivation::Plan { parent_atoms, .. }
         if atoms.iter().all(|a| parent_atoms.contains(a) || name.principal_group_atoms.contains(a)));
     // An acid named as a whole, such as hydrazinecarboxylic acid, keeps its
-    // class word, which an anhydride name omits (P-65.7.2).
-    let text = name.text.strip_suffix(" acid").unwrap_or(&name.text);
+    // class word, which an anhydride name omits (P-65.7.2). Only for a
+    // carbon acid: the anhydrides of sulfurocyanidic and sulfurocyanidous
+    // acid (issue #158) are not generated, so those halves keep the word
+    // and the callers decline them.
+    let text = if mol.atoms[&starts[0]].is_carbon() {
+        name.text.strip_suffix(" acid").unwrap_or(&name.text)
+    } else {
+        &name.text
+    };
     Ok((text.to_owned(), cited, unsubstituted))
 }
 // Provenance: fn anhydride_class_name | adapted
