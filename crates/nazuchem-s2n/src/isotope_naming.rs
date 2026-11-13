@@ -442,6 +442,36 @@ pub(super) fn prefix_descriptor(
     )))
 }
 
+/// P-82.2.1: a characteristic group cited as a prefix takes its descriptor in
+/// front, as in (131I)iodo and (13C)carboxy. Only nuclides that need no locant
+/// are cited (P-82.6.1.2, P-82.6.1.3), and no isotopic hydrogen.
+pub(super) fn group_descriptor(mol: &Molecule, atoms: &AtomSet) -> Option<(String, AtomSet)> {
+    let sites: Vec<_> = mol
+        .isotope_sites()
+        .into_iter()
+        .filter(|site| atoms.contains(&site.anchor))
+        .collect();
+    if sites.is_empty() || sites.iter().any(|site| site.symbol == "H") {
+        return None;
+    }
+    let unit = Unit {
+        atoms,
+        cited: &[],
+        parent: atoms,
+    };
+    let identity = atoms.iter().map(|&atom| (atom, atom)).collect();
+    let descriptor = isotope_descriptors(
+        mol,
+        &sites,
+        &BTreeMap::new(),
+        &identity,
+        &unit,
+        IsotopeStyle::Iupac,
+    )
+    .ok()?;
+    Some((descriptor, sites.iter().map(|site| site.anchor).collect()))
+}
+
 #[cfg(test)]
 fn verify(smiles: &str, name: &str) -> Result<(), String> {
     let parser = nazuchem_n2s::Parser::new().map_err(|e| e.to_string())?;
@@ -927,17 +957,165 @@ mod tests {
     }
 
     #[test]
+    fn characteristic_group_prefixes_cite_their_own_labels() {
+        // Issue #27. P-82.2.1: the descriptor precedes the part of the name
+        // that is isotopically substituted, here a characteristic group
+        // cited as a prefix.
+        for (smiles, expected) in [
+            // P-82.2.1 examples.
+            (
+                "CC(=O)Nc1ccc2c(c1)Cc1cc([131I])ccc12",
+                "N-[7-(131I)iodo-9H-fluoren-2-yl]acetamide",
+            ),
+            (
+                "CCC(C([2H])([2H])[2H])C([35Cl])C[2H]",
+                "2-(35Cl)chloro-3-(2H3)methyl(1-2H1)pentane",
+            ),
+            // P-82.2.2.1 example: modified and unmodified groups are cited
+            // separately, the modified one first.
+            (
+                "CC(=O)Nc1ccc2c(c1)Cc1cc([131I])c(I)cc12",
+                "N-[7-(131I)iodo-6-iodo-9H-fluoren-2-yl]acetamide",
+            ),
+            // P-82.6.1.4 example.
+            ("[79Br]c1[13cH]cccc1", "1-(79Br)bromo(2-13C)benzene"),
+            // P-82.5.2: lowest locants to the modified group, in either
+            // atom order, then to the nuclide of higher mass number.
+            ("[131I]CC(O)CI", "1-(131I)iodo-3-iodopropan-2-ol"),
+            ("ICC(O)C[131I]", "1-(131I)iodo-3-iodopropan-2-ol"),
+            ("CC([35Cl])CC(Cl)C", "2-(35Cl)chloro-4-chloropentane"),
+            ("CC(Cl)CC([35Cl])C", "2-(35Cl)chloro-4-chloropentane"),
+            ("[35Cl]CC[37Cl]", "1-(37Cl)chloro-2-(35Cl)chloroethane"),
+            ("[37Cl]CC[35Cl]", "1-(37Cl)chloro-2-(35Cl)chloroethane"),
+            // P-82.2.1 (1,2-di[(13C)methyl]benzene): identical modified groups.
+            ("[35Cl]CC[35Cl]", "1,2-di[(35Cl)chloro]ethane"),
+            ("CC([35Cl])CC", "2-(35Cl)chlorobutane"),
+            ("[131I]c1ccccc1", "(131I)iodobenzene"),
+            ("[18F]c1ccc(cc1)C(=O)O", "4-(18F)fluorobenzoic acid"),
+            (
+                "OC1CCC(CC1)c1ccc([35Cl])cc1",
+                "4-[4-(35Cl)chlorophenyl]cyclohexan-1-ol",
+            ),
+            // P-82.6.1.2: one atom of the element in the group needs no
+            // locant; P-82.2.2.2 writes (13C)carboxy.
+            (
+                "OC(=O)CCc1ccc(cc1)[13C](=O)O",
+                "3-[4-(13C)carboxyphenyl]propanoic acid",
+            ),
+            ("N#[13C]c1ccccc1C(=O)O", "2-(13C)cyanobenzoic acid"),
+            // P-82.3.1: nuclides at one place in alphabetical order.
+            ("[15N]#[13C]c1ccccc1C(=O)O", "2-(13C,15N)cyanobenzoic acid"),
+            ("[18OH]c1ccccc1C(=O)O", "2-(18O)hydroxybenzoic acid"),
+            ("[15NH2]c1ccccc1C(=O)O", "2-(15N)aminobenzoic acid"),
+            ("[15NH2]CCO", "2-(15N)aminoethan-1-ol"),
+            ("CC(=[18O])CC(=O)O", "3-(18O)oxobutanoic acid"),
+            ("[34SH]CC(=O)O", "(34S)sulfanylacetic acid"),
+            // P-82.6.1.3: a group completely modified in the same way.
+            (
+                "[18O-][N+](=[18O])c1ccccc1C(=O)O",
+                "2-(18O2)nitrobenzoic acid",
+            ),
+            // P-45.4.2 example: 2-(18O)methoxyethyl, a contracted alkoxy
+            // prefix cites its oxygen in front.
+            (
+                "[13CH3]OCCNCC[18O]C",
+                "2-(13C)methoxy-N-[2-(18O)methoxyethyl]ethan-1-amine",
+            ),
+            ("C[18O]c1ccccc1C(=O)O", "2-(18O)methoxybenzoic acid"),
+            ("c1ccccc1[18O]CCC(=O)O", "3-(18O)phenoxypropanoic acid"),
+        ] {
+            let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default())
+                .unwrap_or_else(|e| panic!("{smiles}: {e}"));
+            assert_eq!(name.text, expected, "{smiles}");
+            verify(smiles, &name.text).unwrap();
+            assert!(
+                name_smiles(smiles, IsotopeStyle::Boughton, &Default::default()).is_err(),
+                "{smiles}"
+            );
+        }
+    }
+
+    #[test]
+    fn ester_groups_and_nitrogen_substituents_cite_their_own_labels() {
+        // Issue #27. P-82.2.4: in a name of two or more words the descriptor
+        // precedes the word, or part of it, that includes the nuclide.
+        for (smiles, expected) in [
+            // P-82.2.4 examples.
+            ("CCC(=O)O[14CH2]C", "(1-14C)ethyl propanoate"),
+            ("CCC(=O)OC[14CH3]", "(2-14C)ethyl propanoate"),
+            ("CCC(=O)O[13CH3]", "(13C)methyl propanoate"),
+            ("[2H]C([2H])([2H])OC(=O)c1ccccc1", "(2H3)methyl benzoate"),
+            ("CCC(=O)OC[14CH2]Cl", "2-chloro(2-14C)ethyl propanoate"),
+            ("CC(=O)SC[13CH3]", "S-(2-13C)ethyl ethanethioate"),
+            ("[13CH3]OS(=O)(=O)c1ccccc1", "(13C)methyl benzenesulfonate"),
+            // P-82.2.1 (di[(13C)methyl]); P-82.2.2.1: unequally modified
+            // groups are cited separately, the modified one first.
+            (
+                "[13CH3]OC(=O)CCC(=O)O[13CH3]",
+                "di[(13C)methyl] butanedioate",
+            ),
+            ("[13CH3]OC(=O)CCC(=O)OC", "(13C)methyl methyl butanedioate"),
+            ("COC(=O)CCC(=O)O[13CH3]", "(13C)methyl methyl butanedioate"),
+            // P-82.5.1: the descriptor does not change alphanumerical order.
+            ("[13CH3]OC(=O)CCC(=O)OCC", "ethyl (13C)methyl butanedioate"),
+            (
+                "COC(=O)CC(C)C(=O)O[13CH3]",
+                "1-(13C)methyl 4-methyl 2-methylbutanedioate",
+            ),
+            // P-82.2.1: a substituent of the suffix nitrogen is a prefix.
+            ("[13CH3]NC(=O)C", "N-(13C)methylacetamide"),
+            ("C[13CH2]N(C)c1ccccc1", "N-(1-13C)ethyl-N-methylaniline"),
+            ("[13CH3]N(C)CC", "N-(13C)methyl-N-methylethanamine"),
+            ("CN([13CH3])CC", "N-(13C)methyl-N-methylethanamine"),
+            ("[13CH3]N([13CH3])CC", "N,N-di[(13C)methyl]ethanamine"),
+            (
+                "[13CH3]NS(=O)(=O)c1ccccc1",
+                "N-(13C)methylbenzenesulfonamide",
+            ),
+            ("NCCN[13CH3]", "N^1-(13C)methylethane-1,2-diamine"),
+        ] {
+            let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default())
+                .unwrap_or_else(|e| panic!("{smiles}: {e}"));
+            assert_eq!(name.text, expected, "{smiles}");
+            verify(smiles, &name.text).unwrap();
+            assert!(
+                name_smiles(smiles, IsotopeStyle::Boughton, &Default::default()).is_err(),
+                "{smiles}"
+            );
+        }
+    }
+
+    #[test]
+    fn modified_atoms_and_groups_take_the_lowest_locants_in_one_series() {
+        // Issue #27. P-82.5.2: the modified atoms and groups are considered
+        // together, {2,5} before {3,6}, in either atom order.
+        for smiles in ["OC1[13CH2]C(C)CC(C[2H])C1", "OC1CC(C[2H])CC(C)[13CH2]1"] {
+            let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
+            assert_eq!(
+                name.text, "5-(2H1)methyl-3-methyl(2-13C)cyclohexan-1-ol",
+                "{smiles}"
+            );
+            verify(smiles, &name.text).unwrap();
+        }
+    }
+
+    #[test]
     fn labels_that_no_name_part_cites_still_decline() {
-        // Characteristic groups and the substituents of a suffix nitrogen
-        // do not compose a descriptor. Nor does a heteroatom inside a prefix:
-        // the parent's descriptor cannot reach it (P-82.2.1).
+        // A heteroatom inside a compound prefix, a suffix or a functional
+        // parent composes no descriptor, nor does isotopic hydrogen on a
+        // characteristic group: the parent's descriptor cannot reach them
+        // (P-82.2.1).
         for smiles in [
             "[13CH3][18O]c1ccccc1",
             "[13CH3][18O][13CH3]",
-            "CC([35Cl])CC",
-            "C[13CH2]N(C)c1ccccc1",
+            "C[15NH]c1ccccc1C(=O)O",
+            "[2H]Oc1ccccc1C(=O)O",
+            "[18O-][N+](=O)c1ccccc1C(=O)O",
+            "Cl[13C](=O)c1ccccc1C(=O)O",
+            "OC(=O)C1(CCCCC1)[13C](=O)O",
+            "[18OH]CCO",
             "c1ccccc1[13CH2]NN",
-            "CC(C)C(=O)O[13CH2]C",
+            "[13CH3]OC(=O)Oc1ccccc1",
         ] {
             let error = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap_err();
             assert!(error.contains("isotope label"), "{smiles}: {error}");

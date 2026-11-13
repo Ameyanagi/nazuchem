@@ -1570,7 +1570,13 @@ fn is_complete_acyl_end(m: &Molecule, center: usize, double: usize, linkage: usi
 pub(super) fn is_anionic_group_key(key: &str) -> bool {
     matches!(
         key,
-        "olate" | "thiolate" | "aminide" | "carboxylate" | "ring_carboxylate" | "sulfonate"
+        "olate"
+            | "thiolate"
+            | "aminide"
+            | "iminide"
+            | "carboxylate"
+            | "ring_carboxylate"
+            | "sulfonate"
     ) || key.starts_with("peroxolate_")
 }
 
@@ -2756,12 +2762,13 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                 continue;
             }
         }
-        groups.push(PerceivedGroup::new(
-            if a.charge > 0 { "iminium" } else { "imine" },
-            true,
-            c,
-            [n],
-        ));
+        // P-72.2.2.2.3: an imine with one negative charge on its nitrogen.
+        let key = match a.charge {
+            1.. => "iminium",
+            -1 if m.degree(n) == 1 => "iminide",
+            _ => "imine",
+        };
+        groups.push(PerceivedGroup::new(key, true, c, [n]));
         consumed.insert(n);
     }
     for (&n, a) in &m.atoms {

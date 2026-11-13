@@ -31,19 +31,36 @@ struct ChargeSite {
 // Source: ReShiki | src/naming/openclatura/ionic_naming.rs::validate_heteroatom_oxo_charge_states
 pub(super) fn validate_heteroatom_oxo_charge_states(mol: &Molecule) -> Result<(), String> {
     for (&id, atom) in &mol.atoms {
-        // Upstream divergence: neutral imine suffixes do not encode a terminal
-        // imine anion. Decline before parent selection can lose its N charge.
+        // P-72.2.2.2.3: the suffix iminide names a terminal imine anion.
+        // Upstream divergence: decline where that suffix would not carry the
+        // charge: beside another anionic centre, on a heterocumulene carbon
+        // (cyanate), or when another characteristic group claims the nitrogen.
         if atom.symbol == "N"
             && atom.charge < 0
             && mol.degree(id) == 1
-            && mol.get_neighbors(id).iter().any(|&neighbor| {
-                mol.atoms[&neighbor].is_carbon()
-                    && mol
-                        .get_bond(id, neighbor)
-                        .is_some_and(|bond| bond.order == 2)
+            && let Some(&carbon) = mol.get_neighbors(id).iter().find(|&&neighbor| {
+                mol.atoms[&neighbor].is_carbon() && mol.bond_order(id, neighbor) == 2
             })
         {
-            return Err("openclatura: anionic terminal imine charge state is not supported".into());
+            if atom.charge != -1
+                || mol
+                    .atoms
+                    .values()
+                    .any(|other| other.charge < 0 && other.idx != id)
+                || mol.get_neighbors(carbon).iter().any(|&neighbor| {
+                    neighbor != id
+                        && !mol.atoms[&neighbor].is_carbon()
+                        && mol.bond_order(carbon, neighbor) == 2
+                })
+                || !super::perception::perceive_groups(mol)
+                    .iter()
+                    .any(|group| group.key == "iminide" && group.atoms_involved.contains(&id))
+            {
+                return Err(
+                    "openclatura: anionic terminal imine charge state is not supported".into(),
+                );
+            }
+            mol.mark_name(NameStatus::Unverified(NameReason::AnionParent));
         }
         // Upstream divergence: oxido on an H-bearing chalcogen can be read as
         // neutral oxo, consuming both its anionic charge and the chalcogen H.
@@ -660,7 +677,14 @@ mod tests {
     // exact matches are conservatively adapted; independent ancestry is not established.
     fn external_ligands_cannot_lose_charge_or_chalcogen_hydrogen() {
         use super::super::graph_io::read_smiles;
-        for smiles in ["[O-][SH]1c2ccc3cc1ccc3c2", "[N-]=C1CCCCC1"] {
+        // An iminide beside another anionic centre, or on a heterocumulene
+        // carbon, has no suffix that carries its charge.
+        for smiles in [
+            "[O-][SH]1c2ccc3cc1ccc3c2",
+            "[N-]=CCC(=O)[O-]",
+            "[N-]=CCCC=[N-]",
+            "[N-]=C=O",
+        ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
             assert!(
                 validate_heteroatom_oxo_charge_states(&mol).is_err(),
@@ -670,6 +694,7 @@ mod tests {
         for smiles in [
             "C[S+](C)[O-]",
             "N=C1CCCCC1",
+            "[N-]=C1CCCCC1",
             "[NH2+]=C1CCCCC1",
             "[SH2]1c2ccc3cc1ccc3c2",
         ] {
@@ -678,6 +703,43 @@ mod tests {
                 validate_heteroatom_oxo_charge_states(&mol).is_ok(),
                 "{smiles}"
             );
+        }
+    }
+
+    #[test]
+    fn terminal_imine_anions_take_the_iminide_suffix() {
+        // Issue #27. P-72.2.2.2.3: an imine with one negative charge on its
+        // nitrogen takes the suffix iminide (butaniminide). Anions are senior
+        // to every neutral class (P-41), so the ketone and the ester of the
+        // PubChem row (CID 149515574) are cited as prefixes.
+        let parser = nazuchem_n2s::Parser::new().unwrap();
+        for (smiles, expected) in [
+            ("CCCC=[N-]", "butan-1-iminide"),
+            ("CCC(C)=[N-]", "butan-2-iminide"),
+            ("[N-]=C1CCCCC1", "cyclohexaniminide"),
+            ("C=C=[N-]", "etheniminide"),
+            ("CC(=O)CC=[N-]", "3-oxobutan-1-iminide"),
+            ("OCCC=[N-]", "3-hydroxypropan-1-iminide"),
+            ("[Na+].CCC=[N-]", "sodium propan-1-iminide"),
+            (
+                "CC(=O)C(=C=[N-])C(=O)OCCC1=CC=C(C=C1)NC(=O)C",
+                "2-[2-(4-acetamidophenyl)ethoxycarbonyl]-3-oxobut-1-en-1-iminide",
+            ),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default())
+                .unwrap_or_else(|e| panic!("{smiles}: {e}"));
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(
+                name.status,
+                NameStatus::Unverified(NameReason::AnionParent),
+                "{smiles}"
+            );
+            let parsed = parser
+                .parse(&name.text, &nazuchem_n2s::ParseOptions::strict())
+                .structure
+                .unwrap_or_else(|| panic!("{}", name.text));
+            crate::test_support::verify_identity(smiles, &parsed.semantic_cxsmiles().unwrap())
+                .unwrap();
         }
     }
 

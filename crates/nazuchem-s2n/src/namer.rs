@@ -298,6 +298,15 @@ fn collect_subgraph_substituents(
             name.clone()
         };
         let mut item = SubstituentItem::new(name, Vec::new());
+        // P-82.2.1: (131I)iodo, (13C)carboxy; not before an enclosed prefix.
+        if !item.name.starts_with('(')
+            && let Some((descriptor, cited)) =
+                super::isotope_naming::group_descriptor(mol, &group.atoms_involved)
+        {
+            item.name = format!("{descriptor}{}", item.name);
+            item.isotope_atoms = cited;
+            item.isotope_descriptors = vec![descriptor];
+        }
         item.atom_ids = group.atoms_involved.clone();
         let mut atoms = item.atom_ids.clone();
         atoms.insert(group.attachment_carbon);
@@ -439,6 +448,20 @@ fn name_subgraph_rendered_except_stereo(
                 text,
                 ..Default::default()
             };
+            // P-82.2.1: a one-atom prefix takes its descriptor, (15N)amino,
+            // and so does a contracted alkoxy prefix for its oxygen, as in
+            // 2-(18O)methoxyethyl (P-45.4.2).
+            let labelled = super::isotope_naming::group_descriptor(mol, &AtomSet::from([start]));
+            let cite_start = |rendered: &mut RenderedSubstituentName| {
+                if let Some((descriptor, cited)) = &labelled {
+                    rendered.text = format!("{descriptor}{}", rendered.text);
+                    rendered.isotope_atoms.extend(cited);
+                    rendered.isotope_descriptors.push(descriptor.clone());
+                }
+            };
+            if component.len() == 1 {
+                cite_start(&mut rendered);
+            }
             // P-82.2.1: the groups on the heteroatom cite their own labels, as
             // in (2H3)methoxy. A label counts as cited only when the prefix
             // holds that group's name, or is exactly its alkoxy form.
@@ -458,6 +481,15 @@ fn name_subgraph_rendered_except_stereo(
                     };
                     let atoms = group.isotope_atoms.clone();
                     let descriptors = group.isotope_descriptors.clone();
+                    if atoms.is_empty()
+                        && RULES
+                            .heteroatoms
+                            .alkyl_oxy_prefixes
+                            .get(strip_outer_parentheses(&group.text).as_str())
+                            == Some(&rendered.text)
+                    {
+                        cite_start(&mut rendered);
+                    }
                     if !atoms.is_empty()
                         && (rendered
                             .text
