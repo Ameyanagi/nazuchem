@@ -2496,6 +2496,13 @@ fn homonuclear_chain_parent_name(
         && let Some(&center) = mol.get_neighbors(o).first()
         && chain_set.contains(&center)
     {
+        // The prefix carries no other charge and no backbone stereo.
+        if atoms.iter().any(|&i| i != o && mol.atoms[&i].charge != 0) {
+            return Err("openclatura: second charge beside a chalcogen-chain oxidanide".into());
+        }
+        if chain_set.iter().any(|i| mol.atoms[i].has_stereo()) {
+            return Err(SHORTCUT_STEREO_ERROR.into());
+        }
         let prefix = branch_name(mol, atoms, center, &set([o]), o)?;
         return Ok(Some(format!(
             "({})oxidanide",

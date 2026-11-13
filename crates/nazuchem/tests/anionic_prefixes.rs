@@ -56,6 +56,12 @@ fn anionic_prefix_names_follow_the_blue_book_and_round_trip() {
             "O[As](=O)([O-])CC(=O)[O-]",
             "[hydroxy(oxido)arsoryl]acetate",
         ),
+        (
+            "O[Sb](=O)([O-])CC(=O)[O-]",
+            "[hydroxy(oxido)stiboryl]acetate",
+        ),
+        // P-65.6.3.2.3: an ester cited as a prefix keeps its own name.
+        ("COS(=O)(=O)CC(=O)[O-]", "(methoxysulfonyl)acetate"),
         // P-72.2.2.2.4: an anionic centre that no suffix expresses is named
         // from the anionic parent hydride, as in tert-butyltrioxidanide and
         // (ethylsulfanyl)oxidanide (P-72.2.2.2.2).
@@ -85,12 +91,15 @@ fn anionic_prefix_names_follow_the_blue_book_and_round_trip() {
 fn anionic_prefixes_without_a_readable_name_are_declined() {
     // P-72.6.1 gives no example for the chalcogen analogues of carboxylato,
     // and `carboxy` would drop the charge; two oxidanide centres on one chain
-    // have no single anionic parent hydride.
+    // or a second charge beside the oxidanide have no single anionic parent
+    // hydride.
     for smiles in [
         "[O-]C(=S)CC(=O)[O-]",
         "[S-]C(=S)CC(=O)[O-]",
         "[S-]C(=O)CC(=O)[O-]",
         "[O-]SS[O-]",
+        "[O-]S(C)([O-])SC",
+        "[Na+].[Na+].[O-]S(C)([O-])SC",
     ] {
         assert!(smiles_to_name(smiles).is_err(), "{smiles}");
     }
