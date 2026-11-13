@@ -132,7 +132,9 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
                     })
                         // P-66.3.1.2.1: NC-NH-NH2 is cyanohydrazide, named by
                         // special_cases::cyanohydrazide_name.
-                        || around.iter().any(|&x| mol.bond_order(c, x) == 3)
+                        || around
+                            .iter()
+                            .any(|&x| symbol(x) == "N" && mol.bond_order(c, x) == 3)
                             && around.iter().any(|&n| on_hydrazine(n)))
             });
             if hydrazine_carbonyl {

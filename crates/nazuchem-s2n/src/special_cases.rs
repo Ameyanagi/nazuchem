@@ -2726,6 +2726,7 @@ fn hydrazine_carbonyl_parent_name(
         mol.atoms[&y].charge == -1
             && chalcogen(y)
             && matches!(heavy(y)[..], [c] if symbol(c) == "C"
+                && heavy(c).iter().any(|&x| chalcogen(x) && mol.bond_order(c, x) == 2)
                 && heavy(c).iter().any(|&n| symbol(n) == "N"
                     && heavy(n).iter().any(|&m| symbol(m) == "N")))
     };
@@ -3204,17 +3205,22 @@ fn hydrazine_carbonyl_parent_name(
 
 /// Cyanohydrazide, NC-NH-NH2, the hydrazide of cyanic acid (P-66.3.1.2.1,
 /// P-66.3.5.1). Its carbon substituents take the locants N, the nitrogen on
-/// the cyano carbon, and N' (P-66.3.3.1). A second cyanohydrazide and a
-/// group that is senior to a hydrazide or ties with it (P-41) are left to
-/// the general namer.
+/// the cyano carbon, and N' (P-66.3.3.1). Left to the general namer: a
+/// second cyanohydrazide, a group that is senior to a hydrazide or ties with
+/// it (P-41), and elements whose acids are perceived elsewhere.
 // Provenance: fn cyanohydrazide_name | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::cyanohydrazide_name
 fn cyanohydrazide_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>, String> {
-    if mol.is_isotope_parent() || atoms.iter().any(|i| mol.atoms[i].charge != 0) {
+    let symbol = |i: usize| mol.atoms[&i].symbol.as_str();
+    if mol.is_isotope_parent()
+        || atoms.iter().any(|&i| {
+            mol.atoms[&i].charge != 0
+                || !matches!(symbol(i), "C" | "H" | "N" | "O" | "F" | "Cl" | "Br" | "I")
+        })
+    {
         return Ok(None);
     }
     let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
-    let symbol = |i: usize| mol.atoms[&i].symbol.as_str();
     let heavy = |i: usize| -> Vec<usize> {
         mol.get_neighbors(i)
             .iter()
@@ -4822,9 +4828,13 @@ mod tests {
             );
         }
         // Left to the general namer and not labelled preferred: a senior or
-        // equal class (P-41), a second cyano group on the hydrazine, a
-        // heteroatom substituent, and a configured hydrazone.
+        // equal class (P-41), also one of phosphorus or sulfur, a second
+        // cyano group on the hydrazine, a heteroatom substituent, and a
+        // configured hydrazone.
         for smiles in [
+            "N#CNNCP(=O)(O)O",
+            "N#CNNCP(=O)(C)O",
+            "N#CNNCS(=O)(=O)O",
             "N#CNNCC(=O)O",
             "N#CNNC(N)=O",
             "N#CNNC(C)=O",
@@ -4845,6 +4855,13 @@ mod tests {
                 name.status,
                 NameStatus::Preferred,
                 "{smiles}: {}",
+                name.text
+            );
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{}",
                 name.text
             );
         }

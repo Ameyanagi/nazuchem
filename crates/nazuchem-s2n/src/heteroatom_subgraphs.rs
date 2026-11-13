@@ -2300,7 +2300,7 @@ mod tests {
 
     #[test]
     fn hydrazinyl_prefixes_number_their_substituents() {
-        // Issue #113. The same name must come out for every atom order.
+        // Issue #113. A hydrazine written from either end gets one name.
         for (smiles, expected, status) in [
             // P-68.3.1.2.1, P-14.3.4.2: hydrazinyl, as in
             // hydrazinylacetonitrile.
@@ -2312,6 +2312,13 @@ mod tests {
             (
                 "NNCCc1ccc(cc1)C(O)=O",
                 "4-(2-hydrazinylethyl)benzoic acid",
+                NameStatus::Preferred,
+            ),
+            // On a triple-bonded carbon it is still a hydrazinyl prefix; only
+            // NC-NH-NH2 is cyanohydrazide (P-66.3.5.1).
+            (
+                "OC(=O)CCC#CNN",
+                "5-hydrazinylpent-4-ynoic acid",
                 NameStatus::Preferred,
             ),
             // P-68.3.1.2.1, P-66.3.2.3: substituents take the locants 1,
