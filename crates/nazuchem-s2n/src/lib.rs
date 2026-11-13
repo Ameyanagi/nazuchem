@@ -1530,9 +1530,16 @@ mod tests {
             ),
             ("CCOC(C)=O", "ethyl acetate", NameStatus::Preferred),
             ("CC(=O)OC(C)=O", "acetic anhydride", NameStatus::Preferred),
+            // P-65.7.6.1 example (issue #110).
             (
                 "CC(=O)OC(=O)CCC(=O)OC(C)=O",
-                "acetic 4-(acetyloxy)-4-oxobutanoic anhydride",
+                "diacetic butanedioic dianhydride",
+                NameStatus::Preferred,
+            ),
+            // P-65.7.6.4.2 example: two unlike linkages stay unverified.
+            (
+                "CC(=O)OC(=O)CCCC(=O)SC(C)=O",
+                "acetic 5-(acetylsulfanyl)-5-oxopentanoic anhydride",
                 NameStatus::Unverified(NameReason::UnauditedPath),
             ),
             (

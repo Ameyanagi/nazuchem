@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "f63f3da659855b2ad07c2e07b2db4845288ae2fe9aceab05fd78e27ef0dbcef2"
+sha256 = "ca6561ac2c920367b1f1cfabc71fb73f84228c2fba3e8c1eeae2b4ae55344257"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "a6fc8c76b8fe422fc00bc6317758c40229a2d61dfcb45230425b0bf5f0493a2d"
+sha256 = "32ac7fff88b61ab3f5c8e76986c8a405a1b4bbb6670aee81d4bb1d5dc5325dd8"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1752,7 +1752,7 @@ sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/wordRules.xml", license = "MIT" },
 ]
 notes = "Byte-preserved upstream data."
-sha256 = "8ee7cacb1cbe77cc6a1e0fd07b54c199fa1736a1eaaa621fb1bfe563c9600331"
+sha256 = "f5925cf4cbaf5a44d686cbab595d020f85ca0518c34964d244db0eb9286d5724"
 
 [[file]]
 path = "crates/nazuchem-n2s/src/ambiguity.rs"
@@ -7638,6 +7638,15 @@ sources = [
   { project = "Nazuchem", path = "crates/nazuchem/tests/anionic_prefixes.rs", ref = "issue #145", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original facade regression for issue #145: generated names of acid-anion prefixes under a more senior anion (sulfonato, hydroxy(oxido)phosphoryl and the selenium analogues), oxidanide names of anionic oxygen on a chalcogen chain, declined chalcogen carboxylate anion prefixes and the selenium and tellurium acid-anion prefixes read by the parser, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
+
+[[file]]
+path = "crates/nazuchem/tests/polyanhydrides.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/tests/polyanhydrides.rs", ref = "issue #110", license = "MIT OR Apache-2.0" },
+]
+notes = "Original facade regression for issue #110: generated dianhydride names, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure, and Blue Book dianhydride names read by the parser."
 
 [[file]]
 path = "crates/nazuchem/tests/ir.rs"
