@@ -1191,9 +1191,10 @@ mod tests {
                     "CCC(NC[C@@H]1CCCO1)(NC[C@H]1CCCO1)CCC",
                 ][..],
             ),
-            // ethyl, cited before methyl, stays unprimed although it is S.
+            // ethyl, cited before methyl, stays unprimed although it is S; the R
+            // prefix is still cited first (P-45.6.3).
             (
-                "N^3-[(2S)-butan-2-yl]-N'^3-[(2R)-butan-2-yl]-N^3-ethyl-N'^3-methylhexane-3,3-diamine",
+                "N'^3-[(2R)-butan-2-yl]-N^3-[(2S)-butan-2-yl]-N^3-ethyl-N'^3-methylhexane-3,3-diamine",
                 &[
                     "CCC(N([C@H](C)CC)C)(N([C@@H](C)CC)CC)CCC",
                     "CCC(N([C@@H](C)CC)CC)(N([C@H](C)CC)C)CCC",
@@ -1209,9 +1210,10 @@ mod tests {
                 ][..],
             ),
             // Issue #97. P-14.4 (c): the -ium suffix takes the
-            // lower of the two equivalent locants (#96 may retain naphthyridine).
+            // lower of the two equivalent locants. Issue #96, P-73.1.1.2: the
+            // cation keeps the retained name of its neutral parent hydride.
             (
-                "decahydropyrido[3,4-c]pyridin-2-ium",
+                "decahydro-2,7-naphthyridin-2-ium",
                 &["N1CCC2C(C1)C[NH2+]CC2", "C1C[NH2+]CC2CNCCC12"][..],
             ),
             // P-14.3.5: on a symmetric assembly the chalcogenide nitrogen is
@@ -1366,6 +1368,16 @@ mod tests {
             (
                 "4-hydrazinylidenepentanal hydrazone",
                 &["NN=CCCC(C)=NN", "C(CC(=NN)C)C=NN"][..],
+            ),
+            // P-44.4.1.12.2: of two butan-2-ol parents the like pair (2R,3R)
+            // precedes the unlike pair (2R,3S).
+            (
+                "(2R,3R)-3-[(3-{[(2S,3R)-3-hydroxybutan-2-yl]amino}hexan-3-yl)amino]butan-2-ol",
+                &[
+                    "CCC(N[C@H](C)[C@@H](C)O)(N[C@@H](C)[C@@H](C)O)CCC",
+                    "CCC(N[C@@H](C)[C@@H](C)O)(N[C@H](C)[C@@H](C)O)CCC",
+                    "O[C@H](C)[C@H](C)NC(CC)(CCC)N[C@H](C)[C@@H](C)O",
+                ][..],
             ),
         ] {
             let identity = crate::test_support::canonical_smiles(inputs[0]).unwrap();
@@ -3703,6 +3715,18 @@ mod tests {
                 R::AcylPrefix,
             ),
             ("C[PH](C)=O", "(methyloxophosphanyl)methane", R::AcylPrefix),
+            // P-67.1.4.1.1.5: the preferred prefix follows
+            // hydroxy(methylphosphonoyl).
+            (
+                "O[As](C)(=O)CC(=O)O",
+                "[hydroxy(methyl)arsoryl]acetic acid",
+                R::AcylPrefix,
+            ),
+            (
+                "CO[As](C)(=O)CC(=O)O",
+                "[methoxy(methyl)arsoryl]acetic acid",
+                R::AcylPrefix,
+            ),
             (
                 "O=C(O)c1ccc([As](=O)(C)C)cc1",
                 "4-(dimethyloxoarsanyl)benzoic acid",
@@ -3780,6 +3804,18 @@ mod tests {
                 "C12=CC=C(C3=CC=CC=C13)O2",
                 "1,4-epoxynaphthalene",
                 R::BridgedFusedParent,
+            ),
+            // P-44.4.1.12.2: three centres, and RS against SR, need CIP
+            // rules 4 and 5.
+            (
+                "CCC(N[C@H](C)[C@@H](Cl)[C@@H](C)O)(N[C@@H](C)[C@@H](Cl)[C@@H](C)O)CCC",
+                "(2R,3R,4R)-3-chloro-4-[(3-{[(2S,3R,4R)-3-chloro-4-hydroxypentan-2-yl]amino}hexan-3-yl)amino]pentan-2-ol",
+                R::ParentConfiguration,
+            ),
+            (
+                "CCC(N[C@H](C)[C@H](C)O)(N[C@@H](C)[C@@H](C)O)CCC",
+                "(2S,3R)-3-[(3-{[(2S,3R)-3-hydroxybutan-2-yl]amino}hexan-3-yl)amino]butan-2-ol",
+                R::ParentConfiguration,
             ),
             (
                 "c1oc2cc3nc4ccccc4nc3cc2c1",
@@ -3862,6 +3898,27 @@ mod tests {
             ("N1CCCC2C1NCC2", "octahydro-1H-pyrrolo[2,3-b]pyridine"),
             ("N1CCC2C1CNC2", "octahydropyrrolo[3,4-b]pyrrole"),
             ("N1CCCC2C1CNCC2", "decahydro-1,7-naphthyridine"),
+            // Issue #108. P-14.7.1, P-58.2.1.2: a fusion N takes no double
+            // bond, so it can split the mancude parent into parts that each
+            // need indicated hydrogen, also in an even-membered system
+            // ('1H,5H-pyrido[3,2,1-ij]quinoline' in P-58.2.3.1.4).
+            ("C1CN2CCCN2C1", "tetrahydro-1H,5H-pyrazolo[1,2-a]pyrazole"),
+            (
+                "C1CC2CCCC3CCCN(C1)C23",
+                "decahydro-1H,5H-pyrido[3,2,1-ij]quinoline",
+            ),
+            (
+                "C1CC2=C3C(=CC=C2)CCCN3C1",
+                "2,3,6,7-tetrahydro-1H,5H-pyrido[3,2,1-ij]quinoline",
+            ),
+            // The fusion N leaves a nine-atom chain; position 1 pairs up, so
+            // the lowest indicated hydrogen is 2H (P-58.2.1.2).
+            ("C1CCN2CCNCC2C1", "octahydro-2H-pyrido[1,2-a]pyrazine"),
+            ("C1CN2CCNCC2CN1", "octahydro-2H-pyrazino[1,2-a]pyrazine"),
+            // Controls with a fusion N that were already correct.
+            ("C1CCN2CCCN2C1", "hexahydro-1H-pyrazolo[1,2-a]pyridazine"),
+            ("C1CCN2CCCCN2C1", "octahydropyridazino[1,2-a]pyridazine"),
+            ("C1CCN2CCCCC2C1", "octahydro-2H-quinolizine"),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");

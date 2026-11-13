@@ -7,6 +7,7 @@
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/special_cases.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #17
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #158
 // Source: openclatura | tests/exploratory/test_group14_ether_ligand_parent_selection.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_substituents.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -2037,15 +2038,18 @@ fn oxoacid_ester_name(
 // Provenance: fn organophosphorus_acid_name | adapted
 // Source: openclatura | src/openclatura/special_cases.py::organophosphinic_acid_result
 // Source: openclatura | src/openclatura/special_cases.py::organophosphonic_acid_result
+/// P-67.1.1.2: organyl groups substitute the hydrogen on the central atom of
+/// the phosphorus, arsenic and antimony acids of P-67.1.1.1. Their anions and
+/// esters change `ic acid` to `ate` and `ous acid` to `ite` (P-67.1.3.1,
+/// P-67.1.3.2, P-72.2.2.2.1).
 fn organophosphorus_acid_name(
     mol: &Molecule,
     atoms: &AtomSet,
-    phosphinic: bool,
 ) -> Result<Option<StructuralParentName>, String> {
     let centers: Vec<_> = atoms
         .iter()
         .copied()
-        .filter(|i| mol.atoms[i].symbol == "P")
+        .filter(|i| matches!(mol.atoms[i].symbol.as_str(), "P" | "As" | "Sb"))
         .collect();
     if centers.len() != 1 {
         return Ok(None);
@@ -2058,21 +2062,18 @@ fn organophosphorus_acid_name(
     {
         return Ok(None);
     }
-    if phosphinic && a.charge != 0 || !phosphinic && a.total_h_count != 0 {
-        return Ok(None);
-    }
-    let (mut double, mut hydroxy, mut esters, mut roots) =
-        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let (mut double, mut hydroxy, mut oxido, mut esters, mut roots) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for &n in mol.get_neighbors(c) {
         if !atoms.contains(&n) {
             return Ok(None);
         }
         let atom = &mol.atoms[&n];
         let bond = mol.bond_order(c, n);
-        if atom.symbol == "O"
-            && (bond == 2 || !phosphinic && bond == 1 && atom.charge == -1 && mol.degree(n) == 1)
-        {
+        if atom.symbol == "O" && bond == 2 {
             double.push(n);
+        } else if atom.symbol == "O" && bond == 1 && atom.charge == -1 && mol.degree(n) == 1 {
+            oxido.push(n);
         } else if atom.symbol == "O" && bond == 1 && atom.charge == 0 && mol.degree(n) == 1 {
             hydroxy.push(n);
         } else if atom.symbol == "O" && bond == 1 && atom.charge == 0 && mol.degree(n) == 2 {
@@ -2083,25 +2084,38 @@ fn organophosphorus_acid_name(
             return Ok(None);
         }
     }
-    if double.len() != 1 {
+    // The charge-separated P(+)-O(-) form of a phosphonic acid or ester.
+    if a.charge == 1 && a.symbol == "P" && double.is_empty() && oxido.len() == 1 {
+        double.append(&mut oxido);
+    } else if a.charge != 0 {
         return Ok(None);
     }
-    if phosphinic {
-        if !(1..=2).contains(&roots.len())
-            || hydroxy.len() + esters.len() != 1
-            || a.total_h_count.max(a.explicit_h_count) != 2 - roots.len()
-        {
-            return Ok(None);
-        }
-    } else if roots.len() != 1
-        || hydroxy.len() + esters.len() != 2
-        || a.charge != 0 && !(a.charge == 1 && double.iter().any(|o| mol.atoms[o].charge == -1))
+    let acidic = hydroxy.len() + oxido.len() + esters.len();
+    // One acidic oxygen is the `in` acid and two the `on` acid; the trivalent
+    // acids and esters without an anionic oxygen keep their substitutive names.
+    if !(1..=2).contains(&acidic)
+        || roots.is_empty()
+        || roots.len() + a.total_h_count.max(a.explicit_h_count) + acidic != 3
+        || double.len() > 1
+        || a.charge == 1 && acidic != 2
+        || double.is_empty() && oxido.is_empty()
     {
         return Ok(None);
     }
+    let stem = format!(
+        "{}{}",
+        match a.symbol.as_str() {
+            "P" => "phosph",
+            "As" => "ars",
+            _ => "stib",
+        },
+        if acidic == 1 { "in" } else { "on" }
+    );
+    let oxo = !double.is_empty();
     let acid: AtomSet = std::iter::once(c)
         .chain(double)
         .chain(hydroxy.iter().copied())
+        .chain(oxido.iter().copied())
         .chain(esters.iter().copied())
         .collect();
     require_stereo_free_core(mol, &acid)?;
@@ -2113,9 +2127,9 @@ fn organophosphorus_acid_name(
         }
         ligands.push(name);
     }
-    // Phosphinic acids group their carbon ligands as a centre prefix. The
-    // single phosphonic-acid ligand is cited directly by the upstream route.
-    let ligand = if phosphinic {
+    // The `in` acids group their carbon ligands as a centre prefix. The
+    // single `on` acid ligand is cited directly by the upstream route.
+    let ligand = if acidic == 1 {
         center_ligands(&ligands)
     } else {
         ligands.remove(0)
@@ -2133,34 +2147,24 @@ fn organophosphorus_acid_name(
         modifiers.push(name);
         component_splits.insert(normalize_edge(oxygen, root));
     }
-    if modifiers.is_empty() {
+    if modifiers.is_empty() && oxido.is_empty() {
         return Ok(Some(StructuralParentName::ordinary(format!(
-            "{ligand}{} acid",
-            if phosphinic {
-                "phosphinic"
-            } else {
-                "phosphonic"
-            }
+            "{ligand}{stem}ic acid"
         ))));
     }
-    let mut phrase = modifier_phrase(&modifiers, !phosphinic);
-    if !phosphinic && !hydroxy.is_empty() {
-        phrase.push_str(if hydroxy.len() == 1 {
-            " hydrogen"
-        } else {
-            " dihydrogen"
-        });
+    // P-67.1.3.2, P-72.2.2.2.1.2: ester groups, then `hydrogen` for each
+    // remaining hydroxy group, then the anion name.
+    let mut words = Vec::new();
+    if !modifiers.is_empty() {
+        words.push(modifier_phrase(&modifiers, acidic == 2));
     }
+    if !hydroxy.is_empty() {
+        words.push("hydrogen".into());
+    }
+    words.push(format!("{ligand}{stem}{}", if oxo { "ate" } else { "ite" }));
     Ok(Some(StructuralParentName {
         component_splits,
-        ..StructuralParentName::ordinary(format!(
-            "{phrase} {ligand}{}",
-            if phosphinic {
-                "phosphinate"
-            } else {
-                "phosphonate"
-            }
-        ))
+        ..StructuralParentName::ordinary(words.join(" "))
     }))
 }
 
@@ -3564,6 +3568,115 @@ fn sulfamic_acid_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>,
     let names: Vec<_> = ligands.into_iter().map(|(_, n)| n).collect();
     Ok(Some(format!("{}sulfamic acid", center_ligands(&names))))
 }
+/// P-67.1.2.4.1.1: HO-SO2-CN is sulfurocyanidic acid, sulfuric acid with the
+/// infix cyanido (P-67.1.2.3.2); sulfurous acid takes infixes too
+/// (P-67.1.2.1). Anions end in ate or ite (P-67.1.3.1) and esters cite the
+/// alkyl group before the anion name (P-67.1.3.2). A substitutive name on
+/// methane would have the nitrile carbon as its whole parent.
+// Provenance: fn sulfurocyanidic_acid_name | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::sulfurocyanidic_acid_name
+fn sulfurocyanidic_acid_name(
+    mol: &Molecule,
+    atoms: &AtomSet,
+) -> Result<Option<StructuralParentName>, String> {
+    let mut found = None;
+    for &s in atoms {
+        let centre = &mol.atoms[&s];
+        if centre.symbol != "S" || centre.charge != 0 || centre.total_h_count != 0 {
+            continue;
+        }
+        let around = mol.get_neighbors(s);
+        let cyano: Vec<_> = around
+            .iter()
+            .copied()
+            .filter(|&c| {
+                mol.atoms[&c].is_carbon()
+                    && mol.degree(c) == 2
+                    && mol.get_neighbors(c).iter().any(|&n| {
+                        mol.atoms[&n].symbol == "N"
+                            && mol.bond_order(c, n) == 3
+                            && mol.atoms[&n].charge == 0
+                    })
+            })
+            .collect();
+        let oxygen = |order| {
+            around
+                .iter()
+                .copied()
+                .filter(|&o| {
+                    mol.atoms[&o].symbol == "O"
+                        && mol.bond_order(s, o) == order
+                        && (order == 1 || mol.degree(o) == 1 && mol.atoms[&o].charge == 0)
+                })
+                .collect::<Vec<_>>()
+        };
+        let (oxo, single) = (oxygen(2), oxygen(1));
+        if cyano.len() == 1
+            && single.len() == 1
+            && matches!(oxo.len(), 1 | 2)
+            && around.len() == oxo.len() + 2
+        {
+            if found.is_some() {
+                return Ok(None);
+            }
+            found = Some((s, cyano[0], oxo, single[0]));
+        }
+    }
+    let Some((s, c, oxo, o)) = found else {
+        return Ok(None);
+    };
+    let mut core: AtomSet = [s, c, o].into_iter().chain(oxo.iter().copied()).collect();
+    core.extend(mol.get_neighbors(c));
+    let (acid, anion) = if oxo.len() == 2 {
+        ("sulfurocyanidic acid", "sulfurocyanidate")
+    } else {
+        ("sulfurocyanidous acid", "sulfurocyanidite")
+    };
+    let roots: Vec<_> = mol
+        .get_neighbors(o)
+        .iter()
+        .copied()
+        .filter(|&r| r != s)
+        .collect();
+    let mut name = StructuralParentName {
+        certified: true,
+        ..StructuralParentName::ordinary(String::new())
+    };
+    match (&roots[..], mol.atoms[&o].charge) {
+        ([], _) if core != *atoms => return Ok(None),
+        ([], -1) => name.name = anion.into(),
+        ([], 0) => name.name = acid.into(),
+        (&[root], 0) if mol.atoms[&root].is_carbon() => {
+            let ligand = component_atoms_until_blocked(mol, atoms, root, &core);
+            if ligand.union(&core).copied().collect::<AtomSet>() != *atoms {
+                return Ok(None);
+            }
+            // An acyl group makes an anhydride (P-67.1.3.3) and a principal
+            // group or a charge in the ligand may be senior to the ester
+            // (P-41); these are left to the other routes.
+            if ligand.iter().any(|a| mol.atoms[a].charge != 0)
+                || mol
+                    .get_neighbors(root)
+                    .iter()
+                    .any(|&n| mol.bond_order(root, n) != 1 && !mol.atoms[&n].is_carbon())
+                || perceive_groups(mol)
+                    .iter()
+                    .any(|g| g.is_principal_candidate && g.atom_ids().is_subset(&ligand))
+            {
+                return Ok(None);
+            }
+            let alkyl = ester_modifier_name(mol, atoms, root, o, &core)?;
+            if alkyl.is_empty() {
+                return Ok(None);
+            }
+            name.component_splits.insert(normalize_edge(o, root));
+            name.name = format!("{alkyl} {anion}");
+        }
+        _ => return Ok(None),
+    }
+    require_stereo_free_core(mol, &core)?;
+    Ok(Some(name))
+}
 // Provenance: fn azinic_acid_name | adapted
 // Source: openclatura | src/openclatura/special_cases.py::azinic_acid_result
 fn azinic_acid_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>, String> {
@@ -4556,6 +4669,9 @@ pub(super) fn structural_replacement_parent_result(
     if let Some(name) = mol.candidate(|| sulfamic_acid_name(mol, atoms))? {
         return Ok(Some(StructuralParentName::ordinary(name)));
     }
+    if let Some(name) = mol.candidate(|| sulfurocyanidic_acid_name(mol, atoms))? {
+        return Ok(Some(name));
+    }
     if let Some(name) = mol.candidate(|| azinic_acid_name(mol, atoms))? {
         return Ok(Some(StructuralParentName::ordinary(name)));
     }
@@ -4566,10 +4682,7 @@ pub(super) fn structural_replacement_parent_result(
         require_stereo_free_core(mol, atoms)?;
         return Ok(Some(StructuralParentName::ordinary(name)));
     }
-    if let Some(name) = mol.candidate(|| organophosphorus_acid_name(mol, atoms, true))? {
-        return Ok(Some(name));
-    }
-    if let Some(name) = mol.candidate(|| organophosphorus_acid_name(mol, atoms, false))? {
+    if let Some(name) = mol.candidate(|| organophosphorus_acid_name(mol, atoms))? {
         return Ok(Some(name));
     }
     if let Some(name) = mol.candidate(|| organoboronic_acid_name(mol, atoms))? {

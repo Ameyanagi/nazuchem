@@ -427,6 +427,87 @@ fn ion_spelling_matrix() {
             "(diazyn-1-ium-1-yl)acetate",
             NameStatus::Preferred,
         ),
+        // P-73.1.1.2, P-25.2.1: a cation is the name of its neutral parent hydride
+        // (hydro prefixes and indicated hydrogen included) plus -ium, so it
+        // keeps a retained parent name such as naphthyridine.
+        (
+            "#96 retained hydro parent",
+            "N1CCCC2C1CC[NH2+]C2",
+            "decahydro-1,6-naphthyridin-6-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 retained hydro parent, other N",
+            "[NH2+]1CCCC2C1CCNC2",
+            "decahydro-1,6-naphthyridin-1-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 retained hydro parent, diium",
+            "[NH2+]1CCCC2C1CC[NH2+]C2",
+            "decahydro-1,6-naphthyridine-1,6-diium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 retained partly hydro parent",
+            "n1cccc2C[NH2+]CCc12",
+            "5,6,7,8-tetrahydro-1,6-naphthyridin-6-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 retained parent, lowest indicated hydrogen",
+            "C1C[NH2+]Cc2[nH]c3ccccc3c12",
+            "2,3,4,9-tetrahydro-1H-pyrido[3,4-b]indol-2-ium",
+            NameStatus::Preferred,
+        ),
+        // P-73.1.1.2 (1,1,3,3-tetraphenyl-4,5-dihydro-1H-1,2,3λ5-triphosphol-1-ium):
+        // a quaternary ring N is the same cation with its hydrogen substituted.
+        (
+            "#96 quaternary N, indicated hydrogen elsewhere",
+            "C[N+]1(C)Cc2ccccc2C1",
+            "2,2-dimethyl-2,3-dihydro-1H-isoindol-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 quaternary N, hydro parent",
+            "C[N+]1(C)CCc2ccccc2C1",
+            "2,2-dimethyl-1,2,3,4-tetrahydroisoquinolin-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 quaternary N, saturated parent",
+            "C[N+]1(C)CCC2CCCCC2C1",
+            "2,2-dimethyldecahydroisoquinolin-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 quaternary fusion N",
+            "C1CC[N+]2(C)CCCCC2C1",
+            "5-methyloctahydro-2H-quinolizin-5-ium",
+            NameStatus::Preferred,
+        ),
+        // P-73.1.2.1 (2,2-dimethyl-1,3-dioxo-2,3-dihydro-1H-isoindol-2-ium): a ring
+        // C=O of the cationic parent hydride is cited as oxo.
+        (
+            "#96 ring oxo on a protonated retained parent",
+            "[NH2+]1CCc2cc[nH]c(=O)c2C1",
+            "8-oxo-1,2,3,4,7,8-hexahydro-2,7-naphthyridin-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 ring oxo beside the hydro positions",
+            "O=C1C[NH2+]Cc2ccccc12",
+            "4-oxo-1,2,3,4-tetrahydroisoquinolin-2-ium",
+            NameStatus::Preferred,
+        ),
+        // P-73.1.1.2: a hydron at a fusion N. The parser reads this spelling as
+        // the λ5-ylium cation of P-73.3.1 unless the ring is saturated.
+        (
+            "#96 protonated fusion N",
+            "C1CC[NH+]2CCCCC2C1",
+            "octahydro-2H-quinolizin-5-ium",
+            NameStatus::Unverified(NameReason::FusionNitrogenHydron),
+        ),
         (
             "control nitrobenzene",
             "[O-][N+](=O)c1ccccc1",

@@ -294,6 +294,16 @@ pub(super) fn name_salt(
             && atoms.len() == 1
             && atoms[0].explicit_hydrogens == 0
             && state.valences[0].implicit_hydrogens == 0;
+        // P-16.3.6 (a): two NC-SO2-O(-) or NC-S(O)-O(-) ions are
+        // `bis(sulfurocyanidate)`; `disulfuro...` would be read as a
+        // derivative of disulfuric acid (P-67.2.1).
+        let mut elements: Vec<_> = central.iter().map(|&i| atoms[i].atomic_number).collect();
+        elements.sort_unstable();
+        let oxoanion = oxoanion
+            || q < 0
+                && elements == [6, 7, 16]
+                && atoms.len() >= 5
+                && bonds.iter().any(|b| b.order == 3);
         let bis_from = if oxoanion || monatomic && q <= -2 {
             2
         } else if monatomic {

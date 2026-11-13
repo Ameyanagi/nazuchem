@@ -13,6 +13,7 @@
 //! The plain-name component pipeline, retaining upstream decision order.
 use super::{
     assembly_parts::SubstituentItem,
+    assembly_utils::parse_locant,
     chains::{find_all_carbon_paths, find_ring_systems, get_cyclic_atoms},
     component_group_rules::{
         exclude_nonparent_group_atoms, external_chain_carboxylic_parent, principal_involved_atoms,
@@ -30,7 +31,9 @@ use super::{
         ParentAssemblyPlan, build_parent_assembly_plan_with_modifiers,
         build_parent_assembly_plan_with_parent, resolve_retained_parent,
     },
-    parent_selection::{ParentSelection, assembled_name_preference, tied_principal_parents},
+    parent_selection::{
+        ParentSelection, assembled_name_preference, senior_configurations, tied_principal_parents,
+    },
     principal_groups::{
         add_component_principal_group, candidate_principal_attachments, component_groups,
         component_principal_key, demote_neutral_suffixes_for_skeletal_anion,
@@ -450,28 +453,21 @@ fn component_pipeline(
             let chains = find_all_carbon_paths(mol, &exclude)?;
             let rings = find_ring_systems(mol, &exclude)?;
             let mut tied = tied_principal_parents(mol, &chains, &rings, &principal, &groups);
-            // P-45.2.2, P-45.2.3 and P-45.5 compare the assembled names of
-            // the tied parents. Isotopes (P-44.4.1.11, P-45.4), nonstandard
-            // bonding numbers (P-45.3) and configuration in a tied parent
-            // (P-44.4.1.12) are not modelled, and a difference in the parent
-            // with its suffix is an earlier P-44.4.1 criterion; the
-            // atom-order choice stands in those cases.
-            let in_tied = |atom: &usize| tied.iter().any(|p| p.primary_path().contains(atom));
+            // P-44.4.1.10, P-44.4.1.12, P-45.2.2, P-45.2.3, P-45.5 and
+            // P-45.6.3 compare the assembled names of the tied parents.
+            // Isotopes (P-44.4.1.11, P-45.4) and nonstandard bonding numbers
+            // (P-45.3) are not modelled, and a difference in the parent with
+            // its suffix, other than in the ene, yne and hydro locants, is an
+            // earlier P-44.4.1 criterion; the earlier choice stands in those
+            // cases.
             let mut best = 0;
             if tied.len() > 1
                 && principal_atom.is_none()
                 && !mol.isotope_labels_stripped
-                && mol
-                    .atoms
-                    .values()
-                    .all(|a| a.isotope.is_none() && !(a.has_stereo() && in_tied(&a.idx)))
-                && mol
-                    .bonds
-                    .values()
-                    .all(|b| b.stereo.is_none() || !(in_tied(&b.u) || in_tied(&b.v)))
+                && mol.atoms.values().all(|a| a.isotope.is_none())
             {
                 let mut names = Vec::new();
-                for parent in &tied {
+                for (i, parent) in tied.iter().enumerate() {
                     // Discard the status marks of every trial name.
                     mol.candidate::<()>(|| {
                         if let ComponentResult::Plan(mut plan, ..) = component_pipeline(
@@ -484,22 +480,59 @@ fn component_pipeline(
                             Some((parent, None)),
                         )? {
                             let prefixes = plan.parts.substituents.clone();
-                            let (name, parent) = render_component_and_parent(
+                            let (name, mut parent) = render_component_and_parent(
                                 mol,
                                 &mut plan.parts,
                                 &plan.numbered_path,
                                 &plan.locant_map,
                             )?;
+                            // P-44.4.1.10.1: the ene and yne locants together,
+                            // then the ene locants. They are taken out of the
+                            // parent name, as `format_unsaturations` wrote them.
+                            let mut endings = Vec::new();
+                            let mut enes = Vec::new();
+                            for u in &plan.parts.unsaturations {
+                                let mut locants = u.locants.clone();
+                                locants.sort_by_key(|l| parse_locant(l));
+                                let infix = super::rules::bonds::unsaturation_infix(
+                                    &u.bond_key,
+                                    locants.len().max(1),
+                                );
+                                let ending = infix.strip_prefix('a').unwrap_or(&infix);
+                                parent = parent.replacen(
+                                    &format!("-{}-{ending}", locants.join(",")),
+                                    ending,
+                                    1,
+                                );
+                                let locants = locants.iter().map(|l| parse_locant(l));
+                                if u.bond_key == "double" {
+                                    enes.extend(locants.clone());
+                                }
+                                endings.extend(locants);
+                            }
+                            endings.sort();
+                            enes.sort();
                             // P-44.4.1.10.2: hydro prefixes belong to the parent.
-                            let hydro: Vec<_> = plan
+                            let operations: Vec<_> = plan
                                 .parts
                                 .hydro_operations
                                 .iter()
-                                .map(|h| (h.key.clone(), h.locants.clone()))
+                                .map(|h| (h.key.clone(), h.locants.len()))
                                 .collect();
+                            let mut hydro: Vec<_> = plan
+                                .parts
+                                .hydro_operations
+                                .iter()
+                                .flat_map(|h| h.locants.iter().map(|l| parse_locant(l)))
+                                .collect();
+                            hydro.sort();
                             if !name.contains("lambda") {
                                 names.push((
-                                    (parent, hydro),
+                                    i,
+                                    (parent, operations),
+                                    (endings, enes),
+                                    hydro,
+                                    plan.parts.stereo_features,
                                     assembled_name_preference(&prefixes, &name),
                                 ));
                             }
@@ -508,9 +541,29 @@ fn component_pipeline(
                     })
                     .ok();
                 }
-                if names.len() == tied.len() && names.iter().all(|(p, _)| p == &names[0].0) {
-                    // The first of equal names, which is the atom-order choice.
-                    best = (0..names.len()).min_by_key(|&i| &names[i].1).unwrap_or(0);
+                // Ending and hydro locants that both differ are not compared.
+                if names.len() == tied.len()
+                    && names.iter().all(|n| n.1 == names[0].1)
+                    && (names.iter().all(|n| n.2 == names[0].2)
+                        || names.iter().all(|n| n.3 == names[0].3))
+                {
+                    let lowest = names.iter().map(|n| (n.2.clone(), n.3.clone())).min();
+                    names.retain(|n| Some((n.2.clone(), n.3.clone())) == lowest);
+                    let (senior, settled) = senior_configurations(
+                        &names.iter().map(|n| n.4.as_slice()).collect::<Vec<_>>(),
+                    );
+                    // The first of equal names, which is the earlier choice;
+                    // an unsettled configuration ends the comparison.
+                    let first = senior
+                        .iter()
+                        .copied()
+                        .min_by_key(|&i| settled.then_some(&names[i].5));
+                    best = first.map_or(0, |i| names[i].0);
+                    if !settled {
+                        mol.mark_name(nazuchem_ir::NameStatus::Unverified(
+                            nazuchem_ir::NameReason::ParentConfiguration,
+                        ));
+                    }
                 }
             }
             if tied.is_empty() {
@@ -1074,13 +1127,10 @@ mod tests {
     // Test provenance: upstream inputs/expected names with local assertions and extensions;
     // exact matches are conservatively adapted; independent ancestry is not established.
     fn charged_retained_fallback_requires_citable_donor_hydrogen() {
-        for smiles in ["C1=N[NH2+]c2ccccc21", "C1=Nc2ccccc2[NH2+]1"] {
-            assert!(
-                super::super::name_smiles(smiles, &Default::default()).is_err(),
-                "{smiles}"
-            );
-        }
+        assert!(super::super::name_smiles("C1=Nc2ccccc2[NH2+]1", &Default::default()).is_err());
         for (smiles, name) in [
+            // P-73.1.1.2: a hydron added to the N-H of 1H-indazole.
+            ("C1=N[NH2+]c2ccccc21", "1H-indazol-1-ium"),
             ("c1ccc2[nH+]cccc2c1", "quinolin-1-ium"),
             ("c1ccc2[n-]ncc2c1", "1H-indazol-1-ide"),
             ("C1=Cc2ccccc2[NH2+]1", "1H-indol-1-ium"),
