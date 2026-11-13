@@ -117,6 +117,12 @@ fn acid_prefixes_ending_a_chain_follow_the_blue_book_and_round_trip() {
         ("O=C(O)CCC(=O)SS", "4-(disulfanyl)-4-oxobutanoic acid"),
         ("OC(=O)CCC(=O)[Se][SeH]", "4-(diselanyl)-4-oxobutanoic acid"),
         ("[SeH][Se]CC(=O)O", "diselanylacetic acid"),
+        // P-16.5.1.3.2: cited after another unlocanted prefix, a prefix
+        // that begins with a multiplying term is enclosed.
+        ("ClC(SS)C(=O)O", "chloro(disulfanyl)acetic acid"),
+        ("NC([Se][SeH])C(=O)O", "amino(diselanyl)acetic acid"),
+        ("ClC([Te][TeH])C(=O)O", "chloro(ditellanyl)acetic acid"),
+        ("OC(=O)C(=O)SS", "disulfanyl(oxo)acetic acid"),
         // P-45.2.1: of two chains of equal length, the one through the acid
         // carbon has more substituents cited as prefixes.
         (
