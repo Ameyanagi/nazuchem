@@ -1102,13 +1102,17 @@ fn hydrazinyl_prefix(
     }
     let mut names: Vec<_> = cited.iter().map(|(name, _)| name.clone()).collect();
     if double {
-        names = names.iter().map(|n| strip_outer_parentheses(n)).collect();
         return Ok(Some(match &names[..] {
             [] => "hydrazinylidene".into(),
             // P-16.5.1.1: a compound prefix is enclosed, as in
             // (dimethylcarbamoyl)hydrazinylidene.
-            [n] if is_complex_prefix(n) || is_compound_prefix(n) => {
-                format!("(({n})hydrazinylidene)")
+            [n] => {
+                let n = strip_outer_parentheses(n);
+                if is_complex_prefix(&n) || is_compound_prefix(&n) {
+                    format!("(({n})hydrazinylidene)")
+                } else {
+                    format!("({n}hydrazinylidene)")
+                }
             }
             _ => format!("({}hydrazinylidene)", center(&names)),
         }));

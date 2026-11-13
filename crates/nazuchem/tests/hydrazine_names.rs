@@ -180,6 +180,15 @@ fn the_prefix_of_a_hydrazone_is_hydrazinylidene() {
             "OC(=O)CC=NN(C)CC",
             "3-[ethyl(methyl)hydrazinylidene]propanoic acid",
         ),
+        // P-16.5.1.1, P-16.5.1.3.1: as (chloromethyl)(methyl)silane.
+        (
+            "OC(=O)CC=NN(C)CCl",
+            "3-[(chloromethyl)(methyl)hydrazinylidene]propanoic acid",
+        ),
+        (
+            "OC(=O)CC=NN(CCl)C",
+            "3-[(chloromethyl)(methyl)hydrazinylidene]propanoic acid",
+        ),
     ] {
         check(smiles, expected, NameStatus::Preferred);
     }
