@@ -8,6 +8,7 @@
 // Source: ReShiki | src/naming/openclatura/special_cases.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #17
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #158
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #176
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #180
 // Source: openclatura | tests/exploratory/test_group14_ether_ligand_parent_selection.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -557,10 +558,13 @@ fn azine_roles(mol: &Molecule, atoms: &AtomSet) -> Vec<[AzineSide; 2]> {
             continue;
         }
         for &n2 in mol.get_neighbors(n1) {
+            // An azine or hydrazone name describes the neutral N-N.
             if n2 <= n1
                 || !atoms.contains(&n2)
                 || mol.atoms[&n2].symbol != "N"
                 || mol.bond_order(n1, n2) != 1
+                || mol.atoms[&n1].charge != 0
+                || mol.atoms[&n2].charge != 0
             {
                 continue;
             }
@@ -3338,6 +3342,155 @@ fn cyanohydrazide_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>
     Ok(Some(format!("{prefixes}cyanohydrazide")))
 }
 
+/// P-67.1.2.6.3: the amides of nitric and nitrous acid are named by
+/// substituting nitramide, O2N-NH2, and nitrous amide, ON-NH2, not as N-nitro
+/// and N-nitroso amines. As amides they are senior to nitriles, aldehydes,
+/// ketones, hydroxy compounds and amines (P-41), which become prefixes. Left
+/// to the general namer: a ring nitrogen, a second nitrogen with a nitro or
+/// nitroso group, and a group that is senior to these amides or is a
+/// hydrazide or imide.
+// Provenance: fn nitramide_name | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::nitramide_name
+fn nitramide_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>, String> {
+    if mol.is_isotope_parent() {
+        return Ok(None);
+    }
+    let symbol = |i: usize| mol.atoms[&i].symbol.as_str();
+    let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
+    let heavy = |i: usize| -> Vec<usize> {
+        mol.get_neighbors(i)
+            .iter()
+            .copied()
+            .filter(|&x| symbol(x) != "H")
+            .collect()
+    };
+    // The oxygens of a nitro or nitroso nitrogen `x` on the atom `parent`.
+    let oxygens = |x: usize, parent: usize| -> Option<Vec<usize>> {
+        let oxygens: Vec<_> = heavy(x).into_iter().filter(|&o| o != parent).collect();
+        let charge: i32 = oxygens
+            .iter()
+            .chain([&x])
+            .map(|i| mol.atoms[i].charge)
+            .sum();
+        (symbol(x) == "N"
+            && mol.atoms[&x].total_h_count == 0
+            && mol.bond_order(x, parent) == 1
+            && matches!(oxygens.len(), 1 | 2)
+            && charge == 0
+            && oxygens.iter().all(|&o| {
+                symbol(o) == "O" && heavy(o).len() == 1 && mol.atoms[&o].total_h_count == 0
+            })
+            && (oxygens.len() == 2 || mol.bond_order(x, oxygens[0]) == 2))
+            .then_some(oxygens)
+    };
+    let mut amides = atoms
+        .iter()
+        .copied()
+        .filter(|&n| symbol(n) == "N" && heavy(n).into_iter().any(|x| oxygens(x, n).is_some()));
+    let (Some(n), None) = (amides.next(), amides.next()) else {
+        return Ok(None);
+    };
+    if cyclic.contains(&n) || mol.atoms[&n].charge != 0 {
+        return Ok(None);
+    }
+    // Nitric acid is senior to nitrous acid, so a nitro group is the parent's.
+    let mut acyls: Vec<_> = heavy(n)
+        .into_iter()
+        .filter_map(|x| oxygens(x, n).map(|oxygens| (x, oxygens)))
+        .collect();
+    acyls.sort_by_key(|(_, oxygens)| std::cmp::Reverse(oxygens.len()));
+    let parent = if acyls[0].1.len() == 2 {
+        "nitramide"
+    } else {
+        "nitrous amide"
+    };
+    let mut names: Vec<String> = acyls[1..]
+        .iter()
+        .map(|(_, oxygens)| {
+            if oxygens.len() == 2 {
+                "nitro"
+            } else {
+                "nitroso"
+            }
+            .into()
+        })
+        .collect();
+    let core: AtomSet = acyls
+        .into_iter()
+        .flat_map(|(x, oxygens)| oxygens.into_iter().chain([x]))
+        .chain([n])
+        .collect();
+    for group in perceive_groups(mol) {
+        if atoms.contains(&group.attachment_carbon)
+            && group
+                .resolved_rule
+                .as_ref()
+                .and_then(|r| r.seniority.as_ref())
+                .is_some_and(|s| s[0] <= 68)
+        {
+            return Ok(None);
+        }
+    }
+    // Not every senior class is perceived as a group: carbonic, phosphorus
+    // and nitric acids and their esters are not. They all have a carbon
+    // with two heteroatoms or a bond between two heteroatoms. A nitro group
+    // on carbon is only a prefix.
+    let nitro: AtomSet = atoms
+        .iter()
+        .filter_map(|&x| match heavy(x)[..] {
+            [a, b, c] => [a, b, c]
+                .into_iter()
+                .find(|&parent| symbol(parent) == "C" && oxygens(x, parent).is_some())
+                .and_then(|parent| oxygens(x, parent))
+                .map(|oxygens| oxygens.into_iter().chain([x])),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    let hetero = |i: usize| {
+        !core.contains(&i)
+            && !nitro.contains(&i)
+            && !matches!(symbol(i), "C" | "H" | "F" | "Cl" | "Br" | "I")
+    };
+    if atoms.iter().any(|&i| {
+        !core.contains(&i)
+            && !nitro.contains(&i)
+            && (mol.atoms[&i].charge != 0
+                || heavy(i).into_iter().filter(|&x| hetero(x)).count() > usize::from(!hetero(i)))
+    }) {
+        return Ok(None);
+    }
+    for root in heavy(n) {
+        if core.contains(&root) {
+            continue;
+        }
+        // No Blue Book example places an E/Z descriptor here.
+        let order = mol.bond_order(n, root);
+        if symbol(root) != "C"
+            || order > 2
+            || mol.get_bond(n, root).is_some_and(|b| b.stereo.is_some())
+        {
+            return Ok(None);
+        }
+        let name = branch_name(mol, atoms, root, &set([n]), n)?;
+        // A name that does not carry the double bond, such as
+        // methanethioyl for =C=S, would lose it.
+        if name.is_empty() || (order == 2) != strip_outer_parentheses(&name).ends_with("ylidene") {
+            return Ok(None);
+        }
+        // P-29.6.2.1: unsubstituted benzylidene is preferred.
+        names.push(if name == "(phenylmethylidene)" {
+            "benzylidene".into()
+        } else {
+            name
+        });
+    }
+    if require_stereo_free_core(mol, &core).is_err() {
+        return Ok(None);
+    }
+    Ok(Some(format!("{}{parent}", center_ligands(&names))))
+}
+
 // Provenance: fn nitrogen_ligands | adapted
 // Source: openclatura | src/openclatura/special_cases.py::_urea_n_ligand_names
 fn nitrogen_ligands(
@@ -4721,6 +4874,12 @@ pub(super) fn structural_replacement_parent_result(
         }));
     }
     if let Some(name) = mol.candidate(|| cyanohydrazide_name(mol, atoms))? {
+        return Ok(Some(StructuralParentName {
+            certified: true,
+            ..StructuralParentName::ordinary(name)
+        }));
+    }
+    if let Some(name) = mol.candidate(|| nitramide_name(mol, atoms))? {
         return Ok(Some(StructuralParentName {
             certified: true,
             ..StructuralParentName::ordinary(name)

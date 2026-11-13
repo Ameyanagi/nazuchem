@@ -45,15 +45,17 @@ pub struct NumberingModifiers {
     /// P-24.5.1: minimize the junction within the component's own numbering,
     /// before hydrogen state and characteristic suffixes are considered.
     pub spiro_junction: Option<usize>,
-    pub nitrogen_substituents: BTreeMap<usize, Vec<String>>,
+    /// Per parent atom, each N-substituent with the primes of its nitrogen:
+    /// 0 for N, 1 for the N' of a hydrazide (P-66.3.3.2).
+    pub nitrogen_substituents: BTreeMap<usize, Vec<(usize, String)>>,
     pub ester_alcohols: BTreeMap<usize, String>,
     pub acid_isotopes: Vec<(usize, String, u16)>,
 }
 
 #[derive(Default, PartialEq, Eq, PartialOrd, Ord)]
 struct ModifierPreference {
-    nitrogen_locants: Vec<usize>,
-    nitrogen_citation: Vec<usize>,
+    nitrogen_locants: Vec<(usize, usize)>,
+    nitrogen_citation: Vec<(usize, usize)>,
     isotope_locants: Vec<Vec<LocantKey>>,
     alcohol_citation: Vec<LocantKey>,
 }
@@ -71,9 +73,9 @@ impl NumberingModifiers {
         let mut nitrogen_locants = Vec::new();
         let mut nitrogen_citation = Vec::new();
         for (index, (_, names)) in nitrogens.into_iter().enumerate() {
-            for name in names {
-                nitrogen_locants.push(index);
-                nitrogen_citation.push((substituent_sort_key(name), index));
+            for (primes, name) in names {
+                nitrogen_locants.push((index, *primes));
+                nitrogen_citation.push((substituent_sort_key(name), (index, *primes)));
             }
         }
         nitrogen_locants.sort();
@@ -1039,8 +1041,8 @@ mod tests {
         let mol = read_smiles("CCC", &Default::default()).unwrap();
         let modifiers = NumberingModifiers {
             nitrogen_substituents: BTreeMap::from([
-                (0, vec!["ethyl".into()]),
-                (2, vec!["methyl".into(), "methyl".into()]),
+                (0, vec![(0, "ethyl".into())]),
+                (2, vec![(0, "methyl".into()), (0, "methyl".into())]),
             ]),
             ..NumberingModifiers::default()
         };
@@ -1060,8 +1062,8 @@ mod tests {
 
         let modifiers = NumberingModifiers {
             nitrogen_substituents: BTreeMap::from([
-                (0, vec!["methyl".into()]),
-                (2, vec!["ethyl".into()]),
+                (0, vec![(0, "methyl".into())]),
+                (2, vec![(0, "ethyl".into())]),
             ]),
             ..NumberingModifiers::default()
         };
@@ -1079,8 +1081,8 @@ mod tests {
         let mol = read_smiles("CCCCC", &Default::default()).unwrap();
         let modifiers = NumberingModifiers {
             nitrogen_substituents: BTreeMap::from([
-                (0, vec!["methyl".into()]),
-                (4, vec!["ethyl".into(), "ethyl".into()]),
+                (0, vec![(0, "methyl".into())]),
+                (4, vec![(0, "ethyl".into()), (0, "ethyl".into())]),
             ]),
             ester_alcohols: BTreeMap::from([(0, "methyl".into()), (4, "ethyl".into())]),
             ..NumberingModifiers::default()
