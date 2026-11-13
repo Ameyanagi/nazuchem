@@ -168,6 +168,10 @@ pub struct AssemblyParts {
     pub parent_derivative_state: Option<super::fusion::mancude::ParentDerivativeState>,
     pub front_modifiers: Vec<String>,
     pub front_modifier_locants: Vec<Option<String>>,
+    /// Atoms whose isotope labels the front modifiers cite (P-82.2.4).
+    pub front_modifier_isotopes: AtomSet,
+    /// The isotope descriptors that the front modifiers contain.
+    pub front_modifier_descriptors: Vec<String>,
     pub ester_site_exchange_proven: bool,
     pub principal_suffix_modifiers: Vec<SubstituentItem>,
     pub a_prefixes: Vec<SubstituentItem>,
@@ -257,6 +261,8 @@ impl AssemblyParts {
             parent_derivative_state: None,
             front_modifiers: vec![],
             front_modifier_locants: vec![],
+            front_modifier_isotopes: AtomSet::new(),
+            front_modifier_descriptors: vec![],
             ester_site_exchange_proven: false,
             principal_suffix_modifiers: vec![],
             a_prefixes: vec![],

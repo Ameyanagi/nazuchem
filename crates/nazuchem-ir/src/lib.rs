@@ -207,7 +207,7 @@ impl NameReason {
                 "Names identical senior parent units joined by a linking group substitutively; the preferred IUPAC name is multiplicative. The units include identical substituents and suffix groups at identical locants, while the central linking group need not be symmetric, as in 1,1'-oxydibenzene or 2,2'-sulfanediyldiacetic acid (P-15.3, P-51.1.5, P-51.3.1)."
             }
             Self::AcylPrefix => {
-                "Uses an acyl prefix built from a substituent, such as (4-methylphenyl)carbonyl, cyclohexylcarbonothioyl, (dimethyloxophosphanyl) or (dimethyloxoarsanyl), or an oxophosphanyl prefix on a parent, as in (methyloxophosphanyl)methane; preferred IUPAC names use the acid-derived forms 4-methylbenzoyl, cyclohexanecarbothioyl, dimethylphosphinoyl, dimethylarsinoyl and dimethyl-lambda5-phosphanone (P-65.1.7.4.2, P-67.1.4.1.1.3, P-68.3.2.3.1)."
+                "Uses an acyl prefix built from a substituent, such as (4-methylphenyl)carbonyl, cyclohexylcarbonothioyl, hydroxy(methyl)phosphoryl, (hydroxyphosphinoyl) or (dichlorooxophosphanyl), or a phosphinoyl prefix on a parent with no characteristic group senior to ketones, as in (methylphosphinoyl)methane; preferred IUPAC names use the acid-derived forms 4-methylbenzoyl, cyclohexanecarbothioyl, hydroxy(methylphosphonoyl), hydroxyphosphonoyl, phosphorodichloridoyl and dimethyl-lambda5-phosphanone (P-64.7.1, P-65.1.7.4.2, P-67.1.4.1.1.3, P-67.1.4.1.1.4, P-67.1.4.1.1.5, P-68.3.2.3.1)."
             }
             Self::RingAssembly => {
                 "Uses a substitutive or ring-assembly name where the preferred name is not yet supported. This includes double-bond junctions and assemblies requiring skeletal-replacement or hydro prefixes (P-28, P-31.2.3.3.5, P-52.2.7)."

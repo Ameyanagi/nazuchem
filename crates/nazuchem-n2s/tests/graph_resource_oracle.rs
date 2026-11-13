@@ -60,10 +60,12 @@ fn snapshot(graph: &Graph, fragment: FragmentId) -> String {
 fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulization() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/xml");
     // Native simpleSubstituents.xml acid-anion prefixes (issue #83, P-72.6.1;
-    // issue #145, P-65.6.2.3.1 for selenium and tellurium)
+    // issue #145, P-65.6.2.3.1 for selenium and tellurium) and the
+    // simpleGroups.xml cyanohydrazide (issue #113, P-66.3.1.2.1)
     // postdate the frozen Java oracle; they are acyclic, so they must build
     // without spare valencies or cycles and kekulization must leave them as is.
-    const NATIVE: [&str; 16] = [
+    const NATIVE: [&str; 17] = [
+        "N#CNN",
         "-S(=S)[O-]",
         "-S(=[Se])[O-]",
         "-S(=[Te])[O-]",
@@ -81,7 +83,24 @@ fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulizatio
         "-[Te](=O)(=O)[O-]",
         "-[Te](=O)[O-]",
     ];
+    // Native pheno...ine ring tokens (issue #15, P-25.2.2.3) also postdate the
+    // oracle; each must build and kekulize exactly like its pinned sibling,
+    // phenoxaselenine or, with a hydrogen-bearing P, As or Sb, phenothiarsinine.
+    const NATIVE_PHENO: [&str; 11] = [
+        "c1cccc2sc3ccccc3[se]c12",
+        "c1cccc2sc3ccccc3[te]c12",
+        "c1cccc2[se]c3ccccc3[te]c12",
+        "c1cccc2sc3ccccc3[pH]c12",
+        "c1cccc2sc3ccccc3[sbH]c12",
+        "c1cccc2[se]c3ccccc3[pH]c12",
+        "c1cccc2[se]c3ccccc3[asH]c12",
+        "c1cccc2[se]c3ccccc3[sbH]c12",
+        "c1cccc2[te]c3ccccc3[pH]c12",
+        "c1cccc2[te]c3ccccc3[asH]c12",
+        "c1cccc2[te]c3ccccc3[sbH]c12",
+    ];
     let mut native = Vec::new();
+    let mut native_pheno = BTreeSet::new();
     let mut inputs = BTreeSet::new();
     let mut literals = 0;
     for entry in std::fs::read_dir(root).unwrap() {
@@ -109,6 +128,10 @@ fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulizatio
                 };
                 if NATIVE.contains(&value) {
                     native.push(value.to_owned());
+                    continue;
+                }
+                if NATIVE_PHENO.contains(&value) {
+                    native_pheno.insert(value.to_owned());
                     continue;
                 }
                 inputs.insert((
@@ -145,6 +168,23 @@ fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulizatio
         );
         fragment_tools::convert_spare_valencies_to_double_bonds(&mut graph, fragment).unwrap();
         assert_eq!(snapshot(&graph, fragment), before, "{value}");
+    }
+    assert_eq!(native_pheno, NATIVE_PHENO.map(String::from).into());
+    let snapshots = |value: &str| {
+        let mut graph = Graph::default();
+        let labels = "1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a";
+        let fragment = build_fragment(&mut graph, value, "ring", labels).unwrap();
+        let before = snapshot(&graph, fragment);
+        fragment_tools::convert_spare_valencies_to_double_bonds(&mut graph, fragment).unwrap();
+        (before, snapshot(&graph, fragment))
+    };
+    for value in NATIVE_PHENO {
+        let sibling = if value.contains("H]") {
+            "c1cccc2sc3ccccc3[asH]c12"
+        } else {
+            "c1cccc2oc3ccccc3[se]c12"
+        };
+        assert_eq!(snapshots(value), snapshots(sibling), "{value}");
     }
     assert_eq!(literals, 3183);
     assert_eq!(inputs.len(), 2643);

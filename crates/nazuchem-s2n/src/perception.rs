@@ -656,7 +656,18 @@ fn hydrazide_ns(m: &Molecule, c: usize, n: usize, cyclic: &AtomSet) -> Option<Ve
     if cyclic.contains(&t)
         || m.atoms[&t].charge != 0
         || m.get_neighbors(t).iter().any(|&x| {
-            x != n && (!matches!(m.atoms[&x].symbol.as_str(), "C" | "H") || m.bond_order(t, x) != 1)
+            // P-66.3.3.1: an ylidene on N' is a substituent of the hydrazide,
+            // as in N'-[(phenyldiazenyl)methylidene]acetohydrazide
+            // (P-68.3.1.3.5.1). No Blue Book example places the descriptor of a
+            // configured N'=C bond, so that case is not a hydrazide here.
+            // A cumulated carbon such as =C=S is not named as an ylidene.
+            x != n
+                && (!matches!(m.atoms[&x].symbol.as_str(), "C" | "H")
+                    || m.get_bond(t, x).is_some_and(|b| {
+                        b.order > 2
+                            || b.stereo.is_some()
+                            || b.order == 2 && has_multiple(m, x, &AtomSet::from([t]))
+                    }))
         })
     {
         return None;
@@ -671,15 +682,21 @@ fn hydrazide_ns(m: &Molecule, c: usize, n: usize, cyclic: &AtomSet) -> Option<Ve
             .count()
     };
     let oxygen = |x: usize, order: usize| m.atoms[&x].symbol == "O" && m.bond_order(c, x) == order;
+    // P-65.7.2: with a second acyl group on that oxygen, a substituted
+    // hydrazinecarboxylic acid is one half of an anhydride.
+    let acyl = |y: usize| {
+        m.atoms[&y].is_carbon()
+            && m.get_neighbors(y)
+                .iter()
+                .any(|&z| m.atoms[&z].symbol == "O" && m.bond_order(y, z) == 2)
+    };
     if !m.is_isotope_parent()
-        && heavy(n) == 2
-        && heavy(t) == 1
         && m.get_neighbors(c).iter().any(|&x| oxygen(x, 2))
         && m.get_neighbors(c).iter().any(|&x| {
+            let beyond = m.get_neighbors(x);
             oxygen(x, 1)
-                && m.get_neighbors(x)
-                    .iter()
-                    .all(|&y| y == c || m.atoms[&y].is_carbon())
+                && beyond.iter().all(|&y| y == c || m.atoms[&y].is_carbon())
+                && (heavy(n) == 2 && heavy(t) == 1 || beyond.iter().any(|&y| y != c && acyl(y)))
         })
     {
         return None;
@@ -1370,6 +1387,63 @@ fn leaving_descriptor(kind: &str, atoms: Vec<usize>) -> LeavingGroupDescriptor {
         atom_ids: atoms,
     }
 }
+// Provenance: fn pseudohalide_leaving | adapted
+// Source: openclatura | src/openclatura/perception.py::_acyl_pseudohalide_group
+/// The pseudohalide group (P-65.5.2.1) that `first` starts on the acyl
+/// centre `c`: cyanide, isocyanide, azide or an isocyanate.
+fn pseudohalide_leaving(m: &Molecule, c: usize, first: usize) -> Option<LeavingGroupDescriptor> {
+    if m.bond_order(c, first) != 1 {
+        return None;
+    }
+    let side = m
+        .get_neighbors(first)
+        .iter()
+        .copied()
+        .filter(|n| *n != c)
+        .collect::<Vec<_>>();
+    let &[second] = &side[..] else {
+        return None;
+    };
+    let bond = m.bond_order(first, second);
+    if m.atoms[&first].symbol == "C"
+        && m.atoms[&second].symbol == "N"
+        && bond == 3
+        && m.degree(second) == 1
+    {
+        return Some(leaving_descriptor("CN", vec![first, second]));
+    }
+    if m.atoms[&first].symbol != "N" {
+        return None;
+    }
+    if m.atoms[&second].symbol == "C" && bond == 3 && m.degree(second) == 1 {
+        return Some(leaving_descriptor("NC", vec![first, second]));
+    }
+    let tails = m
+        .get_neighbors(second)
+        .iter()
+        .copied()
+        .filter(|n| *n != first)
+        .collect::<Vec<_>>();
+    let &[third] = &tails[..] else {
+        return None;
+    };
+    let kind = if m.atoms[&second].symbol == "N"
+        && m.atoms[&third].symbol == "N"
+        && m.atoms[&second].charge > 0
+        && m.atoms[&third].charge < 0
+    {
+        "N3".to_owned()
+    } else if m.atoms[&second].symbol == "C"
+        && bond == 2
+        && m.bond_order(second, third) == 2
+        && matches!(m.atoms[&third].symbol.as_str(), "O" | "S" | "Se" | "Te")
+    {
+        format!("NC{}", m.atoms[&third].symbol.as_str())
+    } else {
+        return None;
+    };
+    Some(leaving_descriptor(&kind, vec![first, second, third]))
+}
 // Provenance: fn pseudohalide_group | adapted
 // Source: openclatura | src/openclatura/perception.py::_acyl_pseudohalide_group
 fn pseudohalide_group(
@@ -1379,65 +1453,11 @@ fn pseudohalide_group(
     cyclic: &AtomSet,
 ) -> Option<PerceivedGroup> {
     let double = terminal_double(m, c, used)?;
-    let mut leaving = None;
-    for &first in m.get_neighbors(c) {
-        if first == double.atom || used.contains(&first) || m.bond_order(c, first) != 1 {
-            continue;
-        }
-        let side = m
-            .get_neighbors(first)
-            .iter()
-            .copied()
-            .filter(|n| *n != c)
-            .collect::<Vec<_>>();
-        if side.len() != 1 {
-            continue;
-        }
-        let second = side[0];
-        let bond = m.bond_order(first, second);
-        if m.atoms[&first].symbol == "C"
-            && m.atoms[&second].symbol == "N"
-            && bond == 3
-            && m.degree(second) == 1
-        {
-            leaving = Some(leaving_descriptor("CN", vec![first, second]));
-            break;
-        }
-        if m.atoms[&first].symbol != "N" {
-            continue;
-        }
-        if m.atoms[&second].symbol == "C" && bond == 3 && m.degree(second) == 1 {
-            leaving = Some(leaving_descriptor("NC", vec![first, second]));
-            break;
-        }
-        let tails = m
-            .get_neighbors(second)
-            .iter()
-            .copied()
-            .filter(|n| *n != first)
-            .collect::<Vec<_>>();
-        if tails.len() != 1 {
-            continue;
-        }
-        let third = tails[0];
-        let kind = if m.atoms[&second].symbol == "N"
-            && m.atoms[&third].symbol == "N"
-            && m.atoms[&second].charge > 0
-            && m.atoms[&third].charge < 0
-        {
-            "N3".to_owned()
-        } else if m.atoms[&second].symbol == "C"
-            && bond == 2
-            && m.bond_order(second, third) == 2
-            && matches!(m.atoms[&third].symbol.as_str(), "O" | "S" | "Se" | "Te")
-        {
-            format!("NC{}", m.atoms[&third].symbol.as_str())
-        } else {
-            continue;
-        };
-        leaving = Some(leaving_descriptor(&kind, vec![first, second, third]));
-        break;
-    }
+    let leaving = m
+        .get_neighbors(c)
+        .iter()
+        .filter(|&&first| first != double.atom && !used.contains(&first))
+        .find_map(|&first| pseudohalide_leaving(m, c, first));
     let leaving = leaving?;
     if m.get_neighbors(c)
         .iter()
@@ -1547,6 +1567,11 @@ fn is_complete_acyl_end(m: &Molecule, center: usize, double: usize, linkage: usi
     if m.atoms[&substituent].is_carbon() {
         return true;
     }
+    // P-65.7.2: carbamic and hydrazinecarboxylic acids are monobasic acids
+    // and form anhydrides, as in acetic hydrazinecarboxylic anhydride.
+    if m.atoms[&substituent].symbol == "N" && m.atoms[&substituent].charge == 0 {
+        return true;
+    }
     let mut component = AtomSet::from([substituent]);
     let mut frontier = vec![substituent];
     while let Some(current) = frontier.pop() {
@@ -1570,7 +1595,13 @@ fn is_complete_acyl_end(m: &Molecule, center: usize, double: usize, linkage: usi
 pub(super) fn is_anionic_group_key(key: &str) -> bool {
     matches!(
         key,
-        "olate" | "thiolate" | "aminide" | "carboxylate" | "ring_carboxylate" | "sulfonate"
+        "olate"
+            | "thiolate"
+            | "aminide"
+            | "iminide"
+            | "carboxylate"
+            | "ring_carboxylate"
+            | "sulfonate"
     ) || key.starts_with("peroxolate_")
 }
 
@@ -1776,11 +1807,45 @@ fn central_group(
     {
         return None;
     }
-    let anchors = m
+    let carbons = m
         .get_neighbors(c)
         .iter()
         .copied()
         .filter(|&n| m.atoms[&n].is_carbon() && m.bond_order(c, n) == 1)
+        .collect::<Vec<_>>();
+    // P-65.5.2.1, P-66.5.1.3.2: a pseudohalide on the sulfonyl or sulfinyl
+    // group is cited like a halide, methanesulfonyl cyanide, and its cyanide
+    // carbon is not the carbon the acid group is attached to. A group with no other carbon
+    // is perceived as before. An isocyanide keeps its charged carbon, and a
+    // group with a hydrogen or another charge is not the one the class name
+    // stands for; these are left to the other routes.
+    let mut pseudo = m
+        .get_neighbors(c)
+        .iter()
+        .filter(|n| !used.contains(n))
+        .filter_map(|&n| pseudohalide_leaving(m, c, n))
+        .filter(|l| {
+            let charges = l.atom_ids.iter().map(|a| m.atoms[a].charge);
+            l.kind != "NC"
+                && l.atom_ids.iter().all(|a| m.atoms[a].total_h_count == 0)
+                && if l.kind == "N3" {
+                    charges.eq([0, 1, -1])
+                        && l.atom_ids.windows(2).all(|w| m.bond_order(w[0], w[1]) == 2)
+                } else {
+                    charges.eq(std::iter::repeat_n(0, l.atom_ids.len()))
+                }
+        })
+        .collect::<Vec<_>>();
+    if carbons
+        .iter()
+        .all(|n| pseudo.iter().any(|l| l.attachment_atom == *n))
+    {
+        pseudo.clear();
+    }
+    let leaves = |n: &usize| pseudo.iter().any(|l| l.attachment_atom == *n);
+    let anchors = carbons
+        .into_iter()
+        .filter(|n| !leaves(n))
         .collect::<Vec<_>>();
     if anchors.len() != 1 {
         return None;
@@ -1790,7 +1855,7 @@ fn central_group(
         .get_neighbors(c)
         .iter()
         .copied()
-        .filter(|n| *n != anchor && !used.contains(n))
+        .filter(|n| *n != anchor && !used.contains(n) && !leaves(n))
         .filter_map(|n| classify_chalcogen_ligand(m, c, n))
         .collect::<Vec<_>>();
     let doubles = ligands
@@ -1823,6 +1888,7 @@ fn central_group(
                 && m.atoms[n].symbol == "N"
                 && m.atoms[n].charge == 0
                 && m.bond_order(c, *n) == 1
+                && !leaves(n)
         })
         .collect::<Vec<_>>();
     let hs = m
@@ -1834,7 +1900,17 @@ fn central_group(
     let mut group_atoms: AtomSet = doubles.iter().map(|l| l.atom).chain([c]).collect();
     let mut dligands = doubles.clone();
     let mut leaving = None;
-    let derivative = if terminals.len() == 1 && ns.is_empty() && hs.is_empty() {
+    let derivative = if let [l] = &pseudo[..]
+        && terminals.is_empty()
+        && ns.is_empty()
+        && hs.is_empty()
+    {
+        group_atoms.extend(&l.atom_ids);
+        leaving = Some(l.clone());
+        "acid_halide"
+    } else if !pseudo.is_empty() {
+        return None;
+    } else if terminals.len() == 1 && ns.is_empty() && hs.is_empty() {
         let t = terminals[0].clone();
         group_atoms.insert(t.atom);
         dligands.push(t.clone());
@@ -2020,6 +2096,12 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
         .leaving_group
         .as_ref()
         .and_then(|l| NAMER_RULES.chalcogen_acyl_leaving_groups.get(&l.kind));
+    // Groups that differ in the halide or pseudohalide are different
+    // characteristic groups: only like ones share a multiplied suffix.
+    let key = match &d.leaving_group {
+        Some(l) => format!("{key}_{}", l.kind),
+        None => key,
+    };
     let infix = infix(&es);
     let suffix_stem = if infix.is_empty() {
         stem.into()
@@ -2072,9 +2154,11 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
                 // P-72.6.1: the acid-anion prefix is the anion suffix with
                 // "ate" changed to "ato", so it keeps the replacement infix
                 // (sulfinothioato, like the suffix sulfinothioate).
+                // An acyl group likewise keeps it (P-65.3.2.2.2), so the
+                // halide prefix of -S(O)(S)-Cl is chlorosulfonothioyl.
                 (
                     "stem",
-                    if d.derivative == "anion" {
+                    if matches!(d.derivative.as_str(), "anion" | "acid_halide") {
                         suffix_stem.clone()
                     } else {
                         stem.into()
@@ -2096,6 +2180,10 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
         seniority,
         true,
     );
+    // P-65.5.1: ethane-1,2-disulfonyl dibromide multiplies the class name too.
+    if d.derivative == "acid_halide" {
+        rule.suffix_multiplier_positions = vec![0, 1];
+    }
     if let Some(t) = &policy.citation_suffix {
         rule.citation_suffixes
             .insert("anhydride_half".into(), format_template(t, &vals));
@@ -2756,12 +2844,13 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                 continue;
             }
         }
-        groups.push(PerceivedGroup::new(
-            if a.charge > 0 { "iminium" } else { "imine" },
-            true,
-            c,
-            [n],
-        ));
+        // P-72.2.2.2.3: an imine with one negative charge on its nitrogen.
+        let key = match a.charge {
+            1.. => "iminium",
+            -1 if m.degree(n) == 1 => "iminide",
+            _ => "imine",
+        };
+        groups.push(PerceivedGroup::new(key, true, c, [n]));
         consumed.insert(n);
     }
     for (&n, a) in &m.atoms {
@@ -2991,7 +3080,11 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
         };
         let principal = key != "aminium" || adj.iter().all(|&x| m.bond_order(n, x) == 1);
         for &c in adj {
-            groups.push(PerceivedGroup::new(key, principal, c, [n]));
+            // A nitro nitrogen is a substituent of the amine (P-61.5.1), not
+            // a parent atom; its formal charge would rank the group as an ion.
+            if !is_nitro_n(m, c, n) {
+                groups.push(PerceivedGroup::new(key, principal, c, [n]));
+            }
         }
         consumed.insert(n);
     }

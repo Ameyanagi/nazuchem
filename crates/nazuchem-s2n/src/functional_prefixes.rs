@@ -200,9 +200,8 @@ fn nitrogen_group_prefix(
     group: &PerceivedGroup,
 ) -> Result<String, String> {
     let mol = context.mol;
-    let hydrazine = group.key == "hydrazine";
     let amidine = matches!(group.key.as_str(), "amidine" | "ring_amidine");
-    let hydrazide = !hydrazine && !amidine;
+    let hydrazide = !amidine && group.key != "hydrazine";
     let mut ns: Vec<_> = group
         .atoms_involved
         .iter()
@@ -227,6 +226,12 @@ fn nitrogen_group_prefix(
             usize::from(mol.get_bond(n, core).is_none())
         }
     });
+    // P-68.3.1.2.1: hydrazinyl, its substituents numbered 1 and 2. P-66.3.2.2:
+    // a hydrazide ending the parent chain is hydrazinyl with oxo (cited by
+    // collect_component_prefix_substituents).
+    if group.key == "hydrazine" || hydrazide && context.parent_path.contains(&core) {
+        return name_subgraph_with_upstream(mol, ns[0], context.sub_exclude, Some(core));
+    }
     let stereo = if amidine {
         ns.last()
             .and_then(|&n| mol.get_bond(n, core))
@@ -237,16 +242,10 @@ fn nitrogen_group_prefix(
     } else {
         String::new()
     };
-    // P-66.3.2.2: ending the parent chain, the group is hydrazinyl with oxo
-    // (cited by collect_component_prefix_substituents); its substituents take
-    // the locants 1 and 2 of hydrazinyl (P-66.3.2.3, P-68.3.1.2.1).
-    let chain_end = hydrazide && context.parent_path.contains(&core);
-    // P-66.3.2.1: otherwise it is the acyl prefix of the hydrazine acid, as
-    // hydrazinecarbonyl, hydrazinecarbothioyl or hydrazinesulfonyl.
+    // P-66.3.2.1: elsewhere a hydrazide is the acyl prefix of the hydrazine
+    // acid, as hydrazinecarbonyl, hydrazinecarbothioyl or hydrazinesulfonyl.
     let acyl = group.prefix().unwrap_or("hydrazinecarbonyl");
-    let base = if hydrazine || chain_end {
-        "hydrazinyl".into()
-    } else if amidine {
+    let base = if amidine {
         "carbamimidoyl".into()
     } else {
         // P-16.5.1.4: it names the parent hydride hydrazine, so it is
@@ -255,7 +254,7 @@ fn nitrogen_group_prefix(
     };
     let mut names: Vec<(String, Vec<String>)> = Vec::new();
     for (index, &n) in ns.iter().take(2).enumerate() {
-        let loc = if hydrazine || amidine {
+        let loc = if amidine {
             if index == 0 { "N" } else { "N'" }
         } else if index == 0 {
             "1"
@@ -274,10 +273,8 @@ fn nitrogen_group_prefix(
             let text = name_subgraph_with_upstream(mol, root, &blocked, Some(n))?;
             // P-66.3.2.3, P-66.3.3.3: with a second acyl group the preferred
             // prefix may be the hydrazido form of the other acid, as
-            // acetohydrazido; that choice is not made here. R-CO-N(NH2)- is
-            // always a substituted hydrazinyl (1-acetylhydrazin-1-yl).
+            // acetohydrazido; that choice is not made here.
             if hydrazide
-                && !(chain_end && index == 0)
                 && mol.get_neighbors(root).iter().any(|&x| {
                     mol.bond_order(root, x) == 2
                         && matches!(mol.atoms[&x].symbol.as_str(), "O" | "S" | "Se" | "Te")
@@ -299,9 +296,7 @@ fn nitrogen_group_prefix(
             format!("({stereo}{base})")
         });
     }
-    if !hydrazine {
-        names.sort_by_key(|(name, _)| substituent_sort_key(name));
-    }
+    names.sort_by_key(|(name, _)| substituent_sort_key(name));
     let prefixes = names
         .into_iter()
         .map(|(name, locs)| {
@@ -317,9 +312,7 @@ fn nitrogen_group_prefix(
         })
         .collect::<Vec<_>>()
         .join("-");
-    let base = if chain_end {
-        "hydrazin-1-yl".into()
-    } else if hydrazide {
+    let base = if hydrazide {
         acyl.replacen("hydrazine", "hydrazine-1-", 1)
     } else {
         base
@@ -705,6 +698,15 @@ pub fn collect_component_prefix_substituents(
         let mut bond_atoms = atoms.clone();
         bond_atoms.insert(group.attachment_carbon);
         let mut item = SubstituentItem::new(name, vec![]);
+        // P-82.2.1: (131I)iodo, (13C)carboxy; not before an enclosed prefix.
+        if atoms == group.atoms_involved
+            && !item.name.starts_with('(')
+            && let Some((descriptor, cited)) = super::isotope_naming::group_descriptor(mol, &atoms)
+        {
+            item.name = format!("{descriptor}{}", item.name);
+            item.isotope_atoms = cited;
+            item.isotope_descriptors = vec![descriptor];
+        }
         // Cyano is a simple characteristic prefix even when its parent
         // locant is omitted and another substituent is cited beside it.
         item.outer_parentheses_optional = matches!(group.key.as_str(), "nitrile" | "ring_nitrile");

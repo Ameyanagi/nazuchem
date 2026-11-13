@@ -504,6 +504,7 @@
       "anhydride",
       "hydrazone",
       "imine",
+      "iminide",
       "aldehyde_hydrazone",
       "ring_aldehyde_hydrazone",
       "aldehyde_amidinohydrazone",
@@ -1554,7 +1555,7 @@
       },
       "hydrazone": {
         "role": "principal",
-        "prefix": "hydrazono",
+        "prefix": "hydrazinylidene",
         "suffix": "one hydrazone",
         "multi_suffix": {
           "multiplier_positions": [
@@ -1568,7 +1569,7 @@
       },
       "aldehyde_hydrazone": {
         "role": "principal",
-        "prefix": "hydrazono",
+        "prefix": "hydrazinylidene",
         "suffix": "al hydrazone",
         "multi_suffix": {
           "multiplier_positions": [
@@ -1582,7 +1583,7 @@
       },
       "ring_aldehyde_hydrazone": {
         "role": "principal",
-        "prefix": "hydrazonomethyl",
+        "prefix": "hydrazinylidenemethyl",
         "suffix": "carbaldehyde hydrazone",
         "multi_suffix": {
           "multiplier_positions": [
@@ -1733,6 +1734,19 @@
           ]
         },
         "seniority": 112,
+        "suffix_with_locant": true,
+        "needs_locant": true
+      },
+      "iminide": {
+        "role": "principal",
+        "prefix": "azanidylidene",
+        "suffix": "iminide",
+        "multi_suffix": {
+          "multiplier_positions": [
+            0
+          ]
+        },
+        "seniority": 17,
         "suffix_with_locant": true,
         "needs_locant": true
       },

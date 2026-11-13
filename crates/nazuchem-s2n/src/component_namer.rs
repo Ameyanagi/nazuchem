@@ -190,6 +190,7 @@ pub(super) fn name_component_with_atom_locants(
                 .substituents
                 .iter()
                 .flat_map(|item| item.isotope_atoms.iter().copied())
+                .chain(plan.parts.front_modifier_isotopes.iter().copied())
                 .collect();
             // P-82.6.1.1: when isotopic modification requires a locant, the
             // constitutional locants must be explicit as well. A prefix that
