@@ -17,7 +17,7 @@
 
 //! Parent numbering criteria ported from Python `numbering.py`.
 use super::{
-    assembly_prefixes::substituent_sort_key,
+    assembly_prefixes::{rs_descriptors, substituent_sort_key},
     locants::{
         LocantKey, get_atom_locants, get_bond_locants, parse_locant, retained_locant_sort_key,
     },
@@ -899,8 +899,13 @@ fn substituent_citation_locants(
                 }
             }
             for name in items {
+                // P-45.6.3: R precedes S in otherwise equal prefixes.
+                let descriptors = rs_descriptors(name);
                 let (name, initial) = substituent_sort_key(name);
-                list.push(((name, std::cmp::Reverse(modified), initial), i + 1));
+                list.push((
+                    (name, std::cmp::Reverse(modified), initial, descriptors),
+                    i + 1,
+                ));
             }
         }
     }

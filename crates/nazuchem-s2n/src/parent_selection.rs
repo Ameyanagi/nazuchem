@@ -8,6 +8,7 @@
 // Source: openclatura | tests/unit/test_chalcogen_functional_groups.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs | issue 13
 // Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs | issue #27
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs | issue #121
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Inherited parent scoring/candidate pipeline with original anion, ring-assembly, tied-chain prefix-locant and exchanged-arm stereochemical preference extensions.
@@ -16,7 +17,7 @@
 //! Parent preference criteria, in the Python registry's comparison order.
 use super::{
     assembly_parts::SubstituentItem,
-    assembly_prefixes::substituent_sort_key,
+    assembly_prefixes::{rs_descriptors, substituent_sort_key},
     assembly_utils::parse_locant,
     chains::{RingSystem, canonical_ranks},
     locants::{LocantKey, retained_locant_sort_key},
@@ -27,7 +28,7 @@ use super::{
     ring_assembly::{RingAssembly, discover_ring_assemblies},
     special_cases::alphanumerical_order_key,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 #[derive(Clone, Debug)]
 pub struct ParentSelection {
@@ -408,10 +409,52 @@ pub(super) fn tied_principal_parents(
         return Vec::new();
     };
     candidates.retain(|(s, _)| earlier_score(s) == best);
+    // The canonical ranks ignore configuration. Parents with the same ranks
+    // are told apart by the CIP descriptors around them, nearest first, so
+    // that the order does not follow the input atom order.
+    let ranks = (mol.atoms.values().any(|a| a.stereo.is_some())
+        || mol.bonds.values().any(|b| b.stereo.is_some()))
+    .then(|| canonical_ranks(mol, None));
+    let mut candidates: Vec<_> = candidates
+        .into_iter()
+        .map(|(score, parent)| {
+            let Some(ranks) = &ranks else {
+                return (score, Vec::new(), parent);
+            };
+            let mut distance: BTreeMap<_, _> = parent.atom_set().iter().map(|&a| (a, 0)).collect();
+            let mut queue: VecDeque<_> = distance.keys().copied().collect();
+            while let Some(atom) = queue.pop_front() {
+                for &next in mol.get_neighbors(atom) {
+                    if !distance.contains_key(&next) {
+                        distance.insert(next, distance[&atom] + 1);
+                        queue.push_back(next);
+                    }
+                }
+            }
+            let mut configuration: Vec<_> = mol
+                .atoms
+                .values()
+                .filter_map(|a| {
+                    Some((
+                        *distance.get(&a.idx)?,
+                        [ranks[&a.idx]; 2],
+                        a.stereo.clone()?,
+                    ))
+                })
+                .chain(mol.bonds.values().filter_map(|b| {
+                    let ends = [ranks[&b.u].min(ranks[&b.v]), ranks[&b.u].max(ranks[&b.v])];
+                    let near = (*distance.get(&b.u)?).min(*distance.get(&b.v)?);
+                    Some((near, ends, b.stereo.clone()?))
+                }))
+                .collect();
+            configuration.sort();
+            (score, configuration, parent)
+        })
+        .collect();
     // Stable, so the first of equal candidates stays first, as with `min_by`.
-    candidates.sort_by(|a, b| a.0.cmp(&b.0));
-    candidates.dedup_by(|a, b| a.0 == b.0);
-    candidates.into_iter().map(|(_, s)| s).collect()
+    candidates.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
+    candidates.dedup_by(|a, b| (&a.0, &a.1) == (&b.0, &b.1));
+    candidates.into_iter().map(|(_, _, s)| s).collect()
 }
 
 /// P-45.2 and P-45.5 for one assembled candidate name: the most prefixes,
@@ -439,6 +482,8 @@ pub(super) fn assembled_name_preference(
     let mut locants = cited.clone();
     locants.sort();
     let (roman, italic, _, numbers, _) = alphanumerical_order_key(name);
+    // P-45.6.3: R precedes S in the descriptors, in order of appearance.
+    let descriptors = rs_descriptors(name);
     (
         std::cmp::Reverse(cited.len()),
         locants,
@@ -446,7 +491,70 @@ pub(super) fn assembled_name_preference(
         roman,
         italic,
         numbers,
+        descriptors,
     )
+}
+
+/// P-44.4.1.12 for tied parents that differ only in configuration, each given
+/// by its (locant, descriptor) pairs: the parents that remain senior, or
+/// `None` when the choice needs the full CIP rules 4 and 5. Double bonds
+/// come first (P-44.4.1.12.3): more Z, then the lower Z locants
+/// (P-44.4.1.12.1). One centre: R precedes S and r precedes s. Two centres: a
+/// like pair precedes an unlike pair, then RR precedes SS and rr precedes ss
+/// (P-44.4.1.12.2).
+// Provenance: fn senior_configurations | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::senior_configurations
+pub(super) fn senior_configurations(parents: &[&[(String, String)]]) -> Option<Vec<usize>> {
+    let keys: Vec<_> = parents
+        .iter()
+        .map(|features| {
+            let mut features = features.to_vec();
+            features.sort_by_key(|(locant, _)| parse_locant(locant));
+            features.dedup();
+            let (bonds, centres): (Vec<_>, Vec<_>) = features
+                .into_iter()
+                .partition(|(_, d)| matches!(d.as_str(), "E" | "Z"));
+            let z: Vec<_> = bonds
+                .iter()
+                .filter(|(_, d)| d == "Z")
+                .map(|(locant, _)| parse_locant(locant))
+                .collect();
+            let centres: Vec<_> = centres.into_iter().map(|(_, d)| d).collect();
+            (bonds.len(), (std::cmp::Reverse(z.len()), z), centres)
+        })
+        .collect();
+    if keys
+        .iter()
+        .any(|k| (k.0, k.2.len()) != (keys[0].0, keys[0].2.len()))
+    {
+        return None;
+    }
+    let bonds = keys.iter().map(|k| &k.1).min()?;
+    let mut senior: Vec<_> = (0..keys.len()).filter(|&i| &keys[i].1 == bonds).collect();
+    let differ = |senior: &[usize]| senior.iter().any(|&i| keys[i].2 != keys[senior[0]].2);
+    if differ(&senior) {
+        let rank = |i: usize| match keys[i].2.iter().map(String::as_str).collect::<Vec<_>>()[..] {
+            ["R" | "r"] | ["R", "R"] | ["r", "r"] => Some(0),
+            ["S" | "s"] | ["S", "S"] | ["s", "s"] => Some(1),
+            ["R", "S"] | ["S", "R"] => Some(2),
+            _ => None,
+        };
+        let ranks = senior
+            .iter()
+            .map(|&i| rank(i))
+            .collect::<Option<Vec<_>>>()?;
+        let best = *ranks.iter().min()?;
+        senior = senior
+            .into_iter()
+            .zip(ranks)
+            .filter_map(|(i, rank)| (rank == best).then_some(i))
+            .collect();
+        // RS against SR.
+        if differ(&senior) {
+            return None;
+        }
+    }
+    Some(senior)
 }
 
 /// P-44.4.1.8 and P-44.4.1.10: chains tied through the number of double
@@ -1807,6 +1915,220 @@ mod tests {
         }
     }
 
+    // Tied parents that differ only in configuration. Each name is written
+    // from two atom orders.
+    #[test]
+    fn tied_parents_prefer_the_senior_configuration() {
+        for (expected, inputs) in [
+            // P-44.4.1.12.2: a like pair (RR) precedes an unlike pair (RS).
+            (
+                "(2R,3R)-3-[(3-{[(2S,3R)-3-hydroxybutan-2-yl]amino}hexan-3-yl)amino]butan-2-ol",
+                [
+                    "CCC(N[C@H](C)[C@@H](C)O)(N[C@@H](C)[C@@H](C)O)CCC",
+                    "CCC(N[C@@H](C)[C@@H](C)O)(N[C@H](C)[C@@H](C)O)CCC",
+                ],
+            ),
+            // P-44.4.1.12.2: RR precedes SS.
+            (
+                "(2R,3R)-3-[(3-{[(2S,3S)-3-hydroxybutan-2-yl]amino}hexan-3-yl)amino]butan-2-ol",
+                [
+                    "CCC(N[C@H](C)[C@@H](C)O)(N[C@@H](C)[C@H](C)O)CCC",
+                    "CCC(N[C@@H](C)[C@H](C)O)(N[C@H](C)[C@@H](C)O)CCC",
+                ],
+            ),
+            // P-44.4.1.12.2: R precedes S.
+            (
+                "(2R)-4-[(3S)-3-hydroxybutoxy]butan-2-ol",
+                ["C[C@H](O)CCOCC[C@@H](C)O", "C[C@@H](O)CCOCC[C@H](C)O"],
+            ),
+            // P-44.4.1.12.2: r precedes s.
+            (
+                "(1r,4r)-1-methyl-4-{[(1s,4s)-4-methylcyclohexyl]oxy}cyclohexane",
+                [
+                    "C[C@H]1CC[C@H](CC1)O[C@H]1CC[C@H](C)CC1",
+                    "C[C@H]1CC[C@@H](CC1)O[C@@H]1CC[C@H](C)CC1",
+                ],
+            ),
+            // P-44.4.1.12.1: Z precedes E.
+            (
+                "(2Z)-5-{[(3E)-pent-3-en-1-yl]oxy}pent-2-ene",
+                ["C/C=C/CCOCC/C=C\\C", "C/C=C\\CCOCC/C=C/C"],
+            ),
+            // P-44.4.1.12.3, P-45.6.2 example 1: Z precedes E before R and S
+            // are compared.
+            (
+                "(1Z,3S)-3-{2-[(1R,2E)-cyclooct-2-en-1-yl]ethyl}cyclooct-1-ene",
+                [
+                    "C1CCCC/C=C/[C@H]1CC[C@H]1/C=C\\CCCCC1",
+                    "C1CCCC/C=C\\[C@@H]1CC[C@@H]1/C=C/CCCCC1",
+                ],
+            ),
+            // P-45.6.2 example 2: equal letters and locants, then R precedes
+            // S in the descriptors (P-45.6.3).
+            (
+                "1-[(2R)-butan-2-yl]-4-({4-[(2S)-butan-2-yl]phenyl}sulfanyl)benzene",
+                [
+                    "CC[C@@H](C)c1ccc(Sc2ccc([C@@H](C)CC)cc2)cc1",
+                    "CC[C@H](C)c1ccc(Sc2ccc([C@H](C)CC)cc2)cc1",
+                ],
+            ),
+            // P-45.6.2 example 3, second and third names.
+            (
+                "4-{3,4-bis[(1R)-1-chloroethyl]phenoxy}-1,2-bis[(1S)-1-chloroethyl]benzene",
+                [
+                    "C[C@H](Cl)c1ccc(Oc2ccc([C@@H](C)Cl)c([C@@H](C)Cl)c2)cc1[C@H](C)Cl",
+                    "C[C@@H](Cl)c1ccc(Oc2ccc([C@H](C)Cl)c([C@H](C)Cl)c2)cc1[C@@H](C)Cl",
+                ],
+            ),
+            (
+                "1,2-bis[(1S)-1-chloroethyl]-4-{3-[(1R)-1-chloroethyl]-4-[(1S)-1-chloroethyl]phenoxy}benzene",
+                [
+                    "C[C@H](Cl)c1ccc(Oc2ccc([C@H](C)Cl)c([C@@H](C)Cl)c2)cc1[C@H](C)Cl",
+                    "Cl[C@@H](C)c1ccc(Oc2ccc([C@H](C)Cl)c([C@H](C)Cl)c2)cc1[C@@H](C)Cl",
+                ],
+            ),
+            // Three centres need the full CIP rules 4 and 5: the choice is
+            // not a rule, but it does not follow the atom order.
+            (
+                "(2R,3R,4R)-3-chloro-4-[(3-{[(2S,3R,4R)-3-chloro-4-hydroxypentan-2-yl]amino}hexan-3-yl)amino]pentan-2-ol",
+                [
+                    "CCC(N[C@H](C)[C@@H](Cl)[C@@H](C)O)(N[C@@H](C)[C@@H](Cl)[C@@H](C)O)CCC",
+                    "CCC(N[C@@H](C)[C@@H](Cl)[C@@H](C)O)(N[C@H](C)[C@@H](Cl)[C@@H](C)O)CCC",
+                ],
+            ),
+        ] {
+            for smiles in inputs {
+                assert_eq!(name(smiles), expected, "{smiles}");
+            }
+        }
+    }
+
+    // P-45.6.3: prefixes on one parent that differ only in R and S are cited
+    // and numbered with R first.
+    #[test]
+    fn equal_prefixes_cite_r_before_s() {
+        for (expected, inputs) in [
+            // The example of the rule.
+            (
+                "1-[(1R)-1-bromoethyl]-1-[(1S)-1-bromoethyl]cyclopentane",
+                [
+                    "C[C@H](Br)C1(CCCC1)[C@@H](C)Br",
+                    "C[C@@H](Br)C1(CCCC1)[C@H](C)Br",
+                ],
+            ),
+            (
+                "1-[(1R)-1-bromoethyl]-2-[(1S)-1-bromoethyl]benzene",
+                [
+                    "C[C@H](Br)c1ccccc1[C@@H](C)Br",
+                    "C[C@@H](Br)c1ccccc1[C@H](C)Br",
+                ],
+            ),
+            (
+                "N-[(1R)-1-bromoethyl]-N-[(1S)-1-bromoethyl]aniline",
+                [
+                    "C[C@H](Br)N([C@@H](C)Br)c1ccccc1",
+                    "C[C@@H](Br)N([C@H](C)Br)c1ccccc1",
+                ],
+            ),
+        ] {
+            for smiles in inputs {
+                assert_eq!(name(smiles), expected, "{smiles}");
+            }
+        }
+    }
+
+    // P-44.4.1.10 for tied rings: the lower ene and yne locants together
+    // (P-44.4.1.10.1), then the lower hydro locants (P-44.4.1.10.2). Each
+    // name is written from two atom orders.
+    #[test]
+    fn tied_rings_prefer_lower_ene_and_hydro_locants() {
+        for (expected, inputs) in [
+            // Ene locant 2 is lower than 3.
+            (
+                "4-[(5-hydroxycyclohex-2-en-1-yl)oxy]cyclohex-2-en-1-ol",
+                ["OC1C=CC(CC1)OC1CC(O)CC=C1", "C1(O)CC(OC2C=CC(O)CC2)C=CC1"],
+            ),
+            // 3,5 is lower than 4,6 for the ene and yne endings together.
+            (
+                "9-[(9-hydroxycyclonon-3-en-5-yn-1-yl)oxy]cyclonon-5-en-3-yn-1-ol",
+                [
+                    "OC1CC#CC=CCCC1OC1CC=CC#CCCC1O",
+                    "OC1CCC#CC=CCC1OC1CCC=CC#CCC1O",
+                ],
+            ),
+            // P-44.4.1.10.2 examples (1) and (3): 1,2 is lower than 1,4.
+            (
+                "7-[(5,8-dihydronaphthalen-2-yl)oxy]-1,2-dihydronaphthalene",
+                [
+                    "C1=CCCc2cc(ccc12)Oc1ccc2CC=CCc2c1",
+                    "c1c2CC=CCc2ccc1Oc1ccc2C=CCCc2c1",
+                ],
+            ),
+            (
+                "6-[2-(1,4-dihydropyridin-2-yl)ethyl]-1,2-dihydropyridine",
+                ["N1C=CCC=C1CCC1=CC=CCN1", "C1(CCC2=CCC=CN2)=CC=CCN1"],
+            ),
+        ] {
+            for smiles in inputs {
+                assert_eq!(name(smiles), expected, "{smiles}");
+            }
+        }
+    }
+
+    // P-44.4.1.12: double bonds before centres, like before unlike, R before
+    // S; `None` where CIP rules 4 and 5 would be needed.
+    #[test]
+    fn senior_configurations_follow_the_bounded_cip_order() {
+        let senior = |parents: &[&[(&str, &str)]]| {
+            let parents: Vec<Vec<_>> = parents
+                .iter()
+                .map(|p| {
+                    p.iter()
+                        .map(|&(l, d)| (l.to_owned(), d.to_owned()))
+                        .collect()
+                })
+                .collect();
+            senior_configurations(&parents.iter().map(Vec::as_slice).collect::<Vec<_>>())
+        };
+        // P-44.4.1.12.1 examples (4) and (5): more Z, then the lower Z locants.
+        assert_eq!(
+            senior(&[&[("4", "E"), ("6", "E")], &[("4", "Z"), ("6", "E")]]),
+            Some(vec![1])
+        );
+        assert_eq!(
+            senior(&[&[("4", "E"), ("7", "Z")], &[("4", "Z"), ("7", "E")]]),
+            Some(vec![1])
+        );
+        // P-44.4.1.12.3: Z precedes E, whatever the centres.
+        assert_eq!(
+            senior(&[&[("2", "R"), ("3", "E")], &[("2", "S"), ("3", "Z")]]),
+            Some(vec![1])
+        );
+        // P-44.4.1.12.2 examples (1) and (2).
+        assert_eq!(senior(&[&[("1", "S")], &[("1", "R")]]), Some(vec![1]));
+        assert_eq!(
+            senior(&[&[("5", "R"), ("7", "S")], &[("5", "R"), ("7", "R")]]),
+            Some(vec![1])
+        );
+        assert_eq!(
+            senior(&[&[("2", "S"), ("3", "S")], &[("2", "R"), ("3", "S")]]),
+            Some(vec![0])
+        );
+        // Equal configurations stay tied, with any number of centres.
+        let three = [("1", "R"), ("2", "S"), ("3", "R")];
+        assert_eq!(senior(&[&three, &three]), Some(vec![0, 1]));
+        // RS against SR, three centres, and unequal numbers of descriptors.
+        assert_eq!(
+            senior(&[&[("2", "R"), ("3", "S")], &[("2", "S"), ("3", "R")]]),
+            None
+        );
+        assert_eq!(
+            senior(&[&three, &[("1", "S"), ("2", "S"), ("3", "R")]]),
+            None
+        );
+        assert_eq!(senior(&[&[("1", "R")], &[]]), None);
+    }
+
     // P-45.2.1, P-45.2.2, P-45.2.3 and P-45.5: the number of prefixes, the
     // locant sets, the locants in order of citation, the letters, then the
     // numerical locants. N is lower than a numeral (P-14.3.5).
@@ -1839,6 +2161,9 @@ mod tests {
         // P-14.5.3: italic letters count after the Roman letters.
         assert!(key(&[], "2-tert-butyl") < key(&[], "1-chloro"));
         assert!(key(&[], "2-(s-indacen-1-yl)") < key(&[], "1-(naphthalen-1-yl)"));
+        // P-45.6.3: R precedes S once letters and locants are equal.
+        assert!(key(&[], "1-[(2R)-a]-4-[(2S)-a]") < key(&[], "1-[(2S)-a]-4-[(2R)-a]"));
+        assert!(key(&[], "1-[(2S)-a]-4-[(2R)-a]") < key(&[], "1-[(2R)-a]-5-[(2S)-a]"));
     }
 
     #[test]

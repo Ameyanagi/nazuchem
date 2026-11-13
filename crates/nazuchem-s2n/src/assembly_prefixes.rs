@@ -2,6 +2,7 @@
 // Origin: mixed
 // Source: openclatura | src/openclatura/assembly_prefixes.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/assembly_prefixes.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
+// Source: Nazuchem | crates/nazuchem-s2n/src/assembly_prefixes.rs | issue #121
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura prefix grouping/elision renderer with local alphanumeric and cage descriptor handling.
@@ -88,6 +89,27 @@ pub fn substituent_sort_key(name: &str) -> (String, String) {
         }
         text = &text[n..];
     }
+}
+/// The R and S descriptors of a name in order of appearance, S as `true`:
+/// when names are otherwise the same, R precedes S (P-45.6.3).
+// Provenance: fn rs_descriptors | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/assembly_prefixes.rs::rs_descriptors
+pub fn rs_descriptors(name: &str) -> Vec<bool> {
+    name.split('(')
+        .skip(1)
+        .filter_map(|rest| rest.split_once(')'))
+        .flat_map(|(inner, _)| inner.split(','))
+        .filter_map(|item| {
+            let (locant, is_s) = item
+                .strip_suffix('R')
+                .map(|locant| (locant, false))
+                .or_else(|| item.strip_suffix('S').map(|locant| (locant, true)))?;
+            locant
+                .chars()
+                .all(|c| c.is_ascii_digit() || c.is_ascii_lowercase() || c == '\'')
+                .then_some(is_s)
+        })
+        .collect()
 }
 // Provenance: fn group_offers_second_position | adapted
 // Source: openclatura | src/openclatura/assembly_prefixes.py::_groups_offering_a_second_position
@@ -235,10 +257,16 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
     // Python's dict preserves first citation order when alphabetical keys tie.
     // P-82.5.1: isotope descriptors take no part in the order. P-82.2.2.1:
     // the isotopically modified prefix precedes its unmodified twin.
+    // P-45.6.3: then R precedes S.
     names.sort_by_key(|s| {
         let item = grouped[s][0];
         let (name, initial) = substituent_sort_key(&citation_name(s, &item.isotope_descriptors));
-        (name, item.isotope_atoms.is_empty(), initial)
+        (
+            name,
+            item.isotope_atoms.is_empty(),
+            initial,
+            rs_descriptors(s),
+        )
     });
     let groups: Vec<_> = names
         .into_iter()
