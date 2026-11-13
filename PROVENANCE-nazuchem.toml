@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "06d235a97bced402ad2a39f8b979d01cb38a6149d96266d565d712ef18dc4739"
+sha256 = "2f3afeadb62364a914e2b486489c9e08f482c5d8de33a3de937b9aa40750437b"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"

@@ -3187,6 +3187,8 @@ mod tests {
             ("c1ccc2c(c1)N=C1C=CC=CC1=P2", "phenazaphosphinine"),
             ("c1ccc2c(c1)P=C1C=CC=CC1=N2", "phenazaphosphinine"),
             ("c1ccc2c(c1)Nc1ccccc1P2", "5,10-dihydrophenazaphosphinine"),
+            ("Clc1ccc2N=C3C=CC=CC3=Pc2c1", "2-chlorophenazaphosphinine"),
+            ("Clc1ccc2P=C3C=CC=CC3=Nc2c1", "3-chlorophenazaphosphinine"),
             ("c1ccc2c(c1)N=C1C=CC=CC1=[As]2", "phenazarsinine"),
             ("c1ccc2c(c1)Nc1ccccc1[AsH]2", "5,10-dihydrophenazarsinine"),
             (

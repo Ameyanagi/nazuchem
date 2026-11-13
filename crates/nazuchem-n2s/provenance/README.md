@@ -216,10 +216,10 @@ all XML/DTD files and the neutral DFA table. The exported crate constant is
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph
-snapshots and constructs all 3,195 literal groups: the 3,183 pinned ones and
-the 12 native `simpleSubstituents.xml` acid-anion prefixes, which postdate the
+snapshots and constructs all 3,221 literal groups: the 3,183 pinned ones and
+the 16 native `simpleSubstituents.xml` acid-anion prefixes, which postdate the
 oracle and are checked natively as acyclic, kekulization-stable fragments. The
-11 native pheno...ine ring triples (22 literal groups in `arylGroups.xml` and
+11 native pheno...ine ring triples (the other 22 literal groups, in `arylGroups.xml` and
 `fusionComponents.xml`) also postdate the oracle; each must build and kekulize
 exactly like its pinned sibling. `phanes.txt` contributes
 174 integration names (348 strict/radical structure records); the 21 phane
