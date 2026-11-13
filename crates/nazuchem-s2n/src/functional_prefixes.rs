@@ -698,6 +698,15 @@ pub fn collect_component_prefix_substituents(
         let mut bond_atoms = atoms.clone();
         bond_atoms.insert(group.attachment_carbon);
         let mut item = SubstituentItem::new(name, vec![]);
+        // P-82.2.1: (131I)iodo, (13C)carboxy; not before an enclosed prefix.
+        if atoms == group.atoms_involved
+            && !item.name.starts_with('(')
+            && let Some((descriptor, cited)) = super::isotope_naming::group_descriptor(mol, &atoms)
+        {
+            item.name = format!("{descriptor}{}", item.name);
+            item.isotope_atoms = cited;
+            item.isotope_descriptors = vec![descriptor];
+        }
         // Cyano is a simple characteristic prefix even when its parent
         // locant is omitted and another substituent is cited beside it.
         item.outer_parentheses_optional = matches!(group.key.as_str(), "nitrile" | "ring_nitrile");

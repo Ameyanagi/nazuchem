@@ -715,6 +715,27 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
         name.split_once('-')
             .filter(|(site, _)| !site.is_empty() && site.chars().all(|c| "OSeT".contains(c)))
     };
+    // P-82.5.1, P-82.2.2.1: alphanumerical order ignores the descriptors; of
+    // otherwise equal groups the isotopically modified one is cited first.
+    let citation_key = |name: &str| {
+        let citation =
+            super::isotope_naming::citation_name(name, &parts.front_modifier_descriptors);
+        (substituent_sort_key(&citation), citation == name)
+    };
+    // P-82.2.1: a leading descriptor leaves a simple group simple, though a
+    // multiplied one is enclosed, as in di[(13C)methyl].
+    let multiplied = |name: &str, count: usize, safe_enclose: bool| {
+        let descriptor =
+            super::isotope_naming::leading_descriptor(name, &parts.front_modifier_descriptors);
+        if descriptor.is_empty() || super::formatting::is_complex_prefix(&name[descriptor.len()..])
+        {
+            format_multiplier(name, count, safe_enclose)
+        } else if count == 1 {
+            name.to_owned()
+        } else {
+            format!("{}({name})", super::rules::multipliers::basic(count))
+        }
+    };
     let have = parts.front_modifier_locants.len() == parts.front_modifiers.len()
         && parts.front_modifier_locants.iter().all(Option::is_some);
     let distinct = parts.front_modifiers.iter().collect::<BTreeSet<_>>().len();
@@ -730,7 +751,7 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
             by_name.entry(m).or_default().push(l);
         }
         let mut modifiers: Vec<_> = by_name.into_iter().collect();
-        modifiers.sort_by_key(|(name, _)| substituent_sort_key(name));
+        modifiers.sort_by_key(|(name, _)| citation_key(name));
         let mods = modifiers
             .into_iter()
             .map(|(name, mut locs)| {
@@ -739,11 +760,7 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
                 if locs.len() == 1 && letter_locant(name).is_some() {
                     return format!("{}-{name}", locs[0]);
                 }
-                format!(
-                    "{}-{}",
-                    locs.join(","),
-                    format_multiplier(name, locs.len(), false)
-                )
+                format!("{}-{}", locs.join(","), multiplied(name, locs.len(), false))
             })
             .collect::<Vec<_>>()
             .join(" ");
@@ -754,7 +771,7 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
         *counts.entry(m).or_insert(0_usize) += 1;
     }
     let mut modifiers: Vec<_> = counts.into_iter().collect();
-    modifiers.sort_by_key(|(name, _)| substituent_sort_key(name));
+    modifiers.sort_by_key(|(name, _)| citation_key(name));
     let mods = modifiers
         .into_iter()
         .map(|(m, c)| {
@@ -763,10 +780,10 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
                 format!(
                     "{}-{}",
                     vec![site; c].join(","),
-                    format_multiplier(organyl, c, false)
+                    multiplied(organyl, c, false)
                 )
             } else if c > 1 {
-                format_multiplier(m, c, true)
+                multiplied(m, c, true)
             } else {
                 m.clone()
             }
