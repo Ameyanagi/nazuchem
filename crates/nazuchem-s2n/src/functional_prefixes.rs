@@ -200,9 +200,8 @@ fn nitrogen_group_prefix(
     group: &PerceivedGroup,
 ) -> Result<String, String> {
     let mol = context.mol;
-    let hydrazine = group.key == "hydrazine";
     let amidine = matches!(group.key.as_str(), "amidine" | "ring_amidine");
-    let hydrazide = !hydrazine && !amidine;
+    let hydrazide = !amidine && group.key != "hydrazine";
     let mut ns: Vec<_> = group
         .atoms_involved
         .iter()
@@ -227,6 +226,10 @@ fn nitrogen_group_prefix(
             usize::from(mol.get_bond(n, core).is_none())
         }
     });
+    // P-68.3.1.2.1: hydrazinyl, its substituents numbered 1 and 2.
+    if group.key == "hydrazine" {
+        return name_subgraph_with_upstream(mol, ns[0], context.sub_exclude, Some(core));
+    }
     let stereo = if amidine {
         ns.last()
             .and_then(|&n| mol.get_bond(n, core))
@@ -244,7 +247,7 @@ fn nitrogen_group_prefix(
     // P-66.3.2.1: otherwise it is the acyl prefix of the hydrazine acid, as
     // hydrazinecarbonyl, hydrazinecarbothioyl or hydrazinesulfonyl.
     let acyl = group.prefix().unwrap_or("hydrazinecarbonyl");
-    let base = if hydrazine || chain_end {
+    let base = if chain_end {
         "hydrazinyl".into()
     } else if amidine {
         "carbamimidoyl".into()
@@ -255,7 +258,7 @@ fn nitrogen_group_prefix(
     };
     let mut names: Vec<(String, Vec<String>)> = Vec::new();
     for (index, &n) in ns.iter().take(2).enumerate() {
-        let loc = if hydrazine || amidine {
+        let loc = if amidine {
             if index == 0 { "N" } else { "N'" }
         } else if index == 0 {
             "1"
@@ -299,9 +302,7 @@ fn nitrogen_group_prefix(
             format!("({stereo}{base})")
         });
     }
-    if !hydrazine {
-        names.sort_by_key(|(name, _)| substituent_sort_key(name));
-    }
+    names.sort_by_key(|(name, _)| substituent_sort_key(name));
     let prefixes = names
         .into_iter()
         .map(|(name, locs)| {

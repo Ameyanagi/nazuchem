@@ -50,7 +50,7 @@
     "resources/xml/regexes.dtd": "ca576a00c60ba99c54954294999528c73ef8c190b6f64c8fa03e983be9c3d02e",
     "resources/xml/regexes.xml": "36467cc5d2d0051d52a9db795dd826a8eca66458b179505967569bf3aa9e6389",
     "resources/xml/simpleCyclicGroups.xml": "9d2529668f7c1e59ba3d0b2ac276b4b9f11f31467f26295362729aec608e586d",
-    "resources/xml/simpleGroups.xml": "1c776c51de9fe2e2114042e1ee4fc7afe8906b685346d88c2a94c33fd106bd61",
+    "resources/xml/simpleGroups.xml": "f4659e5f9b5bcce8a9f4bada06993aedeb68af54ae648024e824e12988ee4061",
     "resources/xml/simpleSubstituents.xml": "b0668ba0777208eb9341fdea56b2910aec0498abebe5d787ac0dc861659cfc18",
     "resources/xml/substituents.xml": "41a7f584e7d532dd21526bacd4078d34f8b8ec2df6b833b6f5347b63e3164a35",
     "resources/xml/suffixApplicability.dtd": "50e57c6484ac2ec522cb6ca30e33d25288a74a036ad03432a40db1bb59787c16",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "07b5ba837f2f844e83e6d77e6e918871bf7266f7518ed503b6c38b997d017239"
+    "sha256": "e4ce81fb1ebbd95a8991ede87810e603ee8af481d9ef17210746ff9ff974d66b"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",
@@ -314,6 +314,10 @@
     },
     "chalcogen_acid_anion_prefixes": {
       "tokens": "simpleSubstituents.xml acid-anion prefixes of the chalcogen-replaced sulfinic and sulfonic acids, sulfinothioato through sulfonoditelluroato and the mixed sulfonoselenothioato, sulfonoselenotelluroato and sulfonotellurothioato (IUPAC 2013 P-72.6.1, P-65.3.1.3), and selenonato, seleninato, telluronato and tellurinato (P-65.6.2.3.1); dictionary tokens only",
+      "automata": []
+    },
+    "cyanohydrazide_token": {
+      "tokens": "simpleGroups.xml cyanohydrazide, NC-NH-NH2, with the locants N and N' (IUPAC 2013 P-66.3.1.2.1, P-66.3.5.1, P-66.3.3.1)",
       "automata": []
     },
     "dianhydride_word_rule": {

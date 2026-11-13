@@ -29,7 +29,8 @@ acid-anion prefixes of chalcogen-replaced sulfinic and sulfonic acids, such as
 `sulfinothioato` (P-72.6.1, P-65.3.1.3), and of the selenium and tellurium
 acids, `selenonato`, `seleninato`, `telluronato` and `tellurinato`
 (P-65.6.2.3.1). A native `wordRules.xml` rule reads a
-dianhydride of three acid words (P-65.7.6.1). These additions only add dictionary tokens or a word rule to
+dianhydride of three acid words (P-65.7.6.1). A native `simpleGroups.xml` token reads
+`cyanohydrazide` with the locants N and N′ (P-66.3.1.2.1, P-66.3.3.1). These additions only add dictionary tokens or a word rule to
 existing token lists, so the DFA tables are unchanged. `native_extensions` in
 the manifest records these changes.
 
@@ -209,7 +210,7 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`07b5ba837f2f844e83e6d77e6e918871bf7266f7518ed503b6c38b997d017239`.
+`e4ce81fb1ebbd95a8991ede87810e603ee8af481d9ef17210746ff9ff974d66b`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph

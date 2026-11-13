@@ -2720,13 +2720,24 @@ fn hydrazine_carbonyl_parent_name(
     };
     let chalcogen = |i: usize| matches!(symbol(i), "O" | "S" | "Se" | "Te");
     let open = |i: usize| mol.atoms[&i].charge == 0 && !cyclic.contains(&i);
+    // The anion of an acid on hydrazine: N-N-C(=X)-Y(-), named with its
+    // suffix (P-72.2.2.2.1).
+    let anion = |y: usize| {
+        mol.atoms[&y].charge == -1
+            && chalcogen(y)
+            && matches!(heavy(y)[..], [c] if symbol(c) == "C"
+                && heavy(c).iter().any(|&n| symbol(n) == "N"
+                    && heavy(n).iter().any(|&m| symbol(m) == "N")))
+    };
     for &i in atoms {
         let atom = &mol.atoms[&i];
-        // Ions, other elements and sulfur oxoacids have their own classes.
+        // Other ions, other elements and sulfur oxoacids have their own
+        // classes.
         if !matches!(
             symbol(i),
             "C" | "H" | "N" | "O" | "S" | "Se" | "Te" | "F" | "Cl" | "Br" | "I"
         ) || atom.charge != 0
+            && !anion(i)
             && !mol
                 .get_neighbors(i)
                 .iter()
@@ -2770,7 +2781,7 @@ fn hydrazine_carbonyl_parent_name(
             || mol.bond_order(carbon, y) != 1
             || mol.atoms[&x].charge != 0
             || heavy(x).len() != 1
-            || !open(y)
+            || !(open(y) || anion(y))
         {
             return None;
         }
@@ -2812,6 +2823,7 @@ fn hydrazine_carbonyl_parent_name(
             "O" | "S" | "Se" | "Te" => {
                 let ending = match beyond[..] {
                     [] if mol.atoms[&y].total_h_count == 1 => "ic acid",
+                    [] if anion(y) => "ate",
                     // An acyl carbon here would make an anhydride.
                     [r] if symbol(r) == "C"
                         && heavy(r)
@@ -2840,7 +2852,7 @@ fn hydrazine_carbonyl_parent_name(
                     }
                     _ => return None,
                 };
-                let code = if ending == "ate" { 40 } else { 20 };
+                let code = if beyond.is_empty() { 20 } else { 40 };
                 let replaced = match symbol(y) {
                     "O" => "",
                     "S" => "thio",
@@ -2853,6 +2865,8 @@ fn hydrazine_carbonyl_parent_name(
                     ("", "") if ending == "ate" => (code, true, "carboxylate".into(), ""),
                     ("", "") => (code, true, "carboxylic acid".into(), ""),
                     (a, b) if a == b => (code, false, format!("carbodi{a}{ending}"), ""),
+                    // The charge of a mixed anion is not placed.
+                    _ if anion(y) => return None,
                     (a, "") | ("", a) => {
                         let site = match symbol(y) {
                             "O" => "O-",
@@ -3186,6 +3200,115 @@ fn hydrazine_carbonyl_parent_name(
         }
     }
     Ok(best.map(|(_, name)| name))
+}
+
+/// Cyanohydrazide, NC-NH-NH2, the hydrazide of cyanic acid (P-66.3.1.2.1,
+/// P-66.3.5.1). Its carbon substituents take the locants N, the nitrogen on
+/// the cyano carbon, and N' (P-66.3.3.1). A second cyanohydrazide and a
+/// group that is senior to a hydrazide or ties with it (P-41) are left to
+/// the general namer.
+// Provenance: fn cyanohydrazide_name | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::cyanohydrazide_name
+fn cyanohydrazide_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>, String> {
+    if mol.is_isotope_parent() || atoms.iter().any(|i| mol.atoms[i].charge != 0) {
+        return Ok(None);
+    }
+    let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
+    let symbol = |i: usize| mol.atoms[&i].symbol.as_str();
+    let heavy = |i: usize| -> Vec<usize> {
+        mol.get_neighbors(i)
+            .iter()
+            .copied()
+            .filter(|&x| symbol(x) != "H")
+            .collect()
+    };
+    // N#C-N-N with an acyclic two-nitrogen chain.
+    let mut cores = Vec::new();
+    for &c in atoms {
+        let [p, q] = heavy(c)[..] else { continue };
+        for (nitrile, n) in [(p, q), (q, p)] {
+            let chain: Vec<_> = heavy(n).into_iter().filter(|&x| symbol(x) == "N").collect();
+            if let [far] = chain[..]
+                && symbol(c) == "C"
+                && symbol(nitrile) == "N"
+                && mol.bond_order(c, nitrile) == 3
+                && symbol(n) == "N"
+                && mol.bond_order(c, n) == 1
+                && mol.bond_order(n, far) == 1
+                && !cyclic.contains(&n)
+                && !cyclic.contains(&far)
+                && heavy(far).iter().all(|&x| x == n || symbol(x) != "N")
+            {
+                cores.push([c, nitrile, n, far]);
+            }
+        }
+    }
+    let [[c, nitrile, n, far]] = cores[..] else {
+        return Ok(None);
+    };
+    for group in perceive_groups(mol) {
+        if atoms.contains(&group.attachment_carbon)
+            && !group.atom_ids().contains(&c)
+            && group
+                .resolved_rule
+                .as_ref()
+                .and_then(|r| r.seniority.as_ref())
+                .is_some_and(|s| s[0] <= 68)
+        {
+            return Ok(None);
+        }
+    }
+    let core = set([c, nitrile, n, far]);
+    let mut cited: Vec<(String, &str)> = Vec::new();
+    for (locant, nitrogen) in [("N", n), ("N'", far)] {
+        for root in heavy(nitrogen) {
+            if core.contains(&root) {
+                continue;
+            }
+            // No Blue Book example places an E/Z descriptor here.
+            if symbol(root) != "C"
+                || mol
+                    .get_bond(nitrogen, root)
+                    .is_none_or(|b| b.order > 2 || b.stereo.is_some())
+            {
+                return Ok(None);
+            }
+            let name = branch_name(mol, atoms, root, &set([nitrogen]), nitrogen)?;
+            if name.is_empty() {
+                return Ok(None);
+            }
+            // P-29.6.2.1: unsubstituted benzylidene is preferred.
+            let name = if name == "(phenylmethylidene)" {
+                "benzylidene".into()
+            } else {
+                name
+            };
+            cited.push((name, locant));
+        }
+    }
+    if require_stereo_free_core(mol, &core).is_err() {
+        return Ok(None);
+    }
+    let mut names: Vec<_> = cited.iter().map(|(name, _)| name.clone()).collect();
+    names.sort_by_cached_key(|name| (substituent_sort_key(name), name.clone()));
+    names.dedup();
+    let prefixes = names
+        .iter()
+        .map(|name| {
+            let locants: Vec<_> = cited
+                .iter()
+                .filter(|(n, _)| n == name)
+                .map(|(_, locant)| *locant)
+                .collect();
+            format!(
+                "{}-{}",
+                locants.join(","),
+                format_multiplier(name, locants.len(), false)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("-");
+    Ok(Some(format!("{prefixes}cyanohydrazide")))
 }
 
 // Provenance: fn nitrogen_ligands | adapted
@@ -3912,7 +4035,10 @@ fn anhydride_half_name(
         .all(|oh| name.principal_group_atoms.contains(oh));
     let unsubstituted = matches!(&name.derivation, super::component_namer::Derivation::Plan { parent_atoms, .. }
         if atoms.iter().all(|a| parent_atoms.contains(a) || name.principal_group_atoms.contains(a)));
-    Ok((name.text, cited, unsubstituted))
+    // An acid named as a whole, such as hydrazinecarboxylic acid, keeps its
+    // class word, which an anhydride name omits (P-65.7.2).
+    let text = name.text.strip_suffix(" acid").unwrap_or(&name.text);
+    Ok((text.to_owned(), cited, unsubstituted))
 }
 // Provenance: fn anhydride_class_name | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::anhydride_class_name
@@ -4373,6 +4499,12 @@ pub(super) fn structural_replacement_parent_result(
             ..StructuralParentName::ordinary(name)
         }));
     }
+    if let Some(name) = mol.candidate(|| cyanohydrazide_name(mol, atoms))? {
+        return Ok(Some(StructuralParentName {
+            certified: true,
+            ..StructuralParentName::ordinary(name)
+        }));
+    }
     if let Some(name) = mol.candidate(|| simple_azine_parent_name(mol, atoms))? {
         return Ok(Some(StructuralParentName::ordinary(name)));
     }
@@ -4568,6 +4700,49 @@ mod tests {
                 "{expected}",
             );
         }
+        // P-72.2.2.2.1.1: the anion replaces 'ic acid' by 'ate'. The charge
+        // of a mixed chalcogen anion is not placed, and an acid beside an
+        // anion is left to the general namer.
+        for (smiles, expected) in [
+            (
+                "CNNC(=O)[O-].[Na+]",
+                "sodium 2-methylhydrazine-1-carboxylate",
+            ),
+            (
+                "NN(C)C(=O)[O-].[Na+]",
+                "sodium 1-methylhydrazine-1-carboxylate",
+            ),
+            (
+                "CNNC(=S)[S-].[Na+]",
+                "sodium 2-methylhydrazine-1-carbodithioate",
+            ),
+            (
+                "[O-]C(=O)NNC(=O)[O-].[Na+].[Na+]",
+                "disodium hydrazine-1,2-dicarboxylate",
+            ),
+            (
+                "OC(=O)CNNC(=O)[O-].[Na+]",
+                "sodium 2-(carboxymethyl)hydrazine-1-carboxylate",
+            ),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}",
+            );
+        }
+        for smiles in ["CNNC(=O)[S-]", "[O-]C(=O)NNC(=O)O", "[O-]c1ccccc1NNC(=O)O"] {
+            let mol = read_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(
+                hydrazine_carbonyl_parent_name(&mol, &all_atoms(&mol)).unwrap(),
+                None,
+                "{smiles}"
+            );
+        }
         // A suffix needs a terminal =X and a terminal halogen.
         for smiles in ["NNC(=[S](C)C)O", "NNC(=S(=O)=O)O", "NNC(=O)I(C)C"] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
@@ -4594,6 +4769,114 @@ mod tests {
                 hydrazine_carbonyl_parent_name(&mol, &all_atoms(&mol)).unwrap(),
                 None,
                 "{smiles}"
+            );
+        }
+    }
+
+    #[test]
+    fn cyanohydrazide_is_the_hydrazide_of_cyanic_acid() {
+        // Issue #113. P-66.3.1.2.1, P-66.3.5.1: NC-NH-NH2 is cyanohydrazide,
+        // substituted like an amide with the locants N and N' (P-66.3.3.1).
+        for (smiles, expected) in [
+            ("NNC#N", "cyanohydrazide"),
+            ("CNNC#N", "N'-methylcyanohydrazide"),
+            ("CN(N)C#N", "N-methylcyanohydrazide"),
+            ("CN(C)N(C)C#N", "N,N',N'-trimethylcyanohydrazide"),
+            ("N#CN(C)Nc1ccccc1", "N-methyl-N'-phenylcyanohydrazide"),
+            ("N#CNN=C(C)C", "N'-(propan-2-ylidene)cyanohydrazide"),
+            ("N#CNN=Cc1ccccc1", "N'-benzylidenecyanohydrazide"),
+            // P-41: a hydrazide is senior to an alcohol and a nitrile.
+            ("N#CNNCCO", "N'-(2-hydroxyethyl)cyanohydrazide"),
+            ("N#CNNCC#N", "N'-(cyanomethyl)cyanohydrazide"),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}",
+            );
+        }
+        // Left to the general namer and not labelled preferred: a senior or
+        // equal class (P-41), a second cyano group on the hydrazine, a
+        // heteroatom substituent, and a configured hydrazone.
+        for smiles in [
+            "N#CNNCC(=O)O",
+            "N#CNNC(N)=O",
+            "N#CNNC(C)=O",
+            "N#CNNC#N",
+            "N#CNNCl",
+            "N#CN/N=C/c1ccccc1",
+        ] {
+            let mol = read_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(
+                cyanohydrazide_name(&mol, &all_atoms(&mol)).unwrap(),
+                None,
+                "{smiles}"
+            );
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_ne!(
+                name.status,
+                NameStatus::Preferred,
+                "{smiles}: {}",
+                name.text
+            );
+        }
+        // A ring nitrogen takes the suffix carbonitrile (P-66.5.1.1.3).
+        assert_eq!(
+            super::super::name_smiles("N#CN1CCCN1", &Default::default())
+                .unwrap()
+                .text,
+            "pyrazolidine-1-carbonitrile"
+        );
+    }
+
+    #[test]
+    fn nitrogen_acids_form_mixed_anhydrides() {
+        // Issue #113. P-65.7.2: the acids of a mixed anhydride are cited in
+        // alphabetical order; hydrazinecarboxylic acid (P-68.3.1.2.1) and
+        // carbamic acid are monobasic acids like any other.
+        for (smiles, expected) in [
+            ("NNC(=O)OC(C)=O", "acetic hydrazinecarboxylic anhydride"),
+            (
+                "CNNC(=O)OC(C)=O",
+                "acetic 2-methylhydrazine-1-carboxylic anhydride",
+            ),
+            (
+                "CN(N)C(=O)OC(=O)CC",
+                "1-methylhydrazine-1-carboxylic propanoic anhydride",
+            ),
+            (
+                "NNC(=O)OC(=O)c1ccccc1",
+                "benzoic hydrazinecarboxylic anhydride",
+            ),
+            ("NNC(=O)OC(=O)NN", "hydrazinecarboxylic anhydride"),
+            ("NNC(=O)OC(=O)N", "carbamic hydrazinecarboxylic anhydride"),
+            ("NC(=O)OC(C)=O", "acetic carbamic anhydride"),
+            ("CNC(=O)OC(C)=O", "acetic methylcarbamic anhydride"),
+            ("c1ccccc1NC(=O)OC(C)=O", "acetic phenylcarbamic anhydride"),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}",
+            );
+        }
+        // Not named as anhydrides, and not labelled preferred: a thioacyl
+        // half and a chalcogen or peroxy bridge.
+        for smiles in ["NNC(=S)OC(C)=O", "NNC(=O)SC(C)=O", "NNC(=O)OOC(C)=O"] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_ne!(
+                name.status,
+                NameStatus::Preferred,
+                "{smiles}: {}",
+                name.text
             );
         }
     }

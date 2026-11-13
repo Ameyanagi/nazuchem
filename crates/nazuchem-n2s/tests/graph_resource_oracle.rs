@@ -60,10 +60,12 @@ fn snapshot(graph: &Graph, fragment: FragmentId) -> String {
 fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulization() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/xml");
     // Native simpleSubstituents.xml acid-anion prefixes (issue #83, P-72.6.1;
-    // issue #145, P-65.6.2.3.1 for selenium and tellurium)
+    // issue #145, P-65.6.2.3.1 for selenium and tellurium) and the
+    // simpleGroups.xml cyanohydrazide (issue #113, P-66.3.1.2.1)
     // postdate the frozen Java oracle; they are acyclic, so they must build
     // without spare valencies or cycles and kekulization must leave them as is.
-    const NATIVE: [&str; 16] = [
+    const NATIVE: [&str; 17] = [
+        "N#CNN",
         "-S(=S)[O-]",
         "-S(=[Se])[O-]",
         "-S(=[Te])[O-]",

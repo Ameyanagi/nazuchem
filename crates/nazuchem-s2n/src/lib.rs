@@ -2208,9 +2208,10 @@ mod tests {
                 "OCCOCCOCCOCCOCCO",
                 "2-(2-{2-[2-(2-hydroxyethoxy)ethoxy]ethoxy}ethoxy)ethan-1-ol",
             ),
+            // P-68.3.1.2.1: hydrazinyl numbers its substituents 1 and 2.
             (
                 "CN(CC(=O)O)Nc1cnc(CO)cn1",
-                "({[5-(hydroxymethyl)pyrazin-2-yl]amino}(methyl)amino)acetic acid",
+                "{2-[5-(hydroxymethyl)pyrazin-2-yl]-1-methylhydrazin-1-yl}acetic acid",
             ),
             (
                 "C[S@@](=O)CSCNN",

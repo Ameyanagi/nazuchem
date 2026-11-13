@@ -671,15 +671,21 @@ fn hydrazide_ns(m: &Molecule, c: usize, n: usize, cyclic: &AtomSet) -> Option<Ve
             .count()
     };
     let oxygen = |x: usize, order: usize| m.atoms[&x].symbol == "O" && m.bond_order(c, x) == order;
+    // P-65.7.2: with a second acyl group on that oxygen, a substituted
+    // hydrazinecarboxylic acid is one half of an anhydride.
+    let acyl = |y: usize| {
+        m.atoms[&y].is_carbon()
+            && m.get_neighbors(y)
+                .iter()
+                .any(|&z| m.atoms[&z].symbol == "O" && m.bond_order(y, z) == 2)
+    };
     if !m.is_isotope_parent()
-        && heavy(n) == 2
-        && heavy(t) == 1
         && m.get_neighbors(c).iter().any(|&x| oxygen(x, 2))
         && m.get_neighbors(c).iter().any(|&x| {
+            let beyond = m.get_neighbors(x);
             oxygen(x, 1)
-                && m.get_neighbors(x)
-                    .iter()
-                    .all(|&y| y == c || m.atoms[&y].is_carbon())
+                && beyond.iter().all(|&y| y == c || m.atoms[&y].is_carbon())
+                && (heavy(n) == 2 && heavy(t) == 1 || beyond.iter().any(|&y| y != c && acyl(y)))
         })
     {
         return None;
@@ -1545,6 +1551,11 @@ fn is_complete_acyl_end(m: &Molecule, center: usize, double: usize, linkage: usi
     }
     let substituent = remaining[0];
     if m.atoms[&substituent].is_carbon() {
+        return true;
+    }
+    // P-65.7.2: carbamic and hydrazinecarboxylic acids are monobasic acids
+    // and form anhydrides, as in acetic hydrazinecarboxylic anhydride.
+    if m.atoms[&substituent].symbol == "N" && m.atoms[&substituent].charge == 0 {
         return true;
     }
     let mut component = AtomSet::from([substituent]);
