@@ -1788,14 +1788,25 @@ fn central_group(
     // P-65.5.2.1, P-66.5.1.3.2: a pseudohalide on the sulfonyl or sulfinyl
     // group is cited like a halide, methanesulfonyl cyanide, and its cyanide
     // carbon is not the carbon the acid group is attached to. A group with no other carbon
-    // is perceived as before. An isocyanide keeps its charged carbon and is
-    // left to the ion routes.
+    // is perceived as before. An isocyanide keeps its charged carbon, and a
+    // group with a hydrogen or another charge is not the one the class name
+    // stands for; these are left to the other routes.
     let mut pseudo = m
         .get_neighbors(c)
         .iter()
         .filter(|n| !used.contains(n))
         .filter_map(|&n| pseudohalide_leaving(m, c, n))
-        .filter(|l| l.kind != "NC")
+        .filter(|l| {
+            let charges = l.atom_ids.iter().map(|a| m.atoms[a].charge);
+            l.kind != "NC"
+                && l.atom_ids.iter().all(|a| m.atoms[a].total_h_count == 0)
+                && if l.kind == "N3" {
+                    charges.eq([0, 1, -1])
+                        && l.atom_ids.windows(2).all(|w| m.bond_order(w[0], w[1]) == 2)
+                } else {
+                    charges.eq(std::iter::repeat_n(0, l.atom_ids.len()))
+                }
+        })
         .collect::<Vec<_>>();
     if carbons
         .iter()

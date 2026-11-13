@@ -133,6 +133,21 @@ fn unlike_sulfonyl_halides_and_pseudohalides_are_not_multiplied_together() {
 }
 
 #[test]
+fn a_group_that_only_resembles_a_pseudohalide_is_not_given_its_class_name() {
+    // A protonated cyanide or isocyanate and a triazane zwitterion are not
+    // the -CN, -NCO and -N3 of P-65.5.2.1.
+    for smiles in [
+        "CS(=O)(=O)C#[NH+]",
+        "CS(=O)(=O)[NH+]=C=O",
+        "CS(=O)(=O)N[NH2+][NH-]",
+    ] {
+        if let Ok(name) = smiles_to_name(smiles) {
+            assert!(!name.text.starts_with("methanesulfonyl "), "{smiles}");
+        }
+    }
+}
+
+#[test]
 fn the_cyanide_of_phosphoric_acid_uses_the_cyanido_infix() {
     for (smiles, expected) in [
         // P-67.1.2.1: phosphoric acid is modified by infixes; cyanido is
@@ -277,6 +292,15 @@ fn a_multiplied_ester_anion_reads_back() {
         (
             "ethane-1,2-diyl bis(Hydrogen sulfate)",
             "OS(=O)(=O)OCCOS(=O)(=O)O",
+        ),
+        // After a substituent word the group is the acid part of an ester.
+        (
+            "ethane-1,2-diyl bis(4-methyl benzoate)",
+            "Cc1ccc(cc1)C(=O)OCCOC(=O)c1ccc(C)cc1",
+        ),
+        (
+            "CALCIUM BIS(METHYL SULFATE)",
+            "[Ca+2].COS(=O)(=O)[O-].COS(=O)(=O)[O-]",
         ),
         (
             "D-fructofuranose 1,6-bis(phosphate)",

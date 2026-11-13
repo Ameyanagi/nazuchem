@@ -11,7 +11,7 @@
 
 use crate::{
     ParseOptions, ParsingError, cas,
-    parse_rules::ParseTokens,
+    parse_rules::{ParseTokens, WordType},
     parse_tree::{Arena, NodeId, ParseTree},
     resources::Resources,
     tokenizer::{self, ParseWord, Tokenization},
@@ -82,10 +82,12 @@ pub(crate) fn parse(
     // bis(hydrogen sulfate) and tris(dihydrogen phosphate) in Blue Book
     // P-16.3.6 (issue #163). Without its spaces `methylsulfate` is a
     // substituted sulfate, and `methylhydrogenphosphate` loses its hydrogen.
-    // An anion with only `hydrogen` words is read as before, which also
-    // covers the acid ester ethane-1,2-diyl bis(hydrogen sulfate).
+    // After a substituent word the group is the acid part of an ester, as
+    // in ethane-1,2-diyl bis(4-methyl benzoate), and an anion with only
+    // `hydrogen` words is already read, also as an acid ester; both are
+    // left as they are. The count is limited like an adduct ratio above.
     let mut depth = 0;
-    let words: Vec<_> = name
+    let spaced: Vec<_> = name
         .split(|ch| {
             depth += match ch {
                 '(' | '[' | '{' => 1,
@@ -94,13 +96,17 @@ pub(crate) fn parse(
             };
             ch == ' ' && depth == 0
         })
-        .map(|word| {
+        .collect();
+    let words: Vec<_> = spaced
+        .iter()
+        .enumerate()
+        .map(|(i, &word)| {
             word.find(['(', '[', '{'])
                 .and_then(|open| {
                     // The group multipliers bis, tris, tetrakis and so on.
                     let count: usize = resources
                         .definitions
-                        .get(&(word[..open].to_owned(), u16::from(b'R')))?
+                        .get(&(word[..open].to_ascii_lowercase(), u16::from(b'R')))?
                         .attributes
                         .get("value")?
                         .parse()
@@ -108,10 +114,19 @@ pub(crate) fn parse(
                     let anion = enclosed(&word[open..])?;
                     let (organyl, acid) = anion.rsplit_once(' ')?;
                     let acid = acid.to_ascii_lowercase();
-                    ((acid.ends_with("ate") || acid.ends_with("ite"))
+                    (count <= 100
+                        && (acid.ends_with("ate") || acid.ends_with("ite"))
                         && organyl
                             .split_whitespace()
-                            .any(|word| !word.to_ascii_lowercase().ends_with("hydrogen")))
+                            .any(|word| !word.to_ascii_lowercase().ends_with("hydrogen"))
+                        && !tokenizer::tokenize(resources, spaced[i.checked_sub(1)?], false, false)
+                            .is_ok_and(|before| {
+                                before.words.iter().flat_map(|word| &word.alternatives).any(
+                                    |tokens| {
+                                        matches!(tokens.word_type(), Ok(WordType::Substituent))
+                                    },
+                                )
+                            }))
                     .then(|| vec![anion; count].join(" "))
                 })
                 .unwrap_or_else(|| word.into())
