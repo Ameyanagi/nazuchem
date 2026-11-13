@@ -248,10 +248,6 @@ fn a_multiplied_ester_anion_reads_back() {
             "calcium bis(dimethyl phosphate)",
         ),
         (
-            "[Ca+2].COP(=O)(O)[O-].COP(=O)(O)[O-]",
-            "calcium bis(methyl hydrogen phosphate)",
-        ),
-        (
             "[Ca+2].C[C@H](CC)OS(=O)(=O)[O-].C[C@H](CC)OS(=O)(=O)[O-]",
             "calcium bis[(2R)-butan-2-yl sulfate]",
         ),
@@ -270,6 +266,11 @@ fn a_multiplied_ester_anion_reads_back() {
         (
             "calcium bis(methyl sulfate) dihydrate",
             "[Ca+2].COS(=O)(=O)[O-].COS(=O)(=O)[O-].O.O",
+        ),
+        // Each anion keeps its own ester groups and hydrogen.
+        (
+            "dicalcium bis(ethyl methyl phosphate) bis(methyl hydrogen phosphate)",
+            "[Ca+2].[Ca+2].CCOP(=O)(OC)[O-].CCOP(=O)(OC)[O-].COP(=O)(O)[O-].COP(=O)(O)[O-]",
         ),
         (
             "heptasodium heptakis(methyl sulfate)",
@@ -293,7 +294,13 @@ fn a_multiplied_ester_anion_reads_back() {
             "ethane-1,2-diyl bis(Hydrogen sulfate)",
             "OS(=O)(=O)OCCOS(=O)(=O)O",
         ),
-        // After a substituent word the group is the acid part of an ester.
+        // A name that was read before is read the same way: a spaced
+        // substituent of the acid, and the acid part of an ester after a
+        // substituent word.
+        (
+            "calcium bis(4-methyl benzoate)",
+            "[Ca+2].Cc1ccc(cc1)C(=O)[O-].Cc1ccc(cc1)C(=O)[O-]",
+        ),
         (
             "ethane-1,2-diyl bis(4-methyl benzoate)",
             "Cc1ccc(cc1)C(=O)OCCOC(=O)c1ccc(C)cc1",

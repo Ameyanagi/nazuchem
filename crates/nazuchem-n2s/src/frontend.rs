@@ -78,14 +78,14 @@ pub(crate) fn parse(
     }
     let name = if repeated.is_empty() { name } else { &repeated };
     // Changes: A multiplied ester anion, as in calcium bis(methyl sulfate),
-    // is read as that many copies of its words, the multiplied form of
+    // is also read as that many copies of its words, the multiplied form of
     // bis(hydrogen sulfate) and tris(dihydrogen phosphate) in Blue Book
     // P-16.3.6 (issue #163). Without its spaces `methylsulfate` is a
-    // substituted sulfate, and `methylhydrogenphosphate` loses its hydrogen.
-    // After a substituent word the group is the acid part of an ester, as
-    // in ethane-1,2-diyl bis(4-methyl benzoate), and an anion with only
-    // `hydrogen` words is already read, also as an acid ester; both are
-    // left as they are. The count is limited like an adduct ratio above.
+    // substituted sulfate, which cannot be built. The parses of the name as
+    // written come first, having fewer tokens, so a name that was read
+    // before is read the same way. After a substituent word the group is
+    // the acid part of an ester and is not repeated. The count is limited
+    // like an adduct ratio above.
     let mut depth = 0;
     let spaced: Vec<_> = name
         .split(|ch| {
@@ -112,27 +112,46 @@ pub(crate) fn parse(
                         .parse()
                         .ok()?;
                     let anion = enclosed(&word[open..])?;
-                    let (organyl, acid) = anion.rsplit_once(' ')?;
-                    let acid = acid.to_ascii_lowercase();
+                    let acid = anion.to_ascii_lowercase();
                     (count <= 100
                         && (acid.ends_with("ate") || acid.ends_with("ite"))
-                        && organyl
-                            .split_whitespace()
-                            .any(|word| !word.to_ascii_lowercase().ends_with("hydrogen"))
                         && !tokenizer::tokenize(resources, spaced[i.checked_sub(1)?], false, false)
                             .is_ok_and(|before| {
-                                before.words.iter().flat_map(|word| &word.alternatives).any(
-                                    |tokens| {
+                                before
+                                    .words
+                                    .last()
+                                    .into_iter()
+                                    .flat_map(|word| &word.alternatives)
+                                    .any(|tokens| {
                                         matches!(tokens.word_type(), Ok(WordType::Substituent))
-                                    },
-                                )
+                                    })
                             }))
                     .then(|| vec![anion; count].join(" "))
                 })
                 .unwrap_or_else(|| word.into())
         })
         .collect();
-    let name = &words.join(" ");
+    let repeated = words.join(" ");
+    let written = parse_words(resources, name, &ratios, options);
+    if repeated == name {
+        return written;
+    }
+    match (written, parse_words(resources, &repeated, &ratios, options)) {
+        (Ok(mut written), Ok(repeated)) => {
+            written.extend(repeated);
+            Ok(written)
+        }
+        (Err(_), Ok(repeated)) => Ok(repeated),
+        (written, Err(_)) => written,
+    }
+}
+
+fn parse_words(
+    resources: &Resources,
+    name: &str,
+    ratios: &Option<Vec<i32>>,
+    options: &ParseOptions,
+) -> Result<Vec<ParseTree>, ParsingError> {
     let mut tokenized = None;
     if name.contains(", ")
         && let Ok(uninverted) = cas::uninvert(resources, name)
