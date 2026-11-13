@@ -2018,6 +2018,56 @@ mod tests {
             ("O=C1CCCCN1", "piperidin-2-one"),
             ("C1CCc2ccccc2C1", "1,2,3,4-tetrahydronaphthalene"),
             ("OC1CCCc2ccccc12", "1,2,3,4-tetrahydronaphthalen-1-ol"),
+            // #178: a ring with no double bond left keeps its retained parent
+            // (P-25.1.1, P-25.2.1 Table 2.8) when it carries a ketone. The
+            // ketone takes the indicated hydrogen (P-58.2.3.1.1) or leaves an
+            // added hydrogen (P-58.2.2), and the hydro prefixes of the total
+            // hydrogenation need no locants (P-31.2.3.3.2, P-14.3.4.5;
+            // 'tetrahydro-4H-pyran-4-one' in P-58.2.3.1.1,
+            // 'dihydro-2H-pyran-3(4H)-ylidene' in P-32.2.1).
+            ("O=C1CCCC2CCCCC12", "octahydronaphthalen-1(2H)-one"),
+            ("O=C1CCC2CCCCC2C1", "octahydronaphthalen-2(1H)-one"),
+            ("O=C1CCC(=O)C2CCCCC12", "octahydronaphthalene-1,4-dione"),
+            (
+                "CC1CCC2CCCC(=O)C2C1",
+                "7-methyloctahydronaphthalen-1(2H)-one",
+            ),
+            ("O=C1CCC2CCCCN12", "hexahydroindolizin-3(2H)-one"),
+            ("O=C1CCN2CCCC12", "hexahydro-1H-pyrrolizin-1-one"),
+            ("O=C1CCCN2CCCCC12", "hexahydro-2H-quinolizin-1(6H)-one"),
+            ("O=C1CCCC2CCCCN12", "octahydro-4H-quinolizin-4-one"),
+            ("O=C1CCC2CCCCCC12", "octahydroazulen-1(2H)-one"),
+            ("O=C1CCC2CCCC12", "hexahydropentalen-1(2H)-one"),
+            ("O=C1CCCC2CC3CCCCC3CC12", "dodecahydroanthracen-1(2H)-one"),
+            ("O=C1CCCC2C1CCC1CCCCC12", "dodecahydrophenanthren-1(2H)-one"),
+            ("O=C1CCCC2NC3CCCCC3CC12", "dodecahydroacridin-1(2H)-one"),
+            ("O=C1C2CCCCC2OC2CCCCC12", "dodecahydro-9H-xanthen-9-one"),
+            ("O=C1CCCC2COCCC12", "hexahydro-1H-2-benzopyran-5(3H)-one"),
+            ("O=C1CCC2CCCCC12", "octahydro-1H-inden-1-one"),
+            // #178: the indicated hydrogen also moves to a ketone at a
+            // position other than the one the retained name shows
+            // (P-58.2.3.1.1), in a saturated ring as in a mancude one.
+            ("O=C1CC2CCCCC2C1", "octahydro-2H-inden-2-one"),
+            ("O=C1CC2=C(C1)CCCC2", "1,3,4,5,6,7-hexahydro-2H-inden-2-one"),
+            ("O=C1CCCC2OCCCC12", "octahydro-5H-1-benzopyran-5-one"),
+            (
+                "O=C1CCCC2=C1CCCO2",
+                "2,3,4,6,7,8-hexahydro-5H-1-benzopyran-5-one",
+            ),
+            ("O=C1CCCC2C3CCCCC3CC12", "dodecahydro-1H-fluoren-1-one"),
+            (
+                "O=C1CCCC2=C1c1ccccc1C2",
+                "1,2,3,9-tetrahydro-4H-fluoren-4-one",
+            ),
+            // #178 control: the indicated hydrogen that the N-H of indazole
+            // carries is not relocated on the retained template, so this
+            // name still comes from the fusion planner.
+            ("O=C1CCCC2NNCC12", "octahydro-4H-indazol-4-one"),
+            // #178 control: an oxo prefix is a hydro position (P-58.2.4).
+            (
+                "OC(=O)C1CCC2C(C1)CCCC2=O",
+                "5-oxodecahydronaphthalene-2-carboxylic acid",
+            ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
             if name.text != expected {
