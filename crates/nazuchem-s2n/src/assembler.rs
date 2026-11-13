@@ -136,10 +136,10 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
                 mol.mark_name(NameStatus::NotPreferred(NameReason::UnretainedParent));
             }
         }
-        // Oxamic acid, H2N-CO-COOH, is retained; amino(oxo)acetic acid is
-        // its systematic name (P-65.1.1.1, P-65.1.6.1). With a substituted
-        // nitrogen the systematic name is preferred: anilino(oxo)acetic
-        // acid (P-65.1.6.2).
+        // Oxamic acid, H2N-CO-COOH, is retained and may be substituted;
+        // amino(oxo)acetic acid is its systematic name (P-65.1.1.1,
+        // P-65.1.6.1). Only the N-phenyl derivatives are shown with a
+        // systematic preferred name: anilino(oxo)acetic acid (P-65.1.6.2).
         if !parts.is_ring
             && parts.parent_length == 2
             && matches!(
@@ -152,9 +152,13 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
                 around
                     .iter()
                     .any(|&x| mol.atoms[&x].symbol == "O" && mol.bond_order(c, x) == 2)
-                    && around
-                        .iter()
-                        .any(|&x| mol.atoms[&x].symbol == "N" && mol.get_neighbors(x).len() == 1)
+                    && around.iter().any(|&x| {
+                        mol.atoms[&x].symbol == "N"
+                            && !mol
+                                .get_neighbors(x)
+                                .iter()
+                                .any(|a| mol.atoms[a].is_aromatic)
+                    })
             })
         {
             mol.mark_name(NameStatus::NotPreferred(NameReason::UnretainedParent));

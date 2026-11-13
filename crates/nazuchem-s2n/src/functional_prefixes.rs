@@ -775,6 +775,7 @@ mod tests {
             // anilino(oxo)acetic acid).
             ("OC(=O)CCCC(=O)Nc1ccccc1", "5-anilino-5-oxopentanoic acid"),
             ("OC(=O)C(=O)Nc1ccccc1", "anilino(oxo)acetic acid"),
+            ("OC(=O)C(=O)NC1=CC=CC=C1", "anilino(oxo)acetic acid"),
             ("OC(=O)CCC(=O)NC", "4-(methylamino)-4-oxobutanoic acid"),
             ("OC(=O)CCC(=O)N(C)C", "4-(dimethylamino)-4-oxobutanoic acid"),
             // P-45.2.1: of two chains of equal length, the one through the
@@ -817,15 +818,28 @@ mod tests {
                 "{expected}"
             );
         }
-        // P-65.1.1.1, P-65.1.6.1: oxamic acid is retained and is not
-        // generated; its systematic name is not labelled preferred.
+        // P-65.1.1.1, P-65.1.6.1: oxamic acid is retained, may be
+        // substituted and is not generated; its systematic names are not
+        // labelled preferred.
         for (smiles, expected) in [
             ("OC(=O)C(N)=O", "amino(oxo)acetic acid"),
             ("COC(=O)C(N)=O", "methyl amino(oxo)acetate"),
+            ("OC(=O)C(=O)NC", "(methylamino)(oxo)acetic acid"),
+            ("OC(=O)C(=O)N(C)C", "(dimethylamino)(oxo)acetic acid"),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
-            assert_ne!(name.status, NameStatus::Preferred, "{smiles}");
+            assert_eq!(
+                name.status,
+                NameStatus::NotPreferred(nazuchem_ir::NameReason::UnretainedParent),
+                "{smiles}"
+            );
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                "{expected}"
+            );
         }
     }
 
