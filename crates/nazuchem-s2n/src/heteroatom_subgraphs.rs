@@ -898,11 +898,8 @@ fn name_nitrogen(
         && upstream.is_some_and(|u| mol.atoms[&u].is_carbon())
         && let [n] = roots[..]
         && mol.atoms[&n].symbol == "N"
-        && mol.degree(n) == 3
-        && mol
-            .get_neighbors(n)
-            .iter()
-            .all(|&o| o == start || mol.atoms[&o].symbol == "O" && mol.degree(o) == 1)
+        && name_subgraph_with_upstream(mol, n, &with_atoms(exclude, [start]), Some(start))?
+            == "nitro"
     {
         return Ok("nitramido".into());
     }

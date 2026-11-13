@@ -660,10 +660,14 @@ fn hydrazide_ns(m: &Molecule, c: usize, n: usize, cyclic: &AtomSet) -> Option<Ve
             // as in N'-[(phenyldiazenyl)methylidene]acetohydrazide
             // (P-68.3.1.3.5.1). No Blue Book example places the descriptor of a
             // configured N'=C bond, so that case is not a hydrazide here.
+            // A cumulated carbon such as =C=S is not named as an ylidene.
             x != n
                 && (!matches!(m.atoms[&x].symbol.as_str(), "C" | "H")
-                    || m.get_bond(t, x)
-                        .is_some_and(|b| b.order > 2 || b.stereo.is_some()))
+                    || m.get_bond(t, x).is_some_and(|b| {
+                        b.order > 2
+                            || b.stereo.is_some()
+                            || b.order == 2 && has_multiple(m, x, &AtomSet::from([t]))
+                    }))
         })
     {
         return None;

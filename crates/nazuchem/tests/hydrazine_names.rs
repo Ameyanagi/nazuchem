@@ -61,6 +61,11 @@ fn a_nitro_group_on_nitrogen_keeps_the_parent_chain() {
         ("OCCN[N+](=O)[O-]", "2-nitramidoethan-1-ol"),
         ("CCN[N+](=O)[O-]", "N-nitroethanamine"),
         ("OC(=O)CCNN=O", "3-(nitrosoamino)propanoic acid"),
+        // N(OH)2 is not a nitro group.
+        (
+            "OC(=O)CCNN(O)O",
+            "3-(2,2-dihydroxyhydrazin-1-yl)propanoic acid",
+        ),
     ] {
         check(smiles, expected, NameStatus::Preferred);
     }
@@ -96,11 +101,25 @@ fn acylhydrazones_are_ylidene_hydrazides() {
         ),
         // P-66.3.4: chalcogen analogues.
         ("CC(=S)NN=C(C)C", "N'-(propan-2-ylidene)ethanethiohydrazide"),
-        // P-66.3.3.2: the nitrogens of two hydrazide groups.
+        // P-29.6.2.1: benzylidene is the preferred prefix when
+        // unsubstituted, as in N'-benzylideneoxamic hydrazide (P-66.3.6).
+        ("CC(=O)NN=Cc1ccccc1", "N'-benzylideneacetohydrazide"),
         (
-            "CC(C)=NNC(=O)CCC(=O)NN=C(C)C",
-            "N',N'''-bis(propan-2-ylidene)butanedihydrazide",
+            "CS(=O)(=O)NN=Cc1ccccc1",
+            "N'-benzylidenemethanesulfonohydrazide",
         ),
+        (
+            "CC(=O)NN=Cc1ccc(Cl)cc1",
+            "N'-[(4-chlorophenyl)methylidene]acetohydrazide",
+        ),
+        ("CC(=O)N=Cc1ccccc1", "N-benzylideneacetamide"),
+        (
+            "OC(=O)C1CCC(CC1)=Cc1ccccc1",
+            "4-benzylidenecyclohexane-1-carboxylic acid",
+        ),
+        // A cumulated carbon on N' is not an ylidene; the double bond is
+        // kept by the isothiocyanato form.
+        ("CC(=O)NN=C=S", "1-(isothiocyanatoamino)ethan-1-one"),
         // P-66.3.2.1 (1): under a senior acid the group is the preferred
         // acyl prefix hydrazinecarbonyl.
         (

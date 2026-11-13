@@ -612,7 +612,8 @@ pub fn promote_retained_substituent_name(parts: &mut AssemblyParts) {
     promote_carbamimidoyl(parts);
     if !parts.is_substituent
         || parts.retained_substituent_name.is_some()
-        || matches!(parts.attachment_order, 2 | 3)
+        || parts.attachment_order == 3
+        || parts.attachment_order == 2 && !parts.stereo_features.is_empty()
         || parts.is_ring
         || parts.retained_name.is_some()
         || parts.principal_group.is_some()
@@ -636,6 +637,8 @@ pub fn promote_retained_substituent_name(parts: &mut AssemblyParts) {
         kind,
     ) {
         (1, "1", "phenyl", "1", "single") => Some("benzyl".to_owned()),
+        // P-29.6.2.1: unsubstituted benzylidene is a preferred prefix.
+        (1, "1", "phenyl", "1", "double") => Some("benzylidene".to_owned()),
         (3, "2", "methyl", "2", "single") => Some("tert-butyl".to_owned()),
         (1, "1", "phenyl", "1", "acyl") => Some(match parts.acyl_infix {
             "" => "benzoyl".to_owned(),
