@@ -602,7 +602,7 @@ fn atom_matches(
             || (charge == "charge_layer" && a.charge != 0))
             && atom.charge != a.charge
             && !deprotonated_indicated_h
-            && !(a.charge == 0 && is_ium_nitrogen(mol, idx))
+            && !(a.charge == 0 && template.family == "fused" && is_ium_nitrogen(mol, idx))
     {
         return false;
     }

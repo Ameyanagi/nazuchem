@@ -1442,6 +1442,14 @@ mod tests {
                 nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::FusionNitrogenHydron)
             );
         }
+        // #96: this cation's hydro prefixes do not yet match its neutral
+        // parent hydride (1-oxodecahydroisoquinolin-2-ium, P-73.1.2.1), so
+        // the name keeps its locants and stays unverified.
+        let name = crate::name_smiles("O=C1[NH2+]CCC2CCCCC12", &Default::default()).unwrap();
+        assert_eq!(
+            name.status,
+            nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::HydroPrefixLocants)
+        );
         // #96, P-73.1.1.2: a hydron at a fusion N is cited as -ium, but the
         // parser reads that spelling as the λ5-ylium cation (P-73.3.1), so
         // the name stays unverified.

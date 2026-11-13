@@ -474,22 +474,28 @@ fn add_indicated_hydrogen_prefix(parts: &mut AssemblyParts, core: &str) -> (Stri
                 .hydro_operations
                 .iter()
                 .any(|operation| operation.key == "added_hydrogen");
-        // P-73.1.1.2: a ring N⁺ in a saturated parent is an '-ium' centre
-        // and keeps the hydro prefixes of its neutral parent hydride.
         let charged = parts
             .parent_atom_charges_by_locant
-            .iter()
-            .any(|(locant, &charge)| {
-                charge != 0
-                    && !(charge == 1
-                        && parts
-                            .parent_atom_symbols_by_locant
-                            .get(locant)
-                            .is_some_and(|symbol| symbol == "N"))
-            });
+            .values()
+            .any(|&charge| charge != 0);
+        // A fusion N has no hydrogen to cite, so a retained parent is fully
+        // hydrogenated once every other position is cited
+        // (octahydro-2H-quinolizin-5-ium).
+        let fusion_nitrogens = parts.retained_parent_metadata.as_ref().map_or(0, |m| {
+            m.fusion_locants
+                .iter()
+                .filter(|&locant| {
+                    parts
+                        .parent_atom_symbols_by_locant
+                        .get(locant)
+                        .is_some_and(|symbol| symbol == "N")
+                })
+                .count()
+        });
         if !parts.spiro_prefix_composition
             && (fully_hydrogenated_fusion
-                || additive.len() + indicated.len().max(stated) == parts.parent_length
+                || additive.len() + indicated.len().max(stated) + fusion_nitrogens
+                    == parts.parent_length
                 || saturated && !charged)
         {
             return (format!("{hydro}{sep}{core}"), cites_locants);
