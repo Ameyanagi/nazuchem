@@ -73,6 +73,11 @@ fn a_nitrile_carbon_that_is_the_whole_parent_is_not_cited_as_cyano() {
         "N#CS(=O)(=O)OS(=O)(=O)C#N",
         "N#CS(=O)(=O)OC(C)=O",
         "N#CS(=O)(=O)OCCO",
+        // A core in another charge or hydrogen state is not the plain
+        // ester, acid or anion.
+        "N#CS(=O)(=O)[OH2+]",
+        "N#CS(=O)(=O)[OH+]C",
+        "N#C[SH2](=O)O",
     ] {
         assert!(smiles_to_name(smiles).is_err(), "{smiles}");
     }
@@ -84,10 +89,18 @@ fn neighbours_of_the_one_carbon_nitrile_keep_their_names() {
         // P-66.5.1.1.4: cyano on a parent that has its own carbon.
         ("N#CCS(O)(=O)=O", "cyanomethanesulfonic acid"),
         ("OS(=O)(=O)C(C#N)S(O)(=O)=O", "cyanomethanedisulfonic acid"),
+        // Unchanged and not labelled preferred: the PIN is carbonocyanidic
+        // acid (P-65.2.1.4), which is not generated.
         ("N#CC(=O)O", "cyanoformic acid"),
         // P-67.1.4.4: cyanosulfonyl is the preferred prefix for -SO2-CN.
         ("N#CS(=O)(=O)OCC(=O)O", "(cyanosulfonyloxy)acetic acid"),
         ("N#CS(=O)(=O)CC(=O)O", "(cyanosulfonyl)acetic acid"),
+        // P-41: a cation is senior to an ester, so a charged alcohol part
+        // stays the parent.
+        (
+            "N#CS(=O)(=O)Oc1cc[n+](C)cc1",
+            "4-(cyanosulfonyloxy)-1-methylpyridin-1-ium",
+        ),
         ("[Ca+2].N#C[S-].N#C[S-]", "calcium dithiocyanate"),
     ] {
         let name = smiles_to_name(smiles).unwrap().text;
@@ -112,8 +125,8 @@ fn the_dianion_of_sulfoformic_acid_keeps_both_charges() {
     ] {
         let name = smiles_to_name(smiles).unwrap();
         assert_eq!(name.text, expected, "{smiles}");
-        // Names on substituted formic acid are not labelled preferred
-        // (P-65.1.8); that label is unchanged here.
+        // These names were not labelled preferred before this fix and
+        // still are not; whether P-65.1.8.2 allows them was not checked.
         assert_ne!(name.status, NameStatus::Preferred, "{smiles}");
         assert_round_trip(smiles, &name.text);
     }

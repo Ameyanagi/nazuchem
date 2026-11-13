@@ -3433,7 +3433,8 @@ fn sulfurocyanidic_acid_name(
 ) -> Result<Option<StructuralParentName>, String> {
     let mut found = None;
     for &s in atoms {
-        if mol.atoms[&s].symbol != "S" || mol.atoms[&s].charge != 0 {
+        let centre = &mol.atoms[&s];
+        if centre.symbol != "S" || centre.charge != 0 || centre.total_h_count != 0 {
             continue;
         }
         let around = mol.get_neighbors(s);
@@ -3457,7 +3458,7 @@ fn sulfurocyanidic_acid_name(
                 .filter(|&o| {
                     mol.atoms[&o].symbol == "O"
                         && mol.bond_order(s, o) == order
-                        && (order == 1 || mol.degree(o) == 1)
+                        && (order == 1 || mol.degree(o) == 1 && mol.atoms[&o].charge == 0)
                 })
                 .collect::<Vec<_>>()
         };
@@ -3493,22 +3494,23 @@ fn sulfurocyanidic_acid_name(
         certified: true,
         ..StructuralParentName::ordinary(String::new())
     };
-    match roots[..] {
-        [] if core != *atoms => return Ok(None),
-        [] if mol.atoms[&o].charge < 0 => name.name = anion.into(),
-        [] => name.name = acid.into(),
-        [root] if mol.atoms[&root].is_carbon() => {
+    match (&roots[..], mol.atoms[&o].charge) {
+        ([], _) if core != *atoms => return Ok(None),
+        ([], -1) => name.name = anion.into(),
+        ([], 0) => name.name = acid.into(),
+        (&[root], 0) if mol.atoms[&root].is_carbon() => {
             let ligand = component_atoms_until_blocked(mol, atoms, root, &core);
             if ligand.union(&core).copied().collect::<AtomSet>() != *atoms {
                 return Ok(None);
             }
             // An acyl group makes an anhydride (P-67.1.3.3) and a principal
-            // group in the ligand may be senior to the ester (P-41); both
-            // are left to the other routes.
-            if mol
-                .get_neighbors(root)
-                .iter()
-                .any(|&n| mol.bond_order(root, n) != 1 && !mol.atoms[&n].is_carbon())
+            // group or a charge in the ligand may be senior to the ester
+            // (P-41); these are left to the other routes.
+            if ligand.iter().any(|a| mol.atoms[a].charge != 0)
+                || mol
+                    .get_neighbors(root)
+                    .iter()
+                    .any(|&n| mol.bond_order(root, n) != 1 && !mol.atoms[&n].is_carbon())
                 || perceive_groups(mol)
                     .iter()
                     .any(|g| g.is_principal_candidate && g.atom_ids().is_subset(&ligand))
