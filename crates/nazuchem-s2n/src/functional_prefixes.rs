@@ -885,7 +885,9 @@ mod tests {
                 "anilino(oxo)methanesulfonic acid",
             ),
             // Esters and acid halides share the cause: alkoxy or halo with
-            // oxo (P-63.2.2.2, P-61.3.1, P-64.5).
+            // oxo (P-65.6.3.2.3, P-65.5.4 (3)). Neither rule says whether a
+            // single carbon counts as a chain end, so these are not labelled
+            // preferred either.
             ("COC(=O)S(O)(=O)=O", "methoxy(oxo)methanesulfonic acid"),
             ("ClC(=O)S(O)(=O)=O", "chloro(oxo)methanesulfonic acid"),
         ] {
