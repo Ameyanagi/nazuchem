@@ -174,8 +174,6 @@ pub enum NumberingCriterion {
     SubstituentAndUnsaturation,
     SubstituentCitation,
     Stereochemistry,
-    #[serde(skip)]
-    Isotopes,
 }
 
 // Provenance: fn numbering_criteria | adapted
@@ -194,8 +192,6 @@ fn numbering_criteria(criteria: &[NumberingCriterion]) -> Vec<NumberingCriterion
         criteria.insert(principal, NumberingCriterion::SkeletalIons);
         criteria.insert(principal, NumberingCriterion::FreeValence);
     }
-    // P-82.5.1: the presence of nuclides is considered last.
-    criteria.push(NumberingCriterion::Isotopes);
     criteria
 }
 
@@ -238,7 +234,6 @@ impl NumberingPreference {
             }
             NumberingCriterion::SubstituentCitation => Criterion::Flat(&self.substituent_citation),
             NumberingCriterion::Stereochemistry => Criterion::Flat(&self.stereochemistry),
-            NumberingCriterion::Isotopes => Criterion::Nested(&self.isotopes),
         }
     }
     // Provenance: fn NumberingPreference::compare | adapted
@@ -342,6 +337,8 @@ fn number_parent(
                     .path_preference(candidate)
                     .cmp(&modifiers.path_preference(&best))
             })
+            // P-82.5.1: the presence of nuclides is considered last.
+            .then_with(|| evaluation.isotopes.cmp(&best_score.isotopes))
             == Ordering::Less
         {
             best = candidate.clone();
@@ -700,7 +697,6 @@ pub(super) fn chain_orientations_before_stereo(
             NumberingTopology::default(),
         );
         preference.stereochemistry.clear();
-        preference.isotopes.clear();
         preference
     };
     match evaluate(path).compare(&evaluate(&reversed), false) {
@@ -905,7 +901,8 @@ fn substituent_citation_locants(
 
 /// P-82.5.2: the locants of the isotopically modified atoms and groups in one
 /// series, then those of each nuclide, from the higher atomic number and the
-/// higher mass number down. A group counts once at its point of attachment.
+/// higher mass number down. A parent atom counts once for each nuclide it
+/// carries, (3-14C,2,2-2H2)butane; a group once at its point of attachment.
 // Provenance: fn isotope_locants | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/numbering.rs::isotope_locants
 fn isotope_locants(mol: &Molecule, path: &[usize]) -> Vec<Vec<usize>> {
@@ -922,7 +919,14 @@ fn isotope_locants(mol: &Molecule, path: &[usize]) -> Vec<Vec<usize>> {
             .iter()
             .filter(|root| !parent.contains(root))
             .map(|&root| super::subgraph_tools::subgraph_component(mol, root, &parent));
-        for unit in std::iter::once(AtomSet::from([idx])).chain(groups) {
+        for site in sites.iter().filter(|site| site.anchor == idx) {
+            all.push(i + 1);
+            by_nuclide
+                .entry(std::cmp::Reverse(site.priority()))
+                .or_default()
+                .push(i + 1);
+        }
+        for unit in groups {
             let nuclides: std::collections::BTreeSet<_> = sites
                 .iter()
                 .filter(|site| unit.contains(&site.anchor))

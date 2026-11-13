@@ -1016,7 +1016,9 @@ mod tests {
                 "2-(18O2)nitrobenzoic acid",
             ),
             // P-45.4.2 example: 2-(18O)methoxyethyl, a contracted alkoxy
-            // prefix cites its oxygen in front.
+            // prefix cites its oxygen in front. The parent choice of P-45.4
+            // itself is not applied: the other atom order names the other
+            // chain as parent.
             (
                 "[13CH3]OCCNCC[18O]C",
                 "2-(13C)methoxy-N-[2-(18O)methoxyethyl]ethan-1-amine",
@@ -1089,12 +1091,33 @@ mod tests {
     fn modified_atoms_and_groups_take_the_lowest_locants_in_one_series() {
         // Issue #27. P-82.5.2: the modified atoms and groups are considered
         // together, {2,5} before {3,6}, in either atom order.
-        for smiles in ["OC1[13CH2]C(C)CC(C[2H])C1", "OC1CC(C[2H])CC(C)[13CH2]1"] {
+        for (smiles, expected) in [
+            (
+                "OC1[13CH2]C(C)CC(C[2H])C1",
+                "5-(2H1)methyl-3-methyl(2-13C)cyclohexan-1-ol",
+            ),
+            (
+                "OC1CC(C[2H])CC(C)[13CH2]1",
+                "5-(2H1)methyl-3-methyl(2-13C)cyclohexan-1-ol",
+            ),
+            // Each nuclide on a parent atom counts: {2,2,5,6} before {2,3,6,6}.
+            (
+                "OC1C([2H])([2H])C(C)CC([13CH3])[13CH2]1",
+                "5-(13C)methyl-3-methyl(6-13C,2,2-2H2)cyclohexan-1-ol",
+            ),
+            // P-82.5.1: nuclides are considered last, after the alphanumerical
+            // order of the nitrogen substituents.
+            (
+                "[13CH3]NCCNCC",
+                "N^1-ethyl-N^2-(13C)methylethane-1,2-diamine",
+            ),
+            (
+                "CCNCCN[13CH3]",
+                "N^1-ethyl-N^2-(13C)methylethane-1,2-diamine",
+            ),
+        ] {
             let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
-            assert_eq!(
-                name.text, "5-(2H1)methyl-3-methyl(2-13C)cyclohexan-1-ol",
-                "{smiles}"
-            );
+            assert_eq!(name.text, expected, "{smiles}");
             verify(smiles, &name.text).unwrap();
         }
     }
