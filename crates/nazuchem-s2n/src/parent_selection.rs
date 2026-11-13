@@ -19,7 +19,7 @@ use super::{
     assembly_parts::SubstituentItem,
     assembly_prefixes::{rs_descriptors, substituent_sort_key},
     assembly_utils::parse_locant,
-    chains::{RingSystem, canonical_ranks},
+    chains::{RingSystem, canonical_ranks, rank_invariants},
     locants::{LocantKey, retained_locant_sort_key},
     molecule::{AtomSet, Molecule},
     namer::name_subgraph_with_upstream,
@@ -28,7 +28,7 @@ use super::{
     ring_assembly::{RingAssembly, discover_ring_assemblies},
     special_cases::alphanumerical_order_key,
 };
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug)]
 pub struct ParentSelection {
@@ -409,43 +409,55 @@ pub(super) fn tied_principal_parents(
         return Vec::new();
     };
     candidates.retain(|(s, _)| earlier_score(s) == best);
-    // The canonical ranks ignore configuration. Parents with the same ranks
-    // are told apart by the CIP descriptors around them, nearest first, so
-    // that the order does not follow the input atom order.
+    // The canonical ranks ignore configuration. They are refined with the CIP
+    // descriptors, so that parents with the same ranks and different
+    // configurations stay apart, in an order that does not follow the input
+    // atom order. Configured atoms come first, R before S.
     let ranks = (mol.atoms.values().any(|a| a.stereo.is_some())
         || mol.bonds.values().any(|b| b.stereo.is_some()))
-    .then(|| canonical_ranks(mol, None));
+    .then(|| {
+        let ranks = canonical_ranks(mol, None);
+        let mut ranks = rank_invariants(
+            mol.atoms
+                .values()
+                .map(|a| {
+                    let mut bonds: Vec<_> = mol
+                        .get_neighbors(a.idx)
+                        .iter()
+                        .filter_map(|&n| mol.get_bond(a.idx, n)?.stereo.clone())
+                        .collect();
+                    bonds.sort();
+                    let seed = (ranks[&a.idx], a.stereo.is_none(), a.stereo.clone(), bonds);
+                    (a.idx, seed)
+                })
+                .collect(),
+        );
+        let mut classes = 0;
+        loop {
+            let found = ranks.values().collect::<BTreeSet<_>>().len();
+            if found == classes {
+                break ranks;
+            }
+            classes = found;
+            ranks = rank_invariants(
+                mol.atoms
+                    .keys()
+                    .map(|&atom| {
+                        let mut neighbors: Vec<_> =
+                            mol.get_neighbors(atom).iter().map(|n| ranks[n]).collect();
+                        neighbors.sort();
+                        (atom, (ranks[&atom], neighbors))
+                    })
+                    .collect(),
+            );
+        }
+    });
     let mut candidates: Vec<_> = candidates
         .into_iter()
         .map(|(score, parent)| {
-            let Some(ranks) = &ranks else {
-                return (score, Vec::new(), parent);
-            };
-            let mut distance: BTreeMap<_, _> = parent.atom_set().iter().map(|&a| (a, 0)).collect();
-            let mut queue: VecDeque<_> = distance.keys().copied().collect();
-            while let Some(atom) = queue.pop_front() {
-                for &next in mol.get_neighbors(atom) {
-                    if !distance.contains_key(&next) {
-                        distance.insert(next, distance[&atom] + 1);
-                        queue.push_back(next);
-                    }
-                }
-            }
-            let mut configuration: Vec<_> = mol
-                .atoms
-                .values()
-                .filter_map(|a| {
-                    Some((
-                        *distance.get(&a.idx)?,
-                        [ranks[&a.idx]; 2],
-                        a.stereo.clone()?,
-                    ))
-                })
-                .chain(mol.bonds.values().filter_map(|b| {
-                    let ends = [ranks[&b.u].min(ranks[&b.v]), ranks[&b.u].max(ranks[&b.v])];
-                    let near = (*distance.get(&b.u)?).min(*distance.get(&b.v)?);
-                    Some((near, ends, b.stereo.clone()?))
-                }))
+            let mut configuration: Vec<_> = ranks
+                .iter()
+                .flat_map(|ranks| parent.primary_path().iter().map(|a| ranks[a]))
                 .collect();
             configuration.sort();
             (score, configuration, parent)
@@ -495,66 +507,69 @@ pub(super) fn assembled_name_preference(
     )
 }
 
-/// P-44.4.1.12 for tied parents that differ only in configuration, each given
-/// by its (locant, descriptor) pairs: the parents that remain senior, or
-/// `None` when the choice needs the full CIP rules 4 and 5. Double bonds
-/// come first (P-44.4.1.12.3): more Z, then the lower Z locants
-/// (P-44.4.1.12.1). One centre: R precedes S and r precedes s. Two centres: a
-/// like pair precedes an unlike pair, then RR precedes SS and rr precedes ss
-/// (P-44.4.1.12.2).
+/// P-44.4.1.12 for tied parents, each given by its (locant, descriptor)
+/// pairs: the parents that remain senior, and whether the criterion is
+/// settled. It is not when the choice needs the full CIP rules 4 and 5.
+/// Parents whose descriptors sit at different locants do not differ only in
+/// configuration, and all remain. Double bonds come first (P-44.4.1.12.3):
+/// more Z, then the lower Z locants (P-44.4.1.12.1). One centre: R precedes
+/// S and r precedes s. Two centres: a like pair precedes an unlike pair, then
+/// RR precedes SS and rr precedes ss (P-44.4.1.12.2).
 // Provenance: fn senior_configurations | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::senior_configurations
-pub(super) fn senior_configurations(parents: &[&[(String, String)]]) -> Option<Vec<usize>> {
+pub(super) fn senior_configurations(parents: &[&[(String, String)]]) -> (Vec<usize>, bool) {
     let keys: Vec<_> = parents
         .iter()
         .map(|features| {
-            let mut features = features.to_vec();
-            features.sort_by_key(|(locant, _)| parse_locant(locant));
+            let mut features: Vec<_> = features
+                .iter()
+                .map(|(locant, d)| (parse_locant(locant), d.as_str()))
+                .collect();
+            features.sort();
             features.dedup();
             let (bonds, centres): (Vec<_>, Vec<_>) = features
                 .into_iter()
-                .partition(|(_, d)| matches!(d.as_str(), "E" | "Z"));
-            let z: Vec<_> = bonds
+                .partition(|(_, d)| matches!(*d, "E" | "Z"));
+            let sites: Vec<_> = bonds
                 .iter()
-                .filter(|(_, d)| d == "Z")
-                .map(|(locant, _)| parse_locant(locant))
+                .chain(&centres)
+                .map(|(l, _)| l.clone())
+                .collect();
+            let z: Vec<_> = bonds
+                .into_iter()
+                .filter_map(|(locant, d)| (d == "Z").then_some(locant))
                 .collect();
             let centres: Vec<_> = centres.into_iter().map(|(_, d)| d).collect();
-            (bonds.len(), (std::cmp::Reverse(z.len()), z), centres)
+            (sites, (std::cmp::Reverse(z.len()), z), centres)
         })
         .collect();
-    if keys
-        .iter()
-        .any(|k| (k.0, k.2.len()) != (keys[0].0, keys[0].2.len()))
-    {
-        return None;
+    let mut senior: Vec<_> = (0..keys.len()).collect();
+    if keys.iter().any(|k| k.0 != keys[0].0) {
+        return (senior, true);
     }
-    let bonds = keys.iter().map(|k| &k.1).min()?;
-    let mut senior: Vec<_> = (0..keys.len()).filter(|&i| &keys[i].1 == bonds).collect();
+    senior.retain(|&i| keys.iter().all(|k| keys[i].1 <= k.1));
     let differ = |senior: &[usize]| senior.iter().any(|&i| keys[i].2 != keys[senior[0]].2);
     if differ(&senior) {
-        let rank = |i: usize| match keys[i].2.iter().map(String::as_str).collect::<Vec<_>>()[..] {
+        let rank = |i: usize| match keys[i].2[..] {
             ["R" | "r"] | ["R", "R"] | ["r", "r"] => Some(0),
             ["S" | "s"] | ["S", "S"] | ["s", "s"] => Some(1),
             ["R", "S"] | ["S", "R"] => Some(2),
             _ => None,
         };
-        let ranks = senior
-            .iter()
-            .map(|&i| rank(i))
-            .collect::<Option<Vec<_>>>()?;
-        let best = *ranks.iter().min()?;
+        let Some(ranks) = senior.iter().map(|&i| rank(i)).collect::<Option<Vec<_>>>() else {
+            return (senior, false);
+        };
         senior = senior
             .into_iter()
-            .zip(ranks)
-            .filter_map(|(i, rank)| (rank == best).then_some(i))
+            .zip(&ranks)
+            .filter_map(|(i, rank)| (Some(rank) == ranks.iter().min()).then_some(i))
             .collect();
         // RS against SR.
         if differ(&senior) {
-            return None;
+            return (senior, false);
         }
     }
-    Some(senior)
+    (senior, true)
 }
 
 /// P-44.4.1.8 and P-44.4.1.10: chains tied through the number of double
@@ -1987,6 +2002,32 @@ mod tests {
                     "Cl[C@@H](C)c1ccc(Oc2ccc([C@H](C)Cl)c([C@H](C)Cl)c2)cc1[C@@H](C)Cl",
                 ],
             ),
+            // P-44.4.1.12.3: the Z rings precede the E ring, though the choice
+            // between the two Z rings (RS against SR) is not a rule.
+            (
+                "(2S,4Z,6R)-N-[(2R,4E,6R)-2,6-dimethylcyclooct-4-en-1-yl]-N-[(2R,4Z,6S)-2,6-dimethylcyclooct-4-en-1-yl]-2,6-dimethylcyclooct-4-en-1-amine",
+                [
+                    "N(C1[C@H](C)C/C=C/[C@H](C)CC1)(C1[C@H](C)C/C=C\\[C@@H](C)CC1)C1[C@@H](C)C/C=C\\[C@H](C)CC1",
+                    "N(C1[C@H](C)C/C=C\\[C@@H](C)CC1)(C1[C@H](C)C/C=C/[C@H](C)CC1)C1[C@@H](C)C/C=C\\[C@H](C)CC1",
+                ],
+            ),
+            // Centres at 1,2 and at 1,3 are not a difference of configuration
+            // only: P-45.2.2 decides, 1,2 being lower than 1,3.
+            (
+                "(1S,2R)-1-methyl-2-{[(1S,3S)-3-methylcyclohexyl]oxy}cyclohexane",
+                [
+                    "C[C@H]1CCCC[C@H]1O[C@H]1CCC[C@H](C)C1",
+                    "C[C@H]1CCC[C@@H](C1)O[C@@H]1CCCC[C@@H]1C",
+                ],
+            ),
+            // Four centres: not a rule, but the same ring from either order.
+            (
+                "(1R,2R,4S,5S)-1,2,4,5-tetramethyl-3-{[(2R,3S,5R,6S)-2,3,5,6-tetramethylcyclohexyl]oxy}cyclohexane",
+                [
+                    "C1([C@H](C)[C@H](C)C[C@H](C)[C@@H]1C)OC1[C@H](C)[C@@H](C)C[C@@H](C)[C@@H]1C",
+                    "C1([C@H](C)[C@@H](C)C[C@@H](C)[C@@H]1C)OC1[C@H](C)[C@H](C)C[C@H](C)[C@@H]1C",
+                ],
+            ),
             // Three centres need the full CIP rules 4 and 5: the choice is
             // not a rule, but it does not follow the atom order.
             (
@@ -2076,7 +2117,7 @@ mod tests {
     }
 
     // P-44.4.1.12: double bonds before centres, like before unlike, R before
-    // S; `None` where CIP rules 4 and 5 would be needed.
+    // S; unsettled where CIP rules 4 and 5 would be needed.
     #[test]
     fn senior_configurations_follow_the_bounded_cip_order() {
         let senior = |parents: &[&[(&str, &str)]]| {
@@ -2090,43 +2131,56 @@ mod tests {
                 .collect();
             senior_configurations(&parents.iter().map(Vec::as_slice).collect::<Vec<_>>())
         };
+        let (zz, ze, ez, ee) = (
+            [("4", "Z"), ("7", "Z")],
+            [("4", "Z"), ("7", "E")],
+            [("4", "E"), ("7", "Z")],
+            [("4", "E"), ("7", "E")],
+        );
         // P-44.4.1.12.1 examples (4) and (5): more Z, then the lower Z locants.
-        assert_eq!(
-            senior(&[&[("4", "E"), ("6", "E")], &[("4", "Z"), ("6", "E")]]),
-            Some(vec![1])
-        );
-        assert_eq!(
-            senior(&[&[("4", "E"), ("7", "Z")], &[("4", "Z"), ("7", "E")]]),
-            Some(vec![1])
-        );
+        assert_eq!(senior(&[&ee, &ze]), (vec![1], true));
+        assert_eq!(senior(&[&ez, &ze, &zz]), (vec![2], true));
+        assert_eq!(senior(&[&ez, &ze]), (vec![1], true));
         // P-44.4.1.12.3: Z precedes E, whatever the centres.
         assert_eq!(
             senior(&[&[("2", "R"), ("3", "E")], &[("2", "S"), ("3", "Z")]]),
-            Some(vec![1])
+            (vec![1], true)
         );
         // P-44.4.1.12.2 examples (1) and (2).
-        assert_eq!(senior(&[&[("1", "S")], &[("1", "R")]]), Some(vec![1]));
-        assert_eq!(
-            senior(&[&[("5", "R"), ("7", "S")], &[("5", "R"), ("7", "R")]]),
-            Some(vec![1])
+        assert_eq!(senior(&[&[("1", "S")], &[("1", "R")]]), (vec![1], true));
+        let (rr, rs, sr, ss) = (
+            [("5", "R"), ("7", "R")],
+            [("5", "R"), ("7", "S")],
+            [("5", "S"), ("7", "R")],
+            [("5", "S"), ("7", "S")],
         );
-        assert_eq!(
-            senior(&[&[("2", "S"), ("3", "S")], &[("2", "R"), ("3", "S")]]),
-            Some(vec![0])
-        );
+        assert_eq!(senior(&[&rs, &rr]), (vec![1], true));
+        assert_eq!(senior(&[&ss, &rs]), (vec![0], true));
+        assert_eq!(senior(&[&ss, &sr, &rr]), (vec![2], true));
         // Equal configurations stay tied, with any number of centres.
         let three = [("1", "R"), ("2", "S"), ("3", "R")];
-        assert_eq!(senior(&[&three, &three]), Some(vec![0, 1]));
-        // RS against SR, three centres, and unequal numbers of descriptors.
-        assert_eq!(
-            senior(&[&[("2", "R"), ("3", "S")], &[("2", "S"), ("3", "R")]]),
-            None
-        );
+        assert_eq!(senior(&[&three, &three]), (vec![0, 1], true));
+        // RS against SR and three centres are not settled.
+        assert_eq!(senior(&[&rs, &sr]), (vec![0, 1], false));
         assert_eq!(
             senior(&[&three, &[("1", "S"), ("2", "S"), ("3", "R")]]),
-            None
+            (vec![0, 1], false)
         );
-        assert_eq!(senior(&[&[("1", "R")], &[]]), None);
+        // An unsettled choice of centres keeps the choice of double bonds.
+        assert_eq!(
+            senior(&[
+                &[("2", "R"), ("4", "E"), ("6", "R")],
+                &[("2", "R"), ("4", "Z"), ("6", "S")],
+                &[("2", "S"), ("4", "Z"), ("6", "R")],
+            ]),
+            (vec![1, 2], false)
+        );
+        // Descriptors at other locants: not a difference of configuration only.
+        assert_eq!(
+            senior(&[&[("1", "S"), ("3", "S")], &[("1", "R"), ("2", "S")]]),
+            (vec![0, 1], true)
+        );
+        assert_eq!(senior(&[&[("1", "R")], &[]]), (vec![0, 1], true));
     }
 
     // P-45.2.1, P-45.2.2, P-45.2.3 and P-45.5: the number of prefixes, the

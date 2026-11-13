@@ -549,12 +549,16 @@ fn component_pipeline(
                 {
                     let lowest = names.iter().map(|n| (n.2.clone(), n.3.clone())).min();
                     names.retain(|n| Some((n.2.clone(), n.3.clone())) == lowest);
-                    // The first of equal names, which is the earlier choice.
-                    best = senior_configurations(
+                    let (senior, settled) = senior_configurations(
                         &names.iter().map(|n| n.4.as_slice()).collect::<Vec<_>>(),
-                    )
-                    .and_then(|senior| senior.into_iter().min_by_key(|&i| &names[i].5))
-                    .map_or(names[0].0, |i| names[i].0);
+                    );
+                    // The first of equal names, which is the earlier choice;
+                    // an unsettled configuration ends the comparison.
+                    let first = senior
+                        .iter()
+                        .copied()
+                        .min_by_key(|&i| settled.then_some(&names[i].5));
+                    best = first.map_or(0, |i| names[i].0);
                 }
             }
             if tied.is_empty() {
