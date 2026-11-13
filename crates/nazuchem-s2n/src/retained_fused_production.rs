@@ -23,7 +23,7 @@ use super::{
     perception::PerceivedGroup,
     retained_derivative_hydrogen::prove_retained_oxo_carbon_hydrogen,
     retained_fused_templates::{
-        GRAPH_DATA, MatchOptions, is_saturated_site,
+        GRAPH_DATA, MatchOptions, is_ium_nitrogen, is_saturated_site,
         match_retained_graph_template_maps_with_options,
         match_retained_graph_templates_with_options,
     },
@@ -66,7 +66,9 @@ pub fn production_retained_fused_parent(
     let parent_atoms: AtomSet = parent_path.iter().copied().collect();
     if component_atoms.iter().any(|a| {
         let atom = &mol.atoms[a];
-        atom.charge != 0 && (!parent_atoms.contains(a) || atom.symbol != "C" || atom.charge != -1)
+        atom.charge != 0
+            && (!parent_atoms.contains(a)
+                || !(atom.symbol == "C" && atom.charge == -1 || is_ium_nitrogen(mol, *a)))
     }) || parent_atoms.iter().any(|a| {
         mol.get_neighbors(*a).iter().any(|n| {
             parent_atoms.contains(n)
@@ -343,7 +345,9 @@ fn eligible(
     for m in matches {
         if !listed("production_parent_names", &m.template.name)
             || !m.template.derivative_production_enabled
-            || (parent_atoms.iter().any(|a| mol.atoms[a].charge != 0)
+            || (parent_atoms
+                .iter()
+                .any(|a| mol.atoms[a].charge != 0 && !is_ium_nitrogen(mol, *a))
                 && m.template.charge_policy != "deprotonated_indicated_h")
             || (principal_key == Some("ketone")
                 && !has_mancude_unsaturation(mol, parent_atoms, &m)

@@ -17,7 +17,7 @@
 
 //! Parent numbering criteria ported from Python `numbering.py`.
 use super::{
-    assembly_prefixes::substituent_sort_key,
+    assembly_prefixes::{rs_descriptors, substituent_sort_key},
     locants::{
         LocantKey, get_atom_locants, get_bond_locants, parse_locant, retained_locant_sort_key,
     },
@@ -617,8 +617,11 @@ fn numbering_preference(
     if topology.is_von_baeyer {
         unsaturation = von_baeyer_bond_locants(mol, path);
     }
-    let substituent_citation = substituent_citation_locants(mol, path, substituents);
-    let stereochemistry = stereochemistry_preference(mol, path, true);
+    let substituent_citation = substituent_citation_locants(mol, path, substituents, false);
+    let mut stereochemistry = stereochemistry_preference(mol, path, true);
+    // P-45.6.3: after the descriptors of the parent, R precedes S in
+    // otherwise equal prefixes, so the R prefix takes the lower locant.
+    stereochemistry.extend(substituent_citation_locants(mol, path, substituents, true));
     NumberingPreference {
         free_valence,
         skeletal_ions,
@@ -874,6 +877,7 @@ fn substituent_citation_locants(
     mol: &Molecule,
     path: &[usize],
     mapping: &BTreeMap<usize, Vec<String>>,
+    with_descriptors: bool,
 ) -> Vec<usize> {
     let sites = mol.isotope_sites();
     let parent: AtomSet = path.iter().copied().collect();
@@ -899,8 +903,16 @@ fn substituent_citation_locants(
                 }
             }
             for name in items {
+                let descriptors = if with_descriptors {
+                    rs_descriptors(name)
+                } else {
+                    Vec::new()
+                };
                 let (name, initial) = substituent_sort_key(name);
-                list.push(((name, std::cmp::Reverse(modified), initial), i + 1));
+                list.push((
+                    (name, std::cmp::Reverse(modified), initial, descriptors),
+                    i + 1,
+                ));
             }
         }
     }
