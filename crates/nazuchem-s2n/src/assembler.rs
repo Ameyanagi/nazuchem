@@ -556,11 +556,7 @@ fn add_indicated_hydrogen_prefix(parts: &mut AssemblyParts, core: &str) -> (Stri
             && parts
                 .parent_bond_orders_by_locants
                 .values()
-                .all(|&order| order == 1)
-            && !parts
-                .hydro_operations
-                .iter()
-                .any(|operation| operation.key == "added_hydrogen");
+                .all(|&order| order == 1);
         let charged = parts
             .parent_atom_charges_by_locant
             .values()

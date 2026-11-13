@@ -3850,6 +3850,7 @@ sources = [
 notes = "Openclatura hydrogen-role collection extended by local complete-parent suffix/lambda proofs."
 parts = [
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/additive.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "has_atom_order_sensitive_bridge_hydrogen" }], items = ["fn has_atom_order_sensitive_bridge_hydrogen"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/additive.rs", ref = "issue #95", license = "MIT OR Apache-2.0", symbol = "valence_saturated_atoms" }], items = ["fn valence_saturated_atoms"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/additive.py", license = "MIT", symbol = "parent_indicated_hydrogen_quota" }], items = ["fn parent_indicated_hydrogen_quota"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/additive.py", license = "MIT", symbol = "_name_indicated_hydrogen_locants" }], items = ["fn name_indicated_hydrogen_locants"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/additive.py", license = "MIT", symbol = "add_indicated_hydrogens" }], items = ["fn operation"] },
@@ -4471,7 +4472,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "tests/roundtrip/test_retained_fused_production.py", license = "MIT" },
 ]
 notes = "openclatura locanted graph templates expanded from base_templates with local parent/numbering additions; not byte-identical."
-sha256 = "5906ffc64d7be8281664ac9cd0ffb9054ad468e25a1ea8f23837d69ef9ebd36e"
+sha256 = "83ff9b49a884e059ac188ea42b071ed920804ac0d8012ea7e274a19d256a798f"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/retained_fused_hydrocarbon_templates.json"
@@ -6167,6 +6168,7 @@ sources = [
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/retained_fused_production.rs", license = "MIT OR Apache-2.0" },
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/namer_config.py", license = "MIT" },
   { project = "openclatura", path = "tests/unit/test_analysis.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/retained_fused_production.rs", ref = "issue #178", license = "MIT OR Apache-2.0" },
 ]
 notes = "Adapted openclatura retained-parent production/derivative gate with native suffix-H integration and local regression tests."
 parts = [
@@ -6177,6 +6179,7 @@ parts = [
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/retained_fused_production.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/namer_config.py", license = "MIT", symbol = "_indicated_h_retained_names" }], items = ["fn indicated_h_retained_name"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/retained_fused_production.py", license = "MIT", symbol = "_has_mancude_unsaturation" }], items = ["fn has_mancude_unsaturation"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/retained_fused_production.py", license = "MIT", symbol = "_saturation_is_hydro_citable" }], items = ["fn saturation_is_hydro_citable"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/retained_fused_production.rs", ref = "issue #178", license = "MIT OR Apache-2.0", symbol = "neutral_ring_ketone" }], items = ["fn neutral_ring_ketone"] },
   { items = ["mod tests"], origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/retained_fused_production.rs", license = "MIT OR Apache-2.0", symbol = "tests" }], members = { "mod tests" = ["fn tests::anthracene_and_phenanthrene_admit_retained_derivatives"] } },
   { items = ["fn tests::anthracene_and_phenanthrene_admit_retained_derivatives"], origin = "adapted", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/retained_fused_production.rs", license = "MIT OR Apache-2.0", symbol = "tests::anthracene_and_phenanthrene_admit_retained_derivatives" }, { project = "openclatura", path = "tests/unit/test_analysis.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT", symbol = "test_stage3_retained_fused_pin_forms_and_indicated_hydrogens_are_validated" }], notes = "Conservatively adapted exact upstream test inputs/expected names; exact coincidence does not establish independent ancestry. Local harness, assertions, status checks and additional cases remain local extensions. Conservative test-data attribution required by the requested audit rule: shared SMILES/chemical-name literals are attributed even when common chemistry or independent introduction is plausible. Implementation ancestry is uncertain; this decision attributes the test data and does not assert a mechanical port." },
 ]
@@ -7531,7 +7534,7 @@ sources = [
   { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including the owner decision 2026-11-10 to retain bakeoff_corpus.tsv as a repository-only test fixture with PubChem (NCBI) attribution, excluded from all published packages. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
-sha256 = "63c839b8c16b1a5da44ab8ded2b804c80af69853f73fd181acaaf445547b5330"
+sha256 = "d37765d7e70cb804f3e9f6f7425471fb0b7db4cb40f377dc22c994ecd9bde3f3"
 
 [[file]]
 path = "crates/nazuchem-ir/docs/cxsmiles.md"
