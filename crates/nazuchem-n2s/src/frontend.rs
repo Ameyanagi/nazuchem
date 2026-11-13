@@ -77,6 +77,43 @@ pub(crate) fn parse(
         ratios = None;
     }
     let name = if repeated.is_empty() { name } else { &repeated };
+    // Changes: A multiplied ester anion, as in calcium bis(methyl sulfate),
+    // is read as that many copies of its words, the multiplied form of
+    // bis(hydrogen sulfate) and tris(dihydrogen phosphate) in Blue Book
+    // P-16.3.6 (issue #163). Without its spaces `methylsulfate` is a
+    // substituted sulfate, and `methylhydrogenphosphate` loses its hydrogen.
+    // An anion with only `hydrogen` words is read as before, which also
+    // covers the acid ester ethane-1,2-diyl bis(hydrogen sulfate).
+    let mut depth = 0;
+    let words: Vec<_> = name
+        .split(|ch| {
+            depth += match ch {
+                '(' | '[' | '{' => 1,
+                ')' | ']' | '}' => -1,
+                _ => 0,
+            };
+            ch == ' ' && depth == 0
+        })
+        .map(|word| {
+            [
+                ("bis", 2),
+                ("tris", 3),
+                ("tetrakis", 4),
+                ("pentakis", 5),
+                ("hexakis", 6),
+            ]
+            .into_iter()
+            .find_map(|(multiplier, count)| {
+                let anion = enclosed(word.strip_prefix(multiplier)?)?;
+                let (organyl, acid) = anion.rsplit_once(' ')?;
+                ((acid.ends_with("ate") || acid.ends_with("ite"))
+                    && organyl.split(' ').any(|word| !word.ends_with("hydrogen")))
+                .then(|| vec![anion; count].join(" "))
+            })
+            .unwrap_or_else(|| word.into())
+        })
+        .collect();
+    let name = &words.join(" ");
     let mut tokenized = None;
     if name.contains(", ")
         && let Ok(uninverted) = cas::uninvert(resources, name)
