@@ -186,6 +186,26 @@ fn direct_subgraph_prefix(
             )
             .map(Some);
         }
+        // P-66.3.2.1: a hydrazide attached by its carbonyl carbon is the acyl
+        // prefix hydrazinecarbonyl, as in [(hydrazinecarbonyl)oxy] (P-66.3.5.2).
+        if group.descriptor.as_ref().is_some_and(|d| {
+            d.family == "acyl" && d.derivative == "hydrazide" && d.centers.contains(&start)
+        }) {
+            return super::functional_prefixes::prefix_from_group(
+                &super::functional_prefixes::PrefixContext {
+                    mol,
+                    parent_path: &[],
+                    sub_exclude: &mol
+                        .atoms
+                        .keys()
+                        .copied()
+                        .filter(|n| !component.contains(n))
+                        .collect(),
+                },
+                &group,
+            )
+            .map(Some);
+        }
         if matches!(
             group.key.as_str(),
             "hydrazide" | "ring_hydrazide" | "amidine" | "ring_amidine"
@@ -494,7 +514,13 @@ fn name_subgraph_rendered_except_stereo(
                     || g.key == "nitrile"
                         && g.atom_ids().iter().all(|i| mol.atoms[i].charge == 0)
                     || (anionic_parent || acid_parent || mol.uses_acid_prefixes())
-                        && is_carboxylic_acid_group(g))
+                        && is_carboxylic_acid_group(g)
+                    // P-66.3.2.2: a chain-end –CO-NHNH2 in a substituent is
+                    // hydrazinyl with oxo, as the amide in 2-amino-2-oxoethyl
+                    // (P-66.1.1.4.1.1).
+                    || g.descriptor
+                        .as_ref()
+                        .is_some_and(|d| d.family == "acyl" && d.derivative == "hydrazide"))
         })
         .cloned()
         .collect();

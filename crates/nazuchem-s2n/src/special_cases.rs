@@ -2938,9 +2938,8 @@ fn hydrazine_carbonyl_parent_name(
     }
     // Groups elsewhere: a senior class wins outright and the same suffix
     // competes by count (P-44.1.1). Within a class the unreplaced carbon
-    // suffix leads (P-41, classes 7a and 9 to 12), with amidines, as amides
-    // of imidic acids, ahead of hydrazides; other sub-class orders are not
-    // decided here.
+    // suffix leads (P-41, classes 7a and 9 to 12); other sub-class orders are
+    // not decided here.
     let mut outside = 0;
     for group in perceive_groups(mol) {
         let own = group.atom_ids();
@@ -2956,7 +2955,7 @@ fn hydrazine_carbonyl_parent_name(
         else {
             continue;
         };
-        if class(seniority[0]) < class(code) || seniority[0] == 69 && code == 68 {
+        if class(seniority[0]) < class(code) {
             return Ok(None);
         }
         if class(seniority[0]) == class(code) {
