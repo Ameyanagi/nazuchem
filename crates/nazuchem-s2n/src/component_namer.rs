@@ -559,6 +559,11 @@ fn component_pipeline(
                         .copied()
                         .min_by_key(|&i| settled.then_some(&names[i].5));
                     best = first.map_or(0, |i| names[i].0);
+                    if !settled {
+                        mol.mark_name(nazuchem_ir::NameStatus::Unverified(
+                            nazuchem_ir::NameReason::ParentConfiguration,
+                        ));
+                    }
                 }
             }
             if tied.is_empty() {

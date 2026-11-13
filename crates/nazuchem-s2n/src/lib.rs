@@ -3608,6 +3608,18 @@ mod tests {
                 "1,4-epoxynaphthalene",
                 R::BridgedFusedParent,
             ),
+            // P-44.4.1.12.2: three centres, and RS against SR, need CIP
+            // rules 4 and 5.
+            (
+                "CCC(N[C@H](C)[C@@H](Cl)[C@@H](C)O)(N[C@@H](C)[C@@H](Cl)[C@@H](C)O)CCC",
+                "(2R,3R,4R)-3-chloro-4-[(3-{[(2S,3R,4R)-3-chloro-4-hydroxypentan-2-yl]amino}hexan-3-yl)amino]pentan-2-ol",
+                R::ParentConfiguration,
+            ),
+            (
+                "CCC(N[C@H](C)[C@H](C)O)(N[C@@H](C)[C@@H](C)O)CCC",
+                "(2S,3R)-3-[(3-{[(2S,3R)-3-hydroxybutan-2-yl]amino}hexan-3-yl)amino]butan-2-ol",
+                R::ParentConfiguration,
+            ),
             (
                 "c1oc2cc3nc4ccccc4nc3cc2c1",
                 "furo[2,3-b]phenazine",
