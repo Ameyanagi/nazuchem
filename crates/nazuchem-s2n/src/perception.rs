@@ -102,7 +102,10 @@ impl FunctionalGroupDescriptor {
             && self.derivative == "acid"
             && match self.ligands.as_slice() {
                 [double, single] => double.element != single.element,
-                ligands => ligands.len() == 3,
+                // -Te-OH is not rendered as hydroxytellanyl outside the acid
+                // prefix yet, so it keeps (hydroxytellanyl)carbonyl.
+                [_, link, terminal] => !(link.element == "Te" && terminal.element == "O"),
+                _ => false,
             }
     }
 }

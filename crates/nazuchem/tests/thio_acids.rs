@@ -39,6 +39,13 @@ fn thio_acid_and_ester_names_follow_the_blue_book_and_round_trip() {
             "O=C(O)c1ccc(C(=O)[SeH])cc1",
             "4-(selanylcarbonyl)benzoic acid",
         ),
+        // The prefix follows P-65.1.5.1. The principal group does not: P-43
+        // Table 4.3 ranks -CS-OH above -CO-SH, which the namer does not do
+        // yet (4-oxo-4-sulfanylbutanethioic O-acid).
+        (
+            "SC(=O)CCC(=S)O",
+            "4-hydroxy-4-sulfanylidenebutanethioic S-acid",
+        ),
         // P-16.3.5 (a) (bis(bromomethyl)): a compound organyl group takes bis.
         ("ClCOC(=O)C(=O)OCCl", "bis(chloromethyl) ethanedioate"),
         ("ClCOC(=O)OCCl", "bis(chloromethyl) carbonate"),
@@ -87,10 +94,6 @@ fn acid_prefixes_ending_a_chain_follow_the_blue_book_and_round_trip() {
             "[Na+].[O-]C(=O)CCC(=O)S",
             "sodium 4-oxo-4-sulfanylbutanoate",
         ),
-        (
-            "SC(=O)CCC(=S)O",
-            "4-hydroxy-4-sulfanylidenebutanethioic S-acid",
-        ),
         // P-65.1.4.2 (2): hydroperoxy with oxo (6-hydroperoxy-6-oxohexanoic
         // acid).
         ("O=C(O)CCCCC(=O)OO", "6-hydroperoxy-6-oxohexanoic acid"),
@@ -116,6 +119,16 @@ fn acid_prefixes_ending_a_chain_follow_the_blue_book_and_round_trip() {
         // P-63.4.2.2, P-63.3.1: -SSH is disulfanyl, -SeSeH diselanyl.
         ("O=C(O)CCC(=O)SS", "4-(disulfanyl)-4-oxobutanoic acid"),
         ("OC(=O)CCC(=O)[Se][SeH]", "4-(diselanyl)-4-oxobutanoic acid"),
+        (
+            "OC(=O)CCC(=O)[Se]O",
+            "4-(hydroxyselanyl)-4-oxobutanoic acid",
+        ),
+        // -Te-OH keeps the compound prefix: its simple prefix is not
+        // generated yet.
+        (
+            "OC(=O)CCC(=O)[Te]O",
+            "3-[(hydroxytellanyl)carbonyl]propanoic acid",
+        ),
         ("[SeH][Se]CC(=O)O", "diselanylacetic acid"),
         // P-16.5.1.3.2: cited after another unlocanted prefix, a prefix
         // that begins with a multiplying term is enclosed.
