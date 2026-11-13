@@ -295,9 +295,13 @@ pub fn production_retained_fused_parent(
         .filter(|m| {
             &m.template.name == parent_name
                 && features.iter().all(|a| {
-                    m.atom_to_locant
-                        .get(a)
-                        .is_some_and(|l| !l.chars().any(char::is_alphabetic))
+                    // A fusion atom carries a group only as a hydro position
+                    // ('8a-methyloctahydronaphthalen-1(2H)-one').
+                    m.atom_to_locant.get(a).is_some_and(|l| {
+                        !l.chars().any(char::is_alphabetic)
+                            || principal_key == Some("ketone")
+                                && is_saturated_site(mol, *a, &parent_atoms)
+                    })
                 })
         })
         .map(|m| m.atom_to_locant.clone())

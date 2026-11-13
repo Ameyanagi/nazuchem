@@ -2059,6 +2059,33 @@ mod tests {
                 "O=C1CCCC2=C1c1ccccc1C2",
                 "1,2,3,9-tetrahydro-4H-fluoren-4-one",
             ),
+            // #178: a group on a saturated fusion atom does not unseat the
+            // retained parent; the fusion atom is a hydro position
+            // (P-31.2.3.3.2, P-58.2.2).
+            (
+                "O=C1CCCC2CCCCC12C",
+                "8a-methyloctahydronaphthalen-1(2H)-one",
+            ),
+            (
+                "CC12CCC(=O)C=C1CCCC2=O",
+                "8a-methyl-3,4,8,8a-tetrahydronaphthalene-1,6(2H,7H)-dione",
+            ),
+            (
+                "CC12C=CC(=O)C=C1CCCC2",
+                "4a-methyl-5,6,7,8-tetrahydronaphthalen-2(4aH)-one",
+            ),
+            (
+                "CC12CCCCN1C(=O)CCC2",
+                "9a-methyloctahydro-4H-quinolizin-4-one",
+            ),
+            (
+                "CC12CCCN1C(=O)CC2",
+                "7a-methylhexahydro-3H-pyrrolizin-3-one",
+            ),
+            (
+                "O=C1CCCC2(C)CCCC12C",
+                "3a,7a-dimethyloctahydro-4H-inden-4-one",
+            ),
             // #178 control: the indicated hydrogen that the N-H of indazole
             // carries is not relocated on the retained template, so this
             // name still comes from the fusion planner.
