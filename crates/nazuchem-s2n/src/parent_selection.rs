@@ -1096,6 +1096,14 @@ pub(super) fn anion_parent_is_senior(
         .copied()
         .filter(|id| mol.atoms[id].charge < 0)
         .collect();
+    // P-72.7(a): the acid anions cited as prefixes of an aminide are no
+    // longer parent candidates. Where the uncited anionic centres outnumber
+    // those of the aminide parent, a parent built on them may be senior.
+    if key.as_deref() == Some("aminide")
+        && mol.atoms.values().filter(|a| a.charge < 0).count() > 2 * cited_centres.len()
+    {
+        return false;
+    }
     candidates.iter().all(|(score, selection)| {
         let centres = anionic_centres(mol, &selection.atom_set(), &groups);
         selection.atom_set() == *parent || centres.is_subset(&cited_centres) || cited_score < score

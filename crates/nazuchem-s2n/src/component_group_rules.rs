@@ -318,10 +318,19 @@ pub fn retarget_external_carbonyl_groups(
         .iter()
         .map(|g| is_suffix_class_variant(m, groups, principal_key, g))
         .collect();
+    // P-72.7(d): an aminide on carbon is the senior anionic suffix (N before
+    // O), so a carboxylate beside it is the prefix carboxylato.
+    let selects_aminide = principal_key == Some("aminide")
+        && groups.iter().any(|g| {
+            g.is_principal_candidate
+                && g.key == "aminide"
+                && m.atoms[&g.attachment_carbon].is_carbon()
+        });
     for (g, variant) in groups.iter_mut().zip(variants) {
         // Only an established prefix excludes an acid-anion carbon. Other
         // carboxylates must remain available as parent candidates.
-        let prefix_carboxylate = principal_key.is_none() && is_carboxylate_group(g);
+        let prefix_carboxylate =
+            (principal_key.is_none() || selects_aminide) && is_carboxylate_group(g);
         if g.is_principal_candidate
             && (Some(g.key.as_str()) == principal_key
                 || neutral_amides && is_neutral_amide(m, g)

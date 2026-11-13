@@ -8,7 +8,7 @@
 //! oxygen on a chalcogen chain keep their charge, are named after the IUPAC
 //! 2013 recommendations and read back as the structure they came from.
 
-use nazuchem::{Budget, name_to_smiles, s2n::canonical_smiles, smiles_to_name};
+use nazuchem::{Budget, NameStatus, name_to_smiles, s2n::canonical_smiles, smiles_to_name};
 
 #[test]
 fn anionic_prefix_names_follow_the_blue_book_and_round_trip() {
@@ -120,6 +120,82 @@ fn selenium_and_tellurium_acid_anion_prefixes_are_read() {
             canonical_smiles(&parsed, &budget),
             canonical_smiles(smiles, &budget),
             "{name}"
+        );
+    }
+}
+
+#[test]
+fn aminide_with_an_acid_anion_cites_the_acid_anion_as_a_prefix() {
+    // Issue #173. P-72.6: one anion is the parent anion and the other a
+    // prefix. P-72.7(d): nitrogen precedes oxygen among anionic centres, so
+    // the aminide (P-72.2.2.2.3) is the suffix. P-72.6.1: the acid anion is
+    // carboxylato, sulfonato or phosphonato, and the carboxylato carbon is
+    // not a chain atom. P-72.2.2.2.3: two aminide suffixes take "bis".
+    for (smiles, expected, preferred) in [
+        ("[NH-]CC(=O)[O-]", "1-carboxylatomethanaminide", true),
+        ("[NH-]CCC(=O)[O-]", "2-carboxylatoethan-1-aminide", true),
+        ("[NH-]C(C)C(=O)[O-]", "1-carboxylatoethan-1-aminide", true),
+        (
+            "C[N-]CC(=O)[O-]",
+            "1-carboxylato-N-methylmethanaminide",
+            true,
+        ),
+        (
+            "[Na+].[Na+].[NH-]CC(=O)[O-]",
+            "disodium 1-carboxylatomethanaminide",
+            true,
+        ),
+        (
+            "[NH-]c1ccc(cc1)C(=O)[O-]",
+            "4-carboxylatobenzen-1-aminide",
+            true,
+        ),
+        ("[NH-]CCS(=O)(=O)[O-]", "2-sulfonatoethan-1-aminide", true),
+        ("[NH-]CC[O-]", "2-oxidoethan-1-aminide", true),
+        ("[NH-]CC[NH-]", "ethane-1,2-bis(aminide)", true),
+        (
+            "[NH-]CC([NH-])C(=O)[O-]",
+            "1-carboxylatoethane-1,2-bis(aminide)",
+            true,
+        ),
+        // P-72.7(a): a parent with more anionic centres is senior, so these
+        // aminide names are not labelled preferred.
+        (
+            "[NH-]CC(C(=O)[O-])C(=O)[O-]",
+            "2,2-bis(carboxylato)ethan-1-aminide",
+            false,
+        ),
+        (
+            "[NH-]C(CC(=O)[O-])CC(=O)[O-]",
+            "1,3-bis(carboxylato)propan-2-aminide",
+            false,
+        ),
+        (
+            "[NH-]CCP(=O)([O-])[O-]",
+            "2-phosphonatoethan-1-aminide",
+            false,
+        ),
+        // An aminide on sulfur is no suffix; the carboxylate stays the parent.
+        (
+            "[NH-]S(=O)(=O)CC(=O)[O-]",
+            "(azanidylsulfonyl)acetate",
+            false,
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        assert_eq!(
+            name.status == NameStatus::Preferred,
+            preferred,
+            "{smiles}: {:?}",
+            name.status
+        );
+        let parsed = name_to_smiles(&name.text).unwrap_or_else(|e| panic!("{expected}: {e:?}"));
+        let budget = Budget::default();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget),
+            canonical_smiles(smiles, &budget),
+            "{smiles} -> {expected} -> {parsed}"
         );
     }
 }
