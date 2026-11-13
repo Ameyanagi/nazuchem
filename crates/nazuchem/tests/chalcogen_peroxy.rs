@@ -128,9 +128,10 @@ fn chalcogen_peroxy_names_follow_the_blue_book_and_round_trip() {
             "O=C(O)C1CCC(CC1)C(=S)OO",
             "4-(hydroperoxycarbonothioyl)cyclohexane-1-carboxylic acid",
         ),
+        // P-65.1.4.2 (1): carbonoperoxoyl (2-carbonoperoxoylbenzoic acid).
         (
             "O=C(O)C1CCC(CC1)C(=O)OO",
-            "4-hydroperoxycarbonylcyclohexane-1-carboxylic acid",
+            "4-carbonoperoxoylcyclohexane-1-carboxylic acid",
         ),
     ] {
         let name = smiles_to_name(smiles).unwrap().text;

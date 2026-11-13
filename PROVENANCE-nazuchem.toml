@@ -4437,8 +4437,8 @@ license = "MIT"
 sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/data/namer_rules.json", license = "MIT" },
 ]
-notes = "openclatura rules adapted for ion spellings, retained parents, alkoxy contractions, bond numbering, triazene prefixes (P-68.3.1.4.1) and the hydrazinylidene prefix (P-68.3.1.2.1; issue #168); sections and keys the port never reads removed; not byte-identical."
-sha256 = "33a343d19ff331b5f14383ada5b8dcfdeae7e82c19fb72e460bbbe45cf1112c4"
+notes = "openclatura rules adapted for ion spellings, retained parents, alkoxy contractions, bond numbering, triazene prefixes (P-68.3.1.4.1), the hydrazinylidene prefix (P-68.3.1.2.1; issue #168) and the seniority of peroxy acid suffixes (P-43.1 Table 4.3; issue #184); sections and keys the port never reads removed; not byte-identical."
+sha256 = "df9571c077f777ca65656a48ee36a02d4b31a617f93d084c711d19eef9c2ca65"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/parser_grammar_snapshot.json"
@@ -6559,6 +6559,7 @@ sources = [
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/special_cases.rs", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #17", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #158", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #184", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/exploratory/test_group14_ether_ligand_parent_selection.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/unit/test_analysis.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/roundtrip/test_substituents.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
@@ -6625,6 +6626,7 @@ parts = [
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #17", license = "MIT OR Apache-2.0", symbol = "hydrazine_carbonyl_parent_name" }], items = ["fn hydrazine_carbonyl_parent_name"] },
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #17", license = "MIT OR Apache-2.0", symbol = "cyanohydrazide_name" }], items = ["fn cyanohydrazide_name"] },
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #158", license = "MIT OR Apache-2.0", symbol = "cyanidic_acid_name" }], items = ["fn cyanidic_acid_name"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #184", license = "MIT OR Apache-2.0", symbol = "carbonic_replacement_acid_name" }], items = ["fn carbonic_replacement_acid_name"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/special_cases.py", license = "MIT", symbol = "_urea_n_ligand_names" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/nitrogen_roles.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/oxoacid_roles.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/component_namer.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_vocabulary.py", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn nitrogen_ligands"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/special_cases.py", license = "MIT", symbol = "hydroxyurea_parent_result" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/nitrogen_roles.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/oxoacid_roles.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/component_namer.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_vocabulary.py", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn hydroxyurea_parent_name"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/special_cases.py", license = "MIT", symbol = "sulfamic_acid_result" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/nitrogen_roles.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/oxoacid_roles.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/component_namer.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_vocabulary.py", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn sulfamic_acid_name"] },
@@ -7634,7 +7636,7 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "crates/nazuchem/tests/thio_acids.rs", ref = "issue #120", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original facade regression for issues #120 and #138: generated names of thio diacids, thio and peroxy acids cited as prefixes (with simple prefixes where they end a chain), multiplied compound ester groups and -SSH prefixes, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
+notes = "Original facade regression for issues #120, #138 and #184: generated names of thio diacids, thio and peroxy acids cited as prefixes (with simple prefixes where they end a chain), the senior acid suffix of two acid groups, chalcogen and peroxy analogues of carbonic acid, multiplied compound ester groups and -SSH prefixes, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
 
 [[file]]
 path = "crates/nazuchem/tests/chalcogen_anions.rs"

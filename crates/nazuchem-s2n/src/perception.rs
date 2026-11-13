@@ -476,6 +476,14 @@ fn resolve_acyl(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGrou
     let mut seniority = vec![policy.seniority.unwrap_or(60)];
     if policy.ranked_seniority {
         seniority[0] += rank(&double.element);
+    } else if d.derivative == "acid"
+        && let Some(single) = single
+    {
+        // P-43.1 (a), (c), Table 4.3: after every peroxy acid; the most
+        // oxygen, then S, Se, Te; then -OH before -SH (-CS-OH, -CO-SH,
+        // -CS-SH, -CSe-SH, -CS-SeH).
+        let (a, b) = (rank(&double.element), rank(&single.element));
+        seniority.extend([1, a.min(b), a.max(b), b]);
     } else {
         seniority.extend(es.iter().map(|e| rank(e)));
         if leaving.is_some() {
@@ -604,7 +612,23 @@ fn resolve_peroxy(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGr
         .cloned()
         .unwrap_or_default();
     let mut seniority = vec![policy.seniority.unwrap_or(45)];
-    seniority.extend(es.iter().map(|e| rank(e)));
+    let ranks: Vec<i64> = es.iter().map(|e| rank(e)).collect();
+    if d.derivative == "acid" {
+        // P-43.1 (a)-(c), Table 4.3: every peroxy acid precedes the acids
+        // without -OO-; among them the most oxygen, then the -OO- group
+        // (OO, OS, OSe, SS), then =O, =S, =Se, then -OH before -SH
+        // (-CS-OOH, -CSe-OOH, -CO-SOH, -CO-OSH, ..., -CS-SSH).
+        seniority.extend([
+            0,
+            -(es.iter().filter(|e| *e == "O").count() as i64),
+            ranks[1].min(ranks[2]),
+            ranks[1].max(ranks[2]),
+            ranks[0],
+            ranks[2],
+        ]);
+    } else {
+        seniority.extend(ranks);
+    }
     let vals = [
         (
             "carbo",

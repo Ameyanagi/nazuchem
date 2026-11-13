@@ -547,7 +547,8 @@ pub fn prefix_from_group(
                 })?
             ));
         }
-        return Ok("hydroperoxycarbonyl".into());
+        // P-65.1.4.2 (1): 2-carbonoperoxoylbenzoic acid.
+        return Ok("carbonoperoxoyl".into());
     }
     if rule.has_capability("acyl_leaving_group") {
         return Ok(rule
