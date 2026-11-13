@@ -10,6 +10,7 @@
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #158
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #176
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #180
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #184
 // Source: openclatura | tests/exploratory/test_group14_ether_ligand_parent_selection.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_substituents.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -44,7 +45,7 @@ use super::molecule::{Atom, AtomSet, Bond, Molecule, component_atoms_until_block
 use super::namer::{
     name_subgraph_rendered, name_subgraph_with_upstream, name_subgraph_without_attachment_stereo,
 };
-use super::nomenclature::RULES;
+use super::nomenclature::{RULES, chalcogen_replacement_infix};
 use super::perception::{PerceivedGroup, perceive_groups};
 use super::rules::{elements, multipliers, retained, stems};
 use super::subgraph_tools::subgraph_component;
@@ -1836,6 +1837,77 @@ fn oxoacid_parent_name(mol: &Molecule, atoms: &AtomSet) -> Option<String> {
         n => format!("{}hydrogen {}", multipliers::basic(n), spec.ester_suffix),
     })
 }
+/// P-65.2.1.2, P-65.2.1.5: carbonic acid with -OO- or with S, Se or Te in
+/// place of oxygen keeps its stem and takes infixes: carbonoperoxoic acid,
+/// carbonodiperoxoic acid, carbonothioic S-acid (HO-CO-SH), carbonothioic
+/// O,O-acid (HO-CS-OH), carbonodiselenoic Se,Se-acid, carbonotrithioic acid.
+/// The Blue Book shows no letter locants for HO-CS-SH or for two replacing
+/// elements, and the parser does not read carbono(thioperoxoic) OS-acid, so
+/// those fall through to a substitutive name that
+/// assembler::mark_assembled_name leaves unverified.
+// Provenance: fn carbonic_replacement_acid_name | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::carbonic_replacement_acid_name
+fn carbonic_replacement_acid_name(mol: &Molecule, atoms: &AtomSet) -> Option<StructuralParentName> {
+    let mut carbons = atoms.iter().filter(|a| mol.atoms[a].is_carbon());
+    let (Some(&centre), None) = (carbons.next(), carbons.next()) else {
+        return None;
+    };
+    if mol.degree(centre) != 3
+        || atoms.iter().any(|a| {
+            let atom = &mol.atoms[a];
+            atom.charge != 0 || atom.isotope.is_some() || atom.radical_electrons != 0
+        })
+    {
+        return None;
+    }
+    let acid_hydrogen = |a: usize| {
+        mol.degree(a) == 1
+            && mol.atoms[&a].total_h_count == 1
+            && chalcogen_replacement_infix(&mol.atoms[&a].symbol).is_some()
+    };
+    let (mut double, mut single, mut peroxy) = (None, Vec::new(), Vec::new());
+    let mut size = 1 + mol.degree(centre);
+    for &ligand in mol.get_neighbors(centre) {
+        let element = mol.atoms[&ligand].symbol.as_str();
+        chalcogen_replacement_infix(element)?;
+        match (mol.bond_order(centre, ligand), mol.degree(ligand)) {
+            (2, 1) => double = Some(element),
+            (1, 1) if acid_hydrogen(ligand) => single.push(element),
+            (1, 2) => {
+                let end = *mol.get_neighbors(ligand).iter().find(|&&n| n != centre)?;
+                if !acid_hydrogen(end) {
+                    return None;
+                }
+                peroxy.push((element, mol.atoms[&end].symbol.as_str()));
+                size += 1;
+            }
+            _ => return None,
+        }
+    }
+    if size != atoms.len() {
+        return None;
+    }
+    let infix = |element| chalcogen_replacement_infix(element).unwrap_or_default();
+    let name = match (double?, single.as_slice(), peroxy.as_slice()) {
+        ("O", ["O"], [("O", "O")]) => "carbonoperoxoic acid".into(),
+        ("O", [], [("O", "O"), ("O", "O")]) => "carbonodiperoxoic acid".into(),
+        ("O", ["O", x] | [x, "O"], []) if *x != "O" => {
+            format!("carbono{}ic {x}-acid", infix(x))
+        }
+        (x, ["O", "O"], []) if x != "O" => format!("carbono{}ic O,O-acid", infix(x)),
+        ("O", [x, y], []) if x == y && *x != "O" => {
+            format!("carbonodi{}ic {x},{x}-acid", infix(x))
+        }
+        (x, [y, z], []) if x == *y && y == z && x != "O" => {
+            format!("carbonotri{}ic acid", infix(x))
+        }
+        _ => return None,
+    };
+    Some(StructuralParentName {
+        certified: true,
+        ..StructuralParentName::ordinary(name)
+    })
+}
 // Provenance: fn modifier_phrase | adapted
 // Source: openclatura | src/openclatura/special_cases.py::_ester_modifier_phrase
 fn modifier_phrase(names: &[String], safe: bool) -> String {
@@ -2972,10 +3044,10 @@ fn hydrazine_carbonyl_parent_name(
         {
             continue;
         }
-        let Some(seniority) = group
+        let Some((rule, seniority)) = group
             .resolved_rule
             .as_ref()
-            .and_then(|r| r.seniority.clone())
+            .and_then(|r| Some((r, r.seniority.clone()?)))
         else {
             continue;
         };
@@ -2985,7 +3057,9 @@ fn hydrazine_carbonyl_parent_name(
         if class(seniority[0]) == class(code) {
             if first.plain && seniority == [code] {
                 outside += 1;
-            } else if !first.plain || seniority[0] <= code {
+            // P-43.1 Table 4.3: a peroxy acid is junior to -COOH.
+            } else if !first.plain || seniority[0] <= code && !rule.families.contains("peroxy_acid")
+            {
                 return Ok(None);
             }
         }
@@ -4918,6 +4992,9 @@ pub(super) fn structural_replacement_parent_result(
     if let Some(name) = oxoacid_parent_name(mol, atoms) {
         require_stereo_free_core(mol, atoms)?;
         return Ok(Some(StructuralParentName::ordinary(name)));
+    }
+    if let Some(name) = carbonic_replacement_acid_name(mol, atoms) {
+        return Ok(Some(name));
     }
     if let Some(name) = mol.candidate(|| organophosphorus_acid_name(mol, atoms))? {
         return Ok(Some(name));

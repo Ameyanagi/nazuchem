@@ -340,9 +340,12 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
             // Upstream divergence: bracket a diazenyl sibling to preserve its attachment to the parent.
             // P-16.5.1.2: a prefix with its own locants is enclosed even when
             // its attachment locant is omitted: (naphthalen-2-yl)acetic acid.
+            // P-16.5.1.3.2: so is a later unlocanted prefix that begins with
+            // a multiplying term, chloro(disulfanyl)acetic acid; unenclosed,
+            // the chlorine would be read as a substituent of disulfanyl.
             if count > 1
                 || !loc.is_empty()
-                || (grouped.len() > 1 && name == "diazenyl")
+                || (grouped.len() > 1 && (i > 0 || name == "diazenyl"))
                 || used.contains(|c: char| c.is_ascii_digit())
             {
                 used = format!("({used})");

@@ -253,6 +253,13 @@ fn score(
                     // nitrogen of a ring is not a hydrazide nitrogen.
                     && !(mol.atoms[&n].symbol == "N"
                         && !super::chains::get_cyclic_atoms(mol, &AtomSet::new()).contains(&n))
+                    // P-65.1.4.2 (2), P-65.1.5.1: nor is a thio S-acid or a
+                    // peroxy acid, cited as sulfanyl or hydroperoxy with oxo.
+                    && !(mol.atoms[&n].symbol == "S" && mol.atoms[&n].total_h_count > 0
+                        || mol.get_neighbors(n).iter().any(|&x| {
+                            matches!(mol.atoms[&x].symbol.as_str(), "O" | "S" | "Se" | "Te")
+                                && mol.atoms[&x].total_h_count > 0
+                        }))
             })
         {
             split_acyl += 1;
