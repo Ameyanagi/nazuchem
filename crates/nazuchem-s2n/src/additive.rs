@@ -1951,7 +1951,8 @@ mod tests {
             ),
             (
                 "CC1=C2C(=CC=C1)C3=C(N2)N=C(N=N3)NN=C4C5=C(C=CC(=C5)[N+](=O)[O-])N(C4=O)C",
-                "1-methyl-3-{[(6-methyl-5H-[1,2,4]triazino[5,6-b]indol-3-yl)amino]imino}-5-nitro-1,3-dihydro-2H-indol-2-one",
+                // P-68.3.1.2.2: as 4-(phenylhydrazinylidene)cyclohexane-1-carboxylic acid.
+                "1-methyl-3-[(6-methyl-5H-[1,2,4]triazino[5,6-b]indol-3-yl)hydrazinylidene]-5-nitro-1,3-dihydro-2H-indol-2-one",
             ),
             ("O=C1CCc2ccccc2N1", "3,4-dihydroquinolin-2(1H)-one"),
             ("O=C1CCc2ccccc12", "2,3-dihydro-1H-inden-1-one"),

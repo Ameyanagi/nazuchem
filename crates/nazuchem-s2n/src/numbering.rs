@@ -10,6 +10,7 @@
 // Source: openclatura | tests/unit/test_rules_tables.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/data/parser_xml_resources/alkanes.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: Nazuchem | crates/nazuchem-s2n/src/numbering.rs | issue 10
+// Source: Nazuchem | crates/nazuchem-s2n/src/numbering.rs | issue #27
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura parent-numbering criteria extended with local skeletal-anion, von Baeyer compound-locant and late modifier priorities.
@@ -152,6 +153,7 @@ pub struct NumberingPreference {
     pub substituent_and_unsaturation: Vec<usize>,
     pub substituent_citation: Vec<usize>,
     pub stereochemistry: Vec<usize>,
+    pub isotopes: Vec<Vec<usize>>,
 }
 
 /// The registry lists the criteria by name; the two free-valence and ion
@@ -335,6 +337,8 @@ fn number_parent(
                     .path_preference(candidate)
                     .cmp(&modifiers.path_preference(&best))
             })
+            // P-82.5.1: the presence of nuclides is considered last.
+            .then_with(|| evaluation.isotopes.cmp(&best_score.isotopes))
             == Ordering::Less
         {
             best = candidate.clone();
@@ -617,11 +621,11 @@ fn numbering_preference(
     if topology.is_von_baeyer {
         unsaturation = von_baeyer_bond_locants(mol, path);
     }
-    let substituent_citation = substituent_citation_locants(mol, path, substituents, false);
+    let substituent_citation = substituent_citation_locants(path, substituents, false);
     let mut stereochemistry = stereochemistry_preference(mol, path, true);
     // P-45.6.3: after the descriptors of the parent, R precedes S in
     // otherwise equal prefixes, so the R prefix takes the lower locant.
-    stereochemistry.extend(substituent_citation_locants(mol, path, substituents, true));
+    stereochemistry.extend(substituent_citation_locants(path, substituents, true));
     NumberingPreference {
         free_valence,
         skeletal_ions,
@@ -634,6 +638,7 @@ fn numbering_preference(
         substituent_and_unsaturation,
         substituent_citation,
         stereochemistry,
+        isotopes: isotope_locants(mol, path),
     }
 }
 
@@ -874,50 +879,70 @@ pub fn substituent_citation_name(name: &str) -> String {
 // Provenance: fn substituent_citation_locants | adapted
 // Source: openclatura | src/openclatura/numbering.py::_substituent_citation_locants
 fn substituent_citation_locants(
-    mol: &Molecule,
     path: &[usize],
     mapping: &BTreeMap<usize, Vec<String>>,
     with_descriptors: bool,
 ) -> Vec<usize> {
-    let sites = mol.isotope_sites();
-    let parent: AtomSet = path.iter().copied().collect();
     let mut list = Vec::new();
     for (i, idx) in path.iter().enumerate() {
-        if let Some(items) = mapping.get(idx) {
-            // P-82.5.2: of otherwise equal prefixes the isotopically modified
-            // one takes the lower locant, then the one whose nuclide has the
-            // higher atomic number, then the higher mass number.
-            let mut modified = None;
-            if !sites.is_empty() {
-                for &root in mol.get_neighbors(*idx) {
-                    if parent.contains(&root) {
-                        continue;
-                    }
-                    let branch = super::subgraph_tools::subgraph_component(mol, root, &parent);
-                    modified = sites
-                        .iter()
-                        .filter(|site| branch.contains(&site.anchor))
-                        .map(|site| site.priority())
-                        .chain(modified)
-                        .max();
-                }
-            }
-            for name in items {
-                let descriptors = if with_descriptors {
-                    rs_descriptors(name)
-                } else {
-                    Vec::new()
-                };
-                let (name, initial) = substituent_sort_key(name);
-                list.push((
-                    (name, std::cmp::Reverse(modified), initial, descriptors),
-                    i + 1,
-                ));
-            }
+        for name in mapping.get(idx).into_iter().flatten() {
+            let descriptors = if with_descriptors {
+                rs_descriptors(name)
+            } else {
+                Vec::new()
+            };
+            let (name, initial) = substituent_sort_key(name);
+            list.push(((name, initial, descriptors), i + 1));
         }
     }
     list.sort_by(|a, b| a.0.cmp(&b.0));
     list.into_iter().map(|(_, locant)| locant).collect()
+}
+
+/// P-82.5.2: the locants of the isotopically modified atoms and groups in one
+/// series, then those of each nuclide, from the higher atomic number and the
+/// higher mass number down. A parent atom counts once for each nuclide it
+/// carries, (3-14C,2,2-2H2)butane; a group once at its point of attachment.
+// Provenance: fn isotope_locants | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/numbering.rs::isotope_locants
+fn isotope_locants(mol: &Molecule, path: &[usize]) -> Vec<Vec<usize>> {
+    let sites = mol.isotope_sites();
+    if sites.is_empty() {
+        return Vec::new();
+    }
+    let parent: AtomSet = path.iter().copied().collect();
+    let mut all = Vec::new();
+    let mut by_nuclide = BTreeMap::<_, Vec<_>>::new();
+    for (i, &idx) in path.iter().enumerate() {
+        let groups = mol
+            .get_neighbors(idx)
+            .iter()
+            .filter(|root| !parent.contains(root))
+            .map(|&root| super::subgraph_tools::subgraph_component(mol, root, &parent));
+        for site in sites.iter().filter(|site| site.anchor == idx) {
+            all.push(i + 1);
+            by_nuclide
+                .entry(std::cmp::Reverse(site.priority()))
+                .or_default()
+                .push(i + 1);
+        }
+        for unit in groups {
+            let nuclides: std::collections::BTreeSet<_> = sites
+                .iter()
+                .filter(|site| unit.contains(&site.anchor))
+                .map(|site| std::cmp::Reverse(site.priority()))
+                .collect();
+            if !nuclides.is_empty() {
+                all.push(i + 1);
+            }
+            for nuclide in nuclides {
+                by_nuclide.entry(nuclide).or_default().push(i + 1);
+            }
+        }
+    }
+    std::iter::once(all)
+        .chain(by_nuclide.into_values())
+        .collect()
 }
 
 #[cfg(test)]

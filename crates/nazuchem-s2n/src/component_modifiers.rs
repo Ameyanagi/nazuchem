@@ -16,7 +16,7 @@ use super::{
     graph_kernel::{Edge, normalize_edge},
     locants::parse_locant,
     molecule::{AtomSet, Molecule, bond_ids_within},
-    namer::{name_subgraph_rendered, name_subgraph_with_upstream},
+    namer::name_subgraph_rendered,
     perception::{LigandRole, PerceivedGroup},
     subgraph_tools::subgraph_component,
 };
@@ -34,6 +34,9 @@ pub struct ComponentFrontModifiers {
     modifiers: Vec<FrontModifier>,
     mixed_diester: bool,
     acid_atoms: AtomSet,
+    /// P-82.2.4: the labels that the ester groups cite, (1-14C)ethyl propanoate.
+    isotope_atoms: AtomSet,
+    isotope_descriptors: Vec<String>,
     pub consumed: AtomSet,
     pub component_splits: BTreeSet<Edge>,
 }
@@ -71,7 +74,14 @@ impl ComponentFrontModifiers {
         if self.mixed_diester {
             self.modifiers
                 .iter()
-                .map(|modifier| (modifier.attachment, modifier.name.clone()))
+                .map(|modifier| {
+                    // P-82.5.1: nuclides are considered last in numbering.
+                    let name = super::isotope_naming::citation_name(
+                        &modifier.name,
+                        &self.isotope_descriptors,
+                    );
+                    (modifier.attachment, name)
+                })
                 .collect()
         } else {
             BTreeMap::new()
@@ -86,6 +96,8 @@ impl ComponentFrontModifiers {
         parts: &mut AssemblyParts,
         locants: &BTreeMap<usize, String>,
     ) {
+        parts.front_modifier_isotopes = self.isotope_atoms.clone();
+        parts.front_modifier_descriptors = self.isotope_descriptors.clone();
         for modifier in &self.modifiers {
             parts.front_modifiers.push(modifier.name.clone());
             parts
@@ -137,8 +149,12 @@ pub fn collect_component_front_modifiers(
         };
         let mut blocked = exclude.clone();
         blocked.insert(linker);
-        let branch = name_subgraph_with_upstream(mol, root, &blocked, Some(linker))?;
-        let mut modifier = strip_outer_parentheses(&branch);
+        let branch = name_subgraph_rendered(mol, root, &blocked, Some(linker), false)?;
+        let mut modifier = strip_outer_parentheses(&branch.text);
+        collected.isotope_atoms.extend(branch.isotope_atoms);
+        collected
+            .isotope_descriptors
+            .extend(branch.isotope_descriptors);
         if let Some(d) = &group.descriptor {
             let linkers = d.ligands_with_role(LigandRole::CarbonLink);
             let doubles = d.ligands_with_role(LigandRole::DoubleBonded);
@@ -152,7 +168,12 @@ pub fn collect_component_front_modifiers(
                     .filter(|l| l.role != LigandRole::DoubleBonded)
                     .map(|l| l.element.as_str())
                     .collect::<String>();
-                if super::formatting::is_complex_prefix(&modifier) {
+                // P-82.2.1: S-(2-13C)ethyl, the descriptor is no enclosure.
+                let descriptor = super::isotope_naming::leading_descriptor(
+                    &modifier,
+                    &collected.isotope_descriptors,
+                );
+                if super::formatting::is_complex_prefix(&modifier[descriptor.len()..]) {
                     modifier = super::formatting::format_multiplier(&modifier, 1, true);
                 }
                 modifier = format!("{element_locant}-{modifier}");
@@ -240,7 +261,11 @@ impl NumberingNSubstituents {
                 names
                     .entry(self.sites[locant])
                     .or_default()
-                    .push(item.name.clone());
+                    // P-82.5.1: nuclides are considered last in numbering.
+                    .push(super::isotope_naming::citation_name(
+                        &item.name,
+                        &item.isotope_descriptors,
+                    ));
             }
         }
         names
@@ -371,7 +396,13 @@ fn nitrogen_rank(
         .copied()
         .filter(|r| *r != c && mol.atoms[r].symbol != "H")
         .map(|r| {
-            name_subgraph_with_upstream(mol, r, &blocked, Some(n)).map(|s| substituent_sort_key(&s))
+            // P-82.5.1: alphanumerical order ignores the isotope descriptors.
+            name_subgraph_rendered(mol, r, &blocked, Some(n), false).map(|name| {
+                substituent_sort_key(&super::isotope_naming::citation_name(
+                    &name.text,
+                    &name.isotope_descriptors,
+                ))
+            })
         })
         .collect::<Result<Vec<_>, _>>();
     // These provisional names only rank the nitrogens; their text is not emitted.
@@ -453,7 +484,11 @@ pub fn add_component_n_substituents(
                 blocked.insert(n);
                 for &r in mol.get_neighbors(n) {
                     if r != carbon && mol.atoms[&r].symbol != "H" {
-                        let name = name_subgraph_with_upstream(mol, r, &blocked, Some(n))?;
+                        let name = name_subgraph_rendered(mol, r, &blocked, Some(n), false)?;
+                        let name = super::isotope_naming::citation_name(
+                            &name.text,
+                            &name.isotope_descriptors,
+                        );
                         // P-14.5: stereodescriptors, nested ones too, take no
                         // part in alphanumerical order, so each is replaced by
                         // the first of its pair and ranked separately.
@@ -600,6 +635,8 @@ pub fn add_component_n_substituents(
                 bond_atoms.insert(n);
                 let mut item = SubstituentItem::new(rendered.text, vec![loc.clone()]);
                 item.outer_parentheses_optional = rendered.outer_parentheses_optional;
+                item.isotope_atoms = rendered.isotope_atoms;
+                item.isotope_descriptors = rendered.isotope_descriptors;
                 item.bond_ids = bond_ids_within(mol, &bond_atoms);
                 item.atom_ids = atoms.clone();
                 item.charge_atom_ids = atoms
@@ -668,7 +705,7 @@ mod tests {
         let exclude = AtomSet::from([0, 1, 2]);
         let mut blocked = exclude.clone();
         blocked.insert(3);
-        name_subgraph_with_upstream(&mol, 4, &blocked, Some(3)).unwrap();
+        name_subgraph_rendered(&mol, 4, &blocked, Some(3), false).unwrap();
         assert_eq!(
             mol.name_status(),
             NameStatus::NotPreferred(NameReason::SulfonylPrefix)

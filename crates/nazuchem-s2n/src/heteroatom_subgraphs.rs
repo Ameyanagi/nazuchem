@@ -891,6 +891,24 @@ fn name_nitrogen(
             }
         }
     }
+    // P-67.1.4.3.2: -NH-NO2 is the preselected prefix nitramido.
+    if order == 1
+        && atom.charge == 0
+        && atom.total_h_count == 1
+        && upstream.is_some_and(|u| mol.atoms[&u].is_carbon())
+        && let [n] = roots[..]
+        && mol.atoms[&n].symbol == "N"
+        && name_subgraph_with_upstream(mol, n, &with_atoms(exclude, [start]), Some(start))?
+            == "nitro"
+    {
+        return Ok("nitramido".into());
+    }
+    if matches!(order, 1 | 2)
+        && atom.charge == 0
+        && let Some(name) = hydrazinyl_prefix(mol, start, &roots, exclude, order == 2)?
+    {
+        return Ok(name);
+    }
     let status = mol.name_status();
     if let Some(name) = guanidino_prefix(mol, start, &roots, exclude)? {
         return Ok(name);
@@ -985,6 +1003,150 @@ fn name_nitrogen(
         atom.charge > 0,
         atom.charge < 0,
     ))
+}
+
+/// The hydrazinyl prefix with `start` at the free valence. Its substituents
+/// take the locants 1, the nitrogen of the free valence, and 2, as in
+/// 2-methylhydrazin-1-yl, 1-acetyl-2-ethylhydrazin-1-yl and
+/// 2-carbamoylhydrazin-1-yl (P-66.3.2.3, P-68.3.1.2.1, P-68.3.1.2.4).
+/// Locants are omitted from hydrazinyl itself (P-14.3.4.2), from an ylidene
+/// alone, as in (propan-2-ylidene)hydrazinyl (P-14.3.4.4, P-68.3.1.2.2), and
+/// when all three positions carry the same substituent (P-14.3.4.5).
+///
+/// With a double free valence the prefix is hydrazinylidene, not hydrazono
+/// (P-68.3.1.2.1). Its substitutable hydrogens are all on nitrogen 2, so no
+/// locants are cited (P-14.3.4.6), as in phenylhydrazinylidene,
+/// (propan-2-ylidene)hydrazinylidene and carbamoylhydrazinylidene
+/// (P-68.3.1.2.2, P-68.3.1.2.3.3, P-68.3.1.2.5).
+// Provenance: fn hydrazinyl_prefix | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs::hydrazinyl_prefix
+fn hydrazinyl_prefix(
+    mol: &Molecule,
+    start: usize,
+    roots: &[usize],
+    exclude: &AtomSet,
+    double: bool,
+) -> Result<Option<String>, String> {
+    let nitrogens: Vec<_> = roots
+        .iter()
+        .copied()
+        .filter(|r| mol.atoms[r].symbol == "N")
+        .collect();
+    let [far] = nitrogens[..] else {
+        return Ok(None);
+    };
+    let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
+    if mol.bond_order(start, far) != 1
+        || mol.atoms[&far].charge != 0
+        || cyclic.contains(&start)
+        || cyclic.contains(&far)
+    {
+        return Ok(None);
+    }
+    let blocked = with_atoms(exclude, [start, far]);
+    let mut cited: Vec<(String, &str)> = Vec::new();
+    let mut ylidene = false;
+    let beyond = subgraph_neighbors(mol, far, &blocked, None);
+    for (locant, n, around) in [("1", start, roots), ("2", far, &beyond[..])] {
+        for &root in around.iter().filter(|&&root| root != far) {
+            let bond = mol
+                .get_bond(n, root)
+                .ok_or_else(|| unsupported("nitrogen connectivity"))?;
+            // A third nitrogen makes a longer chain and N=O a nitroso or
+            // nitro group.
+            if mol.atoms[&root].symbol == "N"
+                || bond.order > 2
+                || bond.order == 2 && !mol.atoms[&root].is_carbon()
+            {
+                return Ok(None);
+            }
+            // No Blue Book example places an E/Z descriptor in the prefix, so
+            // the amino fallback that cites it is not preferred.
+            if bond.stereo.is_some() {
+                mol.mark_name(NameStatus::NotPreferred(NameReason::AminoPrefix));
+                return Ok(None);
+            }
+            let name = name_subgraph_with_upstream(mol, root, &blocked, Some(n))?;
+            // A name that does not carry the double bond, such as
+            // methanethioyl for =C=S, would lose it.
+            if name.is_empty()
+                || (bond.order == 2) != strip_outer_parentheses(&name).ends_with("ylidene")
+            {
+                return Ok(None);
+            }
+            // P-29.6.2.1: unsubstituted benzylidene is preferred, as in
+            // 2-(benzylidenehydrazinyl)-2-oxoacetamide (P-66.3.6).
+            let name = if name == "(phenylmethylidene)" {
+                "benzylidene".into()
+            } else {
+                name
+            };
+            // P-66.3.2.3 (1): the preferred prefix of R-CO-NH-NH- is the
+            // hydrazido form of the hydrazide, as acetohydrazido; the
+            // acylhydrazinyl form of method (2) is named here.
+            let around = mol.get_neighbors(root);
+            if n == far
+                && around.iter().any(|&x| {
+                    mol.bond_order(root, x) == 2
+                        && matches!(mol.atoms[&x].symbol.as_str(), "O" | "S" | "Se" | "Te")
+                })
+                && around
+                    .iter()
+                    .all(|&x| x == n || mol.bond_order(root, x) == 2 || mol.atoms[&x].is_carbon())
+            {
+                mol.mark_name(NameStatus::NotPreferred(NameReason::AminoPrefix));
+            }
+            ylidene |= bond.order == 2;
+            cited.push((name, locant));
+        }
+    }
+    let mut names: Vec<_> = cited.iter().map(|(name, _)| name.clone()).collect();
+    if double {
+        return Ok(Some(match &names[..] {
+            [] => "hydrazinylidene".into(),
+            // P-16.5.1.1: a compound prefix is enclosed, as in
+            // (dimethylcarbamoyl)hydrazinylidene.
+            [n] => {
+                let n = strip_outer_parentheses(n);
+                if is_complex_prefix(&n) || is_compound_prefix(&n) {
+                    format!("(({n})hydrazinylidene)")
+                } else {
+                    format!("({n}hydrazinylidene)")
+                }
+            }
+            _ => format!("({}hydrazinylidene)", center(&names)),
+        }));
+    }
+    names.sort_by_cached_key(|name| (substituent_sort_key(name), name.clone()));
+    names.dedup();
+    let unlocanted = match cited[..] {
+        [] => return Ok(Some("hydrazinyl".into())),
+        [_] => ylidene,
+        [_, _, _] => names.len() == 1,
+        _ => false,
+    };
+    let prefixes = names
+        .iter()
+        .map(|name| {
+            let locants: Vec<_> = cited
+                .iter()
+                .filter(|(n, _)| n == name)
+                .map(|(_, locant)| *locant)
+                .collect();
+            let text = format_multiplier(name, locants.len(), is_complex_prefix(name));
+            if unlocanted {
+                text
+            } else {
+                format!("{}-{text}", locants.join(","))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("-");
+    Ok(Some(if unlocanted {
+        format!("({prefixes}hydrazinyl)")
+    } else {
+        format!("({prefixes}hydrazin-1-yl)")
+    }))
 }
 
 // Provenance: fn sulfur_imide_branch | adapted
@@ -1614,7 +1776,27 @@ pub fn name_heteroatom_subgraph(
                 .into_iter()
                 .filter(|n| !oxo.contains(n))
                 .collect();
-            let deficient = if class.is_none() && roots.len() < 2 {
+            // P-67.1.4.1.1.2, P-67.1.4.1.1.3: H2P(O)-, RHP(O)- and R2P(O)- are
+            // the acyl groups phosphinoyl, methylphosphinoyl and
+            // dimethylphosphinoyl (likewise arsinoyl and stibinoyl);
+            // oxophosphanyl is -P=O, which has no hydrogen to substitute
+            // (P-67.1.4.1.1.6).
+            let acyl = order == 1
+                && atom.charge == 0
+                && matches!(
+                    class.as_deref(),
+                    Some("oxophosphanyl" | "oxoarsanyl" | "oxostibanyl")
+                )
+                && substituent_bonding_number(mol, start) == 5
+                && roots
+                    .iter()
+                    .all(|&n| mol.atoms[&n].is_carbon() && mol.bond_order(start, n) == 1);
+            // The parser reads an unsubstituted `stibinoyl` as -Sb=O.
+            if acyl && symbol == "Sb" && roots.is_empty() {
+                return Err(unsupported("stibinoyl"));
+            }
+            let class = if acyl { None } else { class };
+            let deficient = if class.is_none() && (acyl || roots.len() < 2) {
                 SPECS.heteroatom_substituents.get(symbol).and_then(|spec| {
                     let deficient = &spec.ligand_deficient_prefixes;
                     deficient
@@ -1625,6 +1807,30 @@ pub fn name_heteroatom_subgraph(
             } else {
                 None
             };
+            // P-64.7.1, P-68.3.2.3.1: unless a class senior to ketones takes
+            // the suffix, the heterone is the parent, as in
+            // dimethyl-lambda5-phosphanone.
+            let ketone = super::nomenclature::RULES
+                .functional_groups
+                .get("ketone")
+                .and_then(|rule| rule.seniority.as_ref());
+            if acyl
+                && !super::perception::perceive_groups(mol).iter().any(|g| {
+                    g.is_principal_candidate
+                        && g.resolved_rule
+                            .as_ref()
+                            .and_then(|rule| rule.seniority.as_ref())
+                            .is_some_and(|seniority| Some(seniority) < ketone)
+                })
+            {
+                mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
+            }
+            // P-67.1.4.1.1.5: hydrogen of a basic acyl group is not substituted
+            // in a preferred prefix; -PH(O)(OH) is hydroxyphosphonoyl there,
+            // not hydroxyphosphinoyl.
+            if !acyl && deficient.is_some() && !roots.is_empty() {
+                mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
+            }
             let mut suffix = class
                 .or(deficient)
                 .or_else(|| prefix(symbol, oxo.len()))
@@ -1648,21 +1854,25 @@ pub fn name_heteroatom_subgraph(
                     format!("{sp}{suffix}")
                 }
             } else {
-                // Substituted P=O, As=O and Sb=O are acid-derived acyl groups,
-                // dimethylphosphinoyl, methyl(phenyl)arsinoyl, or a phosphanone
-                // parent (P-67.1.4.1.1.3, P-68.3.2.3.1), not a substituted
-                // oxophosphanyl.
+                // P=O, As=O and Sb=O with a heteroatom ligand are acid-derived
+                // acyl groups such as phosphonochloridoyl (P-67.1.4.1.1.4),
+                // not a substituted oxophosphanyl.
                 if matches!(
                     suffix.as_str(),
                     "oxophosphanyl" | "oxoarsanyl" | "oxostibanyl"
                 ) {
                     mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
                 }
-                // P-67.1.4.1.1.5: the preferred prefix concatenates hydroxy
-                // with the substituted acyl group, as in
-                // hydroxy(methylphosphonoyl), not hydroxy(methyl)arsoryl.
-                if matches!(suffix.as_str(), "arsoryl" | "stiboryl")
-                    && roots.iter().any(|n| mol.atoms[n].is_carbon())
+                // P-67.1.4.1.1.5: the preferred prefix concatenates hydroxy,
+                // alkoxy and their chalcogen analogues with the acyl group of
+                // the substituted or functionally replaced acid
+                // (P-67.1.4.1.1.3, P-67.1.4.1.1.4), as in
+                // hydroxy(methylphosphonoyl) and phosphorodichloridoyl, not
+                // hydroxy(methyl)phosphoryl or dichlorophosphoryl.
+                if matches!(suffix.as_str(), "phosphoryl" | "arsoryl" | "stiboryl")
+                    && roots
+                        .iter()
+                        .any(|n| !matches!(mol.atoms[n].symbol.as_str(), "O" | "S" | "Se" | "Te"))
                 {
                     mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
                 }
@@ -2209,5 +2419,186 @@ mod tests {
             assert_eq!(class, None, "{smiles}");
         }
         Ok(())
+    }
+
+    #[test]
+    fn hydrazinyl_prefixes_number_their_substituents() {
+        // Issue #113. A hydrazine written from either end gets one name.
+        for (smiles, expected, status) in [
+            // P-68.3.1.2.1, P-14.3.4.2: hydrazinyl, as in
+            // hydrazinylacetonitrile.
+            (
+                "NNCCC(=O)O",
+                "3-hydrazinylpropanoic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "NNCCc1ccc(cc1)C(O)=O",
+                "4-(2-hydrazinylethyl)benzoic acid",
+                NameStatus::Preferred,
+            ),
+            // On a triple-bonded carbon it is still a hydrazinyl prefix; only
+            // NC-NH-NH2 is cyanohydrazide (P-66.3.5.1).
+            (
+                "OC(=O)CCC#CNN",
+                "5-hydrazinylpent-4-ynoic acid",
+                NameStatus::Preferred,
+            ),
+            // P-68.3.1.2.1, P-66.3.2.3: substituents take the locants 1,
+            // the nitrogen of the free valence, and 2, as in
+            // 4-(1-acetyl-2-ethylhydrazin-1-yl)benzoic acid.
+            (
+                "CNNCC(=O)O",
+                "(2-methylhydrazin-1-yl)acetic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "OC(=O)CNNC",
+                "(2-methylhydrazin-1-yl)acetic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "CN(N)CC(=O)O",
+                "(1-methylhydrazin-1-yl)acetic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "OC(=O)CCN(C)N",
+                "3-(1-methylhydrazin-1-yl)propanoic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "CNN(C)CC(=O)O",
+                "(1,2-dimethylhydrazin-1-yl)acetic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "OC(=O)CCNN(C)C",
+                "3-(2,2-dimethylhydrazin-1-yl)propanoic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "OC(=O)CCN(CC)N(C)C",
+                "3-(1-ethyl-2,2-dimethylhydrazin-1-yl)propanoic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "OC(=O)c1ccc(NNC)cc1",
+                "4-(2-methylhydrazin-1-yl)benzoic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "OC(=O)c1ccc(NNc2ccccc2)cc1",
+                "4-(2-phenylhydrazin-1-yl)benzoic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "OC(=O)CCNNCCO",
+                "3-[2-(2-hydroxyethyl)hydrazin-1-yl]propanoic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "CNNCCNNC",
+                "1,2-bis(2-methylhydrazin-1-yl)ethane",
+                NameStatus::Unverified(NameReason::UnauditedParent),
+            ),
+            (
+                "OC(=O)c1ccc(N(NCC)C(C)=O)cc1",
+                "4-(1-acetyl-2-ethylhydrazin-1-yl)benzoic acid",
+                NameStatus::Preferred,
+            ),
+            // P-14.3.4.5: no locants when every position carries the same
+            // substituent.
+            (
+                "OC(=O)CCN(C)N(C)C",
+                "3-(trimethylhydrazinyl)propanoic acid",
+                NameStatus::Preferred,
+            ),
+            // P-66.3.2.2: the same prefix beside oxo at a chain end.
+            (
+                "OC(=O)CCC(=O)N(C)N(C)C",
+                "4-oxo-4-(trimethylhydrazinyl)butanoic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "OC(=O)CCC(=O)NNC",
+                "4-(2-methylhydrazin-1-yl)-4-oxobutanoic acid",
+                NameStatus::Preferred,
+            ),
+            // P-14.3.4.4, P-68.3.1.2.2: an ylidene alone needs no locant, as
+            // in 2-[(propan-2-ylidene)hydrazinyl]benzoic acid; benzylidene as
+            // in 2-(benzylidenehydrazinyl)-2-oxoacetamide (P-66.3.6).
+            (
+                "OC(=O)c1ccccc1NN=C(C)C",
+                "2-[(propan-2-ylidene)hydrazinyl]benzoic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "NC(=O)C(=O)NN=Cc1ccccc1",
+                "2-(benzylidenehydrazinyl)-2-oxoacetamide",
+                NameStatus::Preferred,
+            ),
+            (
+                "OC(=O)CCN(C)N=C(C)C",
+                "3-[1-methyl-2-(propan-2-ylidene)hydrazin-1-yl]propanoic acid",
+                NameStatus::Preferred,
+            ),
+            // P-68.3.1.2.4: 3-(2-carbamoylhydrazin-1-yl)propanoic acid.
+            (
+                "OC(=O)CCNNC(N)=O",
+                "3-(2-carbamoylhydrazin-1-yl)propanoic acid",
+                NameStatus::Preferred,
+            ),
+            // P-66.3.2.3: method (2); the preferred prefix is
+            // acetohydrazido, which is not generated.
+            (
+                "OC(=O)c1ccc(NNC(C)=O)cc1",
+                "4-(2-acetylhydrazin-1-yl)benzoic acid",
+                NameStatus::NotPreferred(NameReason::AminoPrefix),
+            ),
+            // P-66.3.5.3: 3-(2-formylhydrazin-1-yl)propanoic acid, beside the
+            // preferred 3-formohydrazidopropanoic acid.
+            (
+                "OC(=O)CCNNC=O",
+                "3-(2-formylhydrazin-1-yl)propanoic acid",
+                NameStatus::NotPreferred(NameReason::AminoPrefix),
+            ),
+            // No Blue Book example places E/Z in the prefix, so a configured
+            // hydrazone keeps the amino form.
+            (
+                "OC(=O)CCN/N=C/c1ccccc1",
+                "3-({[(E)-phenylmethylidene]amino}amino)propanoic acid",
+                NameStatus::NotPreferred(NameReason::AminoPrefix),
+            ),
+            // methanethioyl would not carry the N=C bond of N=C=S.
+            (
+                "OC(=O)CCNN=C=S",
+                "3-(isothiocyanatoamino)propanoic acid",
+                NameStatus::Preferred,
+            ),
+            // A ring nitrogen or a third nitrogen is not a hydrazinyl
+            // nitrogen.
+            (
+                "OC(=O)CCNN1CCCCC1",
+                "3-[(piperidin-1-yl)amino]propanoic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "OC(=O)CCNNN",
+                "3-(triazan-1-yl)propanoic acid",
+                NameStatus::Preferred,
+            ),
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, status, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{}",
+                name.text
+            );
+        }
     }
 }

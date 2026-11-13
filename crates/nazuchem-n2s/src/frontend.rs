@@ -11,7 +11,7 @@
 
 use crate::{
     ParseOptions, ParsingError, cas,
-    parse_rules::ParseTokens,
+    parse_rules::{ParseTokens, WordType},
     parse_tree::{Arena, NodeId, ParseTree},
     resources::Resources,
     tokenizer::{self, ParseWord, Tokenization},
@@ -77,6 +77,81 @@ pub(crate) fn parse(
         ratios = None;
     }
     let name = if repeated.is_empty() { name } else { &repeated };
+    // Changes: A multiplied ester anion, as in calcium bis(methyl sulfate),
+    // is also read as that many copies of its words, the multiplied form of
+    // bis(hydrogen sulfate) and tris(dihydrogen phosphate) in Blue Book
+    // P-16.3.6 (issue #163). Without its spaces `methylsulfate` is a
+    // substituted sulfate, which cannot be built. The parses of the name as
+    // written come first, having fewer tokens, so a name that was read
+    // before is read the same way. After a substituent word the group is
+    // the acid part of an ester and is not repeated. The count is limited
+    // like an adduct ratio above.
+    let mut depth = 0;
+    let spaced: Vec<_> = name
+        .split(|ch| {
+            depth += match ch {
+                '(' | '[' | '{' => 1,
+                ')' | ']' | '}' => -1,
+                _ => 0,
+            };
+            ch == ' ' && depth == 0
+        })
+        .collect();
+    let words: Vec<_> = spaced
+        .iter()
+        .enumerate()
+        .map(|(i, &word)| {
+            word.find(['(', '[', '{'])
+                .and_then(|open| {
+                    // The group multipliers bis, tris, tetrakis and so on.
+                    let count: usize = resources
+                        .definitions
+                        .get(&(word[..open].to_ascii_lowercase(), u16::from(b'R')))?
+                        .attributes
+                        .get("value")?
+                        .parse()
+                        .ok()?;
+                    let anion = enclosed(&word[open..])?;
+                    let acid = anion.to_ascii_lowercase();
+                    (count <= 100
+                        && (acid.ends_with("ate") || acid.ends_with("ite"))
+                        && !tokenizer::tokenize(resources, spaced[i.checked_sub(1)?], false, false)
+                            .is_ok_and(|before| {
+                                before
+                                    .words
+                                    .last()
+                                    .into_iter()
+                                    .flat_map(|word| &word.alternatives)
+                                    .any(|tokens| {
+                                        matches!(tokens.word_type(), Ok(WordType::Substituent))
+                                    })
+                            }))
+                    .then(|| vec![anion; count].join(" "))
+                })
+                .unwrap_or_else(|| word.into())
+        })
+        .collect();
+    let repeated = words.join(" ");
+    let written = parse_words(resources, name, &ratios, options);
+    if repeated == name {
+        return written;
+    }
+    match (written, parse_words(resources, &repeated, &ratios, options)) {
+        (Ok(mut written), Ok(repeated)) => {
+            written.extend(repeated);
+            Ok(written)
+        }
+        (Err(_), Ok(repeated)) => Ok(repeated),
+        (written, Err(_)) => written,
+    }
+}
+
+fn parse_words(
+    resources: &Resources,
+    name: &str,
+    ratios: &Option<Vec<i32>>,
+    options: &ParseOptions,
+) -> Result<Vec<ParseTree>, ParsingError> {
     let mut tokenized = None;
     if name.contains(", ")
         && let Ok(uninverted) = cas::uninvert(resources, name)
@@ -101,6 +176,41 @@ pub(crate) fn parse(
         }
         tokens
     };
+    // Changes: The tokenizer removes the spaces inside brackets. Their
+    // places in each word are kept, as byte offsets, so that a group
+    // written as a word of its own inside the brackets of a multiplied
+    // anion can be read as an ester group (Blue Book P-67.1.3.2, issue #170).
+    let squeezed = name.replace(' ', "");
+    let mut gaps = Vec::new();
+    let mut offset = 0;
+    let mut depth = 0;
+    for ch in name.chars() {
+        depth += match ch {
+            '(' | '[' | '{' => 1,
+            ')' | ']' | '}' => -1,
+            _ => 0,
+        };
+        if ch != ' ' {
+            offset += ch.len_utf8();
+        } else if depth > 0 {
+            gaps.push(offset);
+        }
+    }
+    let mut from = 0;
+    let spaces: Vec<Vec<usize>> = tokenized
+        .words
+        .iter()
+        .map(|word| {
+            let Some(start) = squeezed[from..].find(&word.word).map(|at| from + at) else {
+                return Vec::new();
+            };
+            from = start + word.word.len();
+            gaps.iter()
+                .filter(|&&gap| start < gap && gap < from)
+                .map(|gap| gap - start)
+                .collect()
+        })
+        .collect();
     let combinations = generate_combinations(&tokenized.words)?;
     if combinations.is_empty() {
         return Err(ParsingError(format!("No parses could be found for {name}")));
@@ -114,7 +224,7 @@ pub(crate) fn parse(
         arena[molecule].add_attribute("name", name);
         let mut word_groups = Vec::new();
         let mut word_group = Vec::new();
-        for (word, tokens) in words {
+        for ((word, tokens), spaces) in words.into_iter().zip(&spaces) {
             let element = arena.grouping("word");
             arena.add_child(molecule, element);
             word_group.push(element);
@@ -125,7 +235,7 @@ pub(crate) fn parse(
             arena[element].add_attribute("type", word_type.as_str());
             arena[element]
                 .add_attribute("value", word.word.strip_prefix('-').unwrap_or(&word.word));
-            write_word_xml(&mut arena, element, tokens)?;
+            write_word_xml(&mut arena, element, tokens, spaces)?;
         }
         if !word_group.is_empty() {
             word_groups.push(word_group);
@@ -180,14 +290,17 @@ pub(crate) fn write_word_xml(
     arena: &mut Arena,
     word: NodeId,
     tokens: &ParseTokens,
+    spaces: &[usize],
 ) -> Result<(), ParsingError> {
     let mut last_chunk = None;
+    let mut end = 0;
     for chunk_tokens in tokens.chunks() {
         let chunk = arena.grouping("substituent");
         arena.add_child(word, chunk);
         last_chunk = Some(chunk);
         let mut last_token = None;
         for token in chunk_tokens {
+            end += token.text.len();
             if !token.ignored {
                 let element = arena.token(&token.tag_name, &token.text);
                 for (name, value) in &token.attribute_order {
@@ -207,6 +320,9 @@ pub(crate) fn write_word_xml(
                 );
                 arena[previous].set_attribute("subsequentUnsemanticToken", value);
             }
+        }
+        if spaces.contains(&end) {
+            arena[chunk].add_attribute("spaceAfter", "yes");
         }
     }
     let last_chunk = last_chunk

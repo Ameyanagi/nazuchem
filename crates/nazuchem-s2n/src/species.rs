@@ -220,16 +220,20 @@ fn neutral_group_atoms(mol: &Molecule) -> std::collections::BTreeSet<usize> {
                     | "isocyano"
                     | "acid_isocyanide"
                     | "ring_acid_isocyanide"
-            ) || group
-                .descriptor
-                .as_ref()
-                .is_some_and(|descriptor| descriptor.derivative == "zwitterion"))
-                && group
-                    .atoms_involved
-                    .iter()
-                    .map(|i| mol.atoms[i].charge)
-                    .sum::<i32>()
-                    == 0
+            ) || group.descriptor.as_ref().is_some_and(|descriptor| {
+                descriptor.derivative == "zwitterion"
+                    // A sulfonyl azide (P-65.5.2.1).
+                    || descriptor.family == "central_acid"
+                        && descriptor
+                            .leaving_group
+                            .as_ref()
+                            .is_some_and(|l| l.kind == "N3")
+            })) && group
+                .atoms_involved
+                .iter()
+                .map(|i| mol.atoms[i].charge)
+                .sum::<i32>()
+                == 0
         })
         .flat_map(|group| group.atoms_involved)
         .collect()
@@ -296,12 +300,13 @@ pub(super) fn name_salt(
             && state.valences[0].implicit_hydrogens == 0;
         // P-16.3.6 (a): two NC-SO2-O(-) or NC-S(O)-O(-) ions are
         // `bis(sulfurocyanidate)`; `disulfuro...` would be read as a
-        // derivative of disulfuric acid (P-67.2.1).
+        // derivative of disulfuric acid (P-67.2.1), and `diphosphoro...` as
+        // one of diphosphoric acid.
         let mut elements: Vec<_> = central.iter().map(|&i| atoms[i].atomic_number).collect();
         elements.sort_unstable();
         let oxoanion = oxoanion
             || q < 0
-                && elements == [6, 7, 16]
+                && matches!(elements[..], [6, 7, 15 | 16])
                 && atoms.len() >= 5
                 && bonds.iter().any(|b| b.order == 3);
         let bis_from = if oxoanion || monatomic && q <= -2 {

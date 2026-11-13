@@ -18,7 +18,7 @@
     "resources/automata.bin": "6e98ae99ab12526e3690a8c658dcd3d236e6b1ce4497a04751eb4ec2eb5836e3",
     "resources/xml/alkanes.xml": "2b047195ac805959da5410d3b96f896abb98ec51e502714f8cb6dbed08241fb8",
     "resources/xml/aminoAcids.xml": "2829fc6ba1562f090f38c2f89488255fc6d0a709251a502005759121462880fd",
-    "resources/xml/arylGroups.xml": "16b7b7c03673499fcfd6ee0bee17c7bd1583224cebf2fd9e409e6610e840a7e8",
+    "resources/xml/arylGroups.xml": "6f81457d7baf3430dd40ffea5cfba2df83258535b2073cf59677e9f9782cdd5a",
     "resources/xml/arylSubstituents.xml": "a6c26a40a518e770d5bd443d6f705c9d98bf78c302b0dacc2f7a94795d0e412f",
     "resources/xml/atomHydrides.xml": "84113f4d42b556f46b06b5aa9b24a722f40fb3298d4b2b5c8aca19fc8bb148c0",
     "resources/xml/carbohydrateSuffixes.xml": "8f6a0d37c0b2cc608a416fd6557937c6538326eaa9263c8eb2285093769c3df5",
@@ -28,7 +28,7 @@
     "resources/xml/cyclicUnsaturableHydrocarbon.xml": "1cf6419d2bd7503a2b6818259ea9e6335c09d214ad6b0523da47b25e84411c25",
     "resources/xml/elementaryAtoms.xml": "f60303cda7b23b65b1e1e88d09bb2f02ce48298ad6b9bd567ec3c8f21180c1e0",
     "resources/xml/functionalTerms.xml": "3d857b636dafc5fc25599baba90f239378740de0784f38ab9e52578fa49d3fc3",
-    "resources/xml/fusionComponents.xml": "bd9b4caa09b9c60a6d087b01f6063613a8af0cab681d6cdffea005ac57509938",
+    "resources/xml/fusionComponents.xml": "e78aafe162d998a6df4bedfd48b3f4b0446b7a67cec9726e56d7a2dce7be56c0",
     "resources/xml/germanTokens.xml": "9cf7c50f974503858ff8da31772410573f7577e91530fc8e696558ad15513d62",
     "resources/xml/groupStemsAllowingAllSuffixes.xml": "9b12769c19e6c41a542410d288e04c16caa6d95213a59a042046bb299bd3737b",
     "resources/xml/groupStemsAllowingInlineSuffixes.xml": "573b2dbb02ea17e90f22a8f432233507d38713f368aa5f9ee4f5cd3ee7adaac1",
@@ -50,7 +50,7 @@
     "resources/xml/regexes.dtd": "ca576a00c60ba99c54954294999528c73ef8c190b6f64c8fa03e983be9c3d02e",
     "resources/xml/regexes.xml": "36467cc5d2d0051d52a9db795dd826a8eca66458b179505967569bf3aa9e6389",
     "resources/xml/simpleCyclicGroups.xml": "9d2529668f7c1e59ba3d0b2ac276b4b9f11f31467f26295362729aec608e586d",
-    "resources/xml/simpleGroups.xml": "1c776c51de9fe2e2114042e1ee4fc7afe8906b685346d88c2a94c33fd106bd61",
+    "resources/xml/simpleGroups.xml": "f4659e5f9b5bcce8a9f4bada06993aedeb68af54ae648024e824e12988ee4061",
     "resources/xml/simpleSubstituents.xml": "b0668ba0777208eb9341fdea56b2910aec0498abebe5d787ac0dc861659cfc18",
     "resources/xml/substituents.xml": "41a7f584e7d532dd21526bacd4078d34f8b8ec2df6b833b6f5347b63e3164a35",
     "resources/xml/suffixApplicability.dtd": "50e57c6484ac2ec522cb6ca30e33d25288a74a036ad03432a40db1bb59787c16",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "07b5ba837f2f844e83e6d77e6e918871bf7266f7518ed503b6c38b997d017239"
+    "sha256": "fb6924312ebd3ba141e08f304c91e3a8baf87d69393de4a81ac65100775d0828"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",
@@ -225,7 +225,7 @@
     "checks": "sorted resource (value, type, labels) input identity; ordered spare valencies, bond orders, cycle membership and indicated hydrogens before/after kekulization; exact conversion errors",
     "baseline_reproduction_sha256": "d8d463bc53aa27d99c0064671b862d1f911bf6f5bbe129b95b68d5a3c01f5758",
     "baseline_jar_sha256": "c2e29326c281f87b59a05d934d8589adac6e9d17b95b984931b3e739111b360f",
-    "native_compatibility_status": "all 2,643 snapshots exact; all 3,183 literal groups build; the 12 native acid-anion prefix groups (issue #83) are checked natively and excluded from the frozen oracle"
+    "native_compatibility_status": "all 2,643 snapshots exact; all 3,183 literal groups build; the 12 native acid-anion prefix groups (issue #83) are checked natively and excluded from the frozen oracle, as are the 11 native pheno...ine ring triples (issue #15), which must match their pinned siblings"
   },
   "chalcogen_acid_locants": {
     "rows": 26,
@@ -316,9 +316,17 @@
       "tokens": "simpleSubstituents.xml acid-anion prefixes of the chalcogen-replaced sulfinic and sulfonic acids, sulfinothioato through sulfonoditelluroato and the mixed sulfonoselenothioato, sulfonoselenotelluroato and sulfonotellurothioato (IUPAC 2013 P-72.6.1, P-65.3.1.3), and selenonato, seleninato, telluronato and tellurinato (P-65.6.2.3.1); dictionary tokens only",
       "automata": []
     },
+    "cyanohydrazide_token": {
+      "tokens": "simpleGroups.xml cyanohydrazide, NC-NH-NH2, with the locants N and N' (IUPAC 2013 P-66.3.1.2.1, P-66.3.5.1, P-66.3.3.1)",
+      "automata": []
+    },
     "dianhydride_word_rule": {
       "resources": ["wordRules.xml"],
       "change": "An anhydride word rule with three acid words, e.g. acetic methanedisulfonic propanoic dianhydride or diacetic butanedioic dianhydride (IUPAC 2013 P-65.7.6.1); the builder links the two end acids to the dibasic acid cited between them",
+      "automata": []
+    },
+    "pheno_ine_components": {
+      "tokens": "arylGroups.xml and fusionComponents.xml pheno...ine ring components formed from the Hantzsch-Widman name (IUPAC 2013 P-25.2.2.3, P-22.2.2.1.1): phenothiaselenine, phenothiatellurine, phenoselenatellurine and the S/Se/Te with P/As/Sb systems phenothiaphosphinine through phenotellurastibinine, with their -o fusion prefixes (P-25.3.2.2.2); phenazaphosphinine and phenazarsinine as PIN spellings of the existing phenophosphazinine and phenarsazinine tokens",
       "automata": []
     }
   }

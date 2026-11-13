@@ -42,6 +42,14 @@
       "10H-phenoselenazine",
       "10H-phenotellurazine",
       "10H-phenothiarsinine",
+      "10H-phenothiaphosphinine",
+      "10H-phenothiastibinine",
+      "10H-phenoselenaphosphinine",
+      "10H-phenoselenarsinine",
+      "10H-phenoselenastibinine",
+      "10H-phenotelluraphosphinine",
+      "10H-phenotellurarsinine",
+      "10H-phenotellurastibinine",
       "10H-phenothiazine",
       "10H-phenoxaphosphinine",
       "10H-phenoxarsinine",
@@ -137,6 +145,14 @@
       "oxanthrene",
       "phenoxaselenine",
       "phenoxatellurine",
+      "phenothiaselenine",
+      "phenothiatellurine",
+      "phenoselenatellurine",
+      "phosphanthrene",
+      "arsanthrene",
+      "silanthrene",
+      "phenazaphosphinine",
+      "phenazarsinine",
       "selenanthrene",
       "telluranthrene",
       "tetracene",
@@ -465,6 +481,126 @@
       ],
       "fusion_stems": [
         "phenothiarsinino"
+      ],
+      "derivative_status": "production_safe",
+      "default_indicated_h": [
+        "10"
+      ]
+    },
+    "10H-phenothiaphosphinine": {
+      "parent_stems": [
+        "phenothiaphosphinin"
+      ],
+      "substituent_stems": [
+        "phenothiaphosphinin"
+      ],
+      "fusion_stems": [
+        "phenothiaphosphinino"
+      ],
+      "derivative_status": "production_safe",
+      "default_indicated_h": [
+        "10"
+      ]
+    },
+    "10H-phenothiastibinine": {
+      "parent_stems": [
+        "phenothiastibinin"
+      ],
+      "substituent_stems": [
+        "phenothiastibinin"
+      ],
+      "fusion_stems": [
+        "phenothiastibinino"
+      ],
+      "derivative_status": "production_safe",
+      "default_indicated_h": [
+        "10"
+      ]
+    },
+    "10H-phenoselenaphosphinine": {
+      "parent_stems": [
+        "phenoselenaphosphinin"
+      ],
+      "substituent_stems": [
+        "phenoselenaphosphinin"
+      ],
+      "fusion_stems": [
+        "phenoselenaphosphinino"
+      ],
+      "derivative_status": "production_safe",
+      "default_indicated_h": [
+        "10"
+      ]
+    },
+    "10H-phenoselenarsinine": {
+      "parent_stems": [
+        "phenoselenarsinin"
+      ],
+      "substituent_stems": [
+        "phenoselenarsinin"
+      ],
+      "fusion_stems": [
+        "phenoselenarsinino"
+      ],
+      "derivative_status": "production_safe",
+      "default_indicated_h": [
+        "10"
+      ]
+    },
+    "10H-phenoselenastibinine": {
+      "parent_stems": [
+        "phenoselenastibinin"
+      ],
+      "substituent_stems": [
+        "phenoselenastibinin"
+      ],
+      "fusion_stems": [
+        "phenoselenastibinino"
+      ],
+      "derivative_status": "production_safe",
+      "default_indicated_h": [
+        "10"
+      ]
+    },
+    "10H-phenotelluraphosphinine": {
+      "parent_stems": [
+        "phenotelluraphosphinin"
+      ],
+      "substituent_stems": [
+        "phenotelluraphosphinin"
+      ],
+      "fusion_stems": [
+        "phenotelluraphosphinino"
+      ],
+      "derivative_status": "production_safe",
+      "default_indicated_h": [
+        "10"
+      ]
+    },
+    "10H-phenotellurarsinine": {
+      "parent_stems": [
+        "phenotellurarsinin"
+      ],
+      "substituent_stems": [
+        "phenotellurarsinin"
+      ],
+      "fusion_stems": [
+        "phenotellurarsinino"
+      ],
+      "derivative_status": "production_safe",
+      "default_indicated_h": [
+        "10"
+      ]
+    },
+    "10H-phenotellurastibinine": {
+      "parent_stems": [
+        "phenotellurastibinin"
+      ],
+      "substituent_stems": [
+        "phenotellurastibinin"
+      ],
+      "fusion_stems": [
+        "phenotellurastibinino"
       ],
       "derivative_status": "production_safe",
       "default_indicated_h": [
@@ -1663,6 +1799,102 @@
       ],
       "fusion_stems": [
         "phenoxatellurino"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "phenothiaselenine": {
+      "parent_stems": [
+        "phenothiaselenin"
+      ],
+      "substituent_stems": [
+        "phenothiaselenin"
+      ],
+      "fusion_stems": [
+        "phenothiaselenino"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "phenothiatellurine": {
+      "parent_stems": [
+        "phenothiatellurin"
+      ],
+      "substituent_stems": [
+        "phenothiatellurin"
+      ],
+      "fusion_stems": [
+        "phenothiatellurino"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "phenoselenatellurine": {
+      "parent_stems": [
+        "phenoselenatellurin"
+      ],
+      "substituent_stems": [
+        "phenoselenatellurin"
+      ],
+      "fusion_stems": [
+        "phenoselenatellurino"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "phosphanthrene": {
+      "parent_stems": [
+        "phosphanthren"
+      ],
+      "substituent_stems": [
+        "phosphanthren"
+      ],
+      "fusion_stems": [
+        "phosphanthreno"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "arsanthrene": {
+      "parent_stems": [
+        "arsanthren"
+      ],
+      "substituent_stems": [
+        "arsanthren"
+      ],
+      "fusion_stems": [
+        "arsanthreno"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "silanthrene": {
+      "parent_stems": [
+        "silanthren"
+      ],
+      "substituent_stems": [
+        "silanthren"
+      ],
+      "fusion_stems": [
+        "silanthreno"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "phenazaphosphinine": {
+      "parent_stems": [
+        "phenazaphosphinin"
+      ],
+      "substituent_stems": [
+        "phenazaphosphinin"
+      ],
+      "fusion_stems": [
+        "phenazaphosphinino"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "phenazarsinine": {
+      "parent_stems": [
+        "phenazarsinin"
+      ],
+      "substituent_stems": [
+        "phenazarsinin"
+      ],
+      "fusion_stems": [
+        "phenazarsinino"
       ],
       "derivative_status": "production_safe"
     },
