@@ -3531,6 +3531,7 @@ mod tests {
         ] {
             let name = crate::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
+            assert_ne!(name.status, NameStatus::Preferred, "{smiles}");
         }
     }
 }

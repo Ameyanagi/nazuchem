@@ -240,12 +240,16 @@ fn plan_uncached(
                 .map(|a| locant_key(&locants[a]))
                 .min();
             // P-31.2.2: indicated hydrogen takes lower locants than hydro
-            // prefixes. P-25.2.1: a retained neutral parent (quinolizine,
-            // naphthyridine) outranks the planner's systematic fusion name.
-            let lowest_indicated = plan
-                .indicated_hydrogens
-                .iter()
-                .all(|l| lowest_saturated.as_ref() == Some(&locant_key(l)));
+            // prefixes; a saturated parent's plan already cites the lowest
+            // positions its mancude parent permits (P-58.2.1.2), which a
+            // fusion N can move off the lowest locant. P-25.2.1: a retained
+            // neutral parent (quinolizine, naphthyridine) outranks the
+            // planner's systematic fusion name.
+            let lowest_indicated = atoms.iter().all(|&a| all_single(&neutral, a))
+                || plan
+                    .indicated_hydrogens
+                    .iter()
+                    .all(|l| lowest_saturated.as_ref() == Some(&locant_key(l)));
             let retained_parent = !neutral.use_benzoheterocycle_names()
                 || super::super::rules::retained::get_retained_ring(
                     &neutral,
@@ -1485,6 +1489,14 @@ mod tests {
             (
                 "C[N+]1(C)CCN2CCCCC2C1",
                 "2,2-dimethyloctahydro-2H-pyrido[1,2-a]pyrazin-2-ium",
+            ),
+            (
+                "C1CCN2CC[NH2+]CC2C1",
+                "octahydro-2H-pyrido[1,2-a]pyrazin-2-ium",
+            ),
+            (
+                "C1CCN2CC[NH+](C)CC2C1",
+                "2-methyloctahydro-2H-pyrido[1,2-a]pyrazin-2-ium",
             ),
         ] {
             let name = crate::name_smiles(smiles, &Default::default()).unwrap();

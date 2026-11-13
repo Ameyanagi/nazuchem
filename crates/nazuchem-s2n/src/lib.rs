@@ -3683,7 +3683,7 @@ mod tests {
             // Issue #108. P-14.7.1, P-58.2.1.2: a fusion N takes no double
             // bond, so it can split the mancude parent into parts that each
             // need indicated hydrogen, also in an even-membered system
-            // ('1H,5H-pyrido[3,2,1-ij]quinoline' in P-58.2.3.1.3).
+            // ('1H,5H-pyrido[3,2,1-ij]quinoline' in P-58.2.3.1.4).
             ("C1CN2CCCN2C1", "tetrahydro-1H,5H-pyrazolo[1,2-a]pyrazole"),
             (
                 "C1CC2CCCC3CCCN(C1)C23",
