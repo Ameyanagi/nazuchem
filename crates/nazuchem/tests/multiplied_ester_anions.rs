@@ -64,6 +64,20 @@ fn a_generated_multiplied_ester_anion_reads_back() {
             "[Ca+2].CO[Se](=O)[O-].CO[Se](=O)[O-]",
             "calcium bis(methyl selenite)",
         ),
+        // Organyl groups in alphanumerical order, each a word (ethyl methyl
+        // phenyl phosphate).
+        (
+            "[Ca+2].CCOP([O-])OC.CCOP([O-])OC",
+            "calcium bis(ethyl methyl phosphite)",
+        ),
+        (
+            "[Ca+2].Cc1ccc(cc1)OS(=O)(=O)[O-].Cc1ccc(cc1)OS(=O)(=O)[O-]",
+            "calcium bis(4-methylphenyl sulfate)",
+        ),
+        (
+            "[Ca+2].FC(F)(F)COS(=O)(=O)[O-].FC(F)(F)COS(=O)(=O)[O-]",
+            "calcium bis(2,2,2-trifluoroethyl sulfate)",
+        ),
     ] {
         let name = smiles_to_name(smiles).unwrap();
         assert_eq!(name.text, expected, "{smiles}");
@@ -107,6 +121,25 @@ fn a_multiplied_ester_anion_is_read_as_its_words() {
             "dicalcium bis(methyl hydrogen diphosphate)",
             "[Ca+2].[Ca+2].COP(=O)(O)OP(=O)([O-])[O-].COP(=O)(O)OP(=O)([O-])[O-]",
         ),
+        (
+            "calcium bis(ethyl methyl arsorite)",
+            "[Ca+2].CCO[As]([O-])OC.CCO[As]([O-])OC",
+        ),
+        (
+            "calcium bis(diethyl methyl diphosphate)",
+            "[Ca+2].CCOP(=O)(OCC)OP(=O)([O-])OC.CCOP(=O)(OCC)OP(=O)([O-])OC",
+        ),
+        // Each multiplied anion is read from its own spaces.
+        (
+            "tricalcium bis(methyl phosphonate) bis(methylphosphonate)",
+            "[Ca+2].[Ca+2].[Ca+2].CO[PH](=O)[O-].CO[PH](=O)[O-].CP(=O)([O-])[O-].CP(=O)([O-])[O-]",
+        ),
+        // A ratio applies to every copy, as for the name written out,
+        // dicalcium methyl sulfate methyl sulfate (1:2:2).
+        (
+            "dicalcium bis(methyl sulfate) (1:2)",
+            "[Ca+2].[Ca+2].COS(=O)(=O)[O-].COS(=O)(=O)[O-].COS(=O)(=O)[O-].COS(=O)(=O)[O-]",
+        ),
         // P-65.6.3.2.1: esters of organic acids are named the same way.
         (
             "calcium bis(methyl malonate)",
@@ -120,6 +153,10 @@ fn a_multiplied_ester_anion_is_read_as_its_words() {
             "[Ca+2].[Ca+2].CP(=O)([O-])[O-].CP(=O)([O-])[O-]",
         ),
         (
+            "calcium bis(methylphosphonate )",
+            "[Ca+2].[Ca+2].CP(=O)([O-])[O-].CP(=O)([O-])[O-]",
+        ),
+        (
             "calcium bis(methylmalonate)",
             "[Ca+2].[Ca+2].CC(C(=O)[O-])C(=O)[O-].CC(C(=O)[O-])C(=O)[O-]",
         ),
@@ -129,7 +166,8 @@ fn a_multiplied_ester_anion_is_read_as_its_words() {
             "[Ca+2].COS(=O)[O-].COS(=O)[O-]",
         ),
         // An ester that would leave no anion is not taken out of the
-        // brackets; these names are read as before.
+        // brackets, nor is a locanted group; these names are read as
+        // before, whether or not that is what the Blue Book means by them.
         (
             "calcium bis(methyl carbamate)",
             "[Ca+2].CNC(=O)[O-].CNC(=O)[O-]",

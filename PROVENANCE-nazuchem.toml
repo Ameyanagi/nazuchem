@@ -1104,7 +1104,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/PORTING.md", license = "MIT" },
 ]
 notes = "Project-authored OPSIN source/module mapping, acceptance narrative and upstream commit classification. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "9248f328229746cb5867c884c83558522b5f49753dcad8439eef2c7e923f4980"
+sha256 = "6b3628c3836f8cce1cfabe4df10537626fb25fae6e11b915b5893b3822d0d360"
 
 [[file]]
 path = "crates/nazuchem-n2s/README.md"
@@ -7646,7 +7646,7 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "crates/nazuchem/tests/multiplied_ester_anions.rs", ref = "issue #170", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original facade regression for issue #170: generated salt names with a multiplied ester anion parsed back to the input structure, the ester and substituent readings of a multiplied bracketed anion with and without a space, names that are read as before, and a round trip of every multi-component name in the golden fixture, each checked against the IUPAC 2013 rule cited beside it."
+notes = "Original facade regression for issue #170: generated salt names with a multiplied ester anion parsed back to the input structure, the ester and substituent readings of a multiplied bracketed anion with and without a space, several ester groups, a ratio, names that are read as before, and a round trip of every multi-component name in the golden fixture, each checked against the IUPAC 2013 rule cited beside it."
 
 [[file]]
 path = "crates/nazuchem/tests/one_carbon_nitrile.rs"

@@ -51,14 +51,10 @@ pub fn correct_omitted_spaces(
     context: &mut impl OmittedSpaceContext,
 ) -> Result<(), ParsingError> {
     let rules = tree.arena.descendants_named(tree.root, "wordRule");
-    let name = tree.arena[tree.root]
-        .attribute("name")
-        .unwrap_or("")
-        .to_owned();
     for rule in rules {
         match tree.arena[rule].attribute("wordRule") {
             Some("divalentFunctionalGroup") => correct_divalent(&mut tree.arena, rule, context)?,
-            Some("simple") => correct_ester(&mut tree.arena, rule, &name, context)?,
+            Some("simple") => correct_ester(&mut tree.arena, rule, context)?,
             _ => {}
         }
     }
@@ -193,41 +189,51 @@ fn ate_or_ite_ending(value: &str) -> bool {
 fn correct_ester(
     arena: &mut Arena,
     rule: NodeId,
-    name: &str,
     context: &mut impl OmittedSpaceContext,
 ) -> Result<(), ParsingError> {
     let words = arena.children_named(rule, "word");
-    let value = arena[rule].attribute("value").unwrap_or("").to_owned();
-    if words.is_empty() || !ate_or_ite_ending(&value) {
+    if words.is_empty()
+        || !arena[rule]
+            .attribute("value")
+            .is_some_and(ate_or_ite_ending)
+    {
         return Ok(());
     }
     // Changes: A multiplied anion, as in calcium bis(methyl hydrogen
     // phosphate), is one word per copy here, each a bracket around the
-    // anion (Blue Book P-16.3.6, tris(dihydrogen phosphate)). Each copy is
-    // read as the word without the multiplier would be: the organyl group
-    // before the acid can be its ester group (P-67.1.3.2, sodium methyl
-    // hydrogen phosphate), and the ester becomes a component of its own.
-    // It is the ester group where the name has a space inside the brackets,
-    // which the tokenizer removed: bis(methyl phosphonate) is not
-    // bis(methylphosphonate). The ester must leave an anion (issue #170).
+    // anion (Blue Book P-16.3.6, tris(dihydrogen phosphate)). The groups
+    // written as words of their own inside the brackets are its ester
+    // groups (P-67.1.3.2, sodium methyl hydrogen phosphate; dimethyl
+    // phosphonate against diethyl methylphosphonate). Without a space the
+    // copy is read as the word without the multiplier would be. An ester
+    // must leave an anion, and becomes a component of its own (issue #170).
     let multiplied = words.len() > 1;
-    let spaced = multiplied && !name.contains(&value);
-    correct_ester_word(arena, rule, words[0], multiplied, spaced, context)?;
+    let attributes = arena[rule].attributes.clone();
+    correct_ester_word(arena, rule, words[0], multiplied, context)?;
     if arena[rule].attribute("wordRule") == Some("ester") {
         let mut last = rule;
         for &word in &words[1..] {
             let copy = arena.grouping("wordRule");
-            arena[copy].add_attribute("type", "full");
-            arena[copy].add_attribute("wordRule", "simple");
-            arena[copy].add_attribute("value", &value);
+            arena[copy].attributes = attributes.clone();
             arena.detach(word);
             arena.add_child(copy, word);
             arena.insert_after(last, copy);
-            correct_ester_word(arena, copy, word, multiplied, spaced, context)?;
+            correct_ester_word(arena, copy, word, multiplied, context)?;
             last = copy;
         }
     }
     Ok(())
+}
+
+// Changes: The frontend marks a substituent that a removed space followed.
+fn written_as_word(arena: &Arena, mut element: NodeId) -> bool {
+    while arena[element].name == "bracket" {
+        match relevant_children(arena, element, false).last() {
+            Some(&last) => element = last,
+            None => return false,
+        }
+    }
+    arena[element].attribute("spaceAfter").is_some()
 }
 
 fn correct_ester_word(
@@ -235,7 +241,6 @@ fn correct_ester_word(
     rule: NodeId,
     word: NodeId,
     multiplied: bool,
-    spaced: bool,
     context: &mut impl OmittedSpaceContext,
 ) -> Result<(), ParsingError> {
     let mut children = relevant_children(arena, word, true);
@@ -263,6 +268,35 @@ fn correct_ester_word(
     if subs.len() == 1 && root_multiplier > 1 {
         return Ok(());
     }
+    if multiplied {
+        let mut groups = Vec::new();
+        let mut start = 0;
+        for (index, &sub) in subs.iter().enumerate() {
+            if written_as_word(arena, sub) {
+                groups.push(&subs[start..=index]);
+                start = index + 1;
+            }
+        }
+        if !groups.is_empty() {
+            let mut esters = 0;
+            for group in &groups {
+                let last = group[group.len() - 1];
+                if !suitable_for_ester(arena, last, functional_count, context)? {
+                    return Ok(());
+                }
+                esters += multiplier(arena, last)?;
+            }
+            if functional_count > esters {
+                for group in groups.into_iter().rev() {
+                    match group {
+                        [single] => transform_single(arena, rule, *single, context)?,
+                        _ => transform_multiple(arena, rule, group),
+                    }
+                }
+            }
+            return Ok(());
+        }
+    }
     let first = subs[0];
     if !suitable_for_ester(arena, first, functional_count, context)? {
         if arena[first].attribute("locant").is_some() {
@@ -289,8 +323,7 @@ fn correct_ester_word(
     let first_group = rightmost_group(arena, first).ok_or_else(|| {
         error("OPSIN bug: Substituent group missing for omitted ester correction")
     })?;
-    if (spaced
-        || ester_preferred(arena, first_group, first, root_group, subs.len())?
+    if (ester_preferred(arena, first_group, first, root_group, subs.len())?
         || subs.len() > 1
             && (all_other_subs_locanted(arena, subs)
                 || insufficient_hydrogens(arena, subs, &root_facts, root_multiplier, context)?)
