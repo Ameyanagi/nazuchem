@@ -656,7 +656,14 @@ fn hydrazide_ns(m: &Molecule, c: usize, n: usize, cyclic: &AtomSet) -> Option<Ve
     if cyclic.contains(&t)
         || m.atoms[&t].charge != 0
         || m.get_neighbors(t).iter().any(|&x| {
-            x != n && (!matches!(m.atoms[&x].symbol.as_str(), "C" | "H") || m.bond_order(t, x) != 1)
+            // P-66.3.3.1: an ylidene on N' is a substituent of the hydrazide,
+            // as in N'-[(phenyldiazenyl)methylidene]acetohydrazide
+            // (P-68.3.1.3.5.1). No Blue Book example places the descriptor of a
+            // configured N'=C bond, so that case is not a hydrazide here.
+            x != n
+                && (!matches!(m.atoms[&x].symbol.as_str(), "C" | "H")
+                    || m.get_bond(t, x)
+                        .is_some_and(|b| b.order > 2 || b.stereo.is_some()))
         })
     {
         return None;
@@ -3002,7 +3009,11 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
         };
         let principal = key != "aminium" || adj.iter().all(|&x| m.bond_order(n, x) == 1);
         for &c in adj {
-            groups.push(PerceivedGroup::new(key, principal, c, [n]));
+            // A nitro nitrogen is a substituent of the amine (P-61.5.1), not
+            // a parent atom; its formal charge would rank the group as an ion.
+            if !is_nitro_n(m, c, n) {
+                groups.push(PerceivedGroup::new(key, principal, c, [n]));
+            }
         }
         consumed.insert(n);
     }

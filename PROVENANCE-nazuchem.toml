@@ -4435,8 +4435,8 @@ license = "MIT"
 sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/data/namer_rules.json", license = "MIT" },
 ]
-notes = "openclatura rules adapted for ion spellings, retained parents, alkoxy contractions, bond numbering and triazene prefixes (P-68.3.1.4.1); sections and keys the port never reads removed; not byte-identical."
-sha256 = "49f6012d1c16d1f9c37add714e7154ebdc4af79e442da8a0c7fd8048a70aa8ae"
+notes = "openclatura rules adapted for ion spellings, retained parents, alkoxy contractions, bond numbering, triazene prefixes (P-68.3.1.4.1) and the hydrazinylidene prefix (P-68.3.1.2.1; issue #168); sections and keys the port never reads removed; not byte-identical."
+sha256 = "8c5a0def8c951fcef4907c092156d93121e7515ba0888ebe2598edb520b36311"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/parser_grammar_snapshot.json"
@@ -7520,7 +7520,7 @@ sources = [
   { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including the owner decision 2026-11-10 to retain bakeoff_corpus.tsv as a repository-only test fixture with PubChem (NCBI) attribution, excluded from all published packages. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
-sha256 = "4da95b53844ac5e3ddca2213e07e583c2d2b518accdb54871440d92ca86b7312"
+sha256 = "36323a13017fab2a20d28c86e797c1ee2dff4402e860abd32ebfab008f655047"
 
 [[file]]
 path = "crates/nazuchem-ir/docs/cxsmiles.md"
@@ -7640,6 +7640,15 @@ sources = [
   { project = "Nazuchem", path = "crates/nazuchem/tests/anionic_prefixes.rs", ref = "issue #145", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original facade regression for issue #145: generated names of acid-anion prefixes under a more senior anion (sulfonato, hydroxy(oxido)phosphoryl and the selenium analogues), oxidanide names of anionic oxygen on a chalcogen chain, declined chalcogen carboxylate anion prefixes and the selenium and tellurium acid-anion prefixes read by the parser, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
+
+[[file]]
+path = "crates/nazuchem/tests/hydrazine_names.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/tests/hydrazine_names.rs", ref = "issue #168", license = "MIT OR Apache-2.0" },
+]
+notes = "Original facade regression for issue #168: generated names of nitramido and nitroamino prefixes beside a chain acid, ester or nitrile, of N'-ylidene hydrazides and of hydrazinylidene prefixes, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
 
 [[file]]
 path = "crates/nazuchem/tests/polyanhydrides.rs"

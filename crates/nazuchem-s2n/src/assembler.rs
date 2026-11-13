@@ -246,7 +246,8 @@ fn apply_data_postprocessing(name: &str) -> String {
 pub fn post_process_name(name: &str) -> String {
     let name = apply_data_postprocessing(name)
         .replace("iminoamino", "diazenyl")
-        .replace("aminoimino", "hydrazono");
+        // P-68.3.1.2.1: H2N-N= is hydrazinylidene, not hydrazono.
+        .replace("aminoimino", "hydrazinylidene");
     apply_data_postprocessing(&name)
 }
 struct IndicatedHydrogenRun<'a> {
@@ -1098,7 +1099,9 @@ mod tests {
             (
                 "CC1=CC=C(C=C1)N2C(=O)C3=C(N=C2SCC(=O)N/N=C\\C4=CC(=C(C=C4)OC(=O)C)OC)SC5=C3CCCC5",
                 // #16/#29: as for the N-H parent, 4-oxo needs 3,4-dihydro (P-31.2.2, P-32.2).
-                "2-methoxy-4-{(Z)-[(2-{[3-(4-methylphenyl)-4-oxo-3,4,5,6,7,8-hexahydro[1]benzothieno[2,3-d]pyrimidin-2-yl]sulfanyl}acetamido)imino]methyl}phenyl acetate",
+                // #168: =N-NH- is hydrazinylidene (P-68.3.1.2.1), substituted
+                // by the acyl group as in carbamoylhydrazinylidene (P-68.3.1.2.5).
+                "2-methoxy-4-{(Z)-[(2-{[3-(4-methylphenyl)-4-oxo-3,4,5,6,7,8-hexahydro[1]benzothieno[2,3-d]pyrimidin-2-yl]sulfanyl}acetyl)hydrazinylidene]methyl}phenyl acetate",
             ),
         ] {
             let input = crate::test_support::canonical_smiles(smiles).unwrap();
@@ -1468,10 +1471,11 @@ mod tests {
                 "NC(=O)CCNNC(=O)NN",
                 "3-[2-(hydrazinylcarbonyl)hydrazin-1-yl]propanamide",
             ),
-            // The hydrazinylidene prefix (P-68.3.1.2.5) is not generated.
+            // P-68.3.1.2.5: carbamoylhydrazinylidene is the preferred prefix;
+            // the label is not decided here.
             (
                 "OC(=O)CCC(=NNC(N)=O)CCC",
-                "4-[(carbamoylamino)imino]heptanoic acid",
+                "4-(carbamoylhydrazinylidene)heptanoic acid",
             ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();

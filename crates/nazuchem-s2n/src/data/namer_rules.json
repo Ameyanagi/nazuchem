@@ -1554,7 +1554,7 @@
       },
       "hydrazone": {
         "role": "principal",
-        "prefix": "hydrazono",
+        "prefix": "hydrazinylidene",
         "suffix": "one hydrazone",
         "multi_suffix": {
           "multiplier_positions": [
@@ -1568,7 +1568,7 @@
       },
       "aldehyde_hydrazone": {
         "role": "principal",
-        "prefix": "hydrazono",
+        "prefix": "hydrazinylidene",
         "suffix": "al hydrazone",
         "multi_suffix": {
           "multiplier_positions": [
@@ -1582,7 +1582,7 @@
       },
       "ring_aldehyde_hydrazone": {
         "role": "principal",
-        "prefix": "hydrazonomethyl",
+        "prefix": "hydrazinylidenemethyl",
         "suffix": "carbaldehyde hydrazone",
         "multi_suffix": {
           "multiplier_positions": [

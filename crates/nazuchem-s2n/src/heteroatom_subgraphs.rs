@@ -891,9 +891,24 @@ fn name_nitrogen(
             }
         }
     }
+    // P-67.1.4.3.2: -NH-NO2 is the preselected prefix nitramido.
     if order == 1
         && atom.charge == 0
-        && let Some(name) = hydrazinyl_prefix(mol, start, &roots, exclude)?
+        && atom.total_h_count == 1
+        && upstream.is_some_and(|u| mol.atoms[&u].is_carbon())
+        && let [n] = roots[..]
+        && mol.atoms[&n].symbol == "N"
+        && mol.degree(n) == 3
+        && mol
+            .get_neighbors(n)
+            .iter()
+            .all(|&o| o == start || mol.atoms[&o].symbol == "O" && mol.degree(o) == 1)
+    {
+        return Ok("nitramido".into());
+    }
+    if matches!(order, 1 | 2)
+        && atom.charge == 0
+        && let Some(name) = hydrazinyl_prefix(mol, start, &roots, exclude, order == 2)?
     {
         return Ok(name);
     }
@@ -1000,6 +1015,12 @@ fn name_nitrogen(
 /// Locants are omitted from hydrazinyl itself (P-14.3.4.2), from an ylidene
 /// alone, as in (propan-2-ylidene)hydrazinyl (P-14.3.4.4, P-68.3.1.2.2), and
 /// when all three positions carry the same substituent (P-14.3.4.5).
+///
+/// With a double free valence the prefix is hydrazinylidene, not hydrazono
+/// (P-68.3.1.2.1). Its substitutable hydrogens are all on nitrogen 2, so no
+/// locants are cited (P-14.3.4.6), as in phenylhydrazinylidene,
+/// (propan-2-ylidene)hydrazinylidene and carbamoylhydrazinylidene
+/// (P-68.3.1.2.2, P-68.3.1.2.3.3, P-68.3.1.2.5).
 // Provenance: fn hydrazinyl_prefix | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs::hydrazinyl_prefix
 fn hydrazinyl_prefix(
@@ -1007,6 +1028,7 @@ fn hydrazinyl_prefix(
     start: usize,
     roots: &[usize],
     exclude: &AtomSet,
+    double: bool,
 ) -> Result<Option<String>, String> {
     let nitrogens: Vec<_> = roots
         .iter()
@@ -1082,6 +1104,18 @@ fn hydrazinyl_prefix(
         }
     }
     let mut names: Vec<_> = cited.iter().map(|(name, _)| name.clone()).collect();
+    if double {
+        names = names.iter().map(|n| strip_outer_parentheses(n)).collect();
+        return Ok(Some(match &names[..] {
+            [] => "hydrazinylidene".into(),
+            // P-16.5.1.1: a compound prefix is enclosed, as in
+            // (dimethylcarbamoyl)hydrazinylidene.
+            [n] if is_complex_prefix(n) || is_compound_prefix(n) => {
+                format!("(({n})hydrazinylidene)")
+            }
+            _ => format!("({}hydrazinylidene)", center(&names)),
+        }));
+    }
     names.sort_by_cached_key(|name| (substituent_sort_key(name), name.clone()));
     names.dedup();
     let unlocanted = match cited[..] {

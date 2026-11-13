@@ -1364,7 +1364,7 @@ mod tests {
             // P-68.3.1.2.2 ranks no hydrazone over another; the functional
             // class names take the aldehyde hydrazone whatever the atom order.
             (
-                "4-(hydrazono)pentanal hydrazone",
+                "4-hydrazinylidenepentanal hydrazone",
                 &["NN=CCCC(C)=NN", "C(CC(=NN)C)C=NN"][..],
             ),
         ] {
