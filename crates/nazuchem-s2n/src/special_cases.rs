@@ -5425,7 +5425,7 @@ mod tests {
             ("SSCCOC", "2-methoxyethane-1-dithioperoxol", false),
             (
                 "O=P(O)(O)c1ccccc1SS",
-                "1-(2-(dihydroxyphosphoryl)phenyl)disulfane",
+                "1-(2-phosphonophenyl)disulfane",
                 true,
             ),
         ] {
