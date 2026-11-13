@@ -223,8 +223,8 @@
 		<token value="c1cccc2sc3ccccc3[nH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiazin</token>
 		<token value="c1cccc2[se]c3ccccc3[nH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenazin</token>
 		<token value="c1cccc2[te]c3ccccc3[nH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenotellurazin</token>
-		<token value="c1cccc2nc3ccccc3pc12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenophosphazinin|phenophosphazin</token>
-		<token value="c1cccc2nc3ccccc3[as]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenarsazinin</token>
+		<token value="c1cccc2nc3ccccc3pc12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenazaphosphinin|phenophosphazinin|phenophosphazin</token>
+		<token value="c1cccc2nc3ccccc3[as]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenazarsinin|phenarsazinin</token>
 		<token value="c1cccc2nc3ccccc3[siH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenazasilin</token>
 		<token value="c1cccc2nc3ccccc3[as]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoarsazin</token>
 		<token value="c1cccc2[nH]c3ccccc3[Hg]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenomercurazin|phenomercazin</token>
@@ -236,6 +236,17 @@
 		<token value="c1cccc2oc3ccccc3[asH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoxarsinin|phenoxarsin</token>
 		<token value="c1cccc2oc3ccccc3[sbH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoxastibinin|phenoxantimonin</token>
 		<token value="c1cccc2sc3ccccc3[asH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiarsinin|phenothiarsin</token>
+		<token value="c1cccc2[te]c3ccccc3[sbH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenotellurastibinin</token>
+		<token value="c1cccc2[te]c3ccccc3[asH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenotellurarsinin</token>
+		<token value="c1cccc2[te]c3ccccc3[pH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenotelluraphosphinin</token>
+		<token value="c1cccc2[se]c3ccccc3[sbH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenastibinin</token>
+		<token value="c1cccc2[se]c3ccccc3[asH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenarsinin</token>
+		<token value="c1cccc2[se]c3ccccc3[pH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenaphosphinin</token>
+		<token value="c1cccc2sc3ccccc3[sbH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiastibinin</token>
+		<token value="c1cccc2sc3ccccc3[pH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiaphosphinin</token>
+		<token value="c1cccc2[se]c3ccccc3[te]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenatellurin</token>
+		<token value="c1cccc2sc3ccccc3[te]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiatellurin</token>
+		<token value="c1cccc2sc3ccccc3[se]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiaselenin</token>
 		<token value="c1(O)cc(O)cc(O)c1" labels="1//2,ortho/3,meta//4,para/5//6">phloroglucinol</token>
 		<token value="c1cccc2pc3ccccc3pc12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phosphanthren</token>
 		<token value="c1cccc2pcc3ccccc3c12" labels="1/2/3/4/4a/5/6/6a/7/8/9/10/10a/10b">phosphanthridin</token>

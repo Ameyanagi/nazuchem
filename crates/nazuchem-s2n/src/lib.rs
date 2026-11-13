@@ -3128,6 +3128,84 @@ mod tests {
                 "C1CCC2C(C1)Oc1ccccc1O2",
                 "1,2,3,4,4a,10a-hexahydrooxanthrene",
             ),
+            // #15, P-25.2.2.3: different heteroatoms take pheno + the Hantzsch-Widman
+            // name (P-22.2.2.1.1); the senior heteroatom of Table 2.4 is locant 5.
+            ("c1ccc2c(c1)Sc1ccccc1[Se]2", "phenothiaselenine"),
+            ("c1ccc2c(c1)[Se]c1ccccc1S2", "phenothiaselenine"),
+            ("C1=CC=C2C(=C1)SC1=CC=CC=C1[Se]2", "phenothiaselenine"),
+            ("c1ccc2c(c1)Sc1ccccc1[Te]2", "phenothiatellurine"),
+            ("c1ccc2c(c1)[Se]c1ccccc1[Te]2", "phenoselenatellurine"),
+            ("c1ccc2c(c1)Pc1ccccc1S2", "10H-phenothiaphosphinine"),
+            ("c1ccc2c(c1)[SbH]c1ccccc1S2", "10H-phenothiastibinine"),
+            ("c1ccc2c(c1)Pc1ccccc1[Se]2", "10H-phenoselenaphosphinine"),
+            ("c1ccc2c(c1)[AsH]c1ccccc1[Se]2", "10H-phenoselenarsinine"),
+            ("c1ccc2c(c1)[SbH]c1ccccc1[Se]2", "10H-phenoselenastibinine"),
+            ("c1ccc2c(c1)Pc1ccccc1[Te]2", "10H-phenotelluraphosphinine"),
+            ("c1ccc2c(c1)[AsH]c1ccccc1[Te]2", "10H-phenotellurarsinine"),
+            ("c1ccc2c(c1)[SbH]c1ccccc1[Te]2", "10H-phenotellurastibinine"),
+            ("Cc1ccc2Sc3ccccc3[Se]c2c1", "2-methylphenothiaselenine"),
+            ("Cc1ccc2[Se]c3ccccc3Sc2c1", "3-methylphenothiaselenine"),
+            ("Oc1ccc2Sc3ccccc3[Te]c2c1", "phenothiatellurin-2-ol"),
+            (
+                "CP1c2ccccc2Sc2ccccc12",
+                "10-methyl-10H-phenothiaphosphinine",
+            ),
+            (
+                "C1CCC2C(C1)Sc1ccccc1[Se]2",
+                "1,2,3,4,4a,10a-hexahydrophenothiaselenine",
+            ),
+            (
+                "c1ccc2c(c1)Sc1ccc3ccccc3c1[Se]2",
+                "benzo[a]phenothiaselenine",
+            ),
+            (
+                "c1ccc2c(c1)[Se]c1ccc3ccccc3c1S2",
+                "benzo[c]phenothiaselenine",
+            ),
+            // P-25.3.2.4 (a): O is senior to S, so oxanthrene is the parent component.
+            (
+                "c1ccc2c(c1)Sc1cc3Oc4ccccc4Oc3cc1[Se]2",
+                "[1,4]benzothiaselenino[2,3-b]oxanthrene",
+            ),
+            // P-25.3.2.4 (e): the greater variety of heteroatoms beats thianthrene.
+            (
+                "c1ccc2c(c1)Sc1cc3Sc4ccccc4[Se]c3cc1S2",
+                "[1,4]benzodithiino[2,3-b]phenothiaselenine",
+            ),
+            // P-25.2.2.2 (P, As, Si) and P-25.2.2.3 (N with P or As): the PIN is the
+            // mancude ring; P-31.2.1 hydro prefixes give the usual 5,10-dihydro forms.
+            ("c1ccc2c(c1)P=C1C=CC=CC1=P2", "phosphanthrene"),
+            ("c1ccc2pc3ccccc3pc2c1", "phosphanthrene"),
+            ("c1ccc2c(c1)Pc1ccccc1P2", "5,10-dihydrophosphanthrene"),
+            ("c1ccc2c(c1)[As]=C1C=CC=CC1=[As]2", "arsanthrene"),
+            ("c1ccc2c(c1)[AsH]c1ccccc1[AsH]2", "5,10-dihydroarsanthrene"),
+            ("c1ccc2c(c1)[SiH]=C1C=CC=CC1=[SiH]2", "silanthrene"),
+            (
+                "c1ccc2c(c1)[SiH2]c1ccccc1[SiH2]2",
+                "5,10-dihydrosilanthrene",
+            ),
+            ("c1ccc2c(c1)N=C1C=CC=CC1=P2", "phenazaphosphinine"),
+            ("c1ccc2c(c1)P=C1C=CC=CC1=N2", "phenazaphosphinine"),
+            ("c1ccc2c(c1)Nc1ccccc1P2", "5,10-dihydrophenazaphosphinine"),
+            ("c1ccc2c(c1)N=C1C=CC=CC1=[As]2", "phenazarsinine"),
+            ("c1ccc2c(c1)Nc1ccccc1[AsH]2", "5,10-dihydrophenazarsinine"),
+            (
+                "CP1c2ccccc2P(C)c2ccccc12",
+                "5,10-dimethyl-5,10-dihydrophosphanthrene",
+            ),
+            (
+                "Cc1ccc2Pc3ccccc3Pc2c1",
+                "2-methyl-5,10-dihydrophosphanthrene",
+            ),
+            (
+                "C[Si]1(C)c2ccccc2[Si](C)(C)c2ccccc12",
+                "5,5,10,10-tetramethyl-5,10-dihydrosilanthrene",
+            ),
+            ("c1ccc2c(c1)P=C1C=Cc3ccccc3C1=P2", "benzo[a]phosphanthrene"),
+            (
+                "c1ccc2c(c1)P=C1C=Cc3ccccc3C1=N2",
+                "benzo[c]phenazaphosphinine",
+            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
@@ -3313,6 +3391,11 @@ mod tests {
             ("O=C1CC=C2Oc3cc4[N+](C)(C)c5ccccc5Sc4cc3NC2=C1", &fallback),
             ("OC(=O)c1ccc2nc3c(cc(=O)c4ccccc34)oc2c1", &unregistered),
             ("C[N+]1(C)c2ccccc2Sc2cc3Oc4ccccc4N(C)c3cc21", &fallback),
+            // #15: pheno...ine pairs (P-25.2.2.3) and boranthrene (P-25.2.2.2)
+            // without a template keep their dibenzo names, not preferred.
+            ("c1ccc2c(c1)Oc1ccccc1[SiH2]2", &unregistered),
+            ("Cc1ccc2Oc3ccccc3Bc2c1", &unregistered),
+            ("c1ccc2c(c1)B=C1C=CC=CC1=B2", &unregistered),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(&name.status, status, "{smiles}: {}", name.text);
@@ -3332,6 +3415,16 @@ mod tests {
             (
                 "c1ccc2c(c1)Cc1cc3ncccc3cc1O2",
                 "11H-[1]benzopyrano[2,3-g]quinoline",
+            ),
+            // #15: adjacent heteroatoms or a terminal hetero ring are not
+            // pheno...ine systems (P-25.2.2.3), so the fusion name stands.
+            (
+                "c1ccc2c(c1)O[SiH2]c1ccccc12",
+                "6H-dibenzo[c,e][1,2]oxasiline",
+            ),
+            (
+                "c1ccc2cc3OCCSc3cc2c1",
+                "2,3-dihydronaphtho[2,3-b][1,4]oxathiine",
             ),
             ("S1c2ccccc2Cc2ccccc21", "9H-thioxanthene"),
             ("c1ccc2c(c1)Cc1ccccc1O2", "9H-xanthene"),
