@@ -4297,7 +4297,6 @@ mod tests {
             "C/N=N/c1cccnc1",
             "C/N=N\\c1cccnc1",
             "CC(=O)NOC(=O)Cc1nc(C(=O)O)cs1",
-            "O=C(O)[C@H](O)[C@@H](O)C(=O)OO",
             "CN(C(=O)[O-])C1(B(O)O)CCC1",
             "O[N@]1CC12CC2",
             "CN(C)[N@]1CC1(C)CO",

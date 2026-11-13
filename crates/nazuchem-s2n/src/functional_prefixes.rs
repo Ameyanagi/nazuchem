@@ -666,10 +666,15 @@ pub fn collect_component_prefix_substituents(
             // (4-amino-4-oxobutanoic acid). An acyl carbon that is the whole
             // parent has no carbon left for a carbamoyl or carbonyl prefix,
             // so its ligands are cited the same way; a hydrazide is handled
-            // below.
+            // below. P-65.1.4.2 (2), P-65.1.5.1, P-65.1.5.3: a peroxy acid
+            // or a mixed chalcogen acid ending the chain is cited the same
+            // way (6-hydroperoxy-6-oxohexanoic acid,
+            // 4-oxo-4-sulfanylbutanoic acid).
             || group.descriptor.as_ref().is_some_and(|d| {
                 d.family == "acyl"
-                    && (d.derivative == "amide" || path.len() == 1 && d.derivative != "hydrazide")
+                    && (d.derivative == "amide"
+                        || d.names_its_chalcogens()
+                        || path.len() == 1 && d.derivative != "hydrazide")
                     && d.centers.contains(&group.attachment_carbon)
             })
         {

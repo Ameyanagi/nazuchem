@@ -6,6 +6,7 @@
 // Source: openclatura | src/openclatura/nitrogen_roles.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/perception.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | issue #94
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | issue #138
 // Source: openclatura | src/openclatura/chains.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/molecule.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_polycyclic_descriptors.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -88,6 +89,21 @@ impl FunctionalGroupDescriptor {
     // Source: openclatura | src/openclatura/chalcogen_roles.py::FunctionalGroupDescriptor.ligands_with_role
     pub fn ligands_with_role(&self, role: LigandRole) -> Vec<&ChalcogenLigand> {
         self.ligands.iter().filter(|l| l.role == role).collect()
+    }
+    // Provenance: fn FunctionalGroupDescriptor::names_its_chalcogens | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs::FunctionalGroupDescriptor::names_its_chalcogens
+    /// A carboxylic acid group whose prefix must say where its chalcogens
+    /// are: a peroxy acid, or a mixed acid such as -CO-SH or -CS-OH. Ending
+    /// a carbon chain it is cited with simple prefixes, as hydroperoxy with
+    /// oxo or sulfanyl with oxo (P-65.1.4.2 (2), P-65.1.5.1, P-65.1.5.3).
+    /// -COOH stays carboxy and -CS-SH dithiocarboxy (P-65.2.1.6).
+    pub fn names_its_chalcogens(&self) -> bool {
+        self.family == "acyl"
+            && self.derivative == "acid"
+            && match self.ligands.as_slice() {
+                [double, single] => double.element != single.element,
+                ligands => ligands.len() == 3,
+            }
     }
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
