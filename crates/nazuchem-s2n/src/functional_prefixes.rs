@@ -675,6 +675,14 @@ pub fn collect_component_prefix_substituents(
         {
             continue;
         }
+        // P-66.5.1.1.4: cyano is the whole -CN group as a substituent, so a
+        // nitrile carbon that is itself the whole parent cannot be cited
+        // that way; cyanomethane would count the carbon twice.
+        if group.key == "nitrile" && path.len() == 1 && group.atoms_involved.contains(&path[0]) {
+            return Err(
+                "openclatura: a nitrile carbon that is the whole parent has no cyano prefix".into(),
+            );
+        }
         let name = prefix_from_group(&context, group)?;
         if name.is_empty() {
             continue;
