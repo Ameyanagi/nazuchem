@@ -153,7 +153,8 @@ fn match_fused_templates(mol: &Molecule, path: &[usize]) -> Option<RetainedMatch
     let mut matches = match_retained_graph_templates(mol, &ring, false);
     if matches.is_empty()
         && path.iter().all(|idx| {
-            mol.atoms[idx].charge == 0
+            (mol.atoms[idx].charge == 0
+                || super::super::retained_fused_templates::is_ium_nitrogen(mol, *idx))
                 && mol
                     .get_neighbors(*idx)
                     .iter()

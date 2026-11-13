@@ -6187,6 +6187,7 @@ sources = [
   { project = "openclatura", path = "tests/roundtrip/test_retained_fused_production.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/unit/test_fusion_component_h_citation.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/roundtrip/test_fused_parents.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/retained_fused_templates.rs", ref = "issue #96", license = "MIT OR Apache-2.0" },
 ]
 notes = "Openclatura retained graph registry/matcher and generated series adapted to typed Rust, with original topology-status and localized-pi safeguards."
 parts = [
@@ -6200,6 +6201,7 @@ parts = [
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/retained_fused_templates.py", license = "MIT", symbol = "retained_graph_template_topology_key" }], items = ["fn retained_graph_template_topology_key"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/retained_fused_templates.py", license = "MIT", symbol = "match_retained_graph_templates" }], items = ["fn match_retained_graph_templates"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/retained_fused_templates.py", license = "MIT", symbol = "match_retained_graph_templates" }], items = ["fn match_retained_graph_templates_with_options"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/retained_fused_templates.rs", ref = "issue #96", license = "MIT OR Apache-2.0", symbol = "is_ium_nitrogen" }], items = ["fn is_ium_nitrogen"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/retained_fused_templates.py", license = "MIT", symbol = "_is_saturated_site" }], items = ["fn is_saturated_site"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/retained_fused_templates.py", license = "MIT", symbol = "_is_retained_oxo_site" }], items = ["fn is_retained_oxo_site"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/retained_fused_templates.py", license = "MIT", symbol = "_relocatable_atom_by_locant" }], items = ["fn relocatable_atom_by_locant"] },
@@ -7518,7 +7520,7 @@ sources = [
   { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including the owner decision 2026-11-10 to retain bakeoff_corpus.tsv as a repository-only test fixture with PubChem (NCBI) attribution, excluded from all published packages. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
-sha256 = "76e86e853db4394597eacf777d56c6e1e3deb4090ecf84e28644d3dd3d1adb66"
+sha256 = "31c1c5f9fb4e65824cbf85f41c0917a731c2ef8ca3d3f2fac1f136c43426c202"
 
 [[file]]
 path = "crates/nazuchem-ir/docs/cxsmiles.md"
@@ -7911,7 +7913,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/wasm/src/index.d.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "b7a0f650819b5297fa4d36fd2c0d183cec8c74a2b451abb788a98b806fe8ecf7"
+sha256 = "d19cebac9b02ab6d568d59c3a2545ff69ec626825bda6d0454aa51e2ef1693ae"
 
 [[file]]
 path = "bindings/wasm/src/lib.rs"

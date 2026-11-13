@@ -1074,13 +1074,10 @@ mod tests {
     // Test provenance: upstream inputs/expected names with local assertions and extensions;
     // exact matches are conservatively adapted; independent ancestry is not established.
     fn charged_retained_fallback_requires_citable_donor_hydrogen() {
-        for smiles in ["C1=N[NH2+]c2ccccc21", "C1=Nc2ccccc2[NH2+]1"] {
-            assert!(
-                super::super::name_smiles(smiles, &Default::default()).is_err(),
-                "{smiles}"
-            );
-        }
+        assert!(super::super::name_smiles("C1=Nc2ccccc2[NH2+]1", &Default::default()).is_err());
         for (smiles, name) in [
+            // P-73.1.1.2: a hydron added to the N-H of 1H-indazole.
+            ("C1=N[NH2+]c2ccccc21", "1H-indazol-1-ium"),
             ("c1ccc2[nH+]cccc2c1", "quinolin-1-ium"),
             ("c1ccc2[n-]ncc2c1", "1H-indazol-1-ide"),
             ("C1=Cc2ccccc2[NH2+]1", "1H-indol-1-ium"),
