@@ -5,6 +5,9 @@
 // Copyright Daniel Lowe and OPSIN contributors; MIT (see LICENSE).
 // Copyright 2017 Daniel Lowe
 
+// Changes: A charged oxygen replaced by a peroxy chain passes its charge to the chain's terminal atom, so peroxolate keeps its anion (issue #138).
+// Changes: A multiplied peroxy infix counts only singly bonded oxygens, so ethanediperoxoic acid has two peroxy acid groups (issue #138).
+
 //! Functional replacement, ported from OPSIN 2.9.0 `FunctionalReplacement.java`.
 //! Source commit b91b610af5ab07560fedb20730d7aef46bb2bca0.
 //! Shared OpsinTools numeric locants: upstream main, 42e87ac6.
@@ -921,6 +924,14 @@ pub fn process_infix_functional_replacement_nomenclature(
             &state.fragment_manager.graph.fragment(frag).atoms,
         )?;
         let oxygen_available = single.len() + double.len();
+        // A peroxy infix replaces only a singly bonded oxygen, so the "di" of
+        // ethanediperoxoic acid (P-65.1.4.1) multiplies the suffix, while
+        // carbonodiperoxothioic acid has room for every infix.
+        let replaceable = if transformations[0].starts_with("-O-:") {
+            oxygen_available.min(single.len() + transformations.len() - 1)
+        } else {
+            oxygen_available
+        };
         disambiguate_multiplied_infix(
             state,
             arena,
@@ -928,7 +939,7 @@ pub fn process_infix_functional_replacement_nomenclature(
             suffix_fragments,
             suffix,
             &mut transformations,
-            oxygen_available,
+            replaceable,
         )?;
         transformations.sort_by_key(|s| s.split(',').count());
         for transformation in transformations {
@@ -1005,32 +1016,17 @@ pub fn process_infix_functional_replacement_nomenclature(
                 state.fragment_manager.graph.remove_out_atom(replacement, 0);
             }
             let new_atom = first_atom(&state.fragment_manager.graph, replacement)?;
-            if state
-                .fragment_manager
-                .graph
-                .fragment(replacement)
-                .atoms
-                .len()
-                == 1
-                && state
-                    .fragment_manager
-                    .graph
-                    .atom(new_atom)
-                    .element
-                    .is_chalcogen()
-            {
-                let charge = state.fragment_manager.graph.atom(atom).charge;
-                let protons = state
-                    .fragment_manager
-                    .graph
-                    .atom(atom)
-                    .protons_explicitly_added_or_removed;
-                state.fragment_manager.graph.atom_mut(new_atom).charge = charge;
-                state
-                    .fragment_manager
-                    .graph
-                    .atom_mut(new_atom)
-                    .protons_explicitly_added_or_removed = protons;
+            // The charge of the replaced oxygen goes to the chalcogen that
+            // takes its place; in a peroxy chain that is the terminal atom,
+            // as in methaneperoxolate, CH3-O-O(-) (P-72.2.2.2.2).
+            let graph = &mut state.fragment_manager.graph;
+            let chain = &graph.fragment(replacement).atoms;
+            if chain.iter().all(|&a| graph.atom(a).element.is_chalcogen()) {
+                let last = chain[chain.len() - 1];
+                let charge = graph.atom(atom).charge;
+                let protons = graph.atom(atom).protons_explicitly_added_or_removed;
+                graph.atom_mut(last).charge = charge;
+                graph.atom_mut(last).protons_explicitly_added_or_removed = protons;
             }
             remove_or_move_functional_atoms(state, atom, replacement)?;
             move_out_atoms(state, atom, replacement)?;

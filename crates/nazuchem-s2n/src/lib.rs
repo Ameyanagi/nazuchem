@@ -1143,6 +1143,62 @@ mod tests {
                     "c1(NC(C(NC2CCN(C3CCN(C)CC3)CC2)=O)=O)cccc(-n2cccn2)c1",
                 ][..],
             ),
+            // Issue #107. P-14.4 (j): geminal amine nitrogens whose substituents
+            // differ only by stereodescriptor; R, like Z, takes the lower,
+            // unprimed locant (P-14.3.5).
+            (
+                "N^3-[(2R)-butan-2-yl]-N'^3-[(2S)-butan-2-yl]hexane-3,3-diamine",
+                &[
+                    "CCC(N[C@H](C)CC)(N[C@@H](C)CC)CCC",
+                    "CCC(N[C@@H](C)CC)(N[C@H](C)CC)CCC",
+                    "CC[C@H](C)NC(CC)(CCC)N[C@H](C)CC",
+                ][..],
+            ),
+            (
+                "N^3-[(2Z)-but-2-en-1-yl]-N'^3-[(2E)-but-2-en-1-yl]hexane-3,3-diamine",
+                &[
+                    "CCC(NC/C=C\\C)(NC/C=C/C)CCC",
+                    "CCC(NC/C=C/C)(NC/C=C\\C)CCC",
+                    "C/C=C/CNC(CC)(CCC)NC/C=C\\C",
+                ][..],
+            ),
+            (
+                "N^1-[(2R)-butan-2-yl]-N'^1-[(2S)-butan-2-yl]cyclohexane-1,1-diamine",
+                &[
+                    "C[C@H](CC)NC1(N[C@@H](C)CC)CCCCC1",
+                    "C[C@@H](CC)NC1(N[C@H](C)CC)CCCCC1",
+                ][..],
+            ),
+            (
+                "N^1-[(2R)-butan-2-yl]-N'^1,N''^1-bis[(2S)-butan-2-yl]ethane-1,1,1-triamine",
+                &[
+                    "CC(N[C@H](C)CC)(N[C@@H](C)CC)N[C@@H](C)CC",
+                    "CC(N[C@@H](C)CC)(N[C@@H](C)CC)N[C@H](C)CC",
+                ][..],
+            ),
+            // A descriptor nested in the substituent name counts the same way.
+            (
+                "N^3-{2-[(2R)-butan-2-yl]phenyl}-N'^3-{2-[(2S)-butan-2-yl]phenyl}hexane-3,3-diamine",
+                &[
+                    "CCC(Nc1ccccc1[C@H](C)CC)(Nc1ccccc1[C@@H](C)CC)CCC",
+                    "CCC(Nc1ccccc1[C@@H](C)CC)(Nc1ccccc1[C@H](C)CC)CCC",
+                ][..],
+            ),
+            (
+                "N^3-{[(2R)-oxolan-2-yl]methyl}-N'^3-{[(2S)-oxolan-2-yl]methyl}hexane-3,3-diamine",
+                &[
+                    "CCC(NC[C@H]1CCCO1)(NC[C@@H]1CCCO1)CCC",
+                    "CCC(NC[C@@H]1CCCO1)(NC[C@H]1CCCO1)CCC",
+                ][..],
+            ),
+            // ethyl, cited before methyl, stays unprimed although it is S.
+            (
+                "N^3-[(2S)-butan-2-yl]-N'^3-[(2R)-butan-2-yl]-N^3-ethyl-N'^3-methylhexane-3,3-diamine",
+                &[
+                    "CCC(N([C@H](C)CC)C)(N([C@@H](C)CC)CC)CCC",
+                    "CCC(N([C@@H](C)CC)CC)(N([C@H](C)CC)C)CCC",
+                ][..],
+            ),
             // P-65.6.3.2.1: ester groups in alphanumerical order, as in ethyl
             // methyl butanedioate.
             (
@@ -1166,8 +1222,8 @@ mod tests {
                 &["[S-][n+]1ccc(-c2ccncc2)cc1", "c1cc(-c2cc[n+]([S-])cc2)ccn1"][..],
             ),
             // Controls: a substituent fixes the numbering, so the oxide keeps a
-            // primed locant; a stereo parent keeps its own numbering, since the
-            // other site would need inverted descriptors.
+            // primed locant; on the meso piperazine only a reflection relates
+            // the nitrogens, so each oxide keeps its own locant.
             (
                 "2-methyl-4,4'-bipyridine 1'-oxide",
                 &["Cc1cc(-c2cc[n+]([O-])cc2)ccn1"][..],
@@ -1186,12 +1242,131 @@ mod tests {
                 "(2R,5S)-1,2,4,5-tetramethylpiperazine 4-oxide",
                 &["CN1[C@H](C)C[N+](C)([O-])[C@@H](C)C1"][..],
             ),
+            // Issue #128. P-14.3.5: a rotation that keeps every R/S descriptor
+            // makes the nitrogens equivalent, so the oxide takes the lower locant.
+            (
+                "(2R,5R)-1,2,4,5-tetramethylpiperazine 1-oxide",
+                &[
+                    "C[C@@H]1C[N+](C)([O-])[C@H](C)CN1C",
+                    "CN1C[C@@H](C)[N+](C[C@H]1C)(C)[O-]",
+                ][..],
+            ),
+            // The three nitrogens are related only by a three-fold rotation.
+            (
+                "3,8,13-trimethyl-1,6,11-trioxa-3,8,13-triazacyclopentadecane 3-oxide",
+                &[
+                    "C[N+]1([O-])COCCN(C)COCCN(C)COCC1",
+                    "C1OCN(CCOC[N+](CCOCN(C)C1)(C)[O-])C",
+                ][..],
+            ),
+            (
+                "1,4,7-trimethyl-1,4,7-triazonane 1-oxide",
+                &["C[N+]1([O-])CCN(C)CCN(C)CC1"][..],
+            ),
             // P-66.4.1.1, P-66.4.1.2.1.1, P-66.1.6.1.1.5: amidines rank as amides,
             // in the order of their acids, so a carboximidamide is senior to
             // guanidine (the amidine of carbonic acid).
             (
                 "4-{2-[(diaminomethylidene)amino]ethyl}benzene-1-carboximidamide",
                 &["NC(N)=NCCc1ccc(C(N)=N)cc1", "NC(=N)c1ccc(CCN=C(N)N)cc1"][..],
+            ),
+            // Issue #128. P-41 classes 11 and 12, P-43 Table 4.4 (suffixes 16 to
+            // 19 and 31): amides in the order of their acids, carboxamides and
+            // their chalcogen analogues, carboximidamides, then sulfonamides,
+            // all before hydrazides.
+            (
+                "4-(hydrazinecarbonyl)benzene-1-carboximidamide",
+                &["NC(=N)c1ccc(cc1)C(=O)NN", "NNC(=O)c1ccc(C(N)=N)cc1"][..],
+            ),
+            (
+                "4-(2-acetylhydrazine-1-carbonyl)benzene-1-carboximidamide",
+                &["NC(=N)c1ccc(cc1)C(=O)NNC(C)=O"][..],
+            ),
+            (
+                "4-sulfamoylbenzene-1-carboximidamide",
+                &["NC(=N)c1ccc(cc1)S(N)(=O)=O"][..],
+            ),
+            (
+                "4-carbamimidoylbenzene-1-carbothioamide",
+                &["NC(=N)c1ccc(cc1)C(N)=S"][..],
+            ),
+            // Issue #141. P-66.3.2.2: a chain-end hydrazide is hydrazinyl with
+            // oxo, on the chain that keeps the carbonyl carbon.
+            (
+                "4-hydrazinyl-4-oxobutanimidamide",
+                &["NC(=N)CCC(=O)NN", "NNC(=O)CCC(N)=N"][..],
+            ),
+            (
+                "5-hydrazinyl-3-(2-hydrazinyl-2-oxoethyl)-5-oxopentanoic acid",
+                &["OC(=O)CC(CC(=O)NN)CC(=O)NN", "NNC(=O)CC(CC(=O)NN)CC(O)=O"][..],
+            ),
+            (
+                "4-hydrazinyl-3-methyl-4-oxobutanoic acid",
+                &["OC(=O)CC(C)C(=O)NN", "CC(CC(O)=O)C(=O)NN"][..],
+            ),
+            // Issue #148. P-66.1.1.4.1.1 (1): a chain-end amide is amino with
+            // oxo, on the chain that keeps the carbonyl carbon (P-45.2.1).
+            (
+                "4-amino-4-oxobutanoic acid",
+                &["OC(=O)CCC(N)=O", "NC(=O)CCC(O)=O"][..],
+            ),
+            (
+                "4-amino-3-methyl-4-oxobutanoic acid",
+                &["OC(=O)CC(C)C(N)=O", "CC(CC(O)=O)C(N)=O"][..],
+            ),
+            (
+                "5-amino-3-(2-amino-2-oxoethyl)-5-oxopentanoic acid",
+                &["OC(=O)CC(CC(N)=O)CC(N)=O", "NC(=O)CC(CC(N)=O)CC(O)=O"][..],
+            ),
+            // P-66.3.2.1: the acyl prefix of hydrazinecarbothioic acid.
+            (
+                "4-(hydrazinecarbothioyl)benzene-1-carboximidamide",
+                &["NC(=N)c1ccc(cc1)C(=S)NN"][..],
+            ),
+            // P-41 classes 7a and 7b, P-66.1.6.1.1.5 (N-carbamoylbenzenesulfonamide
+            // in P-66.1.6.1.1.3): amides of suffix acids are senior to urea.
+            (
+                "4-(carbamoylamino)benzene-1-sulfonamide",
+                &["NC(=O)Nc1ccc(cc1)S(N)(=O)=O"][..],
+            ),
+            (
+                "4-(carbamoylamino)benzene-1-carbothioamide",
+                &["NC(=O)Nc1ccc(cc1)C(N)=S"][..],
+            ),
+            (
+                "4-(carbamoylamino)benzene-1-carboximidamide",
+                &["NC(=O)Nc1ccc(cc1)C(N)=N"][..],
+            ),
+            (
+                "2-(carbamothioylamino)ethane-1-sulfonamide",
+                &["NC(=S)NCCS(N)(=O)=O"][..],
+            ),
+            // P-66.4.1.2.1.3 (N-carbamimidoylurea): urea is senior to guanidine.
+            (
+                "N-{2-[(diaminomethylidene)amino]ethyl}urea",
+                &["NC(N)=NCCNC(N)=O"][..],
+            ),
+            // P-41 class 15, P-43 Table 4.4 (suffix 47): an aldehyde is senior
+            // to its chalcogen analogues.
+            ("4-sulfanylidenebutanal", &["O=CCCC=S", "S=CCCC=O"][..]),
+            (
+                "3-(methanethioyl)pentanedial",
+                &["O=CCC(C=S)CC=O", "C(C=S)(CC=O)CC=O"][..],
+            ),
+            (
+                "4-sulfanylidene-2-(2-sulfanylideneethyl)butanal",
+                &["O=CC(CC=S)CC=S", "S=CCC(C=O)CC=S"][..],
+            ),
+            // P-66.5.4.1: nitrile oxides rank with zwitterions, ahead of nitriles.
+            (
+                "3-cyanopropanenitrile oxide",
+                &["N#CCCC#[N+][O-]", "[O-][N+]#CCCC#N"][..],
+            ),
+            // P-68.3.1.2.2 ranks no hydrazone over another; the functional
+            // class names take the aldehyde hydrazone whatever the atom order.
+            (
+                "4-(hydrazono)pentanal hydrazone",
+                &["NN=CCCC(C)=NN", "C(CC(=NN)C)C=NN"][..],
             ),
         ] {
             let identity = crate::test_support::canonical_smiles(inputs[0]).unwrap();
@@ -1412,9 +1587,16 @@ mod tests {
             ),
             ("CCOC(C)=O", "ethyl acetate", NameStatus::Preferred),
             ("CC(=O)OC(C)=O", "acetic anhydride", NameStatus::Preferred),
+            // P-65.7.6.1 example (issue #110).
             (
                 "CC(=O)OC(=O)CCC(=O)OC(C)=O",
-                "acetic 4-(acetyloxy)-4-oxobutanoic anhydride",
+                "diacetic butanedioic dianhydride",
+                NameStatus::Preferred,
+            ),
+            // P-65.7.6.4.2 example: two unlike linkages stay unverified.
+            (
+                "CC(=O)OC(=O)CCCC(=O)SC(C)=O",
+                "acetic 5-(acetylsulfanyl)-5-oxopentanoic anhydride",
                 NameStatus::Unverified(NameReason::UnauditedPath),
             ),
             (

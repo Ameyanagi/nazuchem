@@ -172,7 +172,7 @@ impl NameReason {
                 "Uses a concatenated sulfonyl or sulfinyl prefix such as N-methyltosylamino or (methylsulfinyl)amino; preferred IUPAC names use acid-derived forms such as N,4-dimethylbenzene-1-sulfonamido or methanesulfinamido (P-65.3.2.2.2, P-66.1.1.4.3)."
             }
             Self::AminoPrefix => {
-                "Uses an acylamino prefix instead of the preferred acid-derived amido form (P-66.1.1.4.3), or a guanidino prefix substituted on its outer nitrogens or with an E/Z descriptor, such as 3-methylguanidino; preferred IUPAC names cite carbamimidoyl inside an amino prefix, as in (N-methylcarbamimidoyl)amino (P-66.4.1.2.1.3)."
+                "Uses an acylamino prefix instead of the preferred acid-derived amido form (P-66.1.1.4.3), an acylated hydrazinyl or hydrazinecarbonyl prefix such as 2-acetylhydrazin-1-yl where the acid-derived hydrazido form acetohydrazido may be preferred (P-66.3.2.3), or a guanidino prefix substituted on its outer nitrogens or with an E/Z descriptor, such as 3-methylguanidino; preferred IUPAC names cite carbamimidoyl inside an amino prefix, as in (N-methylcarbamimidoyl)amino (P-66.4.1.2.1.3)."
             }
             Self::CationPrefix => {
                 "Uses the accepted ammonio/iminio alternative for a substituted cationic nitrogen prefix because the preferred N,N-dimethylmethanaminiumyl-type form is not generated yet (P-73.6 and the 2020 corrections to P-74.1.3)."

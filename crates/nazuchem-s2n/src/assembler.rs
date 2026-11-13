@@ -136,6 +136,33 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
                 mol.mark_name(NameStatus::NotPreferred(NameReason::UnretainedParent));
             }
         }
+        // Oxamic acid, H2N-CO-COOH, is retained and may be substituted;
+        // amino(oxo)acetic acid is its systematic name (P-65.1.1.1,
+        // P-65.1.6.1). Only the N-phenyl derivatives are shown with a
+        // systematic preferred name: anilino(oxo)acetic acid (P-65.1.6.2).
+        if !parts.is_ring
+            && parts.parent_length == 2
+            && matches!(
+                group.key.as_str(),
+                "carboxylic_acid" | "ester" | "carboxylate"
+            )
+            && group.locants.len() == 1
+            && parts.parent_atom_ids_by_locant.get("2").is_some_and(|&c| {
+                let around = mol.get_neighbors(c);
+                around
+                    .iter()
+                    .any(|&x| mol.atoms[&x].symbol == "O" && mol.bond_order(c, x) == 2)
+                    && around.iter().any(|&x| {
+                        mol.atoms[&x].symbol == "N"
+                            && !mol
+                                .get_neighbors(x)
+                                .iter()
+                                .any(|a| mol.atoms[a].is_aromatic)
+                    })
+            })
+        {
+            mol.mark_name(NameStatus::NotPreferred(NameReason::UnretainedParent));
+        }
     }
     // Formic acids, formyl halides and formamides substituted on carbon are
     // carbamic or carbonic acid derivatives (P-65.1.8.1).
@@ -672,19 +699,11 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
         .into_iter()
         .map(|(m, c)| {
             if let Some((site, organyl)) = letter_locant(m).filter(|_| c > 1) {
-                // P-65.6.3.3.7.1: `S,S-dimethyl ethanebis(thioate)`. A
-                // compound organyl group takes bis (P-16.3.5 (a)).
-                let organyl = if !super::formatting::is_complex_prefix(organyl)
-                    && super::formatting::is_compound_prefix(organyl)
-                {
-                    format!("({organyl})")
-                } else {
-                    organyl.into()
-                };
+                // P-65.6.3.3.7.1: `S,S-dimethyl ethanebis(thioate)`.
                 format!(
                     "{}-{}",
                     vec![site; c].join(","),
-                    format_multiplier(&organyl, c, false)
+                    format_multiplier(organyl, c, false)
                 )
             } else if c > 1 {
                 format_multiplier(m, c, true)
