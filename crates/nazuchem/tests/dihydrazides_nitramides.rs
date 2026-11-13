@@ -64,6 +64,22 @@ fn dihydrazides_cite_the_parent_locant_on_n_and_n_prime() {
             "CNNC(=O)C1CCC(C(=O)N(C)N)CC1",
             "N^1,N'^4-dimethylcyclohexane-1,4-dicarbohydrazide",
         ),
+        // P-14.3.5: letter locants are lower than numerals, so N^1 decides
+        // before the locant of the methyl group on the parent.
+        (
+            "CN(N)C(=O)CC(C)C(=O)NNC",
+            "N^1,N'^4,3-trimethylbutanedihydrazide",
+        ),
+        (
+            "CN(N)C(=O)c1ccc(C(=O)NNC)c2ccc(C)cc12",
+            "N^1,N'^4,7-trimethylnaphthalene-1,4-dicarbohydrazide",
+        ),
+        // The same order for the N locants of polyamines (P-62.2.4.1.2).
+        ("CNCCC(C)CN", "N^1,3-dimethylbutane-1,4-diamine"),
+        (
+            "CNc1ccc(N)c2ccc(C)cc12",
+            "N^1,7-dimethylnaphthalene-1,4-diamine",
+        ),
         // P-14.5: the prefix cited first takes the lower locant.
         (
             "CCNNC(=O)CCC(=O)NNC",
@@ -187,6 +203,10 @@ fn a_charged_hydrazone_nitrogen_is_not_named_as_the_neutral_hydrazone() {
             "N-[(propan-2-ylidene)amino]propan-2-iminium",
         ),
         ("C[N+](C)(C)N", "N-amino-N,N-dimethylmethanaminium"),
+        (
+            "CC(C)=[N+](C)NO",
+            "N-(hydroxyamino)-N-methylpropan-2-iminium",
+        ),
     ] {
         check(
             smiles,
@@ -204,6 +224,12 @@ fn a_charged_hydrazone_nitrogen_is_not_named_as_the_neutral_hydrazone() {
         "NC(N)=NN=C(C)C",
         "propan-2-one diaminomethylidenehydrazone",
         NameStatus::NotPreferred(NameReason::FunctionalClass),
+    );
+    // A nitroso group is an acyl group, not a hydrazine nitrogen.
+    check(
+        "C[N+](C)(C)N=O",
+        "N,N-dimethyl-N-nitrosomethanaminium",
+        NameStatus::Preferred,
     );
     // An aminium on a ring nitrogen keeps the largest neutral parent.
     check(

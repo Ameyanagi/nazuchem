@@ -238,7 +238,7 @@ impl NumberingPreference {
     }
     // Provenance: fn NumberingPreference::compare | adapted
     // Source: openclatura | src/openclatura/numbering.py::number_parent.compare_evaluations
-    fn compare(&self, other: &Self, is_ring: bool) -> Ordering {
+    fn compare(&self, other: &Self, is_ring: bool, nitrogen_locants: Ordering) -> Ordering {
         let criteria = if is_ring {
             &RING_CRITERIA
         } else {
@@ -247,6 +247,16 @@ impl NumberingPreference {
         criteria
             .iter()
             .map(|&criterion| {
+                // P-14.3.5: letter locants are lower than numerals, so N
+                // locants are the first point of difference in the set of
+                // detachable prefix locants (P-14.4 (f)), as in
+                // N^1,N'^4,6-trimethylnaphthalene-1,4-dicarbohydrazide
+                // (P-66.3.3.2).
+                if matches!(criterion, NumberingCriterion::SubstituentAndUnsaturation)
+                    && nitrogen_locants.is_ne()
+                {
+                    return nitrogen_locants;
+                }
                 let (a, b) = (self.criterion(criterion), other.criterion(criterion));
                 // Python intentionally prefers a nonempty structural criterion to
                 // an empty one, then uses ordinary tuple lexicographic ordering.
@@ -330,13 +340,16 @@ fn number_parent(
                             .cmp(&best.iter().position(|&atom| atom == junction))
                     })
             });
+        let (preference, best_preference) = (
+            modifiers.path_preference(candidate),
+            modifiers.path_preference(&best),
+        );
+        let nitrogen_locants = preference
+            .nitrogen_locants
+            .cmp(&best_preference.nitrogen_locants);
         if spiro_preference
-            .then_with(|| evaluation.compare(&best_score, is_ring))
-            .then_with(|| {
-                modifiers
-                    .path_preference(candidate)
-                    .cmp(&modifiers.path_preference(&best))
-            })
+            .then_with(|| evaluation.compare(&best_score, is_ring, nitrogen_locants))
+            .then_with(|| preference.cmp(&best_preference))
             == Ordering::Less
         {
             best = candidate.clone();
@@ -375,7 +388,7 @@ pub fn choose_parent_numbering(
             Vec<LocantKey>,
             Vec<LocantKey>,
             (Vec<LocantKey>, Vec<usize>),
-            Vec<LocantKey>,
+            (Vec<(usize, usize)>, Vec<LocantKey>),
             Vec<(String, LocantKey)>,
             Vec<(LocantKey, usize)>,
             Vec<usize>,
@@ -515,7 +528,8 @@ pub fn choose_parent_numbering(
                 skeletal_ions,
                 principal,
                 (hydro, unsaturation),
-                subst,
+                // P-14.3.5: N locants are lower than numerical locants.
+                (modifiers.preference(map).nitrogen_locants, subst),
                 citation,
                 stereo,
                 stereochemistry_preference(mol, &path, false),
@@ -696,7 +710,7 @@ pub(super) fn chain_orientations_before_stereo(
         preference.stereochemistry.clear();
         preference
     };
-    match evaluate(path).compare(&evaluate(&reversed), false) {
+    match evaluate(path).compare(&evaluate(&reversed), false, Ordering::Equal) {
         Ordering::Less => vec![path.to_vec()],
         Ordering::Greater => vec![reversed],
         Ordering::Equal => vec![path.to_vec(), reversed],

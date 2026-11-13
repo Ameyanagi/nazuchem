@@ -194,10 +194,10 @@ pub(super) fn assess_cation_parent(mol: &Molecule, derivation: &Derivation) {
                         mol.atoms[x].symbol == "N"
                             && mol.atoms[x].charge == 0
                             && !parent_atoms.contains(x)
-                            && mol
-                                .get_neighbors(*x)
-                                .iter()
-                                .all(|o| mol.atoms[o].symbol != "O")
+                            // A nitroso or nitro nitrogen is an acyl group.
+                            && mol.get_neighbors(*x).iter().all(|o| {
+                                mol.atoms[o].symbol != "O" || mol.bond_order(*x, *o) != 2
+                            })
                     })
             })
     }) {
