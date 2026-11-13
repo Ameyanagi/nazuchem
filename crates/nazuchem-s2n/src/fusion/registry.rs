@@ -1998,7 +1998,7 @@ mod tests {
                 .iter()
                 .filter(|c| c.spec.parent_hydride_only)
                 .count(),
-            15
+            31
         );
         // P-25.2.2.2 and P-25.2.2.3 PINs; P-25.3.2.2.2 turns the final 'e'
         // into 'o' for the fusion prefix.
@@ -2034,6 +2034,70 @@ mod tests {
             ("thianthrene", "thianthrene", "thianthreno"),
             ("selenanthrene", "selenanthrene", "selenanthreno"),
             ("telluranthrene", "telluranthrene", "telluranthreno"),
+            (
+                "phenothiaselenine",
+                "phenothiaselenine",
+                "phenothiaselenino",
+            ),
+            (
+                "phenothiatellurine",
+                "phenothiatellurine",
+                "phenothiatellurino",
+            ),
+            (
+                "phenoselenatellurine",
+                "phenoselenatellurine",
+                "phenoselenatellurino",
+            ),
+            (
+                "10H-phenothiaphosphinine",
+                "phenothiaphosphinine",
+                "phenothiaphosphinino",
+            ),
+            (
+                "10H-phenothiastibinine",
+                "phenothiastibinine",
+                "phenothiastibinino",
+            ),
+            (
+                "10H-phenoselenaphosphinine",
+                "phenoselenaphosphinine",
+                "phenoselenaphosphinino",
+            ),
+            (
+                "10H-phenoselenarsinine",
+                "phenoselenarsinine",
+                "phenoselenarsinino",
+            ),
+            (
+                "10H-phenoselenastibinine",
+                "phenoselenastibinine",
+                "phenoselenastibinino",
+            ),
+            (
+                "10H-phenotelluraphosphinine",
+                "phenotelluraphosphinine",
+                "phenotelluraphosphinino",
+            ),
+            (
+                "10H-phenotellurarsinine",
+                "phenotellurarsinine",
+                "phenotellurarsinino",
+            ),
+            (
+                "10H-phenotellurastibinine",
+                "phenotellurastibinine",
+                "phenotellurastibinino",
+            ),
+            ("phosphanthrene", "phosphanthrene", "phosphanthreno"),
+            ("arsanthrene", "arsanthrene", "arsanthreno"),
+            ("silanthrene", "silanthrene", "silanthreno"),
+            (
+                "phenazaphosphinine",
+                "phenazaphosphinine",
+                "phenazaphosphinino",
+            ),
+            ("phenazarsinine", "phenazarsinine", "phenazarsinino"),
         ] {
             let spec = r.get(name).unwrap().spec;
             assert!(spec.pin_component && spec.usable_as_parent && spec.usable_as_attached);
@@ -2059,6 +2123,15 @@ mod tests {
         assert!(key("oxanthrene") < key("thianthrene"));
         assert!(key("thianthrene") < key("selenanthrene"));
         assert!(key("selenanthrene") < key("telluranthrene"));
+        assert!(key("phenoxatellurine") < key("phenothiaselenine"));
+        assert!(key("phenothiaselenine") < key("thianthrene"));
+        assert!(key("phenothiatellurine") < key("phenoselenatellurine"));
+        assert!(key("phenothiaselenine") < key("10H-phenothiarsinine"));
+        assert!(key("phenazaphosphinine") < key("phenazine"));
+        assert!(key("phenazaphosphinine") < key("phenazarsinine"));
+        assert!(key("telluranthrene") < key("phosphanthrene"));
+        assert!(key("phosphanthrene") < key("arsanthrene"));
+        assert!(key("arsanthrene") < key("silanthrene"));
     }
     #[test]
     fn parent_hydride_components_are_unregistered_for_fused_ring_derivatives() {

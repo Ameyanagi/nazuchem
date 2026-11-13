@@ -28,7 +28,10 @@ and peroxide class names, the bracketed letter-locanted acid suffix in
 acid-anion prefixes of chalcogen-replaced sulfinic and sulfonic acids, such as
 `sulfinothioato` (P-72.6.1, P-65.3.1.3), and of the selenium and tellurium
 acids, `selenonato`, `seleninato`, `telluronato` and `tellurinato`
-(P-65.6.2.3.1). A native `wordRules.xml` rule reads a
+(P-65.6.2.3.1). Native `arylGroups.xml` and `fusionComponents.xml` tokens read
+the pheno...ine ring systems that P-25.2.2.3 forms from Hantzsch-Widman names,
+such as `phenothiaselenine` and `10H-phenoselenarsinine`, and the PIN spellings
+`phenazaphosphinine` and `phenazarsinine`. A native `wordRules.xml` rule reads a
 dianhydride of three acid words (P-65.7.6.1). A native `simpleGroups.xml` token reads
 `cyanohydrazide` with the locants N and N′ (P-66.3.1.2.1, P-66.3.3.1). These additions only add dictionary tokens or a word rule to
 existing token lists, so the DFA tables are unchanged. `native_extensions` in
@@ -210,13 +213,16 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`e4ce81fb1ebbd95a8991ede87810e603ee8af481d9ef17210746ff9ff974d66b`.
+`fb6924312ebd3ba141e08f304c91e3a8baf87d69393de4a81ac65100775d0828`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph
-snapshots and constructs all 3,195 literal groups: the 3,183 pinned ones and
-the 12 native `simpleSubstituents.xml` acid-anion prefixes, which postdate the
-oracle and are checked natively as acyclic, kekulization-stable fragments. `phanes.txt` contributes
+snapshots and constructs all 3,221 literal groups: the 3,183 pinned ones and
+the 16 native `simpleSubstituents.xml` acid-anion prefixes, which postdate the
+oracle and are checked natively as acyclic, kekulization-stable fragments. The
+11 native pheno...ine ring triples (the other 22 literal groups, in `arylGroups.xml` and
+`fusionComponents.xml`) also postdate the oracle; each must build and kekulize
+exactly like its pinned sibling. `phanes.txt` contributes
 174 integration names (348 strict/radical structure records); the 21 phane
 rows in `uninterpretable.txt` are also checked natively. No goldens are edited
 by hand. Regeneration uses the checked exporter sources and the pinned jar.

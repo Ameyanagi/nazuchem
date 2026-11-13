@@ -59,9 +59,10 @@ fn build_every_literal_group_resource() {
         }
     }
     // 3,183 pinned OPSIN groups plus 16 native acid-anion prefixes (issue #83,
-    // P-72.6.1; issue #145, P-65.6.2.3.1) and cyanohydrazide (issue #113,
-    // P-66.3.1.2.1).
-    assert_eq!(examples, 3_200, "Frozen literal resource coverage changed");
+    // P-72.6.1; issue #145, P-65.6.2.3.1), cyanohydrazide (issue #113,
+    // P-66.3.1.2.1) and 22 native pheno...ine ring and fusion-prefix groups
+    // (issue #15, P-25.2.2.3).
+    assert_eq!(examples, 3_222, "Frozen literal resource coverage changed");
     assert!(
         failures.is_empty(),
         "{} failures out of {examples} frozen resource groups:\n{}",

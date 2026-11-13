@@ -87,8 +87,8 @@
 		<token value="c1cccc2sc3ccccc3[nH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiazino</token>
 		<token value="c1cccc2[se]c3ccccc3[nH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenazino</token>
 		<token value="c1cccc2[te]c3ccccc3[nH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenotellurazino</token>
-		<token value="c1cccc2nc3ccccc3pc12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenophosphazinino|phenophosphazino</token>
-		<token value="c1cccc2nc3ccccc3[as]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenarsazinino</token>
+		<token value="c1cccc2nc3ccccc3pc12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenazaphosphinino|phenophosphazinino|phenophosphazino</token>
+		<token value="c1cccc2nc3ccccc3[as]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenazarsinino|phenarsazinino</token>
 		<token value="c1cccc2nc3ccccc3[siH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenazasilino</token>
 		<token value="c1cccc2nc3ccccc3[as]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoarsazino</token>
 		<token value="c1cccc2[nH]c3ccccc3[Hg]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenomercurazino|phenomercazino</token>
@@ -100,6 +100,17 @@
 		<token value="c1cccc2oc3ccccc3[asH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoxarsinino|phenoxarsino</token>
 		<token value="c1cccc2oc3ccccc3[sbH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoxastibinino|phenoxantimonino</token>
 		<token value="c1cccc2sc3ccccc3[asH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiarsinino|phenothiarsino</token>
+		<token value="c1cccc2[te]c3ccccc3[sbH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenotellurastibinino</token>
+		<token value="c1cccc2[te]c3ccccc3[asH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenotellurarsinino</token>
+		<token value="c1cccc2[te]c3ccccc3[pH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenotelluraphosphinino</token>
+		<token value="c1cccc2[se]c3ccccc3[sbH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenastibinino</token>
+		<token value="c1cccc2[se]c3ccccc3[asH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenarsinino</token>
+		<token value="c1cccc2[se]c3ccccc3[pH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenaphosphinino</token>
+		<token value="c1cccc2sc3ccccc3[sbH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiastibinino</token>
+		<token value="c1cccc2sc3ccccc3[pH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiaphosphinino</token>
+		<token value="c1cccc2[se]c3ccccc3[te]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenatellurino</token>
+		<token value="c1cccc2sc3ccccc3[te]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiatellurino</token>
+		<token value="c1cccc2sc3ccccc3[se]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiaselenino</token>
 		<token value="c1cccc2[Hg]c3ccccc3[Hg]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenomercurino</token>
 		<token value="c1cccc2pc3ccccc3pc12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phosphanthreno</token>
 		<token value="c1cccc2pcc3ccccc3c12" labels="1/2/3/4/4a/5/6/6a/7/8/9/10/10a/10b">phosphanthridino</token>

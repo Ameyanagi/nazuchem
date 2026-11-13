@@ -148,6 +148,32 @@ fn mark_fusion_plan_status(mol: &Molecule, plan: &super::fusion::model::FusionPa
             NameReason::UnregisteredRetainedComponent,
         ));
     }
+    // P-25.2.2.2, P-25.2.2.3: two benzene rings fused to a 1,4-diheterabenzene
+    // are a boranthrene (the other heteranthrenes have templates) or, with
+    // different heteroatoms, a pheno...ine. A fusion name for that whole ring
+    // system means the pair has no template, so the name is not the PIN.
+    let faces = &plan.numbering.selected_face_model.faces;
+    let hetero = |face: &super::fusion::model::Face| -> Vec<usize> {
+        let ring = face.atom_cycle.iter().copied();
+        ring.filter(|a| mol.atoms[a].symbol != "C").collect()
+    };
+    if let Some(middle) = faces.iter().find(|face| hetero(face).len() == 2)
+        && faces.len() == 3
+        && faces.iter().all(|face| face.size == 6)
+        && faces.iter().filter(|face| hetero(face).is_empty()).count() == 2
+        && middle.atom_cycle.iter().all(|a| {
+            mol.atoms[a].symbol != "C"
+                || faces.iter().filter(|f| f.atom_cycle.contains(a)).count() == 2
+        })
+    {
+        let pair = hetero(middle);
+        let (first, second) = (&mol.atoms[&pair[0]].symbol, &mol.atoms[&pair[1]].symbol);
+        if mol.get_bond(pair[0], pair[1]).is_none() && (first != second || first == "B") {
+            mol.mark_name(NameStatus::NotPreferred(
+                NameReason::UnregisteredRetainedComponent,
+            ));
+        }
+    }
     // PIN fusion names use [1,2]oxazole and [1,2]thiazole (P-25.3.2.1.2).
     if ["isoxazole", "isothiazole"]
         .iter()
