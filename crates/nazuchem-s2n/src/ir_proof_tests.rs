@@ -483,7 +483,7 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
             counts.rejection_messages_identical,
             counts.rejection_messages_differing
         ),
-        (28, 0)
+        (22, 0)
     );
     assert_eq!(
         (
@@ -1129,12 +1129,12 @@ fn every_n2s_golden_structure_retains_complete_name_results() {
     assert_eq!(records, 1650);
     // One generated name cites impossible hydro/indicated hydrogen (P-14.7.1, P-31.2.2; #34).
     // Two are lambda radicals (P-71.2.1.2; #27), which strict parsing refuses.
-    assert_n2s_coverage(&counts, (1660, 1654, 0, 6));
+    assert_n2s_coverage(&counts, (1666, 1660, 0, 6));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (1653, 1)
+        (1659, 1)
     );
     counts
         .names
-        .assert_routes(&[("monatomic cation", 1), ("salt", 11)], 1642);
+        .assert_routes(&[("monatomic cation", 1), ("salt", 11)], 1648);
 }
