@@ -3680,6 +3680,27 @@ mod tests {
             ("N1CCCC2C1NCC2", "octahydro-1H-pyrrolo[2,3-b]pyridine"),
             ("N1CCC2C1CNC2", "octahydropyrrolo[3,4-b]pyrrole"),
             ("N1CCCC2C1CNCC2", "decahydro-1,7-naphthyridine"),
+            // Issue #108. P-14.7.1, P-58.2.1.2: a fusion N takes no double
+            // bond, so it can split the mancude parent into parts that each
+            // need indicated hydrogen, also in an even-membered system
+            // ('1H,5H-pyrido[3,2,1-ij]quinoline' in P-58.2.3.1.3).
+            ("C1CN2CCCN2C1", "tetrahydro-1H,5H-pyrazolo[1,2-a]pyrazole"),
+            (
+                "C1CC2CCCC3CCCN(C1)C23",
+                "decahydro-1H,5H-pyrido[3,2,1-ij]quinoline",
+            ),
+            (
+                "C1CC2=C3C(=CC=C2)CCCN3C1",
+                "2,3,6,7-tetrahydro-1H,5H-pyrido[3,2,1-ij]quinoline",
+            ),
+            // The fusion N leaves a nine-atom chain; position 1 pairs up, so
+            // the lowest indicated hydrogen is 2H (P-58.2.1.2).
+            ("C1CCN2CCNCC2C1", "octahydro-2H-pyrido[1,2-a]pyrazine"),
+            ("C1CN2CCNCC2CN1", "octahydro-2H-pyrazino[1,2-a]pyrazine"),
+            // Controls with a fusion N that were already correct.
+            ("C1CCN2CCCN2C1", "hexahydro-1H-pyrazolo[1,2-a]pyridazine"),
+            ("C1CCN2CCCCN2C1", "octahydropyridazino[1,2-a]pyridazine"),
+            ("C1CCN2CCCCC2C1", "octahydro-2H-quinolizine"),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");

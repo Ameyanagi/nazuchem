@@ -39,7 +39,7 @@ use super::{
         cited_saturated_nitrogen_hydrogen_sites, has_complete_saturated_hydrogenation,
         indicated_hydrogen_parent_bond_model, parent_degree, parent_derivative_state,
         protonated_hydrogenation_is_complete, saturated_nitrogen_hydrogen_sites,
-        spiro_carbon_sites,
+        single_site_parent_model, spiro_carbon_sites,
     },
     model::*,
     numbering::{
@@ -756,7 +756,7 @@ fn complete_fusion_plan(
     indicated_h.extend(intrinsic_carbon_h.iter().map(|a| input_locants[a].clone()));
     indicated_h.sort_by_key(|l| locant_key(l));
     indicated_h.dedup();
-    let indicated_atoms: AtomSet = input_locants
+    let mut indicated_atoms: AtomSet = input_locants
         .iter()
         .filter(|(_, l)| indicated_h.contains(l))
         .map(|(&a, _)| a)
@@ -807,6 +807,76 @@ fn complete_fusion_plan(
     {
         derivative_state = complete_state;
         indicated_h.clear();
+    }
+    // P-14.7.1, P-58.2.1.2: a neutral ring atom whose ring bonds use up its
+    // standard valence (a fusion N) takes no double bond, so such atoms can
+    // split the mancude parent into parts that each leave one position
+    // unpaired ('tetrahydro-1H,5H-pyrazolo[1,2-a]pyrazole'). A saturated
+    // system cites exactly the indicated hydrogen that parent needs, at the
+    // lowest nonfusion locants; hydro prefixes pair up the rest (P-31.2.2).
+    let fixed: AtomSet = atoms
+        .iter()
+        .copied()
+        .filter(|&a| {
+            mol.atoms[&a].charge == 0
+                && mol.atoms[&a]
+                    .element()
+                    .is_some_and(|e| e.standard_valence <= parent_degree(mol, atoms, a))
+        })
+        .collect();
+    if atoms
+        .iter()
+        .all(|&a| mol.atoms[&a].charge == 0 && !mol.atoms[&a].is_aromatic && all_single(mol, a))
+        && spiro_carbon_sites(mol, atoms).is_empty()
+    {
+        let mancude = single_site_parent_model(initial_model, &fixed)?;
+        if atoms.len() - fixed.len() - 2 * mancude.maximum_non_cumulative_double_bonds
+            != indicated_h.len()
+        {
+            let key = |a: &usize| locant_key(&input_locants[a]);
+            let Some(sites) = mancude
+                .allowed_kekule_assignments
+                .iter()
+                .map(|assignment| {
+                    let paired = assignment.paired_atoms();
+                    let mut sites: Vec<_> = atoms
+                        .iter()
+                        .copied()
+                        .filter(|a| !fixed.contains(a) && !paired.contains(a))
+                        .collect();
+                    sites.sort_by_key(key);
+                    sites
+                })
+                .min_by_key(|sites| {
+                    (
+                        sites
+                            .iter()
+                            .filter(|&&a| parent_degree(mol, atoms, a) > 2)
+                            .count(),
+                        sites.iter().map(key).collect::<Vec<_>>(),
+                    )
+                })
+            else {
+                return Ok(None);
+            };
+            indicated_h = sites.iter().map(|a| input_locants[a].clone()).collect();
+            indicated_atoms = sites.into_iter().collect();
+            bond_model = single_site_parent_model(&mancude, &indicated_atoms)?;
+            let Some(state) = parent_derivative_state(
+                mol,
+                atoms,
+                &bond_model,
+                &input_locants,
+                &ParentDerivativeOptions {
+                    indicated_hydrogen_atom_ids: Some(&indicated_atoms),
+                    ..Default::default()
+                },
+            )?
+            else {
+                return Ok(None);
+            };
+            derivative_state = state;
+        }
     }
     // Upstream divergence: removing a reduced edge incident to indicated N-H
     // can lose the carbon endpoint's hydrogen. Require the cited H/hydro sites
@@ -996,7 +1066,8 @@ fn complete_fusion_plan(
             let mut candidate = cited.clone();
             candidate.remove(&old);
             candidate.insert(*site);
-            if indicated_hydrogen_parent_bond_model(graph, &candidate).is_ok_and(|model| {
+            let single = candidate.union(&fixed).copied().collect();
+            if indicated_hydrogen_parent_bond_model(graph, &single).is_ok_and(|model| {
                 model.maximum_non_cumulative_double_bonds
                     == plan.bond_model.maximum_non_cumulative_double_bonds
             }) {
@@ -1409,9 +1480,11 @@ mod tests {
                 "C[N+]1(C)CCc2sccc2C1",
                 "5,5-dimethyl-4,5,6,7-tetrahydrothieno[3,2-c]pyridin-5-ium",
             ),
+            // #108, P-58.2.1.2: the fusion N takes no double bond, so the
+            // lowest indicated hydrogen of pyrido[1,2-a]pyrazine is 2H.
             (
                 "C[N+]1(C)CCN2CCCCC2C1",
-                "2,2-dimethyloctahydro-1H-pyrido[1,2-a]pyrazin-2-ium",
+                "2,2-dimethyloctahydro-2H-pyrido[1,2-a]pyrazin-2-ium",
             ),
         ] {
             let name = crate::name_smiles(smiles, &Default::default()).unwrap();

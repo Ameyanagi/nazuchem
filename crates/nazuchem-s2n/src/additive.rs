@@ -70,12 +70,29 @@ pub fn parent_indicated_hydrogen_quota(parts: &AssemblyParts) -> Option<usize> {
         parts.fusion_plan.as_ref()
     };
     if let Some(plan) = plan {
+        // P-14.7.1: a neutral ring atom whose ring bonds use up its standard
+        // valence (a fusion N) takes no double bond in the mancude parent.
+        let graph = &plan.abstract_parent_graph;
+        let fixed: AtomSet = graph
+            .atoms
+            .iter()
+            .filter(|atom| {
+                let degree = (graph.bonds.iter())
+                    .filter(|bond| bond.atoms.0 == atom.id || bond.atoms.1 == atom.id)
+                    .count();
+                atom.formal_charge == 0
+                    && super::rules::elements::get(&atom.symbol)
+                        .is_some_and(|element| element.standard_valence <= degree)
+            })
+            .map(|atom| atom.id)
+            .collect();
         let model =
-            super::fusion::numbering::parent_bond_model(&plan.abstract_parent_graph).ok()?;
+            super::fusion::mancude::indicated_hydrogen_parent_bond_model(graph, &fixed).ok()?;
         return Some(
-            super::fusion::numbering::parent_pi_capable_atom_ids(&plan.abstract_parent_graph)
+            super::fusion::numbering::parent_pi_capable_atom_ids(graph)
                 .ok()?
-                .len()
+                .difference(&fixed)
+                .count()
                 .saturating_sub(2 * model.maximum_non_cumulative_double_bonds),
         );
     }
