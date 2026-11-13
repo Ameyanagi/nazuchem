@@ -1191,9 +1191,10 @@ mod tests {
                     "CCC(NC[C@@H]1CCCO1)(NC[C@H]1CCCO1)CCC",
                 ][..],
             ),
-            // ethyl, cited before methyl, stays unprimed although it is S.
+            // ethyl, cited before methyl, stays unprimed although it is S; the R
+            // prefix is still cited first (P-45.6.3).
             (
-                "N^3-[(2S)-butan-2-yl]-N'^3-[(2R)-butan-2-yl]-N^3-ethyl-N'^3-methylhexane-3,3-diamine",
+                "N'^3-[(2R)-butan-2-yl]-N^3-[(2S)-butan-2-yl]-N^3-ethyl-N'^3-methylhexane-3,3-diamine",
                 &[
                     "CCC(N([C@H](C)CC)C)(N([C@@H](C)CC)CC)CCC",
                     "CCC(N([C@@H](C)CC)CC)(N([C@H](C)CC)C)CCC",
