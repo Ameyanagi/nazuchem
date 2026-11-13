@@ -1366,7 +1366,7 @@ mod tests {
             // P-68.3.1.2.2 ranks no hydrazone over another; the functional
             // class names take the aldehyde hydrazone whatever the atom order.
             (
-                "4-(hydrazono)pentanal hydrazone",
+                "4-hydrazinylidenepentanal hydrazone",
                 &["NN=CCCC(C)=NN", "C(CC(=NN)C)C=NN"][..],
             ),
             // P-44.4.1.12.2: of two butan-2-ol parents the like pair (2R,3R)
@@ -2220,9 +2220,10 @@ mod tests {
                 "OCCOCCOCCOCCOCCO",
                 "2-(2-{2-[2-(2-hydroxyethoxy)ethoxy]ethoxy}ethoxy)ethan-1-ol",
             ),
+            // P-68.3.1.2.1: hydrazinyl numbers its substituents 1 and 2.
             (
                 "CN(CC(=O)O)Nc1cnc(CO)cn1",
-                "({[5-(hydroxymethyl)pyrazin-2-yl]amino}(methyl)amino)acetic acid",
+                "{2-[5-(hydroxymethyl)pyrazin-2-yl]-1-methylhydrazin-1-yl}acetic acid",
             ),
             (
                 "C[S@@](=O)CSCNN",

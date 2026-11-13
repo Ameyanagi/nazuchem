@@ -656,7 +656,18 @@ fn hydrazide_ns(m: &Molecule, c: usize, n: usize, cyclic: &AtomSet) -> Option<Ve
     if cyclic.contains(&t)
         || m.atoms[&t].charge != 0
         || m.get_neighbors(t).iter().any(|&x| {
-            x != n && (!matches!(m.atoms[&x].symbol.as_str(), "C" | "H") || m.bond_order(t, x) != 1)
+            // P-66.3.3.1: an ylidene on N' is a substituent of the hydrazide,
+            // as in N'-[(phenyldiazenyl)methylidene]acetohydrazide
+            // (P-68.3.1.3.5.1). No Blue Book example places the descriptor of a
+            // configured N'=C bond, so that case is not a hydrazide here.
+            // A cumulated carbon such as =C=S is not named as an ylidene.
+            x != n
+                && (!matches!(m.atoms[&x].symbol.as_str(), "C" | "H")
+                    || m.get_bond(t, x).is_some_and(|b| {
+                        b.order > 2
+                            || b.stereo.is_some()
+                            || b.order == 2 && has_multiple(m, x, &AtomSet::from([t]))
+                    }))
         })
     {
         return None;
@@ -671,15 +682,21 @@ fn hydrazide_ns(m: &Molecule, c: usize, n: usize, cyclic: &AtomSet) -> Option<Ve
             .count()
     };
     let oxygen = |x: usize, order: usize| m.atoms[&x].symbol == "O" && m.bond_order(c, x) == order;
+    // P-65.7.2: with a second acyl group on that oxygen, a substituted
+    // hydrazinecarboxylic acid is one half of an anhydride.
+    let acyl = |y: usize| {
+        m.atoms[&y].is_carbon()
+            && m.get_neighbors(y)
+                .iter()
+                .any(|&z| m.atoms[&z].symbol == "O" && m.bond_order(y, z) == 2)
+    };
     if !m.is_isotope_parent()
-        && heavy(n) == 2
-        && heavy(t) == 1
         && m.get_neighbors(c).iter().any(|&x| oxygen(x, 2))
         && m.get_neighbors(c).iter().any(|&x| {
+            let beyond = m.get_neighbors(x);
             oxygen(x, 1)
-                && m.get_neighbors(x)
-                    .iter()
-                    .all(|&y| y == c || m.atoms[&y].is_carbon())
+                && beyond.iter().all(|&y| y == c || m.atoms[&y].is_carbon())
+                && (heavy(n) == 2 && heavy(t) == 1 || beyond.iter().any(|&y| y != c && acyl(y)))
         })
     {
         return None;
@@ -1545,6 +1562,11 @@ fn is_complete_acyl_end(m: &Molecule, center: usize, double: usize, linkage: usi
     }
     let substituent = remaining[0];
     if m.atoms[&substituent].is_carbon() {
+        return true;
+    }
+    // P-65.7.2: carbamic and hydrazinecarboxylic acids are monobasic acids
+    // and form anhydrides, as in acetic hydrazinecarboxylic anhydride.
+    if m.atoms[&substituent].symbol == "N" && m.atoms[&substituent].charge == 0 {
         return true;
     }
     let mut component = AtomSet::from([substituent]);
@@ -2991,7 +3013,11 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
         };
         let principal = key != "aminium" || adj.iter().all(|&x| m.bond_order(n, x) == 1);
         for &c in adj {
-            groups.push(PerceivedGroup::new(key, principal, c, [n]));
+            // A nitro nitrogen is a substituent of the amine (P-61.5.1), not
+            // a parent atom; its formal charge would rank the group as an ion.
+            if !is_nitro_n(m, c, n) {
+                groups.push(PerceivedGroup::new(key, principal, c, [n]));
+            }
         }
         consumed.insert(n);
     }
