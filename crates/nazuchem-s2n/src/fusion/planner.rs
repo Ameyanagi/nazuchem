@@ -198,12 +198,13 @@ fn plan_uncached(
     // saturated ring N is named from its neutral parent hydride plus -ium, so
     // plan its indicated and hydro hydrogen on the unsubstituted neutral
     // parent (ring N substituents become H). A quaternary ring N is the same
-    // cation with its hydrogen substituted. Ring atoms with exocyclic
-    // multiple bonds (suffix composition) stay on the charged path below.
+    // cation with its hydrogen substituted; one with four ring bonds has no
+    // neutral parent. Ring atoms with exocyclic multiple bonds (suffix
+    // composition) stay on the charged path below.
     let protonated: Vec<_> = atoms
         .iter()
         .copied()
-        .filter(|&id| is_ium_nitrogen(mol, id))
+        .filter(|&id| is_ium_nitrogen(mol, id) && parent_degree(mol, atoms, id) < 4)
         .collect();
     if !protonated.is_empty()
         && !spiro_component
@@ -1418,6 +1419,28 @@ mod tests {
             assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred);
             let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        // #96 controls, unchanged names: an N⁺ with four ring bonds has no
+        // neutral parent hydride, a spiro N⁺ stays with spiro nomenclature
+        // (P-24.5.2), and a bridgehead hydron on a von Baeyer parent is
+        // spelled 'azonia' (P-73.4), which the parser reads as written.
+        for (smiles, expected) in [
+            (
+                "[N+]123CCC1CCC2CCC3",
+                "1-azoniatricyclo[5.3.0.0^{1,4}]decane",
+            ),
+            (
+                "C1CC[N+]2(CC1)CCc1ccccc1C2",
+                "spiro[3-azoniabicyclo[4.4.0]deca-1(10),6,8-triene-3,1'-(piperidin-1-ium)]",
+            ),
+            ("C1C[NH+]2CCC1CC2", "1-azoniabicyclo[2.2.2]octane"),
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected);
+            assert_ne!(
+                name.status,
+                nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::FusionNitrogenHydron)
+            );
         }
         // #96, P-73.1.1.2: a hydron at a fusion N is cited as -ium, but the
         // parser reads that spelling as the λ5-ylium cation (P-73.3.1), so
