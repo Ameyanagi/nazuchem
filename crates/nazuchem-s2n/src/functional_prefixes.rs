@@ -496,8 +496,10 @@ pub fn prefix_from_group(
     }
     if families.contains("sulfonyl") {
         let name = ester_prefix_from_group(context.mol, group, context.sub_exclude, "sulfonyl")?;
+        // P-72.6.1: without an ester group the registry prefix applies,
+        // `sulfo` for the acid and `sulfonato` for its anion.
         return Ok(if name.is_empty() {
-            "sulfo".into()
+            rule.prefix.clone().unwrap_or_default()
         } else {
             name
         });
@@ -565,6 +567,42 @@ pub fn prefix_from_group(
         return Ok("cyano".into());
     }
     if families.contains("carboxy_prefix") {
+        // P-65.2.1.6: a chalcogen analogue of carboxy names its own atoms,
+        // `sulfanylcarbonyl` (HS-CO-) and `hydroxycarbonothioyl` (HO-CS-);
+        // `dithiocarboxy` (HS-CS-) needs no position.
+        if let Some([double, single]) = group
+            .descriptor
+            .as_ref()
+            .filter(|d| d.derivative == "acid")
+            .map(|d| d.ligands.as_slice())
+            && (double.element != "O" || single.element != "O")
+        {
+            if double.element == single.element {
+                return Ok(format!("({})", rule.prefix.as_deref().unwrap_or_default()));
+            }
+            let hydride = if single.element == "O" {
+                "hydroxy"
+            } else {
+                chalcogen_term(&single.element, "substituent_suffix", |e| {
+                    &e.substituent_suffix
+                })?
+            };
+            return Ok(format!(
+                "({hydride}{})",
+                chalcogen_term(&double.element, "acyl_center_prefix", |e| {
+                    &e.acyl_center_prefix
+                })?
+            ));
+        }
+        // `carboxy` would drop the charge of a chalcogen analogue of
+        // carboxylato (all-oxygen carboxylato is handled above).
+        if group
+            .descriptor
+            .as_ref()
+            .is_some_and(|d| d.derivative == "anion")
+        {
+            return Err("openclatura: chalcogen carboxylate anion prefix not ported".into());
+        }
         return Ok("carboxy".into());
     }
     if families.contains("amide_like") || rule.has_capability("amide_like") {

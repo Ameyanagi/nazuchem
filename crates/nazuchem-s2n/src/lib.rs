@@ -1143,6 +1143,62 @@ mod tests {
                     "c1(NC(C(NC2CCN(C3CCN(C)CC3)CC2)=O)=O)cccc(-n2cccn2)c1",
                 ][..],
             ),
+            // Issue #107. P-14.4 (j): geminal amine nitrogens whose substituents
+            // differ only by stereodescriptor; R, like Z, takes the lower,
+            // unprimed locant (P-14.3.5).
+            (
+                "N^3-[(2R)-butan-2-yl]-N'^3-[(2S)-butan-2-yl]hexane-3,3-diamine",
+                &[
+                    "CCC(N[C@H](C)CC)(N[C@@H](C)CC)CCC",
+                    "CCC(N[C@@H](C)CC)(N[C@H](C)CC)CCC",
+                    "CC[C@H](C)NC(CC)(CCC)N[C@H](C)CC",
+                ][..],
+            ),
+            (
+                "N^3-[(2Z)-but-2-en-1-yl]-N'^3-[(2E)-but-2-en-1-yl]hexane-3,3-diamine",
+                &[
+                    "CCC(NC/C=C\\C)(NC/C=C/C)CCC",
+                    "CCC(NC/C=C/C)(NC/C=C\\C)CCC",
+                    "C/C=C/CNC(CC)(CCC)NC/C=C\\C",
+                ][..],
+            ),
+            (
+                "N^1-[(2R)-butan-2-yl]-N'^1-[(2S)-butan-2-yl]cyclohexane-1,1-diamine",
+                &[
+                    "C[C@H](CC)NC1(N[C@@H](C)CC)CCCCC1",
+                    "C[C@@H](CC)NC1(N[C@H](C)CC)CCCCC1",
+                ][..],
+            ),
+            (
+                "N^1-[(2R)-butan-2-yl]-N'^1,N''^1-bis[(2S)-butan-2-yl]ethane-1,1,1-triamine",
+                &[
+                    "CC(N[C@H](C)CC)(N[C@@H](C)CC)N[C@@H](C)CC",
+                    "CC(N[C@@H](C)CC)(N[C@@H](C)CC)N[C@H](C)CC",
+                ][..],
+            ),
+            // A descriptor nested in the substituent name counts the same way.
+            (
+                "N^3-{2-[(2R)-butan-2-yl]phenyl}-N'^3-{2-[(2S)-butan-2-yl]phenyl}hexane-3,3-diamine",
+                &[
+                    "CCC(Nc1ccccc1[C@H](C)CC)(Nc1ccccc1[C@@H](C)CC)CCC",
+                    "CCC(Nc1ccccc1[C@@H](C)CC)(Nc1ccccc1[C@H](C)CC)CCC",
+                ][..],
+            ),
+            (
+                "N^3-{[(2R)-oxolan-2-yl]methyl}-N'^3-{[(2S)-oxolan-2-yl]methyl}hexane-3,3-diamine",
+                &[
+                    "CCC(NC[C@H]1CCCO1)(NC[C@@H]1CCCO1)CCC",
+                    "CCC(NC[C@@H]1CCCO1)(NC[C@H]1CCCO1)CCC",
+                ][..],
+            ),
+            // ethyl, cited before methyl, stays unprimed although it is S.
+            (
+                "N^3-[(2S)-butan-2-yl]-N'^3-[(2R)-butan-2-yl]-N^3-ethyl-N'^3-methylhexane-3,3-diamine",
+                &[
+                    "CCC(N([C@H](C)CC)C)(N([C@@H](C)CC)CC)CCC",
+                    "CCC(N([C@@H](C)CC)CC)(N([C@H](C)CC)C)CCC",
+                ][..],
+            ),
             // P-65.6.3.2.1: ester groups in alphanumerical order, as in ethyl
             // methyl butanedioate.
             (
@@ -1530,9 +1586,16 @@ mod tests {
             ),
             ("CCOC(C)=O", "ethyl acetate", NameStatus::Preferred),
             ("CC(=O)OC(C)=O", "acetic anhydride", NameStatus::Preferred),
+            // P-65.7.6.1 example (issue #110).
             (
                 "CC(=O)OC(=O)CCC(=O)OC(C)=O",
-                "acetic 4-(acetyloxy)-4-oxobutanoic anhydride",
+                "diacetic butanedioic dianhydride",
+                NameStatus::Preferred,
+            ),
+            // P-65.7.6.4.2 example: two unlike linkages stay unverified.
+            (
+                "CC(=O)OC(=O)CCCC(=O)SC(C)=O",
+                "acetic 5-(acetylsulfanyl)-5-oxopentanoic anhydride",
                 NameStatus::Unverified(NameReason::UnauditedPath),
             ),
             (
