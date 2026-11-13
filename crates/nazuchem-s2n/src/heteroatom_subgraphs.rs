@@ -1048,7 +1048,11 @@ fn hydrazinyl_prefix(
                 return Ok(None);
             }
             let name = name_subgraph_with_upstream(mol, root, &blocked, Some(n))?;
-            if name.is_empty() {
+            // A name that does not carry the double bond, such as
+            // methanethioyl for =C=S, would lose it.
+            if name.is_empty()
+                || (bond.order == 2) != strip_outer_parentheses(&name).ends_with("ylidene")
+            {
                 return Ok(None);
             }
             // P-29.6.2.1: unsubstituted benzylidene is preferred, as in
@@ -2380,6 +2384,17 @@ mod tests {
                 "3-(trimethylhydrazinyl)propanoic acid",
                 NameStatus::Preferred,
             ),
+            // P-66.3.2.2: the same prefix beside oxo at a chain end.
+            (
+                "OC(=O)CCC(=O)N(C)N(C)C",
+                "4-oxo-4-(trimethylhydrazinyl)butanoic acid",
+                NameStatus::Preferred,
+            ),
+            (
+                "OC(=O)CCC(=O)NNC",
+                "4-(2-methylhydrazin-1-yl)-4-oxobutanoic acid",
+                NameStatus::Preferred,
+            ),
             // P-14.3.4.4, P-68.3.1.2.2: an ylidene alone needs no locant, as
             // in 2-[(propan-2-ylidene)hydrazinyl]benzoic acid; benzylidene as
             // in 2-(benzylidenehydrazinyl)-2-oxoacetamide (P-66.3.6).
@@ -2424,6 +2439,12 @@ mod tests {
                 "OC(=O)CCN/N=C/c1ccccc1",
                 "3-({[(E)-phenylmethylidene]amino}amino)propanoic acid",
                 NameStatus::NotPreferred(NameReason::AminoPrefix),
+            ),
+            // methanethioyl would not carry the N=C bond of N=C=S.
+            (
+                "OC(=O)CCNN=C=S",
+                "3-(isothiocyanatoamino)propanoic acid",
+                NameStatus::Preferred,
             ),
             // A ring nitrogen or a third nitrogen is not a hydrazinyl
             // nitrogen.

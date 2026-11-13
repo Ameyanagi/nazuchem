@@ -226,8 +226,10 @@ fn nitrogen_group_prefix(
             usize::from(mol.get_bond(n, core).is_none())
         }
     });
-    // P-68.3.1.2.1: hydrazinyl, its substituents numbered 1 and 2.
-    if group.key == "hydrazine" {
+    // P-68.3.1.2.1: hydrazinyl, its substituents numbered 1 and 2. P-66.3.2.2:
+    // a hydrazide ending the parent chain is hydrazinyl with oxo (cited by
+    // collect_component_prefix_substituents).
+    if group.key == "hydrazine" || hydrazide && context.parent_path.contains(&core) {
         return name_subgraph_with_upstream(mol, ns[0], context.sub_exclude, Some(core));
     }
     let stereo = if amidine {
@@ -240,16 +242,10 @@ fn nitrogen_group_prefix(
     } else {
         String::new()
     };
-    // P-66.3.2.2: ending the parent chain, the group is hydrazinyl with oxo
-    // (cited by collect_component_prefix_substituents); its substituents take
-    // the locants 1 and 2 of hydrazinyl (P-66.3.2.3, P-68.3.1.2.1).
-    let chain_end = hydrazide && context.parent_path.contains(&core);
-    // P-66.3.2.1: otherwise it is the acyl prefix of the hydrazine acid, as
-    // hydrazinecarbonyl, hydrazinecarbothioyl or hydrazinesulfonyl.
+    // P-66.3.2.1: elsewhere a hydrazide is the acyl prefix of the hydrazine
+    // acid, as hydrazinecarbonyl, hydrazinecarbothioyl or hydrazinesulfonyl.
     let acyl = group.prefix().unwrap_or("hydrazinecarbonyl");
-    let base = if chain_end {
-        "hydrazinyl".into()
-    } else if amidine {
+    let base = if amidine {
         "carbamimidoyl".into()
     } else {
         // P-16.5.1.4: it names the parent hydride hydrazine, so it is
@@ -277,10 +273,8 @@ fn nitrogen_group_prefix(
             let text = name_subgraph_with_upstream(mol, root, &blocked, Some(n))?;
             // P-66.3.2.3, P-66.3.3.3: with a second acyl group the preferred
             // prefix may be the hydrazido form of the other acid, as
-            // acetohydrazido; that choice is not made here. R-CO-N(NH2)- is
-            // always a substituted hydrazinyl (1-acetylhydrazin-1-yl).
+            // acetohydrazido; that choice is not made here.
             if hydrazide
-                && !(chain_end && index == 0)
                 && mol.get_neighbors(root).iter().any(|&x| {
                     mol.bond_order(root, x) == 2
                         && matches!(mol.atoms[&x].symbol.as_str(), "O" | "S" | "Se" | "Te")
@@ -318,9 +312,7 @@ fn nitrogen_group_prefix(
         })
         .collect::<Vec<_>>()
         .join("-");
-    let base = if chain_end {
-        "hydrazin-1-yl".into()
-    } else if hydrazide {
+    let base = if hydrazide {
         acyl.replacen("hydrazine", "hydrazine-1-", 1)
     } else {
         base

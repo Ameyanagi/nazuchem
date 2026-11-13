@@ -3266,15 +3266,21 @@ fn cyanohydrazide_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>
                 continue;
             }
             // No Blue Book example places an E/Z descriptor here.
+            let order = mol.bond_order(nitrogen, root);
             if symbol(root) != "C"
+                || order > 2
                 || mol
                     .get_bond(nitrogen, root)
-                    .is_none_or(|b| b.order > 2 || b.stereo.is_some())
+                    .is_some_and(|b| b.stereo.is_some())
             {
                 return Ok(None);
             }
             let name = branch_name(mol, atoms, root, &set([nitrogen]), nitrogen)?;
-            if name.is_empty() {
+            // A name that does not carry the double bond, such as
+            // methanethioyl for =C=S, would lose it.
+            if name.is_empty()
+                || (order == 2) != strip_outer_parentheses(&name).ends_with("ylidene")
+            {
                 return Ok(None);
             }
             // P-29.6.2.1: unsubstituted benzylidene is preferred.
@@ -3292,6 +3298,9 @@ fn cyanohydrazide_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>
     let mut names: Vec<_> = cited.iter().map(|(name, _)| name.clone()).collect();
     names.sort_by_cached_key(|name| (substituent_sort_key(name), name.clone()));
     names.dedup();
+    // P-14.3.4.5: no locants when all three positions carry the same
+    // substituent, as in tetrafluorourea.
+    let full = cited.len() == 3 && names.len() == 1;
     let prefixes = names
         .iter()
         .map(|name| {
@@ -3300,11 +3309,12 @@ fn cyanohydrazide_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>
                 .filter(|(n, _)| n == name)
                 .map(|(_, locant)| *locant)
                 .collect();
-            format!(
-                "{}-{}",
-                locants.join(","),
-                format_multiplier(name, locants.len(), false)
-            )
+            let text = format_multiplier(name, locants.len(), false);
+            if full {
+                text
+            } else {
+                format!("{}-{text}", locants.join(","))
+            }
         })
         .collect::<Vec<_>>()
         .join("-");
@@ -4317,9 +4327,17 @@ pub(super) fn try_name_anhydride_component(
             // P-65.7.6.1 cites "2-methylbutanedioic" where P-14.3.4.3 omits
             // the locant of a substituted dibasic acid; such names stay
             // unverified.
+            // The di/bis choice for a carbamic or hydrazinecarboxylic end
+            // (P-16.3.3, P-16.3.5) is not made here.
+            let nitrogen_end = [e1, e2].iter().any(|&e| {
+                mol.get_neighbors(e)
+                    .iter()
+                    .any(|n| mol.atoms[n].symbol == "N")
+            });
             Ok(Some(StructuralParentName {
                 certified: class == "dianhydride"
                     && plain
+                    && !nitrogen_end
                     && bridges.is_disjoint(&get_cyclic_atoms(mol, &AtomSet::new())),
                 component_splits: paths
                     .iter()
@@ -4781,7 +4799,11 @@ mod tests {
             ("NNC#N", "cyanohydrazide"),
             ("CNNC#N", "N'-methylcyanohydrazide"),
             ("CN(N)C#N", "N-methylcyanohydrazide"),
-            ("CN(C)N(C)C#N", "N,N',N'-trimethylcyanohydrazide"),
+            ("CNN(C)C#N", "N,N'-dimethylcyanohydrazide"),
+            ("CN(C)NC#N", "N',N'-dimethylcyanohydrazide"),
+            // P-14.3.4.5: no locants when every position is substituted
+            // alike.
+            ("CN(C)N(C)C#N", "trimethylcyanohydrazide"),
             ("N#CN(C)Nc1ccccc1", "N-methyl-N'-phenylcyanohydrazide"),
             ("N#CNN=C(C)C", "N'-(propan-2-ylidene)cyanohydrazide"),
             ("N#CNN=Cc1ccccc1", "N'-benzylidenecyanohydrazide"),
@@ -4809,6 +4831,8 @@ mod tests {
             "N#CNNC#N",
             "N#CNNCl",
             "N#CN/N=C/c1ccccc1",
+            // methanethioyl would not carry the N=C bond.
+            "N#CNN=C=S",
         ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(
@@ -4869,8 +4893,14 @@ mod tests {
             );
         }
         // Not named as anhydrides, and not labelled preferred: a thioacyl
-        // half and a chalcogen or peroxy bridge.
-        for smiles in ["NNC(=S)OC(C)=O", "NNC(=O)SC(C)=O", "NNC(=O)OOC(C)=O"] {
+        // half and a chalcogen or peroxy bridge. Nor is a dianhydride with
+        // carbamic ends, whose di/bis choice is not made (P-16.3.3, P-16.3.5).
+        for smiles in [
+            "NNC(=S)OC(C)=O",
+            "NNC(=O)SC(C)=O",
+            "NNC(=O)OOC(C)=O",
+            "NC(=O)OC(=O)CCC(=O)OC(N)=O",
+        ] {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
             assert_ne!(
                 name.status,
