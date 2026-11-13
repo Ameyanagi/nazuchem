@@ -86,6 +86,24 @@ pub(super) fn mark_rendered_parent_status(mol: &Molecule, parts: &AssemblyParts)
     if parts.locanted_total_hydrogenation {
         mol.mark_name(NameStatus::Unverified(NameReason::HydroPrefixLocants));
     }
+    // P-73.1.1.2 adds a hydron at a fusion N ('4H-quinolizin-5-ium' is
+    // N⁺-H), but the parser reads '-ium' there as a charged N that can still
+    // take a double bond, so these names are not confirmed by reading back.
+    // Von Baeyer parents cite 'azonia' instead and are read correctly.
+    if super::assembly_charge::has_retained_like_parent(parts)
+        && parts.parent_atom_ids.iter().any(|&id| {
+            mol.atoms[&id].total_h_count > 0
+                && super::retained_fused_templates::is_ium_nitrogen(mol, id)
+                && mol
+                    .get_neighbors(id)
+                    .iter()
+                    .filter(|n| parts.parent_atom_ids.contains(n))
+                    .count()
+                    == 3
+        })
+    {
+        mol.mark_name(NameStatus::Unverified(NameReason::FusionNitrogenHydron));
+    }
     if !audited {
         mol.mark_name(NameStatus::Unverified(NameReason::UnauditedParent));
     }

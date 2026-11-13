@@ -15,6 +15,7 @@ use super::super::{
     locants::retained_locant_sort_key as locant_key,
     molecule::{AtomSet, Molecule},
     polycycle_topology::{bicyclo_proof, edges_within_atoms},
+    retained_fused_templates::is_ium_nitrogen,
 };
 use super::{
     audit::audit_fusion_plan,
@@ -38,7 +39,7 @@ use super::{
         cited_saturated_nitrogen_hydrogen_sites, has_complete_saturated_hydrogenation,
         indicated_hydrogen_parent_bond_model, parent_degree, parent_derivative_state,
         protonated_hydrogenation_is_complete, saturated_nitrogen_hydrogen_sites,
-        spiro_carbon_sites,
+        single_site_parent_model, spiro_carbon_sites,
     },
     model::*,
     numbering::{
@@ -196,19 +197,14 @@ fn plan_uncached(
     // P-73.1.1.2 / P-14.4(b): a cation formed by adding a hydron to a
     // saturated ring N is named from its neutral parent hydride plus -ium, so
     // plan its indicated and hydro hydrogen on the unsubstituted neutral
-    // parent (ring N substituents become H). Ring atoms with exocyclic
-    // multiple bonds (suffix composition) stay on the charged path below.
+    // parent (ring N substituents become H). A quaternary ring N is the same
+    // cation with its hydrogen substituted; one with four ring bonds has no
+    // neutral parent. Ring atoms with exocyclic multiple bonds (suffix
+    // composition) stay on the charged path below.
     let protonated: Vec<_> = atoms
         .iter()
         .copied()
-        .filter(|&id| {
-            let atom = &mol.atoms[&id];
-            atom.symbol == "N"
-                && atom.charge == 1
-                && atom.total_h_count > 0
-                && atom.total_h_count + mol.degree(id) == 4
-                && all_single(mol, id)
-        })
+        .filter(|&id| is_ium_nitrogen(mol, id) && parent_degree(mol, atoms, id) < 4)
         .collect();
     if !protonated.is_empty()
         && !spiro_component
@@ -244,12 +240,16 @@ fn plan_uncached(
                 .map(|a| locant_key(&locants[a]))
                 .min();
             // P-31.2.2: indicated hydrogen takes lower locants than hydro
-            // prefixes. P-25.2.1: a retained neutral parent (quinolizine,
-            // naphthyridine) outranks the planner's systematic fusion name.
-            let lowest_indicated = plan
-                .indicated_hydrogens
-                .iter()
-                .all(|l| lowest_saturated.as_ref() == Some(&locant_key(l)));
+            // prefixes; a saturated parent's plan already cites the lowest
+            // positions its mancude parent permits (P-58.2.1.2), which a
+            // fusion N can move off the lowest locant. P-25.2.1: a retained
+            // neutral parent (quinolizine, naphthyridine) outranks the
+            // planner's systematic fusion name.
+            let lowest_indicated = atoms.iter().all(|&a| all_single(&neutral, a))
+                || plan
+                    .indicated_hydrogens
+                    .iter()
+                    .all(|l| lowest_saturated.as_ref() == Some(&locant_key(l)));
             let retained_parent = !neutral.use_benzoheterocycle_names()
                 || super::super::rules::retained::get_retained_ring(
                     &neutral,
@@ -760,7 +760,7 @@ fn complete_fusion_plan(
     indicated_h.extend(intrinsic_carbon_h.iter().map(|a| input_locants[a].clone()));
     indicated_h.sort_by_key(|l| locant_key(l));
     indicated_h.dedup();
-    let indicated_atoms: AtomSet = input_locants
+    let mut indicated_atoms: AtomSet = input_locants
         .iter()
         .filter(|(_, l)| indicated_h.contains(l))
         .map(|(&a, _)| a)
@@ -811,6 +811,76 @@ fn complete_fusion_plan(
     {
         derivative_state = complete_state;
         indicated_h.clear();
+    }
+    // P-14.7.1, P-58.2.1.2: a neutral ring atom whose ring bonds use up its
+    // standard valence (a fusion N) takes no double bond, so such atoms can
+    // split the mancude parent into parts that each leave one position
+    // unpaired ('tetrahydro-1H,5H-pyrazolo[1,2-a]pyrazole'). A saturated
+    // system cites exactly the indicated hydrogen that parent needs, at the
+    // lowest nonfusion locants; hydro prefixes pair up the rest (P-31.2.2).
+    let fixed: AtomSet = atoms
+        .iter()
+        .copied()
+        .filter(|&a| {
+            mol.atoms[&a].charge == 0
+                && mol.atoms[&a]
+                    .element()
+                    .is_some_and(|e| e.standard_valence <= parent_degree(mol, atoms, a))
+        })
+        .collect();
+    if atoms
+        .iter()
+        .all(|&a| mol.atoms[&a].charge == 0 && !mol.atoms[&a].is_aromatic && all_single(mol, a))
+        && spiro_carbon_sites(mol, atoms).is_empty()
+    {
+        let mancude = single_site_parent_model(initial_model, &fixed)?;
+        if atoms.len() - fixed.len() - 2 * mancude.maximum_non_cumulative_double_bonds
+            != indicated_h.len()
+        {
+            let key = |a: &usize| locant_key(&input_locants[a]);
+            let Some(sites) = mancude
+                .allowed_kekule_assignments
+                .iter()
+                .map(|assignment| {
+                    let paired = assignment.paired_atoms();
+                    let mut sites: Vec<_> = atoms
+                        .iter()
+                        .copied()
+                        .filter(|a| !fixed.contains(a) && !paired.contains(a))
+                        .collect();
+                    sites.sort_by_key(key);
+                    sites
+                })
+                .min_by_key(|sites| {
+                    (
+                        sites
+                            .iter()
+                            .filter(|&&a| parent_degree(mol, atoms, a) > 2)
+                            .count(),
+                        sites.iter().map(key).collect::<Vec<_>>(),
+                    )
+                })
+            else {
+                return Ok(None);
+            };
+            indicated_h = sites.iter().map(|a| input_locants[a].clone()).collect();
+            indicated_atoms = sites.into_iter().collect();
+            bond_model = single_site_parent_model(&mancude, &indicated_atoms)?;
+            let Some(state) = parent_derivative_state(
+                mol,
+                atoms,
+                &bond_model,
+                &input_locants,
+                &ParentDerivativeOptions {
+                    indicated_hydrogen_atom_ids: Some(&indicated_atoms),
+                    ..Default::default()
+                },
+            )?
+            else {
+                return Ok(None);
+            };
+            derivative_state = state;
+        }
     }
     // Upstream divergence: removing a reduced edge incident to indicated N-H
     // can lose the carbon endpoint's hydrogen. Require the cited H/hydro sites
@@ -1000,7 +1070,8 @@ fn complete_fusion_plan(
             let mut candidate = cited.clone();
             candidate.remove(&old);
             candidate.insert(*site);
-            if indicated_hydrogen_parent_bond_model(graph, &candidate).is_ok_and(|model| {
+            let single = candidate.union(&fixed).copied().collect();
+            if indicated_hydrogen_parent_bond_model(graph, &single).is_ok_and(|model| {
                 model.maximum_non_cumulative_double_bonds
                     == plan.bond_model.maximum_non_cumulative_double_bonds
             }) {
@@ -1401,6 +1472,82 @@ mod tests {
             assert_eq!(name.text, expected);
             let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        // #96, P-73.1.1.2: a quaternary ring N is the same cation with its
+        // hydrogen substituted, so it is planned on the neutral parent too.
+        for (smiles, expected) in [
+            (
+                "C[N+]1(C)CCC2CCCC2C1",
+                "2,2-dimethyloctahydro-1H-cyclopenta[c]pyridin-2-ium",
+            ),
+            (
+                "C[N+]1(C)CCc2sccc2C1",
+                "5,5-dimethyl-4,5,6,7-tetrahydrothieno[3,2-c]pyridin-5-ium",
+            ),
+            // #108, P-58.2.1.2: the fusion N takes no double bond, so the
+            // lowest indicated hydrogen of pyrido[1,2-a]pyrazine is 2H.
+            (
+                "C[N+]1(C)CCN2CCCCC2C1",
+                "2,2-dimethyloctahydro-2H-pyrido[1,2-a]pyrazin-2-ium",
+            ),
+            (
+                "C1CCN2CC[NH2+]CC2C1",
+                "octahydro-2H-pyrido[1,2-a]pyrazin-2-ium",
+            ),
+            (
+                "C1CCN2CC[NH+](C)CC2C1",
+                "2-methyloctahydro-2H-pyrido[1,2-a]pyrazin-2-ium",
+            ),
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected);
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred);
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        // #96 controls, unchanged names: an N⁺ with four ring bonds has no
+        // neutral parent hydride, a spiro N⁺ stays with spiro nomenclature
+        // (P-24.5.2), and a bridgehead hydron on a von Baeyer parent is
+        // spelled 'azonia' (P-73.4), which the parser reads as written.
+        for (smiles, expected) in [
+            (
+                "[N+]123CCC1CCC2CCC3",
+                "1-azoniatricyclo[5.3.0.0^{1,4}]decane",
+            ),
+            (
+                "C1CC[N+]2(CC1)CCc1ccccc1C2",
+                "spiro[3-azoniabicyclo[4.4.0]deca-1(10),6,8-triene-3,1'-(piperidin-1-ium)]",
+            ),
+            ("C1C[NH+]2CCC1CC2", "1-azoniabicyclo[2.2.2]octane"),
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected);
+            assert_ne!(
+                name.status,
+                nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::FusionNitrogenHydron)
+            );
+        }
+        // #96: this cation's hydro prefixes do not yet match its neutral
+        // parent hydride (1-oxodecahydroisoquinolin-2-ium, P-73.1.2.1), so
+        // the name keeps its locants and stays unverified.
+        let name = crate::name_smiles("O=C1[NH2+]CCC2CCCCC12", &Default::default()).unwrap();
+        assert_eq!(
+            name.status,
+            nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::HydroPrefixLocants)
+        );
+        // #96, P-73.1.1.2: a hydron at a fusion N is cited as -ium, but the
+        // parser reads that spelling as the λ5-ylium cation (P-73.3.1), so
+        // the name stays unverified.
+        for (smiles, expected) in [
+            ("C1CC2CCC[NH+]2C1", "hexahydro-1H-pyrrolizin-4-ium"),
+            ("C1=CC=C2C=CC=C[NH+]2C1", "4H-quinolizin-5-ium"),
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected);
+            assert_eq!(
+                name.status,
+                nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::FusionNitrogenHydron)
+            );
         }
     }
 

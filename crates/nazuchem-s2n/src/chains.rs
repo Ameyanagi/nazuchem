@@ -791,7 +791,7 @@ fn ranking_order(mol: &Molecule, u: usize, v: usize) -> usize {
 
 // Provenance: fn rank_invariants | port
 // Source: openclatura | src/openclatura/canonical_ranks.py::_ranks_from_invariants
-fn rank_invariants<T: Ord>(invariants: BTreeMap<usize, T>) -> BTreeMap<usize, usize> {
+pub(super) fn rank_invariants<T: Ord>(invariants: BTreeMap<usize, T>) -> BTreeMap<usize, usize> {
     let ordering: BTreeMap<&T, usize> = invariants
         .values()
         .collect::<BTreeSet<_>>()

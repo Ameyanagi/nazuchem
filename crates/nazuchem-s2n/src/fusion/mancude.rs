@@ -141,7 +141,7 @@ fn bonding_number(mol: &Molecule, id: usize) -> usize {
 
 // Provenance: fn indicated_hydrogen_parent_bond_model | adapted
 // Source: openclatura | src/openclatura/fusion/mancude.py::indicated_hydrogen_parent_bond_model
-pub(super) fn indicated_hydrogen_parent_bond_model(
+pub(in super::super) fn indicated_hydrogen_parent_bond_model(
     graph: &FusionGraph,
     sites: &AtomSet,
 ) -> Result<ParentBondModel, String> {
