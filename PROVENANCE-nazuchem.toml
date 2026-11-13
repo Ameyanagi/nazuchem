@@ -7640,6 +7640,15 @@ sources = [
 notes = "Original facade regression for issue #145: generated names of acid-anion prefixes under a more senior anion (sulfonato, hydroxy(oxido)phosphoryl and the selenium analogues), oxidanide names of anionic oxygen on a chalcogen chain, declined chalcogen carboxylate anion prefixes and the selenium and tellurium acid-anion prefixes read by the parser, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
 
 [[file]]
+path = "crates/nazuchem/tests/phosphorus_acid_anions.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/tests/phosphorus_acid_anions.rs", ref = "issue #150", license = "MIT OR Apache-2.0" },
+]
+notes = "Original facade regression for issue #150: generated names of the anions, acid salts and partial esters of organyl-substituted phosphorus, arsenic and antimony oxoacids, the arsenic and antimony acids themselves, pnictogen prefixes that cite their hydroxy, alkoxy and oxido ligands, and declined oxidophosphanyl and thio anions, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
+
+[[file]]
 path = "crates/nazuchem/tests/ir.rs"
 origin = "original"
 license = "MIT OR Apache-2.0"
