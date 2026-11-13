@@ -51,10 +51,14 @@ pub fn correct_omitted_spaces(
     context: &mut impl OmittedSpaceContext,
 ) -> Result<(), ParsingError> {
     let rules = tree.arena.descendants_named(tree.root, "wordRule");
+    let name = tree.arena[tree.root]
+        .attribute("name")
+        .unwrap_or("")
+        .to_owned();
     for rule in rules {
         match tree.arena[rule].attribute("wordRule") {
             Some("divalentFunctionalGroup") => correct_divalent(&mut tree.arena, rule, context)?,
-            Some("simple") => correct_ester(&mut tree.arena, rule, context)?,
+            Some("simple") => correct_ester(&mut tree.arena, rule, &name, context)?,
             _ => {}
         }
     }
@@ -189,17 +193,60 @@ fn ate_or_ite_ending(value: &str) -> bool {
 fn correct_ester(
     arena: &mut Arena,
     rule: NodeId,
+    name: &str,
     context: &mut impl OmittedSpaceContext,
 ) -> Result<(), ParsingError> {
     let words = arena.children_named(rule, "word");
-    if words.len() != 1
-        || !arena[rule]
-            .attribute("value")
-            .is_some_and(ate_or_ite_ending)
-    {
+    let value = arena[rule].attribute("value").unwrap_or("").to_owned();
+    if words.is_empty() || !ate_or_ite_ending(&value) {
         return Ok(());
     }
-    let children = relevant_children(arena, words[0], true);
+    // Changes: A multiplied anion, as in calcium bis(methyl hydrogen
+    // phosphate), is one word per copy here, each a bracket around the
+    // anion (Blue Book P-16.3.6, tris(dihydrogen phosphate)). Each copy is
+    // read as the word without the multiplier would be: the organyl group
+    // before the acid can be its ester group (P-67.1.3.2, sodium methyl
+    // hydrogen phosphate), and the ester becomes a component of its own.
+    // It is the ester group where the name has a space inside the brackets,
+    // which the tokenizer removed: bis(methyl phosphonate) is not
+    // bis(methylphosphonate). The ester must leave an anion (issue #170).
+    let multiplied = words.len() > 1;
+    let spaced = multiplied && !name.contains(&value);
+    correct_ester_word(arena, rule, words[0], multiplied, spaced, context)?;
+    if arena[rule].attribute("wordRule") == Some("ester") {
+        let mut last = rule;
+        for &word in &words[1..] {
+            let copy = arena.grouping("wordRule");
+            arena[copy].add_attribute("type", "full");
+            arena[copy].add_attribute("wordRule", "simple");
+            arena[copy].add_attribute("value", &value);
+            arena.detach(word);
+            arena.add_child(copy, word);
+            arena.insert_after(last, copy);
+            correct_ester_word(arena, copy, word, multiplied, spaced, context)?;
+            last = copy;
+        }
+    }
+    Ok(())
+}
+
+fn correct_ester_word(
+    arena: &mut Arena,
+    rule: NodeId,
+    word: NodeId,
+    multiplied: bool,
+    spaced: bool,
+    context: &mut impl OmittedSpaceContext,
+) -> Result<(), ParsingError> {
+    let mut children = relevant_children(arena, word, true);
+    if multiplied {
+        match children[..] {
+            [bracket] if arena[bracket].name == "bracket" => {
+                children = relevant_children(arena, bracket, true);
+            }
+            _ => return Ok(()),
+        }
+    }
     if children.len() < 2 {
         return Ok(());
     }
@@ -231,6 +278,7 @@ fn correct_ester(
             }
             if let Some(index) = last_without_locant
                 && substitution_ambiguous(&root_facts, 1)
+                && (!multiplied || functional_count > 1)
             {
                 transform_multiple(arena, rule, &subs[..=index]);
             }
@@ -241,12 +289,14 @@ fn correct_ester(
     let first_group = rightmost_group(arena, first).ok_or_else(|| {
         error("OPSIN bug: Substituent group missing for omitted ester correction")
     })?;
-    if ester_preferred(arena, first_group, first, root_group, subs.len())?
+    if (spaced
+        || ester_preferred(arena, first_group, first, root_group, subs.len())?
         || subs.len() > 1
             && (all_other_subs_locanted(arena, subs)
                 || insufficient_hydrogens(arena, subs, &root_facts, root_multiplier, context)?)
         || (subs.len() == 1 || root_multiplier > 1)
-            && substitution_ambiguous(&root_facts, first_multiplier)
+            && substitution_ambiguous(&root_facts, first_multiplier))
+        && (!multiplied || functional_count > first_multiplier)
     {
         transform_single(arena, rule, first, context)?;
     }
