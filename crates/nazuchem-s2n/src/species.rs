@@ -134,8 +134,21 @@ pub(super) fn assess_anion_parent(mol: &Molecule, derivation: &Derivation) {
             && !parent_atoms.contains(i)
             && principal_atoms.is_none_or(|atoms| !atoms.contains(i))
     });
-    let unresolved_parent = external_centre
-        && !super::parent_selection::anion_parent_is_senior(mol, parent_atoms, principal_atoms);
+    // P-72.7(a): the acid anions cited as prefixes of an aminide are not
+    // parent candidates. Where they outnumber the aminide nitrogens, a parent
+    // built on them, keeping any skeletal anion, has more anionic centres.
+    let outnumbered_aminide = principal_group.as_ref().is_some_and(|(key, atoms)| {
+        key == "aminide"
+            && mol
+                .atoms
+                .keys()
+                .filter(|i| anionic_centre(i) && !parent_atoms.contains(i) && !atoms.contains(i))
+                .count()
+                > atoms.iter().filter(|i| anionic_centre(i)).count()
+    });
+    let unresolved_parent = outnumbered_aminide
+        || external_centre
+            && !super::parent_selection::anion_parent_is_senior(mol, parent_atoms, principal_atoms);
     if parent_atoms.iter().any(anionic_centre)
         && principal_group
             .as_ref()

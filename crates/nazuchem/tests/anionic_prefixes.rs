@@ -175,6 +175,18 @@ fn aminide_with_an_acid_anion_cites_the_acid_anion_as_a_prefix() {
             "2-phosphonatoethan-1-aminide",
             false,
         ),
+        // The carbanion could stay in a dicarboxylate parent (P-72.5.3).
+        (
+            "[NH-]C([CH-]C(=O)[O-])C(=O)[O-]",
+            "1,2-bis(carboxylato)ethan-1-id-2-aminide",
+            false,
+        ),
+        // P-61.5.1: nitro is a neutral prefix, not an anionic centre.
+        (
+            "[NH-]C([N+](=O)[O-])C(=O)[O-]",
+            "1-carboxylato-1-nitromethanaminide",
+            true,
+        ),
         // An aminide on sulfur is no suffix; the carboxylate stays the parent.
         (
             "[NH-]S(=O)(=O)CC(=O)[O-]",
