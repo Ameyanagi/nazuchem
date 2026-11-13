@@ -435,8 +435,9 @@ pub fn add_component_n_substituents(
     selected.sort_by_key(|g| parse_locant(&locants[&g.attachment_carbon]));
     // Geminal amines share a parent locant, so primes tell their nitrogens
     // apart: N^3, N'^3 (P-62.2.4.1.2, P-16.9.3). The unprimed locant goes to
-    // the nitrogen with more substituents, then to the one cited first
-    // (P-14.3.5, P-14.4 (f), (g)).
+    // the nitrogen with more substituents, then to the one cited first, then
+    // to the Z, R, M or r one where only stereodescriptors differ
+    // (P-14.3.5, P-14.4 (f), (g), (j)).
     let polyamine = key == "amine" && selected.len() > 1;
     if polyamine {
         let status = mol.name_status();
@@ -453,15 +454,39 @@ pub fn add_component_n_substituents(
                 for &r in mol.get_neighbors(n) {
                     if r != carbon && mol.atoms[&r].symbol != "H" {
                         let name = name_subgraph_with_upstream(mol, r, &blocked, Some(n))?;
-                        names.push(substituent_sort_key(&name));
+                        // P-14.5: stereodescriptors, nested ones too, take no
+                        // part in alphanumerical order, so each is replaced by
+                        // the first of its pair and ranked separately.
+                        const PAIRS: &str = "ZERSMPrs";
+                        let chars: Vec<_> = name.chars().collect();
+                        let mut descriptors = Vec::new();
+                        let constitution: String = chars
+                            .iter()
+                            .enumerate()
+                            .map(|(i, &c)| match PAIRS.find(c) {
+                                Some(rank)
+                                    if i > 0
+                                        && (chars[i - 1] == '('
+                                            || chars[i - 1].is_ascii_digit())
+                                        && matches!(chars.get(i + 1), Some(',' | ')')) =>
+                                {
+                                    descriptors.push(rank);
+                                    PAIRS.as_bytes()[rank & !1] as char
+                                }
+                                _ => c,
+                            })
+                            .collect();
+                        names.push((substituent_sort_key(&constitution), descriptors));
                     }
                 }
             }
             names.sort();
+            let (names, descriptors): (Vec<_>, Vec<_>) = names.into_iter().unzip();
             let rank = (
                 parse_locant(&locants[&carbon]),
                 std::cmp::Reverse(names.len()),
                 names,
+                descriptors,
             );
             ranked.push((rank, group));
         }

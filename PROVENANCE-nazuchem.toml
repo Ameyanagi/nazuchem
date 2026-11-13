@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "f63f3da659855b2ad07c2e07b2db4845288ae2fe9aceab05fd78e27ef0dbcef2"
+sha256 = "ca6561ac2c920367b1f1cfabc71fb73f84228c2fba3e8c1eeae2b4ae55344257"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "a6fc8c76b8fe422fc00bc6317758c40229a2d61dfcb45230425b0bf5f0493a2d"
+sha256 = "32ac7fff88b61ab3f5c8e76986c8a405a1b4bbb6670aee81d4bb1d5dc5325dd8"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1752,7 +1752,7 @@ sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/wordRules.xml", license = "MIT" },
 ]
 notes = "Byte-preserved upstream data."
-sha256 = "8ee7cacb1cbe77cc6a1e0fd07b54c199fa1736a1eaaa621fb1bfe563c9600331"
+sha256 = "f5925cf4cbaf5a44d686cbab595d020f85ca0518c34964d244db0eb9286d5724"
 
 [[file]]
 path = "crates/nazuchem-n2s/src/ambiguity.rs"
@@ -4436,7 +4436,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/data/namer_rules.json", license = "MIT" },
 ]
 notes = "openclatura rules adapted for ion spellings, retained parents, alkoxy contractions, bond numbering and triazene prefixes (P-68.3.1.4.1); sections and keys the port never reads removed; not byte-identical."
-sha256 = "85dd1040bf852cf6eda1464c13fe06a50dd5168cc97464f2230505986adb8236"
+sha256 = "49f6012d1c16d1f9c37add714e7154ebdc4af79e442da8a0c7fd8048a70aa8ae"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/parser_grammar_snapshot.json"
@@ -4594,7 +4594,7 @@ parts = [
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/functional_prefixes.py", license = "MIT", symbol = "amide_prefix_from_group" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_vocabulary.py", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn amide_prefix_from_group"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/functional_prefixes.py", license = "MIT", symbol = "prefix_from_group" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_vocabulary.py", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn prefix_from_group"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/functional_prefixes.py", license = "MIT", symbol = "collect_component_prefix_substituents" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_vocabulary.py", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn collect_component_prefix_substituents"] },
-  { items = ["mod tests"], origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/functional_prefixes.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "tests" }], members = { "mod tests" = ["fn tests::acid_anion_prefix_uses_its_charge_descriptor_not_the_shared_ester_key", "fn tests::external_acid_groups_are_cited_before_recursive_parent_assembly", "fn tests::unsubstituted_aminium_prefix_uses_azaniumyl", "fn tests::peroxy_ester_prefix_encloses_only_complex_ligands", "fn tests::peroxy_carbamate_keeps_competing_ester_prefix_route"] } },
+  { items = ["mod tests"], origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/functional_prefixes.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "tests" }], members = { "mod tests" = ["fn tests::acid_anion_prefix_uses_its_charge_descriptor_not_the_shared_ester_key", "fn tests::amide_prefixes_follow_p_66_1_1_4_1", "fn tests::hydrazide_prefixes_follow_p_66_3_2", "fn tests::external_acid_groups_are_cited_before_recursive_parent_assembly", "fn tests::unsubstituted_aminium_prefix_uses_azaniumyl", "fn tests::peroxy_ester_prefix_encloses_only_complex_ligands", "fn tests::peroxy_carbamate_keeps_competing_ester_prefix_route"] } },
   { items = ["fn tests::acid_anion_prefix_uses_its_charge_descriptor_not_the_shared_ester_key"], origin = "adapted", sources = [{ project = "ReShiki", path = "src/naming/openclatura/functional_prefixes.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "tests::acid_anion_prefix_uses_its_charge_descriptor_not_the_shared_ester_key" }, { project = "openclatura", path = "tests/data/parser_xml_resources/simpleSubstituents.json", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT", symbol = "<fixture data>" }], notes = "Conservatively adapted exact upstream test inputs/expected names; exact coincidence does not establish independent ancestry. Local harness, assertions, status checks and additional cases remain local extensions. Conservative test-data attribution required by the requested audit rule: shared SMILES/chemical-name literals are attributed even when common chemistry or independent introduction is plausible. Implementation ancestry is uncertain; this decision attributes the test data and does not assert a mechanical port. Fixture-to-consuming-test function mapping is uncertain; the exact upstream fixture path is cited directly." },
 ]
 
@@ -5471,7 +5471,7 @@ parts = [
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/locant_elision.py", license = "MIT", symbol = "_position_signature" }], items = ["fn signature"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/locant_elision.py", license = "MIT", symbol = "_isomorphic" }], items = ["fn isomorphic"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/locant_elision.py", license = "MIT", symbol = "_isomorphic.search" }], items = ["fn isomorphic::search"] },
-  { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/locant_elision.py", license = "MIT", symbol = "_elision_is_safe" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/locant_elision.py", license = "MIT", symbol = "_decorated_labels" }], items = ["fn ester_sites_are_equivalent"], notes = "The ester-site swap, stereo abstention, atom-state features and acid-subgraph preparation are local. The actual decorated graph -> moved-feature candidate -> decorated candidate -> bounded isomorphism proof flow is adapted from locant_elision.py::_elision_is_safe (380-398), with _decorated_labels (474-484). This is an extension of that graph proof to ester site exchange, not wholly independent logic." },
+  { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/locant_elision.py", license = "MIT", symbol = "_elision_is_safe" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/locant_elision.py", license = "MIT", symbol = "_decorated_labels" }], items = ["fn ester_sites_are_equivalent", "fn site_maps_onto", "fn sites_correspond"], notes = "The ester-site swap, stereo abstention, atom-state features and acid-subgraph preparation are local. The actual decorated graph -> moved-feature candidate -> decorated candidate -> bounded isomorphism proof flow is adapted from locant_elision.py::_elision_is_safe (380-398), with _decorated_labels (474-484). This is an extension of that graph proof to ester site exchange, not wholly independent logic." },
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/locant_elision.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "stereo_positions" }], items = ["fn stereo_positions"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/locant_elision.py", license = "MIT", symbol = "_elision_is_safe" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/locant_elision.py", license = "MIT", symbol = "_candidate_positions" }], items = ["fn single_stereo_locant_is_unambiguous"], notes = "The stereogenic-position choice, single-centre shortcuts and precomputed automorphism fast path are local. It retains locant_elision.py::_elision_is_safe (380-398) / _candidate_positions (403-414) proof structure: decorate actual feature, enumerate signature-compatible alternative positions, redecorate and require isomorphism for every placement. Upstream excludes stereo parents at _supported_simple_parent (280); Rust adapts the inherited proof to stereo locant omission." },
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/locant_elision.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "bond_stereo_locant_is_unambiguous" }], items = ["fn bond_stereo_locant_is_unambiguous"] },
@@ -6018,7 +6018,7 @@ parts = [
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/principal_groups.py", license = "MIT", symbol = "component_principal_key" }], items = ["fn component_principal_key"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/principal_groups.py", license = "MIT", symbol = "partition_principal_and_prefix_groups" }], items = ["fn partition_principal_and_prefix_groups"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/principal_groups.py", license = "MIT", symbol = "add_component_principal_group" }], items = ["fn add_component_principal_group"] },
-  { items = ["mod tests"], origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/principal_groups.rs", license = "MIT OR Apache-2.0", symbol = "tests" }], members = { "mod tests" = ["fn tests::amide_parent_candidates_keep_both_suffix_spellings", "fn tests::charged_amides_do_not_expand_the_selected_suffix_class", "fn tests::skeletal_anion_demotion_excludes_cyano_carbons_before_chain_selection", "fn tests::skeletal_anion_demotion_keeps_cationic_suffixes_and_added_hydrogen_boundary", "fn tests::anionic_suffixes_precede_neutral_and_charge_separated_groups"] } },
+  { items = ["mod tests"], origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/principal_groups.rs", license = "MIT OR Apache-2.0", symbol = "tests" }], members = { "mod tests" = ["fn tests::amide_parent_candidates_keep_both_suffix_spellings", "fn tests::principal_class_follows_the_blue_book_suffix_order", "fn tests::charged_amides_do_not_expand_the_selected_suffix_class", "fn tests::skeletal_anion_demotion_excludes_cyano_carbons_before_chain_selection", "fn tests::skeletal_anion_demotion_keeps_cationic_suffixes_and_added_hydrogen_boundary", "fn tests::anionic_suffixes_precede_neutral_and_charge_separated_groups"] } },
   { items = ["fn tests::skeletal_anion_demotion_keeps_cationic_suffixes_and_added_hydrogen_boundary"], origin = "adapted", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/principal_groups.rs", license = "MIT OR Apache-2.0", symbol = "tests::skeletal_anion_demotion_keeps_cationic_suffixes_and_added_hydrogen_boundary" }, { project = "openclatura", path = "tests/roundtrip/test_acids.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT", symbol = "test_roundtrip" }], notes = "Conservatively adapted exact upstream test inputs/expected names; exact coincidence does not establish independent ancestry. Local harness, assertions, status checks and additional cases remain local extensions. Conservative test-data attribution required by the requested audit rule: shared SMILES/chemical-name literals are attributed even when common chemistry or independent introduction is plausible. Implementation ancestry is uncertain; this decision attributes the test data and does not assert a mechanical port." },
 ]
 
@@ -7518,7 +7518,7 @@ sources = [
   { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including the owner decision 2026-11-10 to retain bakeoff_corpus.tsv as a repository-only test fixture with PubChem (NCBI) attribution, excluded from all published packages. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
-sha256 = "d392588f6f79e2cbe73e2159f32996b9823c1e79d5908eee1a02aaf70f604821"
+sha256 = "76e86e853db4394597eacf777d56c6e1e3deb4090ecf84e28644d3dd3d1adb66"
 
 [[file]]
 path = "crates/nazuchem-ir/docs/cxsmiles.md"
@@ -7649,6 +7649,15 @@ sources = [
 notes = "Original facade regression for issue #150: generated names of the anions, acid salts and partial esters of organyl-substituted phosphorus, arsenic and antimony oxoacids, the arsenic and antimony acids themselves, pnictogen prefixes that cite their hydroxy, alkoxy and oxido ligands, and declined oxidophosphanyl and thio anions, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
 
 [[file]]
+path = "crates/nazuchem/tests/polyanhydrides.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/tests/polyanhydrides.rs", ref = "issue #110", license = "MIT OR Apache-2.0" },
+]
+notes = "Original facade regression for issue #110: generated dianhydride names, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure, and Blue Book dianhydride names read by the parser."
+
+[[file]]
 path = "crates/nazuchem/tests/ir.rs"
 origin = "original"
 license = "MIT OR Apache-2.0"
@@ -7742,7 +7751,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/python/pyproject.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
-sha256 = "baf587a2e38f4147c7f0af7590ee34f6355f05b9b6c105862eb3b69d1e2b7fba"
+sha256 = "511bc92965e417769bb399c3d6e2d12e8b3092e929cffa4938f0cdd4d1af83c7"
 
 [[file]]
 path = "bindings/python/python/nazuchem/__init__.py"
@@ -7821,7 +7830,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/python/uv.lock", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "547885a9289a02f79f1905decfe0cc32c40a5101920454fa3cc32dee7246ed1b"
+sha256 = "37571e42d70c915331fc0723107c636b519eb9768f4ddea380359b6a8b68d902"
 
 [[file]]
 path = "bindings/wasm/.gitignore"
@@ -7871,7 +7880,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/wasm/package.json", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Adds the local Bun benchmark command; npm is publishable and benchmark files remain outside the package whitelist. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
-sha256 = "fc75221796a01517acfcd0f9b45244a964d8ede740bb04647e1c9ac80c51133b"
+sha256 = "d89f8fd7c919674ad84b8432e1b1e4bd9182c1ff15c3d6f71ff37c242d6e4e07"
 
 [[file]]
 path = "bindings/wasm/scripts/build.ts"
