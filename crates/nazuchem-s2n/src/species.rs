@@ -181,6 +181,28 @@ pub(super) fn assess_cation_parent(mol: &Molecule, derivation: &Derivation) {
     if !centres.is_empty() && !centres.iter().any(cited) {
         mol.mark_name(NameStatus::Unverified(NameReason::CationParent));
     }
+    // P-73.1.2 takes the largest neutral parent: an aminium or iminium
+    // nitrogen on a substituent amine or imine nitrogen belongs to a
+    // hydrazinium or hydrazidium parent, as in pentamethylhydrazinium
+    // (P-73.1.1.2) and N',N',N'-trimethylbenzohydrazid-N'-ium (P-73.1.2.1),
+    // which this name does not choose.
+    if principal_group.as_ref().is_some_and(|(key, atoms)| {
+        matches!(key.as_str(), "aminium" | "iminium")
+            && atoms.iter().any(|n| {
+                centres.contains(n)
+                    && mol.get_neighbors(*n).iter().any(|x| {
+                        mol.atoms[x].symbol == "N"
+                            && mol.atoms[x].charge == 0
+                            && !parent_atoms.contains(x)
+                            && mol
+                                .get_neighbors(*x)
+                                .iter()
+                                .all(|o| mol.atoms[o].symbol != "O")
+                    })
+            })
+    }) {
+        mol.mark_name(NameStatus::Unverified(NameReason::CationParent));
+    }
 }
 
 /// P-70.2, P-73.7(a): the cationic centres of a cation, leaving out

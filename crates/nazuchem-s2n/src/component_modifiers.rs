@@ -221,26 +221,28 @@ pub fn collect_component_front_modifiers(
 
 pub struct NumberingNSubstituents {
     items: Vec<SubstituentItem>,
-    sites: BTreeMap<String, usize>,
+    /// Provisional N locant to its parent atom and the primes of the nitrogen.
+    sites: BTreeMap<String, (usize, usize)>,
     pub consumed: AtomSet,
-    amine: bool,
+    superscript: bool,
 }
 
 impl NumberingNSubstituents {
     // Provenance: fn NumberingNSubstituents::numbering_modifiers | original
     // Source: ReShiki | src/naming/openclatura/component_modifiers.rs::NumberingNSubstituents::numbering_modifiers
-    pub fn numbering_modifiers(&self) -> BTreeMap<usize, Vec<String>> {
+    pub fn numbering_modifiers(&self) -> BTreeMap<usize, Vec<(usize, String)>> {
         let mut names: BTreeMap<_, Vec<_>> = self
             .sites
             .values()
-            .map(|&carbon| (carbon, Vec::new()))
+            .map(|&(carbon, _)| (carbon, Vec::new()))
             .collect();
         for item in &self.items {
             for locant in &item.locants {
+                let (carbon, primes) = self.sites[locant];
                 names
-                    .entry(self.sites[locant])
+                    .entry(carbon)
                     .or_default()
-                    .push(item.name.clone());
+                    .push((primes, item.name.clone()));
             }
         }
         names
@@ -255,20 +257,21 @@ impl NumberingNSubstituents {
         locants: &BTreeMap<usize, String>,
     ) -> AtomSet {
         let mut sites: Vec<_> = self.sites.values().copied().collect();
-        sites.sort_by_key(|carbon| parse_locant(&locants[carbon]));
+        sites.sort_by_key(|(carbon, primes)| (parse_locant(&locants[carbon]), *primes));
         // Polyamines cite the parent locant as a superscript on each nitrogen,
-        // N^1,N^3 (P-62.2.4.1.1, P-62.2.4.1.2); amides keep N, N' and are
-        // marked as not preferred.
+        // N^1,N^3 (P-62.2.4.1.1, P-62.2.4.1.2), and so do the N and N' of
+        // di- and polyhydrazides, N^1,N'^4 (P-66.3.3.2); amides keep N, N'
+        // and are marked as not preferred.
         let assigned: BTreeMap<_, _> = sites
             .iter()
             .enumerate()
-            .map(|(index, &carbon)| {
-                let locant = if self.amine {
-                    format!("N^{}", locants[&carbon])
+            .map(|(index, &(carbon, primes))| {
+                let locant = if self.superscript {
+                    format!("N{}^{}", "'".repeat(primes), locants[&carbon])
                 } else {
                     format!("N{}", "'".repeat(index))
                 };
-                (carbon, locant)
+                ((carbon, primes), locant)
             })
             .collect();
         for item in &mut self.items {
@@ -296,14 +299,21 @@ pub fn collect_numbering_n_substituents(
     path: &[usize],
     exclude: &AtomSet,
 ) -> Result<Option<NumberingNSubstituents>, String> {
-    let Some(key @ ("amine" | "amide" | "ring_amide")) = key else {
+    let Some(key) = key else {
         return Ok(None);
     };
     let selected: Vec<_> = groups
         .iter()
         .filter(|group| group.key == key && path.contains(&group.attachment_carbon))
         .collect();
-    if selected.len() < 2
+    let hydrazide = selected.iter().all(|group| {
+        group
+            .resolved_rule
+            .as_ref()
+            .is_some_and(|rule| rule.has_capability("hydrazide"))
+    });
+    if !(hydrazide || matches!(key, "amine" | "amide" | "ring_amide"))
+        || selected.len() < 2
         || selected
             .iter()
             .map(|group| group.attachment_carbon)
@@ -316,7 +326,7 @@ pub fn collect_numbering_n_substituents(
                 .iter()
                 .filter(|atom| mol.atoms[atom].symbol == "N")
                 .count()
-                != 1
+                != 1 + usize::from(hydrazide)
         })
     {
         return Ok(None);
@@ -337,20 +347,23 @@ pub fn collect_numbering_n_substituents(
                 .any(|group| group.attachment_carbon == **carbon)
         })
         .enumerate()
-        .map(|(index, &carbon)| {
-            let locant = if key == "amine" {
-                format!("N^{}", locants[&carbon])
+        .flat_map(|(index, &carbon)| {
+            (0..1 + usize::from(hydrazide)).map(move |primes| (index, carbon, primes))
+        })
+        .map(|(index, carbon, primes)| {
+            let locant = if key == "amine" || hydrazide {
+                format!("N{}^{}", "'".repeat(primes), locants[&carbon])
             } else {
                 format!("N{}", "'".repeat(index))
             };
-            (locant, carbon)
+            (locant, (carbon, primes))
         })
         .collect();
     Ok(Some(NumberingNSubstituents {
         items: parts.substituents,
         sites,
         consumed,
-        amine: key == "amine",
+        superscript: key == "amine" || hydrazide,
     }))
 }
 
@@ -495,6 +508,16 @@ pub fn add_component_n_substituents(
         ranked.sort_by(|a, b| a.0.cmp(&b.0));
         selected = ranked.into_iter().map(|(_, group)| group).collect();
     }
+    // Two or more hydrazide groups cite the parent locant as a superscript
+    // on N and N', N^1, N'^4 (P-66.3.1.1, P-66.3.3.2). Geminal groups, which
+    // share a parent locant, keep the plain primed series.
+    let distinct_sites = selected.len() > 1
+        && selected
+            .iter()
+            .map(|group| group.attachment_carbon)
+            .collect::<AtomSet>()
+            .len()
+            == selected.len();
     let mut global = 0;
     for (gi, group) in selected.iter().enumerate() {
         let carbon = group.attachment_carbon;
@@ -575,6 +598,8 @@ pub fn add_component_n_substituents(
                     .filter(|g| g.attachment_carbon == carbon)
                     .count();
                 format!("N{}^{}", "'".repeat(primes), locants[&carbon])
+            } else if distinct_sites && rule.has_capability("hydrazide") && nitrogens.len() == 2 {
+                format!("N{}^{}", "'".repeat(ni), locants[&carbon])
             } else {
                 guanidine.get(&n).cloned().unwrap_or_else(|| {
                     n_substituent_locant(key, selected.len(), nitrogens.len(), ni, global, gi)

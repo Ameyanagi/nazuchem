@@ -1037,7 +1037,13 @@ fn nitrogen_chain_roles(m: &Molecule, cyclic: &AtomSet, consumed: &AtomSet) -> V
                 x != c && !blocked.contains(&x) && !cyclic.contains(&x) && m.atoms[&x].symbol == "N"
             })
             .collect::<Vec<_>>();
-        if tails.len() != 1 || m.bond_order(n, tails[0]) != 1 {
+        // A hydrazone name describes the neutral N-N; a charged nitrogen
+        // is left to the ion namers.
+        if tails.len() != 1
+            || m.bond_order(n, tails[0]) != 1
+            || atom.charge != 0
+            || m.atoms[&tails[0]].charge != 0
+        {
             continue;
         }
         let t = tails[0];
@@ -2761,6 +2767,8 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
         }
         if let Some(&n2) = ns.first()
             && m.bond_order(n, n2) == 1
+            && a.charge == 0
+            && m.atoms[&n2].charge == 0
         {
             let tail = amidino_tail(m, n2, &AtomSet::from([n]));
             if has_multiple(m, n2, &AtomSet::from([n])) && tail.is_empty() {
