@@ -1132,9 +1132,11 @@ fn suffix_hydrogen_rank(
     fusion: &[String],
     state: &super::fusion::mancude::ParentDerivativeState,
 ) -> impl Ord + use<> {
-    // P-58.2.3.1.3: if suffix groups outnumber intrinsic H, first reserve
-    // the lowest peripheral indicated-H site.
-    let lowest_indicated = if !indicated.is_empty() && indicated.len() < suffix_count {
+    // P-58.2.3.1.3 (1), P-58.2.3.1.4: unless the indicated hydrogen
+    // accommodates every suffix group, first reserve the lowest peripheral
+    // indicated-H site.
+    let on_suffix = indicated.iter().filter(|l| suffix.contains(*l)).count();
+    let lowest_indicated = if !indicated.is_empty() && on_suffix < suffix_count {
         let lowest = indicated
             .iter()
             .filter(|l| !fusion.contains(*l))
@@ -1151,13 +1153,13 @@ fn suffix_hydrogen_rank(
         .collect();
     (
         lowest_indicated,
-        // P-58.2.3.1.1, P-58.2.3.1.3: indicated hydrogen goes to the suffix
+        // P-58.2.3.1.3 (2): other indicated hydrogen goes to the suffix
         // atoms. One that still leaves an added hydrogen to cite is no gain
         // over suffixes that simply remove a double bond (P-58.2.2.3); the
         // lowest locants then decide (P-58.2.3.1.4,
         // '1H,5H-pyrido[3,2,1-ij]quinoline-6,8-dione', not '1H,8H-...-6,8(5H)-dione').
         std::cmp::Reverse(
-            indicated.iter().filter(|l| suffix.contains(*l)).count() as isize
+            on_suffix as isize
                 - (state.bond_delta.added_hydrogen_operations.iter())
                     .map(|op| op.locants.len() as isize)
                     .sum::<isize>(),

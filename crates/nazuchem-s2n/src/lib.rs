@@ -4210,6 +4210,20 @@ mod tests {
                 "O=C1C(=O)CN2N=CCN12",
                 "3H,5H-pyrazolo[1,2-a][1,2,3]triazole-5,6(7H)-dione",
             ),
+            // The same rules: position 1 is the lowest that can take the
+            // hydrogen, so it is reserved first and ketone 3 takes added
+            // hydrogen rather than '3H'.
+            (
+                "N1CC(=O)N2CC(=O)CN12",
+                "1H,5H-pyrazolo[1,2-a][1,2,3]triazole-3,6(2H,7H)-dione",
+            ),
+            // P-58.2.3.1.3 example and P-58.2.2.3: one indicated hydrogen
+            // for two ketones stays at the lowest position.
+            (
+                "O=C1C(=O)CC2=C1C1=CC=CC=C1C=C2",
+                "1H-cyclopenta[a]naphthalene-1,2(3H)-dione",
+            ),
+            ("O=C1C(=O)N2C=CC=C2C1", "1H-pyrrolizine-2,3-dione"),
             // P-58.2.3.1.1: as many indicated hydrogens as ketones.
             (
                 "O=C1C=CN2C=CC(=O)N12",
