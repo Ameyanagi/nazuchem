@@ -218,40 +218,63 @@ pub fn candidate_principal_attachments(
 }
 
 /// P-72.7(a): the most anionic centres that the suffixes of one class put on
-/// a single parent. Suffixes share a parent when their attachment atoms lie
-/// in one ring system or in one acyclic carbon skeleton.
+/// a single parent: a ring system, or the chain between two of the suffixes.
 // Provenance: fn parent_anionic_centres | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::parent_anionic_centres
 fn parent_anionic_centres(mol: &Molecule, groups: &[PerceivedGroup], key: &str) -> usize {
     let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
     let class: Vec<_> = groups
         .iter()
-        .filter(|g| g.is_principal_candidate && g.key == key)
+        .filter(|g| {
+            g.is_principal_candidate && g.key == key && mol.atoms[&g.attachment_carbon].is_carbon()
+        })
         .collect();
+    let centres = |parent: &AtomSet| {
+        class
+            .iter()
+            .filter(|g| parent.contains(&g.attachment_carbon))
+            .flat_map(|g| &g.atoms_involved)
+            .copied()
+            .filter(|i| mol.atoms[i].charge < 0)
+            .collect::<AtomSet>()
+            .len()
+    };
     class
         .iter()
         .map(|first| {
             let ring = cyclic.contains(&first.attachment_carbon);
-            let mut region = AtomSet::from([first.attachment_carbon]);
+            // Each reached atom with the atom it was reached from.
+            let mut from = BTreeMap::from([(first.attachment_carbon, first.attachment_carbon)]);
             let mut stack = vec![first.attachment_carbon];
             while let Some(atom) = stack.pop() {
                 for &n in mol.get_neighbors(atom) {
                     if cyclic.contains(&n) == ring
                         && (ring || mol.atoms[&n].is_carbon())
-                        && region.insert(n)
+                        && !from.contains_key(&n)
                     {
+                        from.insert(n, atom);
                         stack.push(n);
                     }
                 }
             }
+            if ring {
+                return centres(&from.keys().copied().collect());
+            }
+            // Acyclic carbons form a tree, so the chain to each suffix is unique.
             class
                 .iter()
-                .filter(|g| region.contains(&g.attachment_carbon))
-                .flat_map(|g| &g.atoms_involved)
-                .copied()
-                .filter(|i| mol.atoms[i].charge < 0)
-                .collect::<AtomSet>()
-                .len()
+                .filter(|last| from.contains_key(&last.attachment_carbon))
+                .map(|last| {
+                    let mut chain = AtomSet::from([last.attachment_carbon]);
+                    let mut atom = last.attachment_carbon;
+                    while from[&atom] != atom {
+                        atom = from[&atom];
+                        chain.insert(atom);
+                    }
+                    centres(&chain)
+                })
+                .max()
+                .unwrap_or(0)
         })
         .max()
         .unwrap_or(0)

@@ -146,7 +146,22 @@ pub(super) fn assess_anion_parent(mol: &Molecule, derivation: &Derivation) {
                 .count()
                 > atoms.iter().filter(|i| anionic_centre(i)).count()
     });
+    // P-72.2.2.2.4, P-72.7(b): an amide nitrogen anion is an azanide centre,
+    // so its azanidyl prefix beside another anion is not audited.
+    let acyl_azanidyl = mol.atoms.keys().any(|&n| {
+        mol.atoms[&n].symbol == "N"
+            && anionic_centre(&n)
+            && !parent_atoms.contains(&n)
+            && mol.get_neighbors(n).iter().any(|&c| {
+                mol.atoms[&c].is_carbon()
+                    && mol.get_neighbors(c).iter().any(|&x| {
+                        mol.bond_order(c, x) == 2
+                            && matches!(mol.atoms[&x].symbol.as_str(), "O" | "S" | "Se" | "Te")
+                    })
+            })
+    });
     let unresolved_parent = outnumbered_aminide
+        || acyl_azanidyl
         || external_centre
             && !super::parent_selection::anion_parent_is_senior(mol, parent_atoms, principal_atoms);
     if parent_atoms.iter().any(anionic_centre)

@@ -599,7 +599,18 @@ fn component_pipeline(
     let parent = selection.atom_set();
     groups.retain(|g| parent.contains(&g.attachment_carbon));
     prefix_only_groups.retain(|g| parent.contains(&g.attachment_carbon));
+    let provisional = key;
     key = component_principal_key(mol, &groups, as_prefix);
+    // P-72.7(a): the carboxylate carbons left the parent as carboxylato
+    // prefixes of another anionic suffix, which the selected parent lacks.
+    if key.as_deref() == Some("carboxylate")
+        && provisional != key
+        && provisional
+            .as_deref()
+            .is_some_and(super::perception::is_anionic_group_key)
+    {
+        return Err("openclatura: anionic parent choice is not resolved".into());
+    }
     super::identity_validation::validate_principal_charge_roles(mol, &groups, key.as_deref())?;
     let (principal, mut prefix_groups) =
         partition_principal_and_prefix_groups(&groups, key.as_deref());

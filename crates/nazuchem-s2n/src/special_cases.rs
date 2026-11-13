@@ -4482,7 +4482,10 @@ fn acylazanide_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<(String, b
         || mol.atoms[&n].charge != -1
         || mol.is_isotope_parent()
         || !ligands.iter().any(|&c| acyl(c))
-        || ligands.iter().any(|&c| mol.bond_order(n, c) != 1)
+        // A hydrazide keeps its hydrazine parent (acetylhydrazine-1,1-diide).
+        || ligands
+            .iter()
+            .any(|&c| mol.bond_order(n, c) != 1 || !mol.atoms[&c].is_carbon())
         || get_cyclic_atoms(mol, &outside(mol, atoms)).contains(&n)
     {
         return Ok(None);

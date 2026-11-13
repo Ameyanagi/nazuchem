@@ -279,6 +279,18 @@ fn anionic_parent_has_the_most_anionic_centres() {
             "3-(4-oxidophenyl)-2-[(4-oxidophenyl)methyl]propanoate",
             true,
         ),
+        // Only two of the three olates share a chain with each other, a
+        // tie with the two carboxylates that P-72.7(e) decides.
+        (
+            "[O-]C(C(=O)[O-])C(C[O-])C([O-])C(=O)[O-]",
+            "2,4-dioxido-3-(oxidomethyl)pentanedioate",
+            true,
+        ),
+        (
+            "[S-]C(C(=O)[O-])C(C[S-])C([S-])C(=O)[O-]",
+            "2,4-disulfido-3-(sulfidomethyl)pentanedioate",
+            true,
+        ),
         // Three olates cannot share one chain, so the name is not certified.
         (
             "[O-]CC(C[O-])(C[O-])CC(=O)[O-]",
@@ -321,8 +333,14 @@ fn amide_nitrogen_anions_are_azanides() {
         // A ligand with its own characteristic group is not audited.
         ("[NH-]C(=O)CCO", "(3-hydroxypropanoyl)azanide", false),
         ("[NH-]C(=O)OC", "(methoxycarbonyl)azanide", false),
-        // P-72.6.3: beside a senior anion the nitrogen is azanidyl.
-        ("[NH-]C(=O)CC(=O)[O-]", "3-azanidyl-3-oxopropanoate", true),
+        // P-72.6.3: azanidyl beside another anion. An azanide parent may be
+        // senior (P-72.7(b)), so these are not labelled preferred.
+        ("[NH-]C(=O)CC(=O)[O-]", "3-azanidyl-3-oxopropanoate", false),
+        (
+            "[NH-]C(=O)CS(=O)(=O)[O-]",
+            "2-azanidyl-2-oxoethane-1-sulfonate",
+            false,
+        ),
     ] {
         let name = smiles_to_name(smiles).unwrap();
         assert_eq!(name.text, expected, "{smiles}");
@@ -340,8 +358,12 @@ fn amide_nitrogen_anions_are_azanides() {
             "{smiles} -> {expected} -> {parsed}"
         );
     }
-    // A neutral amide suffix would drop the charge beside a nitro group.
-    assert!(smiles_to_name("[NH-]C(=O)c1ccc(cc1)[N+](=O)[O-]").is_err());
+    // A neutral amide suffix would drop the charge beside a nitro group,
+    // and a hydrazide keeps its hydrazine parent (P-72.2.2.2.4,
+    // acetylhydrazine-1,1-diide).
+    for smiles in ["[NH-]C(=O)c1ccc(cc1)[N+](=O)[O-]", "[N-](N)C(=O)C"] {
+        assert!(smiles_to_name(smiles).is_err(), "{smiles}");
+    }
 }
 
 #[test]
