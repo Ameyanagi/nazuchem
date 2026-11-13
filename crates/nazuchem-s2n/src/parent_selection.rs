@@ -117,27 +117,38 @@ struct ParentGroups<'a> {
 }
 
 /// P-72.7(a): skeletal anions and anionic suffixes each contribute their
-/// negatively charged atoms once, even when perceived groups overlap.
+/// negatively charged atoms once, even when perceived groups overlap. A
+/// parent cites one suffix class, so only the class with the most centres
+/// counts: 1-carboxylatoethane-1,2-bis(olate) has two, not three.
 // Provenance: fn anionic_centres | original
 // Source: ReShiki | src/naming/openclatura/parent_selection.rs::anionic_centres
 fn anionic_centres(mol: &Molecule, parent: &AtomSet, groups: &[PerceivedGroup]) -> AtomSet {
-    parent
+    let mut classes: BTreeMap<&str, AtomSet> = BTreeMap::new();
+    for g in groups {
+        if g.is_principal_candidate
+            && parent.contains(&g.attachment_carbon)
+            // A charge-separated neutral suffix (e.g. nitrile oxide)
+            // is not an anionic suffix.
+            && g.atom_ids().iter().map(|i| mol.atoms[i].charge).sum::<i32>() < 0
+        {
+            classes
+                .entry(&g.key)
+                .or_default()
+                .extend(g.atoms_involved.iter().filter(|i| mol.atoms[i].charge < 0));
+        }
+    }
+    let mut centres: AtomSet = parent
         .iter()
         .copied()
-        .chain(
-            groups
-                .iter()
-                .filter(|g| {
-                    g.is_principal_candidate
-                        && parent.contains(&g.attachment_carbon)
-                        // A charge-separated neutral suffix (e.g. nitrile oxide)
-                        // is not an anionic suffix.
-                        && g.atom_ids().iter().map(|i| mol.atoms[i].charge).sum::<i32>() < 0
-                })
-                .flat_map(|g| g.atoms_involved.iter().copied()),
-        )
         .filter(|i| mol.atoms[i].charge < 0)
-        .collect()
+        .collect();
+    // The first of equal classes, so that the choice is stable.
+    let suffix = classes
+        .into_values()
+        .rev()
+        .max_by_key(|atoms| atoms.difference(&centres).count());
+    centres.extend(suffix.into_iter().flatten());
+    centres
 }
 
 #[cfg(test)]

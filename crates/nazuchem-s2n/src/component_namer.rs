@@ -600,7 +600,7 @@ fn component_pipeline(
     groups.retain(|g| parent.contains(&g.attachment_carbon));
     prefix_only_groups.retain(|g| parent.contains(&g.attachment_carbon));
     key = component_principal_key(mol, &groups, as_prefix);
-    super::identity_validation::validate_principal_charge_roles(&groups, key.as_deref())?;
+    super::identity_validation::validate_principal_charge_roles(mol, &groups, key.as_deref())?;
     let (principal, mut prefix_groups) =
         partition_principal_and_prefix_groups(&groups, key.as_deref());
     prefix_groups.extend(prefix_only_groups.iter().cloned());

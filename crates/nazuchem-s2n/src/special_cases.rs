@@ -8,6 +8,7 @@
 // Source: ReShiki | src/naming/openclatura/special_cases.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #17
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #158
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #180
 // Source: openclatura | tests/exploratory/test_group14_ether_ligand_parent_selection.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_substituents.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -4459,6 +4460,44 @@ pub(super) fn blocking_suffix_defers_to_chain_parent(
     })
 }
 
+/// P-72.2.2.2.4: an anionic centre on an amide nitrogen is named from the
+/// parent anion azanide, as in acetylazanide; the suffixes `amidide` and
+/// `carboxamidide` are not recommended.
+// Provenance: fn acylazanide_name | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::acylazanide_name
+fn acylazanide_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<(String, bool)>, String> {
+    let mut charged = atoms.iter().filter(|i| mol.atoms[i].charge != 0);
+    let (Some(&n), None) = (charged.next(), charged.next()) else {
+        return Ok(None);
+    };
+    let acyl = |c: usize| {
+        mol.atoms[&c].is_carbon()
+            && mol.get_neighbors(c).iter().any(|&x| {
+                mol.bond_order(c, x) == 2
+                    && matches!(mol.atoms[&x].symbol.as_str(), "O" | "S" | "Se" | "Te")
+            })
+    };
+    let ligands = mol.get_neighbors(n);
+    if mol.atoms[&n].symbol != "N"
+        || mol.atoms[&n].charge != -1
+        || mol.is_isotope_parent()
+        || !ligands.iter().any(|&c| acyl(c))
+        || ligands.iter().any(|&c| mol.bond_order(n, c) != 1)
+        || get_cyclic_atoms(mol, &outside(mol, atoms)).contains(&n)
+    {
+        return Ok(None);
+    }
+    let names = ligands
+        .iter()
+        .map(|&root| branch_name(mol, atoms, root, &set([n]), n))
+        .collect::<Result<Vec<_>, _>>()?;
+    // The prefix of a ligand with its own characteristic group is not audited.
+    Ok(Some((
+        format!("{}azanide", center_ligands(&names)),
+        !competing_principal_group(mol, atoms, n),
+    )))
+}
+
 #[cfg(test)]
 // Provenance: fn structural_replacement_parent_name | adapted
 // Source: openclatura | src/openclatura/special_cases.py::structural_replacement_parent_name
@@ -4479,6 +4518,12 @@ pub(super) fn structural_replacement_parent_result(
     if let Some(name) = small_inorganic_parent_name(mol, atoms) {
         require_stereo_free_core(mol, atoms)?;
         return Ok(Some(StructuralParentName::ordinary(name)));
+    }
+    if let Some((name, certified)) = mol.candidate(|| acylazanide_name(mol, atoms))? {
+        return Ok(Some(StructuralParentName {
+            certified,
+            ..StructuralParentName::ordinary(name)
+        }));
     }
     if let Some(name) = mol.candidate(|| hydrazine_carbonyl_parent_name(mol, atoms))? {
         return Ok(Some(StructuralParentName {

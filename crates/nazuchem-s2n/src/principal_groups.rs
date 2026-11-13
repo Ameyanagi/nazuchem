@@ -4,6 +4,7 @@
 // Source: ReShiki | src/naming/openclatura/principal_groups.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/roundtrip/test_acids.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs | issue 10
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs | issue #180
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura principal-group partition/suffix attachment with original skeletal-anion demotion, neutral-amide and chain/ring suffix-class candidate policies.
@@ -17,7 +18,7 @@ use super::{
     locants::parse_locant,
     molecule::{AtomSet, Molecule, bond_ids_within},
     nomenclature::RULES,
-    perception::{PerceivedGroup, perceive_groups},
+    perception::{PerceivedGroup, is_anionic_group_key, perceive_groups},
 };
 use std::collections::BTreeMap;
 
@@ -216,6 +217,46 @@ pub fn candidate_principal_attachments(
         .collect()
 }
 
+/// P-72.7(a): the most anionic centres that the suffixes of one class put on
+/// a single parent. Suffixes share a parent when their attachment atoms lie
+/// in one ring system or in one acyclic carbon skeleton.
+// Provenance: fn parent_anionic_centres | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::parent_anionic_centres
+fn parent_anionic_centres(mol: &Molecule, groups: &[PerceivedGroup], key: &str) -> usize {
+    let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
+    let class: Vec<_> = groups
+        .iter()
+        .filter(|g| g.is_principal_candidate && g.key == key)
+        .collect();
+    class
+        .iter()
+        .map(|first| {
+            let ring = cyclic.contains(&first.attachment_carbon);
+            let mut region = AtomSet::from([first.attachment_carbon]);
+            let mut stack = vec![first.attachment_carbon];
+            while let Some(atom) = stack.pop() {
+                for &n in mol.get_neighbors(atom) {
+                    if cyclic.contains(&n) == ring
+                        && (ring || mol.atoms[&n].is_carbon())
+                        && region.insert(n)
+                    {
+                        stack.push(n);
+                    }
+                }
+            }
+            class
+                .iter()
+                .filter(|g| region.contains(&g.attachment_carbon))
+                .flat_map(|g| &g.atoms_involved)
+                .copied()
+                .filter(|i| mol.atoms[i].charge < 0)
+                .collect::<AtomSet>()
+                .len()
+        })
+        .max()
+        .unwrap_or(0)
+}
+
 // Provenance: fn component_principal_key | adapted
 // Source: openclatura | src/openclatura/principal_groups.py::component_principal_key
 pub fn component_principal_key(
@@ -235,6 +276,12 @@ pub fn component_principal_key(
                     .is_some_and(|r| r.has_capability("promotes_member_groups"))
         })
         .collect();
+    let anionic_classes = groups
+        .iter()
+        .filter(|g| g.is_principal_candidate && is_anionic_group_key(&g.key))
+        .map(|g| g.key.as_str())
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
     let effective = |group: &PerceivedGroup, seniority: &[i64]| {
         let mut best = seniority.to_vec();
         if let Some(descriptor) = &group.descriptor {
@@ -253,6 +300,20 @@ pub fn component_principal_key(
             }
         }
         let charge: i32 = group.atom_ids().iter().map(|i| mol.atoms[i].charge).sum();
+        // P-72.7(a): the suffix class that gives one parent the most anionic
+        // centres, as in 1-(borinan-1-uid-4-yl)ethane-1,2-bis(olate).
+        // P-72.7(b): then `ide` centres, so aminide precedes an acid anion
+        // (diide is senior to idoate).
+        let centres = if anionic_classes > 1 && is_anionic_group_key(&group.key) {
+            parent_anionic_centres(mol, groups, &group.key)
+        } else {
+            0
+        };
+        let ide = if matches!(group.key.as_str(), "aminide" | "iminide") {
+            centres
+        } else {
+            0
+        };
         // P-72.7(e): anionic suffixes rank as their neutral counterparts, so
         // carboxylate precedes olate.
         if matches!(
@@ -266,7 +327,13 @@ pub fn component_principal_key(
         // neutral groups such as azides and nitrile oxides.
         // Classes the rules leave level (the hydrazone spellings) fall back
         // to the group key, so the choice does not follow the atom order.
-        (charge == 0, best, seniority.to_vec(), group.key.clone())
+        (
+            charge == 0,
+            std::cmp::Reverse((centres, ide)),
+            best,
+            seniority.to_vec(),
+            group.key.clone(),
+        )
     };
     groups
         .iter()
