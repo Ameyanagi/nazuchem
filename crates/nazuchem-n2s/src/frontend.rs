@@ -95,22 +95,26 @@ pub(crate) fn parse(
             ch == ' ' && depth == 0
         })
         .map(|word| {
-            [
-                ("bis", 2),
-                ("tris", 3),
-                ("tetrakis", 4),
-                ("pentakis", 5),
-                ("hexakis", 6),
-            ]
-            .into_iter()
-            .find_map(|(multiplier, count)| {
-                let anion = enclosed(word.strip_prefix(multiplier)?)?;
-                let (organyl, acid) = anion.rsplit_once(' ')?;
-                ((acid.ends_with("ate") || acid.ends_with("ite"))
-                    && organyl.split(' ').any(|word| !word.ends_with("hydrogen")))
-                .then(|| vec![anion; count].join(" "))
-            })
-            .unwrap_or_else(|| word.into())
+            word.find(['(', '[', '{'])
+                .and_then(|open| {
+                    // The group multipliers bis, tris, tetrakis and so on.
+                    let count: usize = resources
+                        .definitions
+                        .get(&(word[..open].to_owned(), u16::from(b'R')))?
+                        .attributes
+                        .get("value")?
+                        .parse()
+                        .ok()?;
+                    let anion = enclosed(&word[open..])?;
+                    let (organyl, acid) = anion.rsplit_once(' ')?;
+                    let acid = acid.to_ascii_lowercase();
+                    ((acid.ends_with("ate") || acid.ends_with("ite"))
+                        && organyl
+                            .split_whitespace()
+                            .any(|word| !word.to_ascii_lowercase().ends_with("hydrogen")))
+                    .then(|| vec![anion; count].join(" "))
+                })
+                .unwrap_or_else(|| word.into())
         })
         .collect();
     let name = &words.join(" ");

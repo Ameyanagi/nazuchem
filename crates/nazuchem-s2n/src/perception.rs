@@ -1785,9 +1785,9 @@ fn central_group(
         .copied()
         .filter(|&n| m.atoms[&n].is_carbon() && m.bond_order(c, n) == 1)
         .collect::<Vec<_>>();
-    // P-65.5.2.1: a pseudohalide on the sulfonyl or sulfinyl group is cited
-    // like a halide, methanesulfonyl cyanide, and its cyanide carbon is not
-    // the carbon the acid group is attached to. A group with no other carbon
+    // P-65.5.2.1, P-66.5.1.3.2: a pseudohalide on the sulfonyl or sulfinyl
+    // group is cited like a halide, methanesulfonyl cyanide, and its cyanide
+    // carbon is not the carbon the acid group is attached to. A group with no other carbon
     // is perceived as before. An isocyanide keeps its charged carbon and is
     // left to the ion routes.
     let mut pseudo = m
@@ -2115,9 +2115,11 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
                 // P-72.6.1: the acid-anion prefix is the anion suffix with
                 // "ate" changed to "ato", so it keeps the replacement infix
                 // (sulfinothioato, like the suffix sulfinothioate).
+                // An acyl group likewise keeps it (P-65.3.2.2.2), so the
+                // halide prefix of -S(O)(S)-Cl is chlorosulfonothioyl.
                 (
                     "stem",
-                    if d.derivative == "anion" {
+                    if matches!(d.derivative.as_str(), "anion" | "acid_halide") {
                         suffix_stem.clone()
                     } else {
                         stem.into()

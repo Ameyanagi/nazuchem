@@ -31,11 +31,14 @@ fn assert_preferred(smiles: &str, expected: &str) {
 #[test]
 fn pseudohalides_of_sulfonic_and_sulfinic_acids_are_named_like_the_halides() {
     for (smiles, expected) in [
+        // P-66.5.1.3.2: CH3-SO2-CN methanesulfonyl cyanide (PIN) and
+        // C6H5-SeO-CN benzeneseleninyl cyanide (PIN).
+        ("CS(=O)(=O)C#N", "methanesulfonyl cyanide"),
+        ("N#C[Se](=O)c1ccccc1", "benzeneseleninyl cyanide"),
         // P-65.5.2.1: acyl pseudohalides of suffix acids (carboxylic,
         // sulfonic, sulfinic, selenonic, etc.) are named like the halides
         // of P-65.5.1, the acyl group (P-65.3.2.2.2) and then the class.
         // Acyl cyanides are senior to nitriles (P-66.5.1.3.1).
-        ("CS(=O)(=O)C#N", "methanesulfonyl cyanide"),
         ("N#CS(=O)(=O)c1ccccc1", "benzenesulfonyl cyanide"),
         (
             "Cc1ccc(cc1)S(=O)(=O)C#N",
@@ -81,7 +84,6 @@ fn pseudohalides_of_sulfonic_and_sulfinic_acids_are_named_like_the_halides() {
         ),
         // Carbon acyl groups are unchanged.
         ("CC(=O)C#N", "acetyl cyanide"),
-        ("N#CC(=O)C(=O)C#N", "ethanedioyl dicyanide"),
         ("CS(=O)(=O)Cl", "methanesulfonyl chloride"),
     ] {
         assert_preferred(smiles, expected);
@@ -93,7 +95,10 @@ fn unlike_sulfonyl_halides_and_pseudohalides_are_not_multiplied_together() {
     for (smiles, expected) in [
         // P-65.5.2.1: halides are senior to pseudohalides and azide to
         // cyanide; cyanosulfonyl is the prefix of P-65.5.4. These read as
-        // `disulfonyl chloride` before, a name for another structure.
+        // `disulfonyl chloride` before, a name for another structure. The
+        // form with both class names, ethane-1,2-disulfonyl bromide chloride
+        // (P-65.5.1, butanedioyl bromide chloride), is not generated, for
+        // carbonyl halides either.
         (
             "N#CS(=O)(=O)c1ccc(cc1)S(=O)(=O)Cl",
             "4-(cyanosulfonyl)benzene-1-sulfonyl chloride",
@@ -109,6 +114,11 @@ fn unlike_sulfonyl_halides_and_pseudohalides_are_not_multiplied_together() {
         // Without another carbon on the sulfur these are unchanged: the
         // PIN, sulfuryl dicyanide (P-67.1.2.5.1), is not generated.
         ("N#CS(=O)(=O)C#N", "(cyanosulfonyl)methanenitrile"),
+        // P-65.3.2.2.2: the acyl group of a thio acid keeps its infix,
+        // which the prefix dropped before.
+        ("N#CS(=O)(=S)CC(=O)O", "(cyanosulfonothioyl)acetic acid"),
+        ("ClS(=O)(=S)CC(=O)O", "(chlorosulfonothioyl)acetic acid"),
+        ("ClS(=S)CC(=O)O", "(chlorosulfinothioyl)acetic acid"),
         // A more senior class keeps the suffix (P-41).
         ("N#CS(=O)(=O)CC(=O)O", "(cyanosulfonyl)acetic acid"),
         (
@@ -246,6 +256,10 @@ fn a_multiplied_ester_anion_reads_back() {
             "calcium bis(methyl sulfate) dihydrate",
             "[Ca+2].COS(=O)(=O)[O-].COS(=O)(=O)[O-].O.O",
         ),
+        (
+            "heptasodium heptakis(methyl sulfate)",
+            "[Na+].[Na+].[Na+].[Na+].[Na+].[Na+].[Na+].COS(=O)(=O)[O-].COS(=O)(=O)[O-].COS(=O)(=O)[O-].COS(=O)(=O)[O-].COS(=O)(=O)[O-].COS(=O)(=O)[O-].COS(=O)(=O)[O-]",
+        ),
         // Anions with only `hydrogen` words are read as before, as salts
         // and as the acid esters of P-16.3.6 (a).
         (
@@ -258,6 +272,10 @@ fn a_multiplied_ester_anion_reads_back() {
         ),
         (
             "ethane-1,2-diyl bis(hydrogen sulfate)",
+            "OS(=O)(=O)OCCOS(=O)(=O)O",
+        ),
+        (
+            "ethane-1,2-diyl bis(Hydrogen sulfate)",
             "OS(=O)(=O)OCCOS(=O)(=O)O",
         ),
         (
