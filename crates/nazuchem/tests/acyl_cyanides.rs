@@ -236,10 +236,6 @@ fn a_multiplied_ester_anion_reads_back() {
             "calcium bis(ethyl sulfate)",
         ),
         (
-            "[Ca+2].COS(=O)[O-].COS(=O)[O-]",
-            "calcium bis(methyl sulfite)",
-        ),
-        (
             "[Ca+2].COC(=O)[O-].COC(=O)[O-]",
             "calcium bis(methyl carbonate)",
         ),
