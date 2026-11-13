@@ -132,10 +132,15 @@ fn prefixes_that_are_not_the_preferred_acyl_form_say_so() {
         // preferred prefix; hydroxy is concatenated with phosphonoyl, as in
         // hydroxyazonoyl and selanylphosphonoyl.
         ("OC(=O)C[PH](=O)O", "(hydroxyphosphinoyl)acetic acid", acyl),
-        // P-68.3.2.3.1: with no principal characteristic group the
-        // phosphorus is the parent, a lambda5-phosphanone.
+        // P-64.7.1, P-68.3.2.3.1: heterones are senior to hydroxy compounds
+        // and amines, so without a more senior class the phosphorus is the
+        // parent, a lambda5-phosphanone.
         ("C[PH2]=O", "phosphinoylmethane", acyl),
         ("C[PH](C)=O", "(methylphosphinoyl)methane", acyl),
+        ("OCCP(C)(C)=O", "2-(dimethylphosphinoyl)ethan-1-ol", acyl),
+        ("OC[PH](C)=O", "(methylphosphinoyl)methanol", acyl),
+        ("NCCP(C)(C)=O", "2-(dimethylphosphinoyl)ethan-1-amine", acyl),
+        ("OCC[As](C)(C)=O", "2-(dimethylarsinoyl)ethan-1-ol", acyl),
     ]);
 }
 

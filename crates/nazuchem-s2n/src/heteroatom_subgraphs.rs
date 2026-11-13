@@ -1645,12 +1645,21 @@ pub fn name_heteroatom_subgraph(
             } else {
                 None
             };
-            // P-68.3.2.3.1: without a principal characteristic group the
-            // phosphorus is the parent, as in dimethyl-lambda5-phosphanone.
+            // P-64.7.1, P-68.3.2.3.1: unless a class senior to ketones takes
+            // the suffix, the heterone is the parent, as in
+            // dimethyl-lambda5-phosphanone.
+            let ketone = super::nomenclature::RULES
+                .functional_groups
+                .get("ketone")
+                .and_then(|rule| rule.seniority.as_ref());
             if acyl
-                && !super::perception::perceive_groups(mol)
-                    .iter()
-                    .any(|g| g.is_principal_candidate)
+                && !super::perception::perceive_groups(mol).iter().any(|g| {
+                    g.is_principal_candidate
+                        && g.resolved_rule
+                            .as_ref()
+                            .and_then(|rule| rule.seniority.as_ref())
+                            .is_some_and(|seniority| Some(seniority) < ketone)
+                })
             {
                 mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
             }
