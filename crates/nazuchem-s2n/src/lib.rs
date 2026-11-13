@@ -4189,6 +4189,85 @@ mod tests {
                 "1,3,7-trimethyl-3,7-dihydro-1H-purine-2,6-dione",
             ),
             ("O=C1NC(=O)c2ccccc12", "1H-isoindole-1,3(2H)-dione"),
+            // Issue #95 leftovers. P-14.7.1: a fusion N takes no double bond,
+            // so the parent's indicated hydrogen is counted without it.
+            // P-58.2.3.1.4, the Blue Book example: neither ketone position
+            // can take the hydrogen, and the two ketones remove one double
+            // bond, so no added hydrogen is cited (P-58.2.2.3).
+            (
+                "C1C=CN2CC(=O)C=C3C(=O)C=CC1=C23",
+                "1H,5H-pyrido[3,2,1-ij]quinoline-6,8-dione",
+            ),
+            // P-58.2.3.1.1: as many indicated hydrogens as ketones.
+            (
+                "O=C1C=CN2C=CC(=O)N12",
+                "1H,7H-pyrazolo[1,2-a]pyrazole-1,7-dione",
+            ),
+            ("O=C1C=CN2C=CC=CC2=N1", "2H-pyrido[1,2-a]pyrimidin-2-one"),
+            ("O=C1C=CN=C2C=CC=CN12", "4H-pyrido[1,2-a]pyrimidin-4-one"),
+            (
+                "O=C1C=CN2C=CSC2=N1",
+                "7H-[1,3]thiazolo[3,2-a]pyrimidin-7-one",
+            ),
+            // P-58.2.3.1.2: the hydrogen the ketone does not use takes the
+            // lowest locant.
+            (
+                "C1CN2CCCN2C1=O",
+                "tetrahydro-1H,5H-pyrazolo[1,2-a]pyrazol-1-one",
+            ),
+            // P-58.2.3.1.4: position 3 cannot take the hydrogen (S and the
+            // fusion N isolate C2-C3), so it stays at 5 and the ketone takes
+            // added hydrogen.
+            (
+                "O=C1CSC2=NC=CCN12",
+                "5H-[1,3]thiazolo[3,2-a]pyrimidin-3(2H)-one",
+            ),
+            ("O=C1CCCN2C=CC=CC12", "3,4-dihydro-2H-quinolizin-1(9aH)-one"),
+            ("O=C1C=CC=C2C=CC=CN12", "4H-quinolizin-4-one"),
+            // P-58.2.4: groups cited as prefixes replace hydrogen of hydro
+            // positions; only a pair of suffixes removes the double bond
+            // without them (P-58.2.2.3).
+            (
+                "COC(=O)C1=CN=C2SC(=C)C(=O)N2C1",
+                "methyl 2-methylidene-3-oxo-2,3-dihydro-5H-[1,3]thiazolo[3,2-a]pyrimidine-6-carboxylate",
+            ),
+            (
+                "C=C1SC2=NC=CCN2C1=C",
+                "2,3-dimethylidene-2,3-dihydro-5H-[1,3]thiazolo[3,2-a]pyrimidine",
+            ),
+            (
+                "O=C1SC2=NC=CCN2C1=O",
+                "5H-[1,3]thiazolo[3,2-a]pyrimidine-2,3-dione",
+            ),
+            // P-58.2.3.1.1: 'locants for hydro prefixes are those of the
+            // saturated positions', also when the double bonds between them
+            // move ('1,2-dihydro-3H-indol-3-one' in P-64.3.1).
+            ("O=C1CC=CC2=CNC=C12", "2,5-dihydro-4H-isoindol-4-one"),
+            // P-58.2.2.2: without indicated hydrogen in the parent, the added
+            // hydrogen takes the lowest position the double bonds allow.
+            (
+                "O=C1CCc2c1[nH]c1ccccc12",
+                "1,4-dihydrocyclopenta[b]indol-3(2H)-one",
+            ),
+            (
+                "O=C1CCc2c1c1ccccc1[nH]2",
+                "3,4-dihydrocyclopenta[b]indol-1(2H)-one",
+            ),
+            // P-58.2.3.1.4: 2H-perimidine has one double bond fewer than
+            // 1H-perimidine, so the ketone cannot take the hydrogen.
+            ("O=C1Nc2cccc3cccc(N1)c23", "1H-perimidin-2(3H)-one"),
+            // P-25.7.1.1 ('pyrrolo[3,2-b]pyrrole'): mancude
+            // pyrrolo[2,3-b]indole has six double bonds (N1=C2, C3=C3a,
+            // N8=C8a and the benzo ring) and no indicated hydrogen; both N-H
+            // are hydro positions (P-31.2.2).
+            (
+                "c1ccc2c(c1)[nH]c1[nH]ccc12",
+                "1,8-dihydropyrrolo[2,3-b]indole",
+            ),
+            (
+                "CN1c2ccccc2C2=C1NC(=O)C2",
+                "8-methyl-3,8-dihydropyrrolo[2,3-b]indol-2(1H)-one",
+            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");

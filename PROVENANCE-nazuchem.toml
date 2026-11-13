@@ -3850,6 +3850,7 @@ sources = [
 notes = "Openclatura hydrogen-role collection extended by local complete-parent suffix/lambda proofs."
 parts = [
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/additive.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "has_atom_order_sensitive_bridge_hydrogen" }], items = ["fn has_atom_order_sensitive_bridge_hydrogen"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/additive.rs", ref = "issue #95", license = "MIT OR Apache-2.0", symbol = "valence_saturated_atoms" }], items = ["fn valence_saturated_atoms"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/additive.py", license = "MIT", symbol = "parent_indicated_hydrogen_quota" }], items = ["fn parent_indicated_hydrogen_quota"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/additive.py", license = "MIT", symbol = "_name_indicated_hydrogen_locants" }], items = ["fn name_indicated_hydrogen_locants"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/additive.py", license = "MIT", symbol = "add_indicated_hydrogens" }], items = ["fn operation"] },
@@ -4471,7 +4472,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "tests/roundtrip/test_retained_fused_production.py", license = "MIT" },
 ]
 notes = "openclatura locanted graph templates expanded from base_templates with local parent/numbering additions; not byte-identical."
-sha256 = "b6ea164144d559a0e54d6934d6616027fdb05a53c830af3fb0fb3f0d9ab32de9"
+sha256 = "0a424b99ea8caac691e5433f0e24469d849892bd6d314429cc1c5839db3377bf"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/retained_fused_hydrocarbon_templates.json"
@@ -7526,7 +7527,7 @@ sources = [
   { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including the owner decision 2026-11-10 to retain bakeoff_corpus.tsv as a repository-only test fixture with PubChem (NCBI) attribution, excluded from all published packages. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
-sha256 = "31c1c5f9fb4e65824cbf85f41c0917a731c2ef8ca3d3f2fac1f136c43426c202"
+sha256 = "7c2d6e5fa7330d3205a9f95a068879ad8e8ae8f15873d7befdd1caad4463a4ed"
 
 [[file]]
 path = "crates/nazuchem-ir/docs/cxsmiles.md"
