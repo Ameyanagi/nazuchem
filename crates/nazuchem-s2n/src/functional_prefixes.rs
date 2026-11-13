@@ -413,8 +413,9 @@ pub fn prefix_from_group(
         return Ok("carboxylato".into());
     }
     // P-72.6.3: -O-O(-) is dioxidanidyl, formed like disulfanidyl, here on
-    // carbonyl. P-72.6.1 gives no `ato` prefix for a peroxy acid anion, so
-    // the name is not certified; a chalcogen analogue has no validated one.
+    // carbonyl. The preferred P-72.6.1 `ato` prefix of a peroxy acid anion
+    // has not been audited, so the name is not certified; a chalcogen
+    // analogue has no validated one.
     if let Some(d) = &group.descriptor
         && d.family == "acyl"
         && d.derivative == "anion"
