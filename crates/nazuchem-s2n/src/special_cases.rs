@@ -3569,23 +3569,26 @@ fn sulfamic_acid_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>,
     Ok(Some(format!("{}sulfamic acid", center_ligands(&names))))
 }
 /// P-67.1.2.4.1.1: HO-SO2-CN is sulfurocyanidic acid, sulfuric acid with the
-/// infix cyanido (P-67.1.2.3.2); sulfurous acid takes infixes too
-/// (P-67.1.2.1). Anions end in ate or ite (P-67.1.3.1) and esters cite the
-/// alkyl group before the anion name (P-67.1.3.2). A substitutive name on
-/// methane would have the nitrile carbon as its whole parent.
-// Provenance: fn sulfurocyanidic_acid_name | original
-// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::sulfurocyanidic_acid_name
-fn sulfurocyanidic_acid_name(
+/// infix cyanido (P-67.1.2.3.2). Sulfurous and phosphoric acid take infixes
+/// too (P-67.1.2.1), so (HO)2P(O)-CN is phosphorocyanidic acid, like
+/// phosphorodicyanatidic acid (P-67.1.2.4.1.3). Anions end in ate or ite and
+/// keep `hydrogen` for an acid hydrogen (P-67.1.3.1); esters cite the alkyl
+/// groups before that, as in sodium methyl hydrogen phosphate (P-67.1.3.2).
+/// A substitutive name on methane would have the nitrile carbon as its
+/// whole parent.
+// Provenance: fn cyanidic_acid_name | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::cyanidic_acid_name
+fn cyanidic_acid_name(
     mol: &Molecule,
     atoms: &AtomSet,
 ) -> Result<Option<StructuralParentName>, String> {
     let mut found = None;
-    for &s in atoms {
-        let centre = &mol.atoms[&s];
-        if centre.symbol != "S" || centre.charge != 0 || centre.total_h_count != 0 {
+    for &centre in atoms {
+        let atom = &mol.atoms[&centre];
+        if atom.charge != 0 || atom.total_h_count != 0 || atom.has_stereo() {
             continue;
         }
-        let around = mol.get_neighbors(s);
+        let around = mol.get_neighbors(centre);
         let cyano: Vec<_> = around
             .iter()
             .copied()
@@ -3605,75 +3608,95 @@ fn sulfurocyanidic_acid_name(
                 .copied()
                 .filter(|&o| {
                     mol.atoms[&o].symbol == "O"
-                        && mol.bond_order(s, o) == order
+                        && mol.bond_order(centre, o) == order
                         && (order == 1 || mol.degree(o) == 1 && mol.atoms[&o].charge == 0)
                 })
                 .collect::<Vec<_>>()
         };
         let (oxo, single) = (oxygen(2), oxygen(1));
-        if cyano.len() == 1
-            && single.len() == 1
-            && matches!(oxo.len(), 1 | 2)
-            && around.len() == oxo.len() + 2
-        {
+        let names = match (atom.symbol.as_str(), oxo.len(), single.len()) {
+            ("S", 2, 1) => ("sulfurocyanidic acid", "sulfurocyanidate"),
+            ("S", 1, 1) => ("sulfurocyanidous acid", "sulfurocyanidite"),
+            ("P", 1, 2) => ("phosphorocyanidic acid", "phosphorocyanidate"),
+            _ => continue,
+        };
+        if cyano.len() == 1 && around.len() == oxo.len() + single.len() + 1 {
             if found.is_some() {
                 return Ok(None);
             }
-            found = Some((s, cyano[0], oxo, single[0]));
+            found = Some((centre, cyano[0], oxo, single, names));
         }
     }
-    let Some((s, c, oxo, o)) = found else {
+    let Some((centre, c, oxo, single, (acid, anion))) = found else {
         return Ok(None);
     };
-    let mut core: AtomSet = [s, c, o].into_iter().chain(oxo.iter().copied()).collect();
+    let mut core: AtomSet = [centre, c].into_iter().chain(oxo).collect();
+    core.extend(&single);
     core.extend(mol.get_neighbors(c));
-    let (acid, anion) = if oxo.len() == 2 {
-        ("sulfurocyanidic acid", "sulfurocyanidate")
-    } else {
-        ("sulfurocyanidous acid", "sulfurocyanidite")
-    };
-    let roots: Vec<_> = mol
-        .get_neighbors(o)
-        .iter()
-        .copied()
-        .filter(|&r| r != s)
-        .collect();
     let mut name = StructuralParentName {
         certified: true,
         ..StructuralParentName::ordinary(String::new())
     };
-    match (&roots[..], mol.atoms[&o].charge) {
-        ([], _) if core != *atoms => return Ok(None),
-        ([], -1) => name.name = anion.into(),
-        ([], 0) => name.name = acid.into(),
-        (&[root], 0) if mol.atoms[&root].is_carbon() => {
-            let ligand = component_atoms_until_blocked(mol, atoms, root, &core);
-            if ligand.union(&core).copied().collect::<AtomSet>() != *atoms {
-                return Ok(None);
+    let mut covered = core.clone();
+    let (mut alkyls, mut hydroxy) = (Vec::new(), 0);
+    for o in single {
+        let roots: Vec<_> = mol
+            .get_neighbors(o)
+            .iter()
+            .copied()
+            .filter(|&r| r != centre)
+            .collect();
+        match (&roots[..], mol.atoms[&o].charge) {
+            ([], -1) => {}
+            ([], 0) => hydroxy += 1,
+            (&[root], 0) if mol.atoms[&root].is_carbon() => {
+                let ligand = component_atoms_until_blocked(mol, atoms, root, &core);
+                // An acyl group makes an anhydride (P-67.1.3.3) and a principal
+                // group or a charge in the ligand may be senior to the ester
+                // (P-41); these are left to the other routes.
+                if !ligand.is_disjoint(&covered)
+                    || ligand.iter().any(|a| mol.atoms[a].charge != 0)
+                    || mol
+                        .get_neighbors(root)
+                        .iter()
+                        .any(|&n| mol.bond_order(root, n) != 1 && !mol.atoms[&n].is_carbon())
+                    || perceive_groups(mol)
+                        .iter()
+                        .any(|g| g.is_principal_candidate && g.atom_ids().is_subset(&ligand))
+                {
+                    return Ok(None);
+                }
+                let alkyl = ester_modifier_name(mol, atoms, root, o, &core)?;
+                if alkyl.is_empty() {
+                    return Ok(None);
+                }
+                name.component_splits.insert(normalize_edge(o, root));
+                alkyls.push(alkyl);
+                covered.extend(ligand);
             }
-            // An acyl group makes an anhydride (P-67.1.3.3) and a principal
-            // group or a charge in the ligand may be senior to the ester
-            // (P-41); these are left to the other routes.
-            if ligand.iter().any(|a| mol.atoms[a].charge != 0)
-                || mol
-                    .get_neighbors(root)
-                    .iter()
-                    .any(|&n| mol.bond_order(root, n) != 1 && !mol.atoms[&n].is_carbon())
-                || perceive_groups(mol)
-                    .iter()
-                    .any(|g| g.is_principal_candidate && g.atom_ids().is_subset(&ligand))
-            {
-                return Ok(None);
-            }
-            let alkyl = ester_modifier_name(mol, atoms, root, o, &core)?;
-            if alkyl.is_empty() {
-                return Ok(None);
-            }
-            name.component_splits.insert(normalize_edge(o, root));
-            name.name = format!("{alkyl} {anion}");
+            _ => return Ok(None),
         }
-        _ => return Ok(None),
     }
+    if covered != *atoms {
+        return Ok(None);
+    }
+    let anionic = atoms.iter().any(|a| mol.atoms[a].charge != 0);
+    name.name = if alkyls.is_empty() && !anionic {
+        acid.into()
+    } else {
+        let hydrogen = match hydroxy {
+            0 => None,
+            1 => Some("hydrogen".into()),
+            n => Some(format!("{}hydrogen", multipliers::basic(n))),
+        };
+        let esters = Some(modifier_phrase(&alkyls, false)).filter(|e| !e.is_empty());
+        esters
+            .into_iter()
+            .chain(hydrogen)
+            .chain([anion.to_owned()])
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
     require_stereo_free_core(mol, &core)?;
     Ok(Some(name))
 }
@@ -4669,7 +4692,7 @@ pub(super) fn structural_replacement_parent_result(
     if let Some(name) = mol.candidate(|| sulfamic_acid_name(mol, atoms))? {
         return Ok(Some(StructuralParentName::ordinary(name)));
     }
-    if let Some(name) = mol.candidate(|| sulfurocyanidic_acid_name(mol, atoms))? {
+    if let Some(name) = mol.candidate(|| cyanidic_acid_name(mol, atoms))? {
         return Ok(Some(name));
     }
     if let Some(name) = mol.candidate(|| azinic_acid_name(mol, atoms))? {
