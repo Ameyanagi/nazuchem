@@ -21,6 +21,15 @@ pub fn render_principal_suffix(rule: &FunctionalGroupRule, count: usize) -> Stri
     if count <= 1 {
         return suffix.clone();
     }
+    // P-16.3.5 (b): `bis(thioic acid)` and `bis(dithioic acid)` enclose the
+    // whole suffix, so a letter locant stays with each group, as in
+    // `butanebis(thioic S-acid)`.
+    let complex = multipliers::complex_(count);
+    if let Some((stem, _)) = suffix.split_once(' ')
+        && multipliers::suffix(count, stem) == format!("{complex}({stem})")
+    {
+        return format!("{complex}({suffix})");
+    }
     let positions: &[usize] = if rule.suffix_multiplier_positions.is_empty() {
         &[0]
     } else {
@@ -109,6 +118,12 @@ mod tests {
                 "tricarbo(selenoperoxoic) OSe,OSe,OSe-acid",
             ),
             ("(dithioperoxoic) acid", 2, "bis(dithioperoxoic) acid"),
+            // Issue #120, P-16.3.5 (b): bis(thioic acid), bis(dithioic acid).
+            ("thioic S-acid", 2, "bis(thioic S-acid)"),
+            ("selenothioic Se-acid", 3, "tris(selenothioic Se-acid)"),
+            ("dithioic acid", 2, "bis(dithioic acid)"),
+            ("carbothioic S-acid", 2, "dicarbothioic S-acid"),
+            ("oic acid", 2, "dioic acid"),
         ] {
             rule.suffix = Some(suffix.into());
             assert_eq!(render_principal_suffix(&rule, count), expected);

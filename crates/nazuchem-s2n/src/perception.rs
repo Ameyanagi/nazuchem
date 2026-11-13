@@ -1571,7 +1571,7 @@ pub(super) fn is_anionic_group_key(key: &str) -> bool {
     matches!(
         key,
         "olate" | "thiolate" | "aminide" | "carboxylate" | "ring_carboxylate" | "sulfonate"
-    )
+    ) || key.starts_with("peroxolate_")
 }
 
 // An acid residue bonded to `link`: an acyl carbon, or the sulfur of a
@@ -2805,7 +2805,7 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                 || cyclic.contains(&end)
                 || !is_chalcogen(&a.symbol)
                 || m.degree(end) != 1
-                || a.total_h_count == 0
+                || a.total_h_count == 0 && a.charge != -1
                 || a.radical_electrons != 0
             {
                 continue;
@@ -2837,12 +2837,15 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
             ) else {
                 continue;
             };
-            if l.role != LigandRole::ChalcogenLink || t.role != LigandRole::HydrogenBearing {
+            let anion = t.role == LigandRole::Anionic;
+            if l.role != LigandRole::ChalcogenLink
+                || !anion && t.role != LigandRole::HydrogenBearing
+            {
                 continue;
             }
             let mut d = descriptor(
                 "peroxol",
-                "alcohol",
+                if anion { "anion" } else { "alcohol" },
                 vec![anchor],
                 vec![l, t],
                 anchor,
@@ -2855,17 +2858,25 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                 .find(|r| r.first == m.atoms[&first].symbol && r.terminal == m.atoms[&end].symbol);
             if let Some(policy) = policy {
                 let key = format!(
-                    "peroxol_{}_{}",
+                    "peroxol{}_{}_{}",
+                    if anion { "ate" } else { "" },
                     m.atoms[&first].symbol.as_str(),
                     m.atoms[&end].symbol.as_str()
                 );
+                // P-72.2.2.2.2: `methaneperoxolate`, and the letter locant
+                // inside the brackets in `ethane(SO-thioperoxolate)`.
+                let suffix = match (anion, policy.suffix.contains('-')) {
+                    (false, _) => policy.suffix.clone(),
+                    (true, false) => format!("{}ate", policy.suffix),
+                    (true, true) => format!("({}ate)", policy.suffix),
+                };
                 let fp = &NAMER_RULES.chalcogen_rule_policies.peroxol;
                 let mut rule = dynamic_rule(
                     &key,
                     &fp.families,
                     &fp.capabilities,
                     None,
-                    Some(policy.suffix.clone()),
+                    Some(suffix),
                     vec![105, policy.rank],
                     true,
                 );

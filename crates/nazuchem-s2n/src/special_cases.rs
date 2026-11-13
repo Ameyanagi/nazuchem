@@ -2484,6 +2484,31 @@ fn homonuclear_chain_parent_name(
     }) {
         return Ok(None);
     }
+    // P-72.2.2.2.4: an anionic oxygen on a chalcogen chain is named from the
+    // anionic parent hydride, as in tert-butyltrioxidanide and
+    // (ethylsulfanyl)oxidanide (P-72.2.2.2.2). `oxido` on the chain would be
+    // read as a chalcogen oxide.
+    if matches!(symbol.as_str(), "S" | "Se" | "Te")
+        && oxide.is_empty()
+        && let Some(&o) = ligand_atoms.iter().find(|&&i| {
+            mol.atoms[&i].symbol == "O" && mol.atoms[&i].charge == -1 && mol.degree(i) == 1
+        })
+        && let Some(&center) = mol.get_neighbors(o).first()
+        && chain_set.contains(&center)
+    {
+        // The prefix carries no other charge and no backbone stereo.
+        if atoms.iter().any(|&i| i != o && mol.atoms[&i].charge != 0) {
+            return Err("openclatura: second charge beside a chalcogen-chain oxidanide".into());
+        }
+        if chain_set.iter().any(|i| mol.atoms[i].has_stereo()) {
+            return Err(SHORTCUT_STEREO_ERROR.into());
+        }
+        let prefix = branch_name(mol, atoms, center, &set([o]), o)?;
+        return Ok(Some(format!(
+            "({})oxidanide",
+            strip_outer_parentheses(&prefix)
+        )));
+    }
     let mut ligands = Vec::new();
     let mut covered = chain_set.clone();
     for branch in connected_branches(mol, &ligand_atoms.difference(&chain_set).copied().collect()) {

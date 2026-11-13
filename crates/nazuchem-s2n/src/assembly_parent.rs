@@ -1205,7 +1205,7 @@ pub fn format_principal_suffix(
     let mut modifier_cites_locants = false;
     // P-63.4.2.1: `methane-SO-thioperoxol`, `propane-1-OS-thioperoxol`.
     let element_locanted = group.has_capability("element_locanted_suffix");
-    if element_locanted && omit && locs.len() == 1 {
+    if element_locanted && omit && locs.len() == 1 && !suffix.starts_with('(') {
         suffix = format!("-{suffix}");
     }
     if !parts.principal_suffix_modifiers.is_empty()

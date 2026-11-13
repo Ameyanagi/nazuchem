@@ -485,6 +485,42 @@ sense of this -->
 	<rule value="peroxol_SeTe">
 		<addgroup SMILES="[*][Se|2][Te|2]"/>
 	</rule>
+	<rule value="peroxolate_SO">
+		<addgroup SMILES="[*]S[O-]"/>
+	</rule>
+	<rule value="peroxolate_SeO">
+		<addgroup SMILES="[*][Se|2][O-]"/>
+	</rule>
+	<rule value="peroxolate_TeO">
+		<addgroup SMILES="[*][Te|2][O-]"/>
+	</rule>
+	<rule value="peroxolate_OS">
+		<addgroup SMILES="[*]O[S-]"/>
+	</rule>
+	<rule value="peroxolate_OSe">
+		<addgroup SMILES="[*]O[Se-]"/>
+	</rule>
+	<rule value="peroxolate_OTe">
+		<addgroup SMILES="[*]O[Te-]"/>
+	</rule>
+	<rule value="peroxolate_SeS">
+		<addgroup SMILES="[*][Se|2][S-]"/>
+	</rule>
+	<rule value="peroxolate_TeS">
+		<addgroup SMILES="[*][Te|2][S-]"/>
+	</rule>
+	<rule value="peroxolate_SSe">
+		<addgroup SMILES="[*]S[Se-]"/>
+	</rule>
+	<rule value="peroxolate_STe">
+		<addgroup SMILES="[*]S[Te-]"/>
+	</rule>
+	<rule value="peroxolate_TeSe">
+		<addgroup SMILES="[*][Te|2][Se-]"/>
+	</rule>
+	<rule value="peroxolate_SeTe">
+		<addgroup SMILES="[*][Se|2][Te-]"/>
+	</rule>
 	<rule value="olate">
 		<addgroup SMILES="[*][O-]" />
 	</rule>

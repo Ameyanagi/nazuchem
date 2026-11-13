@@ -59,10 +59,11 @@ fn snapshot(graph: &Graph, fragment: FragmentId) -> String {
 #[test]
 fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulization() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/xml");
-    // Native simpleSubstituents.xml acid-anion prefixes (issue #83, P-72.6.1)
+    // Native simpleSubstituents.xml acid-anion prefixes (issue #83, P-72.6.1;
+    // issue #145, P-65.6.2.3.1 for selenium and tellurium)
     // postdate the frozen Java oracle; they are acyclic, so they must build
     // without spare valencies or cycles and kekulization must leave them as is.
-    const NATIVE: [&str; 12] = [
+    const NATIVE: [&str; 16] = [
         "-S(=S)[O-]",
         "-S(=[Se])[O-]",
         "-S(=[Te])[O-]",
@@ -75,6 +76,10 @@ fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulizatio
         "-S(=S)(=[Se])[O-]",
         "-S(=[Se])(=[Te])[O-]",
         "-S(=S)(=[Te])[O-]",
+        "-[Se](=O)(=O)[O-]",
+        "-[Se](=O)[O-]",
+        "-[Te](=O)(=O)[O-]",
+        "-[Te](=O)[O-]",
     ];
     let mut native = Vec::new();
     let mut inputs = BTreeSet::new();
