@@ -3520,6 +3520,18 @@ mod tests {
                 R::AcylPrefix,
             ),
             ("C[PH](C)=O", "(methyloxophosphanyl)methane", R::AcylPrefix),
+            // P-67.1.4.1.1.5: the preferred prefix follows
+            // hydroxy(methylphosphonoyl).
+            (
+                "O[As](C)(=O)CC(=O)O",
+                "[hydroxy(methyl)arsoryl]acetic acid",
+                R::AcylPrefix,
+            ),
+            (
+                "CO[As](C)(=O)CC(=O)O",
+                "[methoxy(methyl)arsoryl]acetic acid",
+                R::AcylPrefix,
+            ),
             (
                 "O=C(O)c1ccc([As](=O)(C)C)cc1",
                 "4-(dimethyloxoarsanyl)benzoic acid",

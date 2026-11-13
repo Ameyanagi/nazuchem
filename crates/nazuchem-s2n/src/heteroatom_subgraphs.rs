@@ -1658,6 +1658,14 @@ pub fn name_heteroatom_subgraph(
                 ) {
                     mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
                 }
+                // P-67.1.4.1.1.5: the preferred prefix concatenates hydroxy
+                // with the substituted acyl group, as in
+                // hydroxy(methylphosphonoyl), not hydroxy(methyl)arsoryl.
+                if matches!(suffix.as_str(), "arsoryl" | "stiboryl")
+                    && roots.iter().any(|n| mol.atoms[n].is_carbon())
+                {
+                    mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
+                }
                 let ns = branches(
                     mol,
                     &roots,
