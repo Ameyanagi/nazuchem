@@ -86,7 +86,7 @@
       "hydroxy": 2,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "dihydroxyphosphoryl"
+      "prefix": "phosphono"
     },
     {
       "symbol": "P",
@@ -212,7 +212,7 @@
       "hydroxy": 2,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "dihydroxyarsoryl"
+      "prefix": "arsono"
     },
     {
       "symbol": "Sb",
@@ -221,7 +221,7 @@
       "hydroxy": 2,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "dihydroxystiboryl"
+      "prefix": "stibono"
     },
     {
       "symbol": "As",

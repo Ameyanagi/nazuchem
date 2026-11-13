@@ -1776,7 +1776,27 @@ pub fn name_heteroatom_subgraph(
                 .into_iter()
                 .filter(|n| !oxo.contains(n))
                 .collect();
-            let deficient = if class.is_none() && roots.len() < 2 {
+            // P-67.1.4.1.1.2, P-67.1.4.1.1.3: H2P(O)-, RHP(O)- and R2P(O)- are
+            // the acyl groups phosphinoyl, methylphosphinoyl and
+            // dimethylphosphinoyl (likewise arsinoyl and stibinoyl);
+            // oxophosphanyl is -P=O, which has no hydrogen to substitute
+            // (P-67.1.4.1.1.6).
+            let acyl = order == 1
+                && atom.charge == 0
+                && matches!(
+                    class.as_deref(),
+                    Some("oxophosphanyl" | "oxoarsanyl" | "oxostibanyl")
+                )
+                && substituent_bonding_number(mol, start) == 5
+                && roots
+                    .iter()
+                    .all(|&n| mol.atoms[&n].is_carbon() && mol.bond_order(start, n) == 1);
+            // The parser reads an unsubstituted `stibinoyl` as -Sb=O.
+            if acyl && symbol == "Sb" && roots.is_empty() {
+                return Err(unsupported("stibinoyl"));
+            }
+            let class = if acyl { None } else { class };
+            let deficient = if class.is_none() && (acyl || roots.len() < 2) {
                 SPECS.heteroatom_substituents.get(symbol).and_then(|spec| {
                     let deficient = &spec.ligand_deficient_prefixes;
                     deficient
@@ -1787,6 +1807,30 @@ pub fn name_heteroatom_subgraph(
             } else {
                 None
             };
+            // P-64.7.1, P-68.3.2.3.1: unless a class senior to ketones takes
+            // the suffix, the heterone is the parent, as in
+            // dimethyl-lambda5-phosphanone.
+            let ketone = super::nomenclature::RULES
+                .functional_groups
+                .get("ketone")
+                .and_then(|rule| rule.seniority.as_ref());
+            if acyl
+                && !super::perception::perceive_groups(mol).iter().any(|g| {
+                    g.is_principal_candidate
+                        && g.resolved_rule
+                            .as_ref()
+                            .and_then(|rule| rule.seniority.as_ref())
+                            .is_some_and(|seniority| Some(seniority) < ketone)
+                })
+            {
+                mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
+            }
+            // P-67.1.4.1.1.5: hydrogen of a basic acyl group is not substituted
+            // in a preferred prefix; -PH(O)(OH) is hydroxyphosphonoyl there,
+            // not hydroxyphosphinoyl.
+            if !acyl && deficient.is_some() && !roots.is_empty() {
+                mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
+            }
             let mut suffix = class
                 .or(deficient)
                 .or_else(|| prefix(symbol, oxo.len()))
@@ -1810,21 +1854,25 @@ pub fn name_heteroatom_subgraph(
                     format!("{sp}{suffix}")
                 }
             } else {
-                // Substituted P=O, As=O and Sb=O are acid-derived acyl groups,
-                // dimethylphosphinoyl, methyl(phenyl)arsinoyl, or a phosphanone
-                // parent (P-67.1.4.1.1.3, P-68.3.2.3.1), not a substituted
-                // oxophosphanyl.
+                // P=O, As=O and Sb=O with a heteroatom ligand are acid-derived
+                // acyl groups such as phosphonochloridoyl (P-67.1.4.1.1.4),
+                // not a substituted oxophosphanyl.
                 if matches!(
                     suffix.as_str(),
                     "oxophosphanyl" | "oxoarsanyl" | "oxostibanyl"
                 ) {
                     mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
                 }
-                // P-67.1.4.1.1.5: the preferred prefix concatenates hydroxy
-                // with the substituted acyl group, as in
-                // hydroxy(methylphosphonoyl), not hydroxy(methyl)arsoryl.
-                if matches!(suffix.as_str(), "arsoryl" | "stiboryl")
-                    && roots.iter().any(|n| mol.atoms[n].is_carbon())
+                // P-67.1.4.1.1.5: the preferred prefix concatenates hydroxy,
+                // alkoxy and their chalcogen analogues with the acyl group of
+                // the substituted or functionally replaced acid
+                // (P-67.1.4.1.1.3, P-67.1.4.1.1.4), as in
+                // hydroxy(methylphosphonoyl) and phosphorodichloridoyl, not
+                // hydroxy(methyl)phosphoryl or dichlorophosphoryl.
+                if matches!(suffix.as_str(), "phosphoryl" | "arsoryl" | "stiboryl")
+                    && roots
+                        .iter()
+                        .any(|n| !matches!(mol.atoms[n].symbol.as_str(), "O" | "S" | "Se" | "Te"))
                 {
                     mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
                 }

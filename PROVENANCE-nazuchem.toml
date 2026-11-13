@@ -4427,8 +4427,8 @@ license = "MIT"
 sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/data/heteroatom_substituents.json", license = "MIT" },
 ]
-notes = "openclatura substituent registry; unused ligand_prefixes/join metadata removed; tellanyl prefixes enclose only later simple prefixes (P-16.5.1.3.1); hydrogen phosphonate, arsonate and stibonate anions are hydroxy(oxido)phosphoryl, -arsoryl and -stiboryl rather than phosphonato (P-72.6.1, P-67.1.4.1.1.5; issue #145); not byte-identical."
-sha256 = "fcb7d11f5a892fd8f09b00a2ac7c5b528a0646fb74cdbfd3cc4ed360bf818bfb"
+notes = "openclatura substituent registry; unused ligand_prefixes/join metadata removed; tellanyl prefixes enclose only later simple prefixes (P-16.5.1.3.1); hydrogen phosphonate, arsonate and stibonate anions are hydroxy(oxido)phosphoryl, -arsoryl and -stiboryl rather than phosphonato (P-72.6.1, P-67.1.4.1.1.5; issue #145); the acid groups are the retained phosphono, arsono and stibono rather than dihydroxyphosphoryl, -arsoryl and -stiboryl (P-67.1.4.1.1.1; issue #160); not byte-identical."
+sha256 = "1b57363770cdf872db62c10f72c414d3674180fcc6cefc92f0cbae1ed9f830e1"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/namer_rules.json"
@@ -7529,7 +7529,7 @@ sources = [
   { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including the owner decision 2026-11-10 to retain bakeoff_corpus.tsv as a repository-only test fixture with PubChem (NCBI) attribution, excluded from all published packages. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
-sha256 = "bcfc5ca7ef0b74329157b711af4aea95a086f34961803177b1e1f7b35c867e29"
+sha256 = "63c839b8c16b1a5da44ab8ded2b804c80af69853f73fd181acaaf445547b5330"
 
 [[file]]
 path = "crates/nazuchem-ir/docs/cxsmiles.md"
@@ -7703,6 +7703,15 @@ sources = [
   { project = "Nazuchem", path = "crates/nazuchem/tests/phosphorus_acid_anions.rs", ref = "issue #150", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original facade regression for issue #150: generated names of the anions, acid salts and partial esters of organyl-substituted phosphorus, arsenic and antimony oxoacids, the arsenic and antimony acids themselves, pnictogen prefixes that cite their hydroxy, alkoxy and oxido ligands, and declined oxidophosphanyl and thio anions, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
+
+[[file]]
+path = "crates/nazuchem/tests/phosphorus_acid_prefixes.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/tests/phosphorus_acid_prefixes.rs", ref = "issue #160", license = "MIT OR Apache-2.0" },
+]
+notes = "Original facade regression for issue #160: generated phosphono, arsono, stibono, phosphinoyl, arsinoyl and substituted acyl prefixes, the phosphoryl and phosphinoyl prefixes reported as not preferred, the declined unsubstituted stibinoyl prefix and Blue Book prefix names read by the parser, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
 
 [[file]]
 path = "crates/nazuchem/tests/ir.rs"

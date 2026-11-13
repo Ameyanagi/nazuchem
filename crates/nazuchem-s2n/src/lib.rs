@@ -3663,12 +3663,12 @@ mod tests {
             (
                 "O=CO[PH](=O)O",
                 "(hydroxyphosphinoyloxy)methanal",
-                R::UnretainedParent,
+                R::AcylPrefix,
             ),
             (
                 "O=C(O)OP(=O)(O)c1ccccn1",
                 "{[hydroxy(pyridin-2-yl)phosphoryl]oxy}formic acid",
-                R::UnretainedParent,
+                R::AcylPrefix,
             ),
             (
                 "COC(=O)N(C=O)c1ccsc1",
@@ -3709,12 +3709,14 @@ mod tests {
                 "4-(cyclohexylcarbonothioyl)benzoic acid",
                 R::AcylPrefix,
             ),
+            // P-67.1.4.1.1.4: the preferred prefix is phosphorodichloridoyl.
             (
-                "O=C(O)c1ccc(cc1)P(C)(C)=O",
-                "4-(dimethyloxophosphanyl)benzoic acid",
+                "OC(=O)CP(Cl)(Cl)=O",
+                "(dichlorooxophosphanyl)acetic acid",
                 R::AcylPrefix,
             ),
-            ("C[PH](C)=O", "(methyloxophosphanyl)methane", R::AcylPrefix),
+            // P-68.3.2.3.1: the preferred name is dimethyl-lambda5-phosphanone.
+            ("C[PH](C)=O", "(methylphosphinoyl)methane", R::AcylPrefix),
             // P-67.1.4.1.1.5: the preferred prefix follows
             // hydroxy(methylphosphonoyl).
             (
@@ -3725,11 +3727,6 @@ mod tests {
             (
                 "CO[As](C)(=O)CC(=O)O",
                 "[methoxy(methyl)arsoryl]acetic acid",
-                R::AcylPrefix,
-            ),
-            (
-                "O=C(O)c1ccc([As](=O)(C)C)cc1",
-                "4-(dimethyloxoarsanyl)benzoic acid",
                 R::AcylPrefix,
             ),
             (
