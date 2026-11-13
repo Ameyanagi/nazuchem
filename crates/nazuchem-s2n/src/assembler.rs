@@ -474,10 +474,19 @@ fn add_indicated_hydrogen_prefix(parts: &mut AssemblyParts, core: &str) -> (Stri
                 .hydro_operations
                 .iter()
                 .any(|operation| operation.key == "added_hydrogen");
+        // P-73.1.1.2: a ring N⁺ in a saturated parent is an '-ium' centre
+        // and keeps the hydro prefixes of its neutral parent hydride.
         let charged = parts
             .parent_atom_charges_by_locant
-            .values()
-            .any(|&charge| charge != 0);
+            .iter()
+            .any(|(locant, &charge)| {
+                charge != 0
+                    && !(charge == 1
+                        && parts
+                            .parent_atom_symbols_by_locant
+                            .get(locant)
+                            .is_some_and(|symbol| symbol == "N"))
+            });
         if !parts.spiro_prefix_composition
             && (fully_hydrogenated_fusion
                 || additive.len() + indicated.len().max(stated) == parts.parent_length

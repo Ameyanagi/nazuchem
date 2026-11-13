@@ -1153,9 +1153,10 @@ mod tests {
                 ][..],
             ),
             // Issue #97. P-14.4 (c): the -ium suffix takes the
-            // lower of the two equivalent locants (#96 may retain naphthyridine).
+            // lower of the two equivalent locants. Issue #96, P-73.1.1.2: the
+            // cation keeps the retained name of its neutral parent hydride.
             (
-                "decahydropyrido[3,4-c]pyridin-2-ium",
+                "decahydro-2,7-naphthyridin-2-ium",
                 &["N1CCC2C(C1)C[NH2+]CC2", "C1C[NH2+]CC2CNCCC12"][..],
             ),
             // P-14.3.5: on a symmetric assembly the chalcogenide nitrogen is

@@ -104,6 +104,7 @@ pub enum NameReason {
     RadicalIon,
     AnionParent,
     CationParent,
+    FusionNitrogenHydron,
     IonicSuffixOrder,
     SaltIonOrder,
     Adduct,
@@ -150,6 +151,7 @@ pub const NAME_REASONS: &[NameReason] = &[
     NameReason::RadicalIon,
     NameReason::AnionParent,
     NameReason::CationParent,
+    NameReason::FusionNitrogenHydron,
     NameReason::IonicSuffixOrder,
     NameReason::SaltIonOrder,
     NameReason::Adduct,
@@ -285,6 +287,9 @@ impl NameReason {
             }
             Self::CationParent => {
                 "Cites the cationic centre only in a substituent prefix, as in (1-methylpyridin-1-ium-4-yl)methanol. A cation is senior to neutral classes, so the preferred IUPAC name takes a cationic parent, as in 4-(hydroxymethyl)-1-methylpyridin-1-ium (P-41, P-73.1); this name does not choose that parent yet."
+            }
+            Self::FusionNitrogenHydron => {
+                "Cites a hydron added to a ring-fusion nitrogen as -ium on the neutral parent hydride, as in 4H-quinolizin-5-ium (P-73.1.1.2). The same spelling is widely used for the cation with one more skeletal bond at that nitrogen (5λ5-quinolizin-5-ylium, P-73.3.1), and the name parser reads it that way, so this name has not been confirmed by reading it back."
             }
             Self::Phane => {
                 "The structure is a cyclophane: at least six nodes, two or more rings and a mancude ring. Cyclic phane names rank above fused, bridged fused and von Baeyer names, so the preferred IUPAC name is a phane name (P-52.2.5.1, P-52.2.5.2). The numbering and citation order of this phane name have not been verified."

@@ -29,6 +29,7 @@ use super::{
     assembly_parts::{AssemblyParts, HydroOperation},
     assembly_utils::parse_locant,
     molecule::{AtomSet, Molecule},
+    retained_fused_templates::is_ium_nitrogen,
     rules::{elements, retained},
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -357,9 +358,10 @@ fn lower_retained_indicated_hydrogen(
     };
     if hydro.key != "additive_hydrogen"
         || !parts.indicated_hydrogens.is_empty()
-        || ring
-            .iter()
-            .any(|&id| mol.atoms[&id].charge != 0 || exocyclic_double_bond_site(mol, id, ring))
+        || ring.iter().any(|&id| {
+            mol.atoms[&id].charge != 0 && !is_ium_nitrogen(mol, id)
+                || exocyclic_double_bond_site(mol, id, ring)
+        })
     {
         return;
     }
@@ -698,8 +700,12 @@ fn collect_indicated_hydrogens(
             && fusion.contains(&loc)
             && bonds.len() == 3
             && saturated_ring_site(mol, idx, &ring);
-        let saturated_fusion_h =
-            bonds.len() == 3 && order == 3 && atom.total_h_count + atom.explicit_h_count > 0;
+        // P-73.1.1.2: the hydron of a fusion N⁺-H is the '-ium' suffix, not
+        // hydrogen of the neutral parent hydride.
+        let saturated_fusion_h = bonds.len() == 3
+            && order == 3
+            && atom.total_h_count + atom.explicit_h_count > 0
+            && !is_ium_nitrogen(mol, idx);
         let indicated = (order == 2 || saturated_fusion_h)
             && (!atom.is_carbon()
                 || saturated_ring_site(mol, idx, &ring)

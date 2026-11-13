@@ -472,7 +472,7 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
     assert_eq!(counts.names.records, 1650);
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (1622, 28)
+        (1628, 22)
     );
     counts
         .names
@@ -704,7 +704,7 @@ fn stereo_free_corpus_ordinary_hydrogen_variants_retain_complete_name_results() 
             counts.names.identical,
             counts.names.both_rejected
         ),
-        (1376, 1350, 26)
+        (1376, 1356, 20)
     );
     counts.names.assert_routes(&[("salt", 9)], 1366);
     assert_eq!(

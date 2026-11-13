@@ -15,6 +15,7 @@ use super::super::{
     locants::retained_locant_sort_key as locant_key,
     molecule::{AtomSet, Molecule},
     polycycle_topology::{bicyclo_proof, edges_within_atoms},
+    retained_fused_templates::is_ium_nitrogen,
 };
 use super::{
     audit::audit_fusion_plan,
@@ -196,19 +197,13 @@ fn plan_uncached(
     // P-73.1.1.2 / P-14.4(b): a cation formed by adding a hydron to a
     // saturated ring N is named from its neutral parent hydride plus -ium, so
     // plan its indicated and hydro hydrogen on the unsubstituted neutral
-    // parent (ring N substituents become H). Ring atoms with exocyclic
+    // parent (ring N substituents become H). A quaternary ring N is the same
+    // cation with its hydrogen substituted. Ring atoms with exocyclic
     // multiple bonds (suffix composition) stay on the charged path below.
     let protonated: Vec<_> = atoms
         .iter()
         .copied()
-        .filter(|&id| {
-            let atom = &mol.atoms[&id];
-            atom.symbol == "N"
-                && atom.charge == 1
-                && atom.total_h_count > 0
-                && atom.total_h_count + mol.degree(id) == 4
-                && all_single(mol, id)
-        })
+        .filter(|&id| is_ium_nitrogen(mol, id))
         .collect();
     if !protonated.is_empty()
         && !spiro_component
@@ -1401,6 +1396,42 @@ mod tests {
             assert_eq!(name.text, expected);
             let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        // #96, P-73.1.1.2: a quaternary ring N is the same cation with its
+        // hydrogen substituted, so it is planned on the neutral parent too.
+        for (smiles, expected) in [
+            (
+                "C[N+]1(C)CCC2CCCC2C1",
+                "2,2-dimethyloctahydro-1H-cyclopenta[c]pyridin-2-ium",
+            ),
+            (
+                "C[N+]1(C)CCc2sccc2C1",
+                "5,5-dimethyl-4,5,6,7-tetrahydrothieno[3,2-c]pyridin-5-ium",
+            ),
+            (
+                "C[N+]1(C)CCN2CCCCC2C1",
+                "2,2-dimethyloctahydro-1H-pyrido[1,2-a]pyrazin-2-ium",
+            ),
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected);
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred);
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        // #96, P-73.1.1.2: a hydron at a fusion N is cited as -ium, but the
+        // parser reads that spelling as the λ5-ylium cation (P-73.3.1), so
+        // the name stays unverified.
+        for (smiles, expected) in [
+            ("C1CC2CCC[NH+]2C1", "hexahydro-1H-pyrrolizin-4-ium"),
+            ("C1=CC=C2C=CC=C[NH+]2C1", "4H-quinolizin-5-ium"),
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected);
+            assert_eq!(
+                name.status,
+                nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::FusionNitrogenHydron)
+            );
         }
     }
 
