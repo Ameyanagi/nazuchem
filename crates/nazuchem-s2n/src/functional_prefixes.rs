@@ -662,16 +662,26 @@ pub fn collect_component_prefix_substituents(
             .is_some_and(|r| r.families.contains("prefix_skip"))
             || !parent.contains(&group.attachment_carbon)
             // P-66.1.1.4.1.1: an amide carbonyl carbon ending a parent chain
-            // of two or more carbons is cited as amino with oxo, both named
-            // as ordinary substituents (4-amino-4-oxobutanoic acid).
-            || path.len() > 1
-                && group.descriptor.as_ref().is_some_and(|d| {
-                    d.family == "acyl"
-                        && d.derivative == "amide"
-                        && d.centers.contains(&group.attachment_carbon)
-                })
+            // is cited as amino with oxo, both named as ordinary substituents
+            // (4-amino-4-oxobutanoic acid). An acyl carbon that is the whole
+            // parent has no carbon left for a carbamoyl or carbonyl prefix,
+            // so its ligands are cited the same way; a hydrazide is handled
+            // below.
+            || group.descriptor.as_ref().is_some_and(|d| {
+                d.family == "acyl"
+                    && (d.derivative == "amide" || path.len() == 1 && d.derivative != "hydrazide")
+                    && d.centers.contains(&group.attachment_carbon)
+            })
         {
             continue;
+        }
+        // P-66.5.1.1.4: cyano is the whole -CN group as a substituent, so a
+        // nitrile carbon that is itself the whole parent cannot be cited
+        // that way; cyanomethane would count the carbon twice.
+        if group.key == "nitrile" && path.len() == 1 && group.atoms_involved.contains(&path[0]) {
+            return Err(
+                "openclatura: a nitrile carbon that is the whole parent has no cyano prefix".into(),
+            );
         }
         let name = prefix_from_group(&context, group)?;
         if name.is_empty() {
@@ -878,6 +888,78 @@ mod tests {
                 crate::test_support::canonical_smiles(smiles).unwrap(),
                 "{expected}"
             );
+        }
+    }
+
+    /// Issue #153: an amide, ester or acid halide carbon that is the whole
+    /// parent of a sulfur acid.
+    #[test]
+    fn one_carbon_acyl_parents_cite_their_ligands() {
+        use nazuchem_ir::{NameReason, NameStatus};
+
+        for (smiles, expected) in [
+            // P-65.3.1: the sulfonic or sulfinic acid suffix sits on methane,
+            // whose carbon is the amide carbon, so carbamoyl (P-65.2.1.5)
+            // would cite that carbon twice. Amino with oxo is the remaining
+            // substitutive form; P-66.1.1.4.1.1 (1) states it only for chains
+            // of two or more carbons, so the names are not labelled preferred.
+            ("NC(=O)S(O)(=O)=O", "amino(oxo)methanesulfonic acid"),
+            ("NC(=O)S(=O)(=O)[O-]", "amino(oxo)methanesulfonate"),
+            ("NC(=O)S(=O)(=O)OC", "methyl amino(oxo)methanesulfonate"),
+            ("NC(=O)S(Cl)(=O)=O", "amino(oxo)methanesulfonyl chloride"),
+            ("NC(=O)S(O)=O", "amino(oxo)methanesulfinic acid"),
+            ("NC(=O)[Se](O)(=O)=O", "amino(oxo)methaneselenonic acid"),
+            // P-65.3.1.1: functional replacement in the suffix.
+            ("NC(=O)S(O)(=O)=S", "amino(oxo)methanesulfonothioic O-acid"),
+            // P-66.1.4.4: chalcogen analogues of the amide.
+            (
+                "NC(=S)S(O)(=O)=O",
+                "amino(sulfanylidene)methanesulfonic acid",
+            ),
+            // P-66.1.1.4.1.1: the amino group is substituted in the normal
+            // way.
+            (
+                "CNC(=O)S(O)(=O)=O",
+                "(methylamino)(oxo)methanesulfonic acid",
+            ),
+            (
+                "CN(C)C(=O)S(O)(=O)=O",
+                "(dimethylamino)(oxo)methanesulfonic acid",
+            ),
+            (
+                "O=C(Nc1ccccc1)S(O)(=O)=O",
+                "anilino(oxo)methanesulfonic acid",
+            ),
+            // Esters and acid halides share the cause: alkoxy or halo with
+            // oxo (P-65.6.3.2.3, P-65.5.4 (3)). Neither rule says whether a
+            // single carbon counts as a chain end, so these are not labelled
+            // preferred either.
+            ("COC(=O)S(O)(=O)=O", "methoxy(oxo)methanesulfonic acid"),
+            ("ClC(=O)S(O)(=O)=O", "chloro(oxo)methanesulfonic acid"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(
+                name.status,
+                NameStatus::Unverified(NameReason::UnauditedParent),
+                "{smiles}"
+            );
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                "{expected}"
+            );
+        }
+        // Unchanged neighbours: a chain of two carbons (P-66.1.1.4.1.1 (1))
+        // and a formamide parent.
+        for (smiles, expected) in [
+            ("NC(=O)CS(O)(=O)=O", "2-amino-2-oxoethane-1-sulfonic acid"),
+            ("NC(=O)S(N)(=O)=O", "1-sulfamoylformamide"),
+            ("NC(=O)S(=O)(=O)c1ccccc1", "1-(benzenesulfonyl)formamide"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
         }
     }
 

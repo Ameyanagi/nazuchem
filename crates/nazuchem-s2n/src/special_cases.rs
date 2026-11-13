@@ -7,6 +7,7 @@
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/special_cases.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #17
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #158
 // Source: openclatura | tests/exploratory/test_group14_ether_ligand_parent_selection.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_substituents.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -3419,6 +3420,115 @@ fn sulfamic_acid_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>,
     let names: Vec<_> = ligands.into_iter().map(|(_, n)| n).collect();
     Ok(Some(format!("{}sulfamic acid", center_ligands(&names))))
 }
+/// P-67.1.2.4.1.1: HO-SO2-CN is sulfurocyanidic acid, sulfuric acid with the
+/// infix cyanido (P-67.1.2.3.2); sulfurous acid takes infixes too
+/// (P-67.1.2.1). Anions end in ate or ite (P-67.1.3.1) and esters cite the
+/// alkyl group before the anion name (P-67.1.3.2). A substitutive name on
+/// methane would have the nitrile carbon as its whole parent.
+// Provenance: fn sulfurocyanidic_acid_name | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::sulfurocyanidic_acid_name
+fn sulfurocyanidic_acid_name(
+    mol: &Molecule,
+    atoms: &AtomSet,
+) -> Result<Option<StructuralParentName>, String> {
+    let mut found = None;
+    for &s in atoms {
+        let centre = &mol.atoms[&s];
+        if centre.symbol != "S" || centre.charge != 0 || centre.total_h_count != 0 {
+            continue;
+        }
+        let around = mol.get_neighbors(s);
+        let cyano: Vec<_> = around
+            .iter()
+            .copied()
+            .filter(|&c| {
+                mol.atoms[&c].is_carbon()
+                    && mol.degree(c) == 2
+                    && mol.get_neighbors(c).iter().any(|&n| {
+                        mol.atoms[&n].symbol == "N"
+                            && mol.bond_order(c, n) == 3
+                            && mol.atoms[&n].charge == 0
+                    })
+            })
+            .collect();
+        let oxygen = |order| {
+            around
+                .iter()
+                .copied()
+                .filter(|&o| {
+                    mol.atoms[&o].symbol == "O"
+                        && mol.bond_order(s, o) == order
+                        && (order == 1 || mol.degree(o) == 1 && mol.atoms[&o].charge == 0)
+                })
+                .collect::<Vec<_>>()
+        };
+        let (oxo, single) = (oxygen(2), oxygen(1));
+        if cyano.len() == 1
+            && single.len() == 1
+            && matches!(oxo.len(), 1 | 2)
+            && around.len() == oxo.len() + 2
+        {
+            if found.is_some() {
+                return Ok(None);
+            }
+            found = Some((s, cyano[0], oxo, single[0]));
+        }
+    }
+    let Some((s, c, oxo, o)) = found else {
+        return Ok(None);
+    };
+    let mut core: AtomSet = [s, c, o].into_iter().chain(oxo.iter().copied()).collect();
+    core.extend(mol.get_neighbors(c));
+    let (acid, anion) = if oxo.len() == 2 {
+        ("sulfurocyanidic acid", "sulfurocyanidate")
+    } else {
+        ("sulfurocyanidous acid", "sulfurocyanidite")
+    };
+    let roots: Vec<_> = mol
+        .get_neighbors(o)
+        .iter()
+        .copied()
+        .filter(|&r| r != s)
+        .collect();
+    let mut name = StructuralParentName {
+        certified: true,
+        ..StructuralParentName::ordinary(String::new())
+    };
+    match (&roots[..], mol.atoms[&o].charge) {
+        ([], _) if core != *atoms => return Ok(None),
+        ([], -1) => name.name = anion.into(),
+        ([], 0) => name.name = acid.into(),
+        (&[root], 0) if mol.atoms[&root].is_carbon() => {
+            let ligand = component_atoms_until_blocked(mol, atoms, root, &core);
+            if ligand.union(&core).copied().collect::<AtomSet>() != *atoms {
+                return Ok(None);
+            }
+            // An acyl group makes an anhydride (P-67.1.3.3) and a principal
+            // group or a charge in the ligand may be senior to the ester
+            // (P-41); these are left to the other routes.
+            if ligand.iter().any(|a| mol.atoms[a].charge != 0)
+                || mol
+                    .get_neighbors(root)
+                    .iter()
+                    .any(|&n| mol.bond_order(root, n) != 1 && !mol.atoms[&n].is_carbon())
+                || perceive_groups(mol)
+                    .iter()
+                    .any(|g| g.is_principal_candidate && g.atom_ids().is_subset(&ligand))
+            {
+                return Ok(None);
+            }
+            let alkyl = ester_modifier_name(mol, atoms, root, o, &core)?;
+            if alkyl.is_empty() {
+                return Ok(None);
+            }
+            name.component_splits.insert(normalize_edge(o, root));
+            name.name = format!("{alkyl} {anion}");
+        }
+        _ => return Ok(None),
+    }
+    require_stereo_free_core(mol, &core)?;
+    Ok(Some(name))
+}
 // Provenance: fn azinic_acid_name | adapted
 // Source: openclatura | src/openclatura/special_cases.py::azinic_acid_result
 fn azinic_acid_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>, String> {
@@ -4393,6 +4503,9 @@ pub(super) fn structural_replacement_parent_result(
     }
     if let Some(name) = mol.candidate(|| sulfamic_acid_name(mol, atoms))? {
         return Ok(Some(StructuralParentName::ordinary(name)));
+    }
+    if let Some(name) = mol.candidate(|| sulfurocyanidic_acid_name(mol, atoms))? {
+        return Ok(Some(name));
     }
     if let Some(name) = mol.candidate(|| azinic_acid_name(mol, atoms))? {
         return Ok(Some(StructuralParentName::ordinary(name)));

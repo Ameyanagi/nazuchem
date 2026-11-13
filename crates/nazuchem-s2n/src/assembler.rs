@@ -163,6 +163,31 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
         {
             mol.mark_name(NameStatus::NotPreferred(NameReason::UnretainedParent));
         }
+        // An amide, ester or acid halide carbon that is the whole parent,
+        // as in H2N-CO-SO3H, is cited as amino(oxo)methanesulfonic acid.
+        // The Blue Book states amino with oxo only for chains of two or
+        // more carbons, and carbamoyl would need another carbon to sit on
+        // (P-66.1.1.4.1.1). Alkoxy or halo with oxo is given for a chain
+        // end without saying whether one carbon is a chain (P-65.6.3.2.3,
+        // P-65.5.4), so no preferred name is claimed.
+        if !parts.is_ring
+            && parts.parent_length == 1
+            && let Some(&c) = parts.parent_atom_ids_by_locant.get("1")
+        {
+            let cited = |x: &usize| parts.substituents.iter().any(|i| i.atom_ids.contains(x));
+            let around = mol.get_neighbors(c);
+            if around.iter().any(|x| {
+                mol.bond_order(c, *x) == 2
+                    && matches!(mol.atoms[x].symbol.as_str(), "O" | "S" | "Se" | "Te")
+                    && cited(x)
+            }) && around.iter().any(|x| {
+                mol.bond_order(c, *x) == 1
+                    && !matches!(mol.atoms[x].symbol.as_str(), "C" | "H")
+                    && cited(x)
+            }) {
+                mol.mark_name(NameStatus::Unverified(NameReason::UnauditedParent));
+            }
+        }
     }
     // Formic acids, formyl halides and formamides substituted on carbon are
     // carbamic or carbonic acid derivatives (P-65.1.8.1).
