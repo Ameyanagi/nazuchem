@@ -3206,20 +3206,15 @@ fn hydrazine_carbonyl_parent_name(
 /// Cyanohydrazide, NC-NH-NH2, the hydrazide of cyanic acid (P-66.3.1.2.1,
 /// P-66.3.5.1). Its carbon substituents take the locants N, the nitrogen on
 /// the cyano carbon, and N' (P-66.3.3.1). Left to the general namer: a
-/// second cyanohydrazide, a group that is senior to a hydrazide or ties with
-/// it (P-41), and elements whose acids are perceived elsewhere.
+/// second cyanohydrazide, and a group that is senior to a hydrazide or ties
+/// with it (P-41).
 // Provenance: fn cyanohydrazide_name | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::cyanohydrazide_name
 fn cyanohydrazide_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>, String> {
-    let symbol = |i: usize| mol.atoms[&i].symbol.as_str();
-    if mol.is_isotope_parent()
-        || atoms.iter().any(|&i| {
-            mol.atoms[&i].charge != 0
-                || !matches!(symbol(i), "C" | "H" | "N" | "O" | "F" | "Cl" | "Br" | "I")
-        })
-    {
+    if mol.is_isotope_parent() || atoms.iter().any(|i| mol.atoms[i].charge != 0) {
         return Ok(None);
     }
+    let symbol = |i: usize| mol.atoms[&i].symbol.as_str();
     let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
     let heavy = |i: usize| -> Vec<usize> {
         mol.get_neighbors(i)
@@ -3265,6 +3260,17 @@ fn cyanohydrazide_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>
         }
     }
     let core = set([c, nitrile, n, far]);
+    // Not every senior class is perceived as a group: carbonic, phosphorus
+    // and nitric acids and their esters are not. They all have a carbon
+    // with two heteroatoms or a bond between two heteroatoms.
+    let hetero =
+        |i: usize| !core.contains(&i) && !matches!(symbol(i), "C" | "H" | "F" | "Cl" | "Br" | "I");
+    if atoms.iter().any(|&i| {
+        !core.contains(&i)
+            && heavy(i).into_iter().filter(|&x| hetero(x)).count() > usize::from(!hetero(i))
+    }) {
+        return Ok(None);
+    }
     let mut cited: Vec<(String, &str)> = Vec::new();
     for (locant, nitrogen) in [("N", n), ("N'", far)] {
         for root in heavy(nitrogen) {
@@ -4828,10 +4834,13 @@ mod tests {
             );
         }
         // Left to the general namer and not labelled preferred: a senior or
-        // equal class (P-41), also one of phosphorus or sulfur, a second
-        // cyano group on the hydrazine, a heteroatom substituent, and a
-        // configured hydrazone.
+        // equal class (P-41), also a carbonic, nitric, phosphorus or sulfur
+        // acid or ester, a second cyano group on the hydrazine, a heteroatom
+        // substituent, and a configured hydrazone.
         for smiles in [
+            "N#CNNCOC(=O)O",
+            "N#CNNCOC(=O)OC",
+            "N#CNNCON(=O)=O",
             "N#CNNCP(=O)(O)O",
             "N#CNNCP(=O)(C)O",
             "N#CNNCS(=O)(=O)O",
