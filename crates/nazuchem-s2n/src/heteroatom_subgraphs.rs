@@ -1986,7 +1986,11 @@ pub fn name_heteroatom_subgraph(
                     && substituent_bonding_number(mol, start)
                         == elements::get(symbol).map_or(2, |e| e.standard_valence)
                 {
-                    if symbol == "Se"
+                    // P-63.4.2.2, P-63.3.1: -SeSeH is `diselanyl` and -TeTeH
+                    // `ditellanyl`, as -SSH is `disulfanyl`.
+                    if ns[0] == suffix && order == 1 && mol.atoms[&start].charge == 0 {
+                        format!("{sp}di{suffix}")
+                    } else if symbol == "Se"
                         && super::nomenclature::RULES
                             .heteroatoms
                             .simple_selanyl_prefixes

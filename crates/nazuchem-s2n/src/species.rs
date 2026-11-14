@@ -134,8 +134,36 @@ pub(super) fn assess_anion_parent(mol: &Molecule, derivation: &Derivation) {
             && !parent_atoms.contains(i)
             && principal_atoms.is_none_or(|atoms| !atoms.contains(i))
     });
-    let unresolved_parent = external_centre
-        && !super::parent_selection::anion_parent_is_senior(mol, parent_atoms, principal_atoms);
+    // P-72.7(a): the acid anions cited as prefixes of an aminide are not
+    // parent candidates. Where they outnumber the aminide nitrogens, a parent
+    // built on them, keeping any skeletal anion, has more anionic centres.
+    let outnumbered_aminide = principal_group.as_ref().is_some_and(|(key, atoms)| {
+        key == "aminide"
+            && mol
+                .atoms
+                .keys()
+                .filter(|i| anionic_centre(i) && !parent_atoms.contains(i) && !atoms.contains(i))
+                .count()
+                > atoms.iter().filter(|i| anionic_centre(i)).count()
+    });
+    // P-72.2.2.2.4, P-72.7(b): an amide nitrogen anion is an azanide centre,
+    // so its azanidyl prefix beside another anion is not audited.
+    let acyl_azanidyl = mol.atoms.keys().any(|&n| {
+        mol.atoms[&n].symbol == "N"
+            && anionic_centre(&n)
+            && !parent_atoms.contains(&n)
+            && mol.get_neighbors(n).iter().any(|&c| {
+                mol.atoms[&c].is_carbon()
+                    && mol.get_neighbors(c).iter().any(|&x| {
+                        mol.bond_order(c, x) == 2
+                            && matches!(mol.atoms[&x].symbol.as_str(), "O" | "S" | "Se" | "Te")
+                    })
+            })
+    });
+    let unresolved_parent = outnumbered_aminide
+        || acyl_azanidyl
+        || external_centre
+            && !super::parent_selection::anion_parent_is_senior(mol, parent_atoms, principal_atoms);
     if parent_atoms.iter().any(anionic_centre)
         && principal_group
             .as_ref()
@@ -179,6 +207,24 @@ pub(super) fn assess_cation_parent(mol: &Molecule, derivation: &Derivation) {
                 .is_some_and(|(_, atoms)| atoms.contains(i))
     };
     if !centres.is_empty() && !centres.iter().any(cited) {
+        mol.mark_name(NameStatus::Unverified(NameReason::CationParent));
+    }
+    // P-73.1.2 takes the largest neutral parent: an aminium or iminium
+    // nitrogen on a substituent nitrogen belongs to a hydrazinium or
+    // hydrazidium parent, as in pentamethylhydrazinium (P-73.1.1.2) and
+    // N',N',N'-trimethylbenzohydrazid-N'-ium (P-73.1.2.1), or under a nitro
+    // or nitroso group to an amidium parent (P-67.1.2.6.3), which this name
+    // does not choose.
+    if principal_group.as_ref().is_some_and(|(key, atoms)| {
+        matches!(key.as_str(), "aminium" | "iminium")
+            && atoms.iter().any(|n| {
+                centres.contains(n)
+                    && mol
+                        .get_neighbors(*n)
+                        .iter()
+                        .any(|x| mol.atoms[x].symbol == "N" && !parent_atoms.contains(x))
+            })
+    }) {
         mol.mark_name(NameStatus::Unverified(NameReason::CationParent));
     }
 }

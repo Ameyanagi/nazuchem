@@ -30,8 +30,9 @@ fn check(smiles: &str, expected: &str, status: NameStatus) {
 fn a_nitro_group_on_nitrogen_keeps_the_parent_chain() {
     // P-67.1.4.3.2: -NH-NO2 is the preselected prefix nitramido, other
     // derivatives substitute nitro into amino, and a nitro group on another
-    // nitrogen does not lengthen a chain. The acid, ester or nitrile stays
-    // the principal characteristic group (P-41) with its whole chain.
+    // nitrogen does not lengthen a chain. The acid or ester stays the
+    // principal characteristic group (P-41) with its whole chain. Without a
+    // senior group the compound is a nitramide (P-67.1.2.6.3, issue #176).
     for (smiles, expected) in [
         ("OC(=O)CCN[N+](=O)[O-]", "3-nitramidopropanoic acid"),
         ("OC(=O)CCNN(=O)=O", "3-nitramidopropanoic acid"),
@@ -51,15 +52,12 @@ fn a_nitro_group_on_nitrogen_keeps_the_parent_chain() {
             "3-(dinitroamino)propanoic acid",
         ),
         ("CCOC(=O)CCN[N+](=O)[O-]", "ethyl 3-nitramidopropanoate"),
-        ("N#CCCN[N+](=O)[O-]", "3-nitramidopropanenitrile"),
         (
             "OC(=O)CCON[N+](=O)[O-]",
             "3-[(nitroamino)oxy]propanoic acid",
         ),
         // Names that were already right.
         ("NC(=O)CCN[N+](=O)[O-]", "3-nitramidopropanamide"),
-        ("OCCN[N+](=O)[O-]", "2-nitramidoethan-1-ol"),
-        ("CCN[N+](=O)[O-]", "N-nitroethanamine"),
         ("OC(=O)CCNN=O", "3-(nitrosoamino)propanoic acid"),
         // N(OH)2 is not a nitro group.
         (

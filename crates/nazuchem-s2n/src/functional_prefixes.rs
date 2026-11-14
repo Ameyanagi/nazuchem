@@ -405,6 +405,25 @@ pub fn prefix_from_group(
     if is_carboxylate_group(group) {
         return Ok("carboxylato".into());
     }
+    // P-72.6.3: -O-O(-) is dioxidanidyl, formed like disulfanidyl, here on
+    // carbonyl. The preferred P-72.6.1 `ato` prefix of a peroxy acid anion
+    // has not been audited, so the name is not certified; a chalcogen
+    // analogue has no validated one.
+    if let Some(d) = &group.descriptor
+        && d.family == "acyl"
+        && d.derivative == "anion"
+        && d.ligands.len() == 3
+    {
+        if d.ligands.iter().any(|l| l.element != "O")
+            || d.centers.iter().any(|c| context.parent_path.contains(c))
+        {
+            return Err("openclatura: peroxy acid anion prefix not ported".into());
+        }
+        context
+            .mol
+            .mark_name(NameStatus::Unverified(NameReason::AnionParent));
+        return Ok("(dioxidanidylcarbonyl)".into());
+    }
     if RULES.functional_groups.get(&group.key).is_none()
         && let Some(d) = &group.descriptor
         && d.family == "central_acid"
@@ -547,7 +566,8 @@ pub fn prefix_from_group(
                 })?
             ));
         }
-        return Ok("hydroperoxycarbonyl".into());
+        // P-65.1.4.2 (1): 2-carbonoperoxoylbenzoic acid.
+        return Ok("carbonoperoxoyl".into());
     }
     if rule.has_capability("acyl_leaving_group") {
         return Ok(rule
@@ -659,10 +679,15 @@ pub fn collect_component_prefix_substituents(
             // (4-amino-4-oxobutanoic acid). An acyl carbon that is the whole
             // parent has no carbon left for a carbamoyl or carbonyl prefix,
             // so its ligands are cited the same way; a hydrazide is handled
-            // below.
+            // below. P-65.1.4.2 (2), P-65.1.5.1, P-65.1.5.3: a peroxy acid
+            // or a mixed chalcogen acid ending the chain is cited the same
+            // way (6-hydroperoxy-6-oxohexanoic acid,
+            // 4-oxo-4-sulfanylbutanoic acid).
             || group.descriptor.as_ref().is_some_and(|d| {
                 d.family == "acyl"
-                    && (d.derivative == "amide" || path.len() == 1 && d.derivative != "hydrazide")
+                    && (d.derivative == "amide"
+                        || d.names_its_chalcogens()
+                        || path.len() == 1 && d.derivative != "hydrazide")
                     && d.centers.contains(&group.attachment_carbon)
             })
         {

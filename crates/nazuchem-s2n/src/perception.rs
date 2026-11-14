@@ -6,6 +6,7 @@
 // Source: openclatura | src/openclatura/nitrogen_roles.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/perception.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | issue #94
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | issue #138
 // Source: openclatura | src/openclatura/chains.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/molecule.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_polycyclic_descriptors.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -88,6 +89,24 @@ impl FunctionalGroupDescriptor {
     // Source: openclatura | src/openclatura/chalcogen_roles.py::FunctionalGroupDescriptor.ligands_with_role
     pub fn ligands_with_role(&self, role: LigandRole) -> Vec<&ChalcogenLigand> {
         self.ligands.iter().filter(|l| l.role == role).collect()
+    }
+    // Provenance: fn FunctionalGroupDescriptor::names_its_chalcogens | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs::FunctionalGroupDescriptor::names_its_chalcogens
+    /// A carboxylic acid group whose prefix must say where its chalcogens
+    /// are: a peroxy acid, or a mixed acid such as -CO-SH or -CS-OH. Ending
+    /// a carbon chain it is cited with simple prefixes, as hydroperoxy with
+    /// oxo or sulfanyl with oxo (P-65.1.4.2 (2), P-65.1.5.1, P-65.1.5.3).
+    /// -COOH stays carboxy and -CS-SH dithiocarboxy (P-65.2.1.6).
+    pub fn names_its_chalcogens(&self) -> bool {
+        self.family == "acyl"
+            && self.derivative == "acid"
+            && match self.ligands.as_slice() {
+                [double, single] => double.element != single.element,
+                // -Te-OH is not rendered as hydroxytellanyl outside the acid
+                // prefix yet, so it keeps (hydroxytellanyl)carbonyl.
+                [_, link, terminal] => !(link.element == "Te" && terminal.element == "O"),
+                _ => false,
+            }
     }
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -457,6 +476,14 @@ fn resolve_acyl(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGrou
     let mut seniority = vec![policy.seniority.unwrap_or(60)];
     if policy.ranked_seniority {
         seniority[0] += rank(&double.element);
+    } else if d.derivative == "acid"
+        && let Some(single) = single
+    {
+        // P-43.1 (a), (c), Table 4.3: after every peroxy acid; the most
+        // oxygen, then S, Se, Te; then -OH before -SH (-CS-OH, -CO-SH,
+        // -CS-SH, -CSe-SH, -CS-SeH).
+        let (a, b) = (rank(&double.element), rank(&single.element));
+        seniority.extend([1, a.min(b), a.max(b), b]);
     } else {
         seniority.extend(es.iter().map(|e| rank(e)));
         if leaving.is_some() {
@@ -585,7 +612,23 @@ fn resolve_peroxy(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGr
         .cloned()
         .unwrap_or_default();
     let mut seniority = vec![policy.seniority.unwrap_or(45)];
-    seniority.extend(es.iter().map(|e| rank(e)));
+    let ranks: Vec<i64> = es.iter().map(|e| rank(e)).collect();
+    if d.derivative == "acid" {
+        // P-43.1 (a)-(c), Table 4.3: every peroxy acid precedes the acids
+        // without -OO-; among them the most oxygen, then the -OO- group
+        // (OO, OS, OSe, SS), then =O, =S, =Se, then -OH before -SH
+        // (-CS-OOH, -CSe-OOH, -CO-SOH, -CO-OSH, ..., -CS-SSH).
+        seniority.extend([
+            0,
+            -(es.iter().filter(|e| *e == "O").count() as i64),
+            ranks[1].min(ranks[2]),
+            ranks[1].max(ranks[2]),
+            ranks[0],
+            ranks[2],
+        ]);
+    } else {
+        seniority.extend(ranks);
+    }
     let vals = [
         (
             "carbo",
@@ -1037,7 +1080,13 @@ fn nitrogen_chain_roles(m: &Molecule, cyclic: &AtomSet, consumed: &AtomSet) -> V
                 x != c && !blocked.contains(&x) && !cyclic.contains(&x) && m.atoms[&x].symbol == "N"
             })
             .collect::<Vec<_>>();
-        if tails.len() != 1 || m.bond_order(n, tails[0]) != 1 {
+        // A hydrazone name describes the neutral N-N; a charged nitrogen
+        // is left to the ion namers.
+        if tails.len() != 1
+            || m.bond_order(n, tails[0]) != 1
+            || atom.charge != 0
+            || m.atoms[&tails[0]].charge != 0
+        {
             continue;
         }
         let t = tails[0];
@@ -2827,6 +2876,8 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
         }
         if let Some(&n2) = ns.first()
             && m.bond_order(n, n2) == 1
+            && a.charge == 0
+            && m.atoms[&n2].charge == 0
         {
             let tail = amidino_tail(m, n2, &AtomSet::from([n]));
             if has_multiple(m, n2, &AtomSet::from([n])) && tail.is_empty() {

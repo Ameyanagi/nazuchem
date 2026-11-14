@@ -18,6 +18,7 @@ use std::collections::BTreeSet;
 // Provenance: fn validate_principal_charge_roles | original
 // Source: ReShiki | src/naming/openclatura/identity_validation.rs::validate_principal_charge_roles
 pub fn validate_principal_charge_roles(
+    mol: &Molecule,
     groups: &[PerceivedGroup],
     key: Option<&str>,
 ) -> Result<(), String> {
@@ -34,6 +35,22 @@ pub fn validate_principal_charge_roles(
         return Err(
             "openclatura: mixed ester and anion principal citations are not supported".into(),
         );
+    }
+    // P-72.2.2.2.4: a neutral suffix such as amide would drop the charge of
+    // its nitrogen (acetamide for acetylazanide).
+    if selected().any(|g| {
+        g.is_principal_candidate
+            && !super::perception::is_anionic_group_key(&g.key)
+            && g.atoms_involved
+                .iter()
+                .any(|i| mol.atoms[i].symbol == "N" && mol.atoms[i].charge < 0)
+            && g.atom_ids()
+                .iter()
+                .map(|i| mol.atoms[i].charge)
+                .sum::<i32>()
+                < 0
+    }) {
+        return Err("openclatura: anionic nitrogen in a neutral suffix is not supported".into());
     }
     Ok(())
 }

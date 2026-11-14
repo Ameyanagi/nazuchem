@@ -500,6 +500,16 @@ pub fn promote_acyl_substituent_name(parts: &mut AssemblyParts) {
     {
         return;
     }
+    // P-65.1.4.2 (1): -CO-OOH off a chain end is carbonoperoxoyl, not
+    // hydroperoxycarbonyl (2-carbonoperoxoylbenzoic acid).
+    let mut names: Vec<_> = parts.substituents.iter().map(|s| s.name.as_str()).collect();
+    names.sort_unstable();
+    if parts.parent_length == 1 && parts.unsaturations.is_empty() && names == ["hydroperoxy", "oxo"]
+    {
+        parts.retained_substituent_name = Some("carbonoperoxoyl".into());
+        parts.substituents.clear();
+        return;
+    }
     let carbonyls: Vec<_> = parts
         .substituents
         .iter()

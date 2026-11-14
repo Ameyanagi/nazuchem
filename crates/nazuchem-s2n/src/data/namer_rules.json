@@ -766,7 +766,7 @@
         "acyl_pseudohalide": {"suffix": "{carbo}{infix}yl {halide_word}", "prefix": "{halide_prefix}{infix}carbonyl", "seniority": 50, "families": ["acid_halide", "chain_external_carbonyl"], "capabilities": ["acid_halide", "acyl_leaving_group", "chain_external_carbonyl"]}
       },
       "peroxy_acyl": {
-        "acid": {"seniority": 22, "families": ["peroxy_acid", "chain_external_carbonyl"], "capabilities": ["chain_external_carbonyl"]},
+        "acid": {"seniority": 20, "families": ["peroxy_acid", "chain_external_carbonyl"], "capabilities": ["chain_external_carbonyl"]},
         "anion": {"seniority": 21, "families": ["peroxy_ester", "chain_external_carbonyl"], "capabilities": ["chain_external_carbonyl"]},
         "ester": {"seniority": 45, "families": ["ester_like", "peroxy_ester", "front_modifier", "chain_external_carbonyl"], "capabilities": ["ester_like", "front_modifier", "chain_external_carbonyl"]}
       },
@@ -939,7 +939,7 @@
             0
           ]
         },
-        "seniority": 22,
+        "seniority": [20, 0],
         "suffix_with_locant": false,
         "needs_locant": true
       },
@@ -952,7 +952,7 @@
             0
           ]
         },
-        "seniority": 22,
+        "seniority": [20, 0],
         "suffix_with_locant": true,
         "needs_locant": true
       },

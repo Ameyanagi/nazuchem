@@ -210,15 +210,24 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
         {
             let cited = |x: &usize| parts.substituents.iter().any(|i| i.atom_ids.contains(x));
             let around = mol.get_neighbors(c);
-            if around.iter().any(|x| {
-                mol.bond_order(c, *x) == 2
-                    && matches!(mol.atoms[x].symbol.as_str(), "O" | "S" | "Se" | "Te")
-                    && cited(x)
-            }) && around.iter().any(|x| {
-                mol.bond_order(c, *x) == 1
-                    && !matches!(mol.atoms[x].symbol.as_str(), "C" | "H")
-                    && cited(x)
-            }) {
+            let chalcogen =
+                |x: &usize| matches!(mol.atoms[x].symbol.as_str(), "O" | "S" | "Se" | "Te");
+            if around
+                .iter()
+                .any(|x| mol.bond_order(c, *x) == 2 && chalcogen(x) && cited(x))
+                && around.iter().any(|x| {
+                    mol.bond_order(c, *x) == 1
+                        && !matches!(mol.atoms[x].symbol.as_str(), "C" | "H")
+                        && cited(x)
+                })
+                // P-65.2.1.2: a carbon holding only chalcogens, as in
+                // HO-CO-OSH, is a carbonic acid analogue or its ester, not a
+                // methanone. special_cases::carbonic_replacement_acid_name
+                // names the acids the Blue Book shows.
+                || around.len() == 3
+                    && around.iter().all(chalcogen)
+                    && around.iter().any(|x| mol.bond_order(c, *x) == 2)
+            {
                 mol.mark_name(NameStatus::Unverified(NameReason::UnauditedParent));
             }
         }
@@ -556,11 +565,7 @@ fn add_indicated_hydrogen_prefix(parts: &mut AssemblyParts, core: &str) -> (Stri
             && parts
                 .parent_bond_orders_by_locants
                 .values()
-                .all(|&order| order == 1)
-            && !parts
-                .hydro_operations
-                .iter()
-                .any(|operation| operation.key == "added_hydrogen");
+                .all(|&order| order == 1);
         let charged = parts
             .parent_atom_charges_by_locant
             .values()
