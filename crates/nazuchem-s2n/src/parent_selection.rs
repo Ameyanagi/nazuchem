@@ -23,7 +23,7 @@ use super::{
     locants::{LocantKey, retained_locant_sort_key},
     molecule::{AtomSet, Molecule},
     namer::name_subgraph_with_upstream,
-    numbering::{chain_orientations_before_stereo, chain_preference_before_stereo},
+    numbering::{chain_orientations_before_stereo, parent_preference_before_stereo},
     perception::PerceivedGroup,
     ring_assembly::{RingAssembly, discover_ring_assemblies},
     special_cases::alphanumerical_order_key,
@@ -81,7 +81,7 @@ struct ParentScore {
     double_bonds: i64,
     assembly_junctions: Option<(Vec<LocantKey>, Vec<LocantKey>)>,
     split_acyl: usize,
-    chain_locants: Option<(Vec<usize>, Vec<usize>, Vec<usize>)>,
+    suffix_unsaturation_locants: Option<(Vec<usize>, Vec<usize>, Vec<usize>)>,
     attached_prefixes: i64,
     assembly_substituent_locants: Option<Vec<LocantKey>>,
     assembly_substituent_citation: Option<AssemblyCitation>,
@@ -376,7 +376,7 @@ fn score(
         multiple_bonds: -multiple,
         double_bonds: -double,
         split_acyl,
-        chain_locants: None,
+        suffix_unsaturation_locants: None,
         attached_prefixes: -attached,
         assembly_substituent_locants: None,
         assembly_substituent_citation: None,
@@ -424,7 +424,7 @@ pub(super) fn tied_principal_parents(
         &AtomSet::new(),
         true,
     );
-    prefer_chain_suffix_and_unsaturation_locants(mol, &mut candidates, principal_carbons);
+    prefer_suffix_and_unsaturation_locants(mol, &mut candidates, principal_carbons);
     prefer_chain_prefix_locants(mol, &mut candidates, principal_carbons, groups);
     prefer_exchanged_arm_descriptors(mol, &mut candidates, principal_carbons);
     prefer_isotopically_modified(mol, &mut candidates);
@@ -606,14 +606,14 @@ pub(super) fn senior_configurations(parents: &[&[(String, String)]]) -> (Vec<usi
     (senior, true)
 }
 
-/// P-44.4.1.8 and P-44.4.1.10: chains tied through the number of double
+/// P-44.4.1.8 and P-44.4.1.10: chains or ordinary carbocycles tied through double
 /// bonds prefer the lower suffix locants, then the lower locants for the ene
 /// and yne endings together, then for the ene endings. Both precede the
 /// number of prefixes (P-45.2.1). Chains whose numbering differs in another
 /// earlier P-44.4.1 criterion are left alone.
-// Provenance: fn prefer_chain_suffix_and_unsaturation_locants | original
-// Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::prefer_chain_suffix_and_unsaturation_locants
-fn prefer_chain_suffix_and_unsaturation_locants(
+// Provenance: fn prefer_suffix_and_unsaturation_locants | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::prefer_suffix_and_unsaturation_locants
+fn prefer_suffix_and_unsaturation_locants(
     mol: &Molecule,
     candidates: &mut [(ParentScore, ParentSelection)],
     principal: &[usize],
@@ -633,17 +633,37 @@ fn prefer_chain_suffix_and_unsaturation_locants(
         .enumerate()
         .filter_map(|(i, (s, _))| (earlier(s) == best).then_some(i))
         .collect();
-    if tied.iter().any(|&i| candidates[i].1.is_ring) {
+    if tied.len() < 2 {
         return;
+    }
+    if candidates[tied[0]].1.is_ring {
+        // Ordinary monocyclic carbocycles have neither fixed locant maps nor
+        // indicated/hydro hydrogen. Their suffix and unsaturation locants
+        // can be compared without recursively naming substituent branches.
+        // Other rings keep the existing assembled-name comparison.
+        for &i in &tied {
+            let selection = &candidates[i].1;
+            if selection.requires_fixed_substituent_start()
+                || selection.primary_path().iter().any(|id| {
+                    let atom = &mol.atoms[id];
+                    atom.symbol != "C" || atom.charge != 0 || atom.is_aromatic
+                })
+                || super::parent_pipeline::resolve_retained_parent(mol, selection).is_some()
+            {
+                return;
+            }
+        }
     }
     let mut earlier_numbering = None;
     let mut keys = BTreeMap::new();
     for &i in &tied {
-        let numbering = chain_preference_before_stereo(
+        let selection = &candidates[i].1;
+        let numbering = parent_preference_before_stereo(
             mol,
-            candidates[i].1.primary_path(),
+            selection.primary_path(),
             principal,
             &BTreeMap::new(),
+            selection.is_ring,
         );
         let earlier = (
             numbering.skeletal_ions,
@@ -665,7 +685,7 @@ fn prefer_chain_suffix_and_unsaturation_locants(
         );
     }
     for (i, key) in keys {
-        candidates[i].0.chain_locants = Some(key);
+        candidates[i].0.suffix_unsaturation_locants = Some(key);
     }
 }
 
@@ -829,7 +849,7 @@ fn prefer_chain_prefix_locants(
         let Some(substituents) = chain_prefix_names(mol, path, &boundary) else {
             return;
         };
-        let numbering = chain_preference_before_stereo(mol, path, principal, &substituents);
+        let numbering = parent_preference_before_stereo(mol, path, principal, &substituents, false);
         let earlier = (
             numbering.skeletal_ions,
             numbering.principal,
@@ -1099,7 +1119,7 @@ pub(super) fn anion_parent_is_senior(
         &excluded,
         false,
     );
-    prefer_chain_suffix_and_unsaturation_locants(mol, &mut candidates, &principal);
+    prefer_suffix_and_unsaturation_locants(mol, &mut candidates, &principal);
     let Some(cited_score) = candidates
         .iter()
         .filter(|(_, selection)| selection.atom_set() == *parent)
@@ -2132,6 +2152,12 @@ mod tests {
                 "4-[(5-hydroxycyclohex-2-en-1-yl)oxy]cyclohex-2-en-1-ol",
                 ["OC1C=CC(CC1)OC1CC(O)CC=C1", "C1(O)CC(OC2C=CC(O)CC2)C=CC1"],
             ),
+            // The lower ene locant precedes the extra methyl prefix on the
+            // competing cyclohex-3-en-1-ol parent (P-45.2.1).
+            (
+                "4-[(5-hydroxy-4-methylcyclohex-2-en-1-yl)oxy]cyclohex-2-en-1-ol",
+                ["OC1C=CC(CC1)OC1CC(O)C(C)C=C1", "CC1C=CC(OC2C=CC(O)CC2)CC1O"],
+            ),
             // 3,5 is lower than 4,6 for the ene and yne endings together.
             (
                 "9-[(9-hydroxycyclonon-3-en-5-yn-1-yl)oxy]cyclonon-5-en-3-yn-1-ol",
@@ -2153,9 +2179,47 @@ mod tests {
                 ["N1C=CCC=C1CCC1=CC=CCN1", "C1(CCC2=CCC=CN2)=CC=CCN1"],
             ),
         ] {
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
             for smiles in inputs {
                 assert_eq!(name(smiles), expected, "{smiles}");
+                crate::test_support::verify_identity(smiles, &parsed).unwrap();
             }
+        }
+    }
+
+    #[test]
+    fn tied_rings_prefer_suffix_locants_before_ene_locants() {
+        // Among the two 1,2-diols choose ene 3 over 4. The 1,4-diol
+        // cannot decide the comparison between those two parents.
+        for (smiles, parent) in [
+            (
+                "OC1C(O)C=CC(OC2C(OC3CC(O)C=CC3O)C(O)C(O)C(C)C=2)C1",
+                "cyclohex-3-ene-1,2-diol",
+            ),
+            // The 1,2-diol remains senior even though the 1,3-diol
+            // would give its double bond a lower locant.
+            ("OC1C(O)CC=CC1OC1C=C(O)CC(O)C1", "cyclohex-4-ene-1,2-diol"),
+        ] {
+            let generated = name(smiles);
+            assert!(generated.ends_with(parent), "{generated}");
+            let parsed = crate::test_support::parse_strict(&generated).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+    }
+
+    #[test]
+    fn equal_ring_locants_keep_the_prefix_count_winner_within_the_default_budget() {
+        for (smiles, parent) in [
+            (
+                "C1CC(O)CC(C1)OC1CC(O)CC(C1)OC1CC(O)CC(C1)OC1CC(O)CC(C1)OC1C(C)C(O)CC(C1)OC1CC(O)CC(C1)OC1CC(O)CC(C1)OC1CC(O)CC(C1)",
+                "cyclohexan-1-ol",
+            ),
+            (
+                "C1C(O)C=CC(C1)OC1C(O)C=CC(C1)OC1C(O)C=CC(C1)OC1C(O)C=CC(C1)OC1C(O)C=CC(C1C)OC1C(O)C=CC(C1)OC1C(O)C=CC(C1)OC1C(O)C=CC(C1)",
+                "cyclohex-2-en-1-ol",
+            ),
+        ] {
+            assert!(name(smiles).ends_with(parent));
         }
     }
 

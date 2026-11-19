@@ -708,19 +708,37 @@ pub(super) fn chain_orientations_before_stereo(
     }
 }
 
-/// The numbering criteria of the senior chain orientation, without stereo.
-// Provenance: fn chain_preference_before_stereo | adapted
+/// Numbering criteria for an ordinary ring or chain. Stereo may distinguish
+/// equivalent ring orientations only after the structural locants tie.
+// Provenance: fn parent_preference_before_stereo | adapted
 // Source: openclatura | src/openclatura/numbering.py::number_parent
 // Source: openclatura | src/openclatura/numbering.py::_numbering_preference
-pub(super) fn chain_preference_before_stereo(
+pub(super) fn parent_preference_before_stereo(
     mol: &Molecule,
     path: &[usize],
     principal: &[usize],
     substituents: &BTreeMap<usize, Vec<String>>,
+    is_ring: bool,
 ) -> NumberingPreference {
+    let oriented = if is_ring {
+        number_parent(
+            mol,
+            &NumberingModifiers::default(),
+            &[path.to_vec()],
+            principal,
+            None,
+            substituents,
+            true,
+            false,
+            None,
+            NumberingTopology::default(),
+        )
+    } else {
+        chain_orientations_before_stereo(mol, path, principal, substituents).remove(0)
+    };
     numbering_preference(
         mol,
-        &chain_orientations_before_stereo(mol, path, principal, substituents)[0],
+        &oriented,
         principal,
         None,
         substituents,
