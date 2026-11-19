@@ -3469,8 +3469,7 @@ fn cyanohydrazide_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<String>
                 return Ok(None);
             }
             let name = branch_name(mol, atoms, root, &set([nitrogen]), nitrogen)?;
-            // A name that does not carry the double bond, such as
-            // methanethioyl for =C=S, would lose it.
+            // A substituent on a double bond must keep its ylidene ending.
             if name.is_empty()
                 || (order == 2) != strip_outer_parentheses(&name).ends_with("ylidene")
             {
@@ -5413,6 +5412,8 @@ mod tests {
             ("N#CN(C)Nc1ccccc1", "N-methyl-N'-phenylcyanohydrazide"),
             ("N#CNN=C(C)C", "N'-(propan-2-ylidene)cyanohydrazide"),
             ("N#CNN=Cc1ccccc1", "N'-benzylidenecyanohydrazide"),
+            // P-65.2.1.8: =C=S takes the prefix sulfanylidenemethylidene.
+            ("N#CNN=C=S", "N'-(sulfanylidenemethylidene)cyanohydrazide"),
             // P-41: a hydrazide is senior to an alcohol and a nitrile.
             ("N#CNNCCO", "N'-(2-hydroxyethyl)cyanohydrazide"),
             ("N#CNNCC#N", "N'-(cyanomethyl)cyanohydrazide"),
@@ -5444,8 +5445,6 @@ mod tests {
             "N#CNNC#N",
             "N#CNNCl",
             "N#CN/N=C/c1ccccc1",
-            // methanethioyl would not carry the N=C bond.
-            "N#CNN=C=S",
         ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(
