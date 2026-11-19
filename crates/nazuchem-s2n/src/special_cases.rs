@@ -1416,6 +1416,15 @@ fn simple_central_parent_hydride_name(
     mol: &Molecule,
     atoms: &AtomSet,
 ) -> Result<Option<StructuralParentName>, String> {
+    let neutral_terminal_oxo = |c, n| {
+        let oxygen = &mol.atoms[&n];
+        oxygen.symbol == "O"
+            && oxygen.charge == 0
+            && oxygen.radical_electrons == 0
+            && oxygen.total_h_count.max(oxygen.explicit_h_count) == 0
+            && mol.degree(n) == 1
+            && mol.bond_order(c, n) == 2
+    };
     let mut centers: Vec<_> = atoms
         .iter()
         .copied()
@@ -1430,7 +1439,19 @@ fn simple_central_parent_hydride_name(
                 && (mol.degree(*i) >= 2
                     || mol.degree(*i) == 1
                         && mol.atoms[i].charge == 1
-                        && matches!(mol.atoms[i].symbol.as_str(), "O" | "S" | "Se" | "Te"))
+                        && matches!(mol.atoms[i].symbol.as_str(), "O" | "S" | "Se" | "Te")
+                    || mol.degree(*i) == 1
+                        && !mol.is_isotope_parent()
+                        && mol.atoms[i].symbol == "P"
+                        && mol.atoms[i].charge == 0
+                        && mol.atoms[i]
+                            .total_h_count
+                            .max(mol.atoms[i].explicit_h_count)
+                            == 3
+                        && mol
+                            .get_neighbors(*i)
+                            .iter()
+                            .any(|&n| neutral_terminal_oxo(*i, n)))
         })
         .collect();
     // P-41, P-73.1.2: a cation outranks every neutral class, so a cationic
@@ -1527,8 +1548,38 @@ fn simple_central_parent_hydride_name(
     if a.charge != 0 && !oxide && !onium && !uide {
         return Ok(None);
     }
+    // P-64.4.1 and P-68.3.2.3.1: the heterone parent retains H on neutral
+    // λ5-phosphorus. The suffix describes P=O and this shortcut has no isotope
+    // locants. Competing ketones need a suffix-count comparison (P-64.7.2).
+    let ketone_seniority = RULES
+        .functional_groups
+        .get("ketone")
+        .and_then(|rule| rule.seniority.as_ref());
+    let hydrogens = a.total_h_count.max(a.explicit_h_count);
+    let hydrogen_heterone = !mol.is_isotope_parent()
+        && a.symbol == "P"
+        && a.charge == 0
+        && a.radical_electrons == 0
+        && hydrogens > 0
+        && hydrogens + mol.degree(c) == 4
+        && mol.get_neighbors(c).iter().any(|&n| {
+            neutral_terminal_oxo(c, n)
+                && mol.get_neighbors(c).iter().all(|&ligand| {
+                    ligand == n || mol.atoms[&ligand].is_carbon() && mol.bond_order(c, ligand) == 1
+                })
+        })
+        && !perceive_groups(mol).iter().any(|group| {
+            group.is_principal_candidate
+                && atoms.contains(&group.attachment_carbon)
+                && group
+                    .resolved_rule
+                    .as_ref()
+                    .and_then(|rule| rule.seniority.as_ref())
+                    <= ketone_seniority
+        });
     // P-41: the anion outranks any characteristic group on its ligands.
-    let hydrocarbyl = chalcogen_onium || uide || senior && !has_principal_group(mol, atoms);
+    let hydrocarbyl =
+        chalcogen_onium || uide || hydrogen_heterone || senior && !has_principal_group(mol, atoms);
     let mut names = Vec::new();
     let mut chalcogen = None;
     for &n in mol.get_neighbors(c) {
@@ -1538,7 +1589,7 @@ fn simple_central_parent_hydride_name(
         if hydrocarbyl
             && chalcogen.is_none()
             && matches!(a.symbol.as_str(), "P" | "As" | "Sb")
-            && a.total_h_count == 0
+            && (a.total_h_count == 0 || hydrogen_heterone && mol.atoms[&n].symbol == "O")
             && is_chalcogen(n)
             && mol.degree(n) == 1
             && (mol.bond_order(c, n) == 2
@@ -1576,7 +1627,7 @@ fn simple_central_parent_hydride_name(
         }
         names.push(name);
     }
-    if names.is_empty() {
+    if names.is_empty() && !hydrogen_heterone {
         return Ok(None);
     }
     let prefix = center_ligands(&names);
@@ -2137,13 +2188,55 @@ fn organophosphorus_acid_name(
     mol: &Molecule,
     atoms: &AtomSet,
 ) -> Result<Option<StructuralParentName>, String> {
-    let centers: Vec<_> = atoms
+    let mut centers: Vec<_> = atoms
         .iter()
         .copied()
         .filter(|i| matches!(mol.atoms[i].symbol.as_str(), "P" | "As" | "Sb"))
         .collect();
-    if centers.len() != 1 {
+    if centers.is_empty() {
         return Ok(None);
+    }
+    if centers.len() > 1 {
+        // P-67.1.5.1: the neutral phosphonic, arsonic and stibonic acids
+        // follow the element order in P-42. Equal seniority can require a
+        // multiplicative name, so keep that case on the ordinary route.
+        let acid_seniority = |i| match mol.atoms[&i].symbol.as_str() {
+            "P" => 0,
+            "As" => 1,
+            _ => 2,
+        };
+        centers.sort_by_key(|&i| acid_seniority(i));
+        if acid_seniority(centers[0]) == acid_seniority(centers[1])
+            || !centers.iter().all(|&c| {
+                let center = &mol.atoms[&c];
+                center.charge == 0
+                    && center.total_h_count.max(center.explicit_h_count) == 0
+                    && mol.degree(c) == 4
+                    && mol
+                        .get_neighbors(c)
+                        .iter()
+                        .filter(|&&n| {
+                            mol.atoms[&n].symbol == "O"
+                                && mol.atoms[&n].charge == 0
+                                && mol.degree(n) == 1
+                                && mol.bond_order(c, n) == 1
+                        })
+                        .count()
+                        == 2
+                    && mol.get_neighbors(c).iter().any(|&n| {
+                        mol.atoms[&n].symbol == "O"
+                            && mol.atoms[&n].charge == 0
+                            && mol.degree(n) == 1
+                            && mol.bond_order(c, n) == 2
+                    })
+                    && mol
+                        .get_neighbors(c)
+                        .iter()
+                        .any(|&n| mol.atoms[&n].is_carbon() && mol.bond_order(c, n) == 1)
+            })
+        {
+            return Ok(None);
+        }
     }
     let c = centers[0];
     let a = &mol.atoms[&c];
@@ -2220,7 +2313,7 @@ fn organophosphorus_acid_name(
     }
     // The `in` acids group their carbon ligands as a centre prefix. The
     // single `on` acid ligand is cited directly by the upstream route.
-    let ligand = if acidic == 1 {
+    let ligand = if acidic == 1 || centers.len() > 1 {
         center_ligands(&ligands)
     } else {
         ligands.remove(0)
@@ -2239,9 +2332,10 @@ fn organophosphorus_acid_name(
         component_splits.insert(normalize_edge(oxygen, root));
     }
     if modifiers.is_empty() && oxido.is_empty() {
-        return Ok(Some(StructuralParentName::ordinary(format!(
-            "{ligand}{stem}ic acid"
-        ))));
+        return Ok(Some(StructuralParentName {
+            certified: centers.len() > 1,
+            ..StructuralParentName::ordinary(format!("{ligand}{stem}ic acid"))
+        }));
     }
     // P-67.1.3.2, P-72.2.2.2.1.2: ester groups, then `hydrogen` for each
     // remaining hydroxy group, then the anion name.

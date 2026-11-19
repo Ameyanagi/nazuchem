@@ -10,6 +10,7 @@
 // Source: ReShiki | src/naming/openclatura/heteroatom_subgraphs.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs | issue #8
+// Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs | issue #160
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura heteroatom recursive renderer consolidated across role modules with local charge/acyl extensions.
@@ -1672,6 +1673,143 @@ fn name_sulfur(
     Ok(lambda(mol, start, &ns, sulfanyl_suffix))
 }
 
+// Provenance: fn has_group_senior_to_ketones | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs::has_group_senior_to_ketones
+fn has_group_senior_to_ketones(mol: &Molecule) -> bool {
+    let ketone = super::nomenclature::RULES
+        .functional_groups
+        .get("ketone")
+        .and_then(|rule| rule.seniority.as_ref());
+    super::perception::perceive_groups(mol).iter().any(|group| {
+        group.is_principal_candidate
+            && group
+                .resolved_rule
+                .as_ref()
+                .and_then(|rule| rule.seniority.as_ref())
+                .is_some_and(|seniority| Some(seniority) < ketone)
+    })
+}
+
+/// P-67.1.4.1.1.3–5: identify the substituted or functionally replaced
+/// acid before concatenating ligands that fill its remaining acyl valences.
+// Provenance: fn concatenated_pnictogen_acyl | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs::concatenated_pnictogen_acyl
+fn concatenated_pnictogen_acyl(
+    mol: &Molecule,
+    start: usize,
+    exclude: &AtomSet,
+    upstream: Option<usize>,
+) -> Result<Option<String>, String> {
+    let atom = &mol.atoms[&start];
+    if atom.charge != 0
+        || atom.radical_electrons != 0
+        || atom.has_stereo()
+        || upstream_bond_order(mol, start, upstream) != 1
+        || substituent_bonding_number(mol, start) != 5
+    {
+        return Ok(None);
+    }
+    let mut chalcogen = None;
+    let mut organyl = Vec::new();
+    let mut addends = Vec::new();
+    let mut replacements = BTreeMap::new();
+    for n in subgraph_neighbors(mol, start, exclude, upstream) {
+        let ligand = &mol.atoms[&n];
+        if ligand.charge != 0 || ligand.radical_electrons != 0 {
+            return Ok(None);
+        }
+        match (mol.bond_order(start, n), ligand.symbol.as_str()) {
+            (2, "O" | "S" | "Se" | "Te") if mol.degree(n) == 1 && chalcogen.is_none() => {
+                chalcogen = Some(n);
+            }
+            // A directly bound cyanide is a pseudohalide (P-67.1.2.3.2).
+            (1, "C")
+                if !mol.get_neighbors(n).iter().any(|&other| {
+                    mol.atoms[&other].symbol == "N" && mol.bond_order(n, other) == 3
+                }) =>
+            {
+                organyl.push(n)
+            }
+            (1, "O" | "S" | "Se" | "Te") => addends.push(n),
+            (1, "F" | "Cl" | "Br" | "I" | "N")
+                if mol.degree(n) == 1
+                    && (ligand.symbol != "N"
+                        || ligand.total_h_count.max(ligand.explicit_h_count) == 2) =>
+            {
+                let infix = match ligand.symbol.as_str() {
+                    "F" => "fluorid",
+                    "Cl" => "chlorid",
+                    "Br" => "bromid",
+                    "I" => "iodid",
+                    _ => "amid",
+                };
+                *replacements.entry(infix).or_insert(0) += 1;
+            }
+            _ => return Ok(None),
+        }
+    }
+    let Some(chalcogen) = chalcogen else {
+        return Ok(None);
+    };
+    let oxo = mol.atoms[&chalcogen].symbol.as_str();
+    let substitutable = atom.total_h_count.max(atom.explicit_h_count) + organyl.len();
+    if substitutable + addends.len() + replacements.values().sum::<usize>() != 2
+        // Keep the retained phosphono-type names and the ordinary acyl prefixes.
+        || oxo == "O" && replacements.is_empty() && (substitutable == 0 || addends.is_empty())
+        // Mixed functional replacements require their own infix ordering.
+        || replacements.len() > 1
+        || oxo != "O" && !replacements.is_empty()
+        // An acyl prefix requires a senior characteristic group on the parent.
+        || !has_group_senior_to_ketones(mol)
+    {
+        return Ok(None);
+    }
+    let stem = match (atom.symbol.as_str(), substitutable) {
+        ("P", 0) => "phosphor",
+        ("P", 1) => "phosphon",
+        ("P", 2) => "phosphin",
+        ("As", 0) => "arsor",
+        ("As", 1) => "arson",
+        ("As", 2) => "arsin",
+        ("Sb", 0) => "stibor",
+        ("Sb", 1) => "stibon",
+        ("Sb", 2) => "stibin",
+        _ => return Ok(None),
+    };
+    let infix = match oxo {
+        "S" => "thio",
+        "Se" => "seleno",
+        "Te" => "telluro",
+        _ => "",
+    };
+    let blocked = with_atoms(exclude, [start, chalcogen]);
+    let organyl_name = center(&branches(mol, &organyl, &blocked, start)?);
+    let mut acyl = format!("{organyl_name}{stem}");
+    for (infix, count) in replacements {
+        if count > 1 || infix != "amid" {
+            acyl.push('o');
+        }
+        if count > 1 {
+            acyl.push_str(&multipliers::basic(count));
+        }
+        acyl.push_str(infix);
+    }
+    acyl.push('o');
+    acyl.push_str(infix);
+    acyl.push_str("yl");
+    if !addends.is_empty() {
+        let ligand_name = center(&branches(mol, &addends, &blocked, start)?);
+        if organyl.is_empty() {
+            acyl = format!("({ligand_name}{acyl})");
+        } else {
+            acyl = format!("({ligand_name}({acyl}))");
+        }
+    } else if !organyl.is_empty() {
+        acyl = format!("({acyl})");
+    }
+    Ok(Some(acyl))
+}
+
 // Provenance: fn name_heteroatom_subgraph | adapted
 // Source: openclatura | src/openclatura/heteroatom_subgraphs.py::name_heteroatom_subgraph
 pub fn name_heteroatom_subgraph(
@@ -1767,6 +1905,9 @@ pub fn name_heteroatom_subgraph(
             }
         }
         "P" | "As" | "Sb" => {
+            if let Some(acyl) = concatenated_pnictogen_acyl(mol, start, exclude, upstream)? {
+                return Ok(Some(acyl));
+            }
             let atom = &mol.atoms[&start];
             let charged = if atom.charge != 0 && !has_balanced_oxo_charges(mol, start) {
                 // Upstream divergence: charged pnictogen branches need an available prefix for their exact bonding state.
@@ -1826,10 +1967,6 @@ pub fn name_heteroatom_subgraph(
                 && roots
                     .iter()
                     .all(|&n| mol.atoms[&n].is_carbon() && mol.bond_order(start, n) == 1);
-            // The parser reads an unsubstituted `stibinoyl` as -Sb=O.
-            if acyl && symbol == "Sb" && roots.is_empty() {
-                return Err(unsupported("stibinoyl"));
-            }
             let class = if acyl { None } else { class };
             let deficient = if class.is_none() && (acyl || roots.len() < 2) {
                 SPECS.heteroatom_substituents.get(symbol).and_then(|spec| {
@@ -1845,19 +1982,7 @@ pub fn name_heteroatom_subgraph(
             // P-64.7.1, P-68.3.2.3.1: unless a class senior to ketones takes
             // the suffix, the heterone is the parent, as in
             // dimethyl-lambda5-phosphanone.
-            let ketone = super::nomenclature::RULES
-                .functional_groups
-                .get("ketone")
-                .and_then(|rule| rule.seniority.as_ref());
-            if acyl
-                && !super::perception::perceive_groups(mol).iter().any(|g| {
-                    g.is_principal_candidate
-                        && g.resolved_rule
-                            .as_ref()
-                            .and_then(|rule| rule.seniority.as_ref())
-                            .is_some_and(|seniority| Some(seniority) < ketone)
-                })
-            {
+            if acyl && !has_group_senior_to_ketones(mol) {
                 mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
             }
             // P-67.1.4.1.1.5: hydrogen of a basic acyl group is not substituted
@@ -1883,7 +2008,8 @@ pub fn name_heteroatom_subgraph(
             if roots.is_empty() {
                 // P-16.5.1.1: a compound prefix such as oxido(oxo)phosphanyl
                 // is enclosed.
-                if suffix.contains('(') && !suffix.starts_with('(') {
+                if (suffix.contains('(') || suffix.contains("-lambda^")) && !suffix.starts_with('(')
+                {
                     format!("({sp}{suffix})")
                 } else {
                     format!("{sp}{suffix}")

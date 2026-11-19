@@ -187,6 +187,19 @@ impl<'a> ComponentGenerator<'a> {
         Ok(())
     }
     pub fn resolve_ambiguities(&mut self, sub: NodeId) -> Result {
+        if let Some(group) = self.arena.first_child_named(sub, GROUP_EL)
+            && self.attr_is(group, SUBTYPE_ATR, GROUPSTEM_SUBTYPE_VAL)
+            && self.val(group) == "stibin"
+            && self
+                .arena
+                .children_named(sub, SUFFIX_EL)
+                .iter()
+                .any(|&suffix| self.attr_is(suffix, VALUE_ATR, "oyl"))
+        {
+            // P-67.1.4.1.1.2: stibinoyl is derived from stibinic acid.
+            // The ordinary oyl suffix on the stibane stem would give -Sb=O.
+            return err("Interpret stibinoyl using the stibinic acid stem");
+        }
         for m in self.arena.children_named(sub, MULTIPLIER_EL) {
             if ![BASIC_TYPE_VAL, VONBAEYER_TYPE_VAL].contains(&self.attr(m, TYPE_ATR).as_str()) {
                 continue;

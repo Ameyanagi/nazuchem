@@ -193,14 +193,16 @@ fn the_cyanide_of_phosphoric_acid_uses_the_cyanido_infix() {
 }
 
 #[test]
-fn other_cyanophosphorus_compounds_keep_their_names() {
-    // Not generated here: phosphonic and phosphinic cyanides, halides,
-    // amides, chalcogen analogues, anhydrides and a configured phosphorus
-    // centre. Their names are unchanged and still read back.
+fn other_cyanophosphorus_compound_names_round_trip() {
+    // Check phosphorus prefixes on nitrile parents and a configured
+    // phosphorus centre in a replacement parent.
     for (smiles, expected) in [
-        ("CP(=O)(O)C#N", "[hydroxy(methyl)phosphoryl]methanenitrile"),
-        ("N#CP(=O)(O)Cl", "[chloro(hydroxy)phosphoryl]methanenitrile"),
-        ("N#CP(=O)(O)N", "[amino(hydroxy)phosphoryl]methanenitrile"),
+        ("CP(=O)(O)C#N", "[hydroxy(methylphosphonoyl)]methanenitrile"),
+        (
+            "N#CP(=O)(O)Cl",
+            "(hydroxyphosphorochloridoyl)methanenitrile",
+        ),
+        ("N#CP(=O)(O)N", "(hydroxyphosphoramidoyl)methanenitrile"),
         (
             "N#CP(=O)(O)OC(=O)C",
             "[(acetyloxy)(hydroxy)phosphoryl]methanenitrile",

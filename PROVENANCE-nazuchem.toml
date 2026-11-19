@@ -4430,8 +4430,8 @@ license = "MIT"
 sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/data/heteroatom_substituents.json", license = "MIT" },
 ]
-notes = "openclatura substituent registry; unused ligand_prefixes/join metadata removed; tellanyl prefixes enclose only later simple prefixes (P-16.5.1.3.1); hydrogen phosphonate, arsonate and stibonate anions are hydroxy(oxido)phosphoryl, -arsoryl and -stiboryl rather than phosphonato (P-72.6.1, P-67.1.4.1.1.5; issue #145); the acid groups are the retained phosphono, arsono and stibono rather than dihydroxyphosphoryl, -arsoryl and -stiboryl (P-67.1.4.1.1.1; issue #160); not byte-identical."
-sha256 = "1b57363770cdf872db62c10f72c414d3674180fcc6cefc92f0cbae1ed9f830e1"
+notes = "openclatura substituent registry; unused ligand_prefixes/join metadata removed; tellanyl prefixes enclose only later simple prefixes (P-16.5.1.3.1); hydrogen phosphonate, arsonate and stibonate anions are hydroxy(oxido)phosphoryl, -arsoryl and -stiboryl rather than phosphonato (P-72.6.1, P-67.1.4.1.1.5; issue #145); the acid groups are the retained phosphono, arsono and stibono rather than dihydroxyphosphoryl, -arsoryl and -stiboryl (P-67.1.4.1.1.1; issue #160); the dioxo prefixes use lambda-five (P-67.1.4.1.1.6); not byte-identical."
+sha256 = "bb6d7af3a458060f6feb6b6f81e65162e27c92a5407c4e6b20b9c2bccabd4a3b"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/namer_rules.json"
@@ -5276,6 +5276,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/namer.py", license = "MIT" },
   { project = "openclatura", path = "tests/unit/test_analysis.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/heteroatom_subgraphs.rs", ref = "issue #8", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/heteroatom_subgraphs.rs", ref = "issue #160", license = "MIT OR Apache-2.0" },
 ]
 notes = "Openclatura heteroatom recursive renderer consolidated across role modules with local charge/acyl extensions."
 parts = [
@@ -5306,6 +5307,8 @@ parts = [
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/heteroatom_subgraphs.py", license = "MIT", symbol = "_cyclic_sulfur_imide_ligand_name" }], items = ["fn cyclic_sulfur_imide"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/heteroatom_subgraphs.py", license = "MIT", symbol = "central_oxo_substituent_excluded_ligand_atoms" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/heteroatom_subgraphs.py", license = "MIT", symbol = "central_oxo_substituent_prefix_for_center" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/oxoacid_roles.py", license = "MIT", symbol = "central_oxo_substituent_role" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/hypervalent_roles.py", license = "MIT", symbol = "hypervalent_center_role" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/heteroatom_substituent_specs.py", license = "MIT", symbol = "central_oxo_substituent_prefix" }], items = ["fn central_oxo"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/heteroatom_subgraphs.py", license = "MIT", symbol = "name_sulfur_subgraph" }], items = ["fn name_sulfur"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/heteroatom_subgraphs.rs", ref = "issue #160", license = "MIT OR Apache-2.0", symbol = "has_group_senior_to_ketones" }], items = ["fn has_group_senior_to_ketones"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/heteroatom_subgraphs.rs", ref = "issue #160", license = "MIT OR Apache-2.0", symbol = "concatenated_pnictogen_acyl" }], items = ["fn concatenated_pnictogen_acyl"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/heteroatom_subgraphs.py", license = "MIT", symbol = "name_heteroatom_subgraph" }], items = ["fn name_heteroatom_subgraph"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/heteroatom_subgraphs.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/nitrogen_roles.py", license = "MIT", symbol = "terminal_n3_substituent_role" }], items = ["fn terminal_azido"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/heterocumulene_roles.py", license = "MIT", symbol = "nitrogen_heterocumulene_role" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/heterocumulene_roles.py", license = "MIT", symbol = "_terminal_double_heteroatom" }], items = ["fn nitrogen_heterocumulene"] },
@@ -7741,7 +7744,7 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "crates/nazuchem/tests/phosphorus_acid_prefixes.rs", ref = "issue #160", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original facade regression for issue #160: generated phosphono, arsono, stibono, phosphinoyl, arsinoyl and substituted acyl prefixes, the phosphoryl and phosphinoyl prefixes reported as not preferred, the declined unsubstituted stibinoyl prefix and Blue Book prefix names read by the parser, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
+notes = "Original facade regression for issue #160: retained and acid-derived prefixes including additive concatenation, stibinoyl, lambda-five phosphanone parents and phosphanyl prefixes, and mixed phosphonic and arsonic acids, checked against IUPAC 2013 and parsed back to the input structure."
 
 [[file]]
 path = "crates/nazuchem/tests/ir.rs"
