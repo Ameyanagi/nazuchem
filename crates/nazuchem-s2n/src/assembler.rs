@@ -33,7 +33,7 @@ use super::{
     },
     assembly_utils::{needs_hyphen, parse_locant},
     component_group_rules::linked_hydrazinecarbonyl,
-    formatting::format_multiplier,
+    formatting::{format_multiplier, multiply_prefix},
     fused_ion_templates::{consume_fused_ion_operation, select_fused_ion_operation},
     nomenclature::NAMER_RULES,
 };
@@ -750,13 +750,13 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
     let multiplied = |name: &str, count: usize, safe_enclose: bool| {
         let descriptor =
             super::isotope_naming::leading_descriptor(name, &parts.front_modifier_descriptors);
-        if descriptor.is_empty() || super::formatting::is_complex_prefix(&name[descriptor.len()..])
-        {
+        let plain = &name[descriptor.len()..];
+        if count > 1 {
+            multiply_prefix(name, plain, count, None, false)
+        } else if descriptor.is_empty() || super::formatting::is_complex_prefix(plain) {
             format_multiplier(name, count, safe_enclose)
-        } else if count == 1 {
-            name.to_owned()
         } else {
-            format!("{}({name})", super::rules::multipliers::basic(count))
+            name.to_owned()
         }
     };
     let have = parts.front_modifier_locants.len() == parts.front_modifiers.len()

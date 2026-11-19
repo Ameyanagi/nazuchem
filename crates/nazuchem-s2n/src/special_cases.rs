@@ -37,8 +37,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use super::assembly_prefixes::substituent_sort_key;
 use super::chains::{canonical_ranks, get_cyclic_atoms};
 use super::formatting::{
-    descriptors_omitted, format_center_ligands_by, format_multiplier, is_complex_prefix,
-    needs_complex_multiplier, needs_simple_multiplier_parentheses, strip_outer_parentheses,
+    descriptors_omitted, format_center_ligands_by, format_multiplier, strip_outer_parentheses,
 };
 use super::graph_kernel::{Edge, biconnected_edge_components, normalize_edge};
 use super::molecule::{Atom, AtomSet, Bond, Molecule, component_atoms_until_blocked};
@@ -791,16 +790,7 @@ fn simple_azine_parent_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<St
             };
             let ylidene = strip_outer_parentheses(&ylidene);
             mol.set_name_status(status);
-            let complex = needs_complex_multiplier(&ylidene);
-            let multiplier = if complex { "bis" } else { "di" };
-            let prefix = if complex
-                || is_complex_prefix(&ylidene)
-                || needs_simple_multiplier_parentheses(&ylidene)
-            {
-                format!("{multiplier}({ylidene})")
-            } else {
-                format!("{multiplier}{ylidene}")
-            };
+            let prefix = format_multiplier(&ylidene, 2, false);
             return Ok(Some(
                 if let Some(stereo) = stereo.filter(|_| !descriptors_omitted()) {
                     format!("(1{stereo},2{stereo})-{prefix}hydrazine")

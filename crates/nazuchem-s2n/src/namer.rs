@@ -14,7 +14,7 @@
 // Local contributions: MIT OR Apache-2.0; see NOTICE and PROVENANCE-nazuchem.toml.
 
 //! Recursive substituent naming, following the upstream plain-name pipeline.
-use super::assembly_parts::{AssemblyParts, RenderedSubstituentName, SubstituentItem};
+use super::assembly_parts::{AssemblyParts, PrefixKind, RenderedSubstituentName, SubstituentItem};
 use super::assembly_prefixes::substituent_sort_key;
 use super::chains::{find_all_carbon_paths, find_ring_systems, get_cyclic_atoms};
 use super::component_group_rules::{
@@ -381,6 +381,7 @@ fn collect_subgraph_substituents(
             item.bond_ids = bond_ids_within(mol, &attached);
             item.charge_atom_ids = charged_atoms(mol, &atoms);
             item.outer_parentheses_optional = name.outer_parentheses_optional;
+            item.prefix_kind = name.prefix_kind;
             item.isotope_atoms = name.isotope_atoms;
             item.isotope_descriptors = name.isotope_descriptors;
             mapping.entry(idx).or_default().push(item);
@@ -732,6 +733,11 @@ fn name_subgraph_rendered_except_stereo(
     Ok(RenderedSubstituentName {
         oxy_prefix: substituted_alkoxy_prefix(&text, &parts),
         outer_parentheses_optional: !parts.stereo_features.is_empty(),
+        prefix_kind: Some(if parts.substituents.is_empty() {
+            PrefixKind::Simple
+        } else {
+            PrefixKind::Substituted
+        }),
         isotope_atoms,
         isotope_descriptors,
         text,

@@ -750,8 +750,8 @@ mod tests {
             ),
             (
                 "C/C=C/SS/C=C/C",
-                "1,2-bis[(1E)-prop-1-en-1-yl]disulfane",
-                "1,2-bis(prop-1-en-1-yl)disulfane",
+                "1,2-di[(1E)-prop-1-en-1-yl]disulfane",
+                "1,2-di(prop-1-en-1-yl)disulfane",
             ),
             (
                 "C[S@](=O)CC",

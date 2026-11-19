@@ -372,6 +372,7 @@ pub fn add_substituent(
             && existing.spiro.is_none()
             && item.spiro.is_none()
     }) {
+        existing.prefix_kind = existing.prefix_kind.or(item.prefix_kind);
         existing.locants.extend(item.locants);
         existing.atom_ids.extend(item.atom_ids);
         existing.bond_ids.extend(item.bond_ids);

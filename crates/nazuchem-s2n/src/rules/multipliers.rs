@@ -115,6 +115,12 @@ pub fn suffix(count: usize, suffix: &str) -> String {
     {
         chalcogens = rest;
     }
+    // P-16.3.3(a), P-63.4.2.1: peroxol suffixes formed by functional
+    // replacement use the basic multiplier. Enclose the letter locant
+    // with the suffix, as for locanted components in P-16.3.4.
+    if suffix.contains('-') && suffix.ends_with("peroxol") {
+        return format!("{}({suffix})", basic(count));
+    }
     // P-72.2.2.2.2: compound anionic suffixes such as `olate`, `peroxolate`
     // and `dithioperoxolate`, and suffixes with a letter locant, as in
     // `bis(OS-thioperoxolate)`, take bis/tris.
@@ -220,7 +226,7 @@ mod tests {
             (2, "(SO-thioperoxoate)", "bis(SO-thioperoxoate)"),
             (2, "carbo(thioperoxoic)", "dicarbo(thioperoxoic)"),
             // P-72.2.2.2.2: benzene-1,4-bis(OS-thioperoxolate).
-            (2, "OS-thioperoxol", "bis(OS-thioperoxol)"),
+            (2, "OS-thioperoxol", "di(OS-thioperoxol)"),
             (2, "dithioperoxol", "didithioperoxol"),
         ] {
             assert_eq!(suffix(count, ending), expected, "{count} {ending}");

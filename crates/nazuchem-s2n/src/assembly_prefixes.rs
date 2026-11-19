@@ -12,9 +12,7 @@
 use super::{
     assembly_parts::AssemblyParts,
     assembly_utils::{is_fully_enclosed, needs_hyphen, parse_locant},
-    formatting::{
-        is_complex_prefix, is_compound_prefix, needs_complex_multiplier, starts_with_multiplier,
-    },
+    formatting::{is_complex_prefix, is_compound_prefix, multiply_prefix, starts_with_multiplier},
     isotope_naming::{citation_name, leading_descriptor},
     locant_elision::{retained_parent_attachment_is_ambiguous, substituent_locant_set_is_unique},
     nomenclature::RULES,
@@ -313,17 +311,7 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
         // 3-(2H3)methyl, though a multiplied one is enclosed: di[(13C)methyl].
         let descriptor = leading_descriptor(name, &items[0].isotope_descriptors);
         let plain = name.strip_prefix(descriptor).unwrap_or(name);
-        let compound = is_complex_prefix(plain) || (count > 1 && needs_complex_multiplier(plain));
-        let complex = compound || count > 1 && !descriptor.is_empty();
-        let mult = if count > 1 {
-            if compound {
-                multipliers::complex_(count)
-            } else {
-                multipliers::basic(count)
-            }
-        } else {
-            String::new()
-        };
+        let complex = is_complex_prefix(plain);
         let mut used = name.to_owned();
         if !parts.is_substituent
             && parts.principal_group.is_none()
@@ -336,21 +324,21 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
         {
             used = name[1..name.len() - 1].into();
         }
-        if complex && !is_fully_enclosed(&used) {
+        if count == 1 && complex && !is_fully_enclosed(&used) {
             // Upstream divergence: bracket a diazenyl sibling to preserve its attachment to the parent.
             // P-16.5.1.2: a prefix with its own locants is enclosed even when
             // its attachment locant is omitted: (naphthalen-2-yl)acetic acid.
             // P-16.5.1.3.2: so is a later unlocanted prefix that begins with
             // a multiplying term, chloro(disulfanyl)acetic acid; unenclosed,
             // the chlorine would be read as a substituent of disulfanyl.
-            if count > 1
-                || !loc.is_empty()
+            if !loc.is_empty()
                 || (grouped.len() > 1 && (i > 0 || name == "diazenyl"))
                 || used.contains(|c: char| c.is_ascii_digit())
             {
                 used = format!("({used})");
             }
-        } else if loc.is_empty()
+        } else if count == 1
+            && loc.is_empty()
             && grouped.len() > 1
             // P-16.5.1.3.1/P-16.5.1.3.2: the first cited unlocanted prefix is
             // enclosed only when compound: hydroxy(phenyl)acetic acid.
@@ -360,10 +348,16 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
         {
             used = format!("({used})");
         }
+        if count > 1 {
+            let kind = items.iter().find_map(|item| item.prefix_kind);
+            // P-16.5.1.3.1 and .2: a later unlocanted prefix stays enclosed.
+            let enclose = loc.is_empty() && i > 0 && !optional;
+            used = multiply_prefix(&used, plain, count, kind, enclose);
+        }
         let piece = if loc.is_empty() {
-            format!("{mult}{used}")
+            used
         } else {
-            format!("{loc}-{mult}{used}")
+            format!("{loc}-{used}")
         };
         if needs_hyphen(&rendered, &piece) {
             rendered.push('-');

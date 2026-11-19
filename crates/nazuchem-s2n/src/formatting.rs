@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
 // Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs | issue #45
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs | issue #134
 // Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs | issue #11
 // Source: openclatura | src/openclatura/formatting.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/formatting.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
@@ -14,7 +15,7 @@
 
 //! Name-fragment formatting helpers.
 use super::{
-    assembly_parts::AssemblyParts,
+    assembly_parts::{AssemblyParts, PrefixKind},
     assembly_utils::is_fully_enclosed,
     rules::{multipliers, stems},
 };
@@ -119,55 +120,334 @@ pub fn is_compound_prefix(name: &str) -> bool {
         || stems::terminal_stem(name)
             .is_some_and(|s| name != format!("{s}yl") && name != format!("cyclo{s}yl"))
 }
+// Provenance: fn acyl_prefix_stem | adapted
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::format_element_substituent
+fn acyl_prefix_stem(name: &str) -> Option<&str> {
+    [
+        "sulfonyl",
+        "sulfinyl",
+        "selenonyl",
+        "seleninyl",
+        "telluronyl",
+        "tellurinyl",
+        "carbonyl",
+        "thioyl",
+        "selenoyl",
+        "telluroyl",
+    ]
+    .iter()
+    .find_map(|acyl| name.strip_suffix(acyl))
+    .map(|stem| stem.strip_suffix("carbo").unwrap_or(stem))
+}
+
+/// A spelled-out parent hydride in an acyl prefix requires enclosing marks
+/// even when the prefix is simple (P-16.5.1.4).
+// Provenance: fn names_parent_hydride_acyl | adapted
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::format_element_substituent
+fn names_parent_hydride_acyl(name: &str) -> bool {
+    acyl_prefix_stem(name).is_some_and(|stem| {
+        ["ane", "ene", "yne", "ine"]
+            .iter()
+            .any(|end| stem.ends_with(end))
+    })
+}
+
+// Provenance: fn has_numeric_locants | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::has_numeric_locants
+fn has_numeric_locants(list: &str) -> bool {
+    list.split(',').all(|locant| {
+        let after = locant.trim_start_matches(|c: char| c.is_ascii_digit());
+        let suffix = after.trim_end_matches('\'');
+        after.len() < locant.len()
+            && (suffix.is_empty() || suffix.len() == 1 && suffix.as_bytes()[0].is_ascii_lowercase())
+    })
+}
+
+/// Indicated hydrogen and additive/subtractive hydro terms modify the
+/// parent hydride. Read the same base for substitution and ambiguity.
+/// P-14.7, P-31.2 and P-16.3.6(c).
+// Provenance: fn without_hydride_modifiers | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::without_hydride_modifiers
+fn without_hydride_modifiers(mut name: &str) -> &str {
+    while let Some((locants, tail)) = name.split_once('-') {
+        if locants
+            .split(',')
+            .all(|locant| locant.strip_suffix('H').is_some_and(has_numeric_locants))
+        {
+            name = tail;
+        } else if has_numeric_locants(locants)
+            && let Some((quantity, rest)) = tail.split_once("hydro")
+            && BASIC_MULTIPLIERS
+                .iter()
+                .any(|m| m == quantity.strip_suffix("de").unwrap_or(quantity))
+            && !rest.starts_with("xy")
+        {
+            name = rest.trim_start_matches('-');
+        } else {
+            break;
+        }
+    }
+    name
+}
+
+/// Read the unsubstituted stem and the locanted suffixes of a flattened
+/// prefix. Ordinary branch prefixes carry their substitution state directly.
+// Provenance: fn has_only_parent_locants | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::has_only_parent_locants
+fn has_only_parent_locants(name: &str) -> bool {
+    let Some((stem, rest)) = name.split_once('-') else {
+        return false;
+    };
+    if !stem.starts_with(|c: char| c.is_ascii_lowercase()) {
+        return false;
+    }
+    let mut parts = rest.split('-');
+    while let Some(locant) = parts.next() {
+        if !has_numeric_locants(locant) {
+            return false;
+        }
+        let Some(ending) = parts.next() else {
+            return false;
+        };
+        if matches!(
+            ending,
+            "yl" | "diyl" | "ylidene" | "ylidyne" | "carbonyl" | "sulfonyl" | "sulfinyl"
+        ) {
+            return parts.next().is_none();
+        }
+        if !matches!(ending, "ium" | "ide" | "uide")
+            && !["en", "yn"].iter().any(|unsaturation| {
+                ending
+                    .strip_suffix('e')
+                    .unwrap_or(ending)
+                    .strip_suffix(unsaturation)
+                    .is_some_and(|quantity| {
+                        quantity.is_empty() || BASIC_MULTIPLIERS.iter().any(|m| m == quantity)
+                    })
+            })
+        {
+            return false;
+        }
+    }
+    false
+}
+
+// Provenance: fn retained_italic_prefix | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::retained_italic_prefix
+fn retained_italic_prefix(name: &str) -> bool {
+    matches!(name, "tert-butyl" | "tert-butoxy")
+}
+
+/// P-16.3.6 requires a derived multiplier for several simple prefixes whose
+/// multiplication could be read as part of a chain, replacement or fusion.
+// Provenance: fn ambiguous_basic_multiplier | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::ambiguous_basic_multiplier
+fn ambiguous_basic_multiplier(name: &str) -> bool {
+    let unmodified = name
+        .strip_prefix("lambda^")
+        .or_else(|| name.strip_prefix("λ^"))
+        .and_then(|lambda| lambda.split_once('-'))
+        .map_or(name, |(_, prefix)| prefix);
+    matches!(
+        unmodified,
+        "sulfanyl"
+            | "selanyl"
+            | "tellanyl"
+            | "phosphanyl"
+            | "arsanyl"
+            | "stibanyl"
+            | "sulfanylidene"
+            | "selanylidene"
+            | "tellanylidene"
+            | "azaniumyl"
+            | "azaniumylidene"
+            | "oxy"
+            | "thio"
+            | "methylene"
+            | "azo"
+            | "sulfonyl"
+            | "sulfinyl"
+            | "selenonyl"
+            | "seleninyl"
+            | "telluronyl"
+            | "tellurinyl"
+            | "diazenyl"
+            | "diazonium"
+            // P-16.3.6(e): the locanted diazonium prefix also begins with
+            // the numerical term di for the two nitrogen atoms.
+            | "diazyn-1-ium-1-yl"
+            | "disulfanyl"
+            | "diselanyl"
+            | "ditellanyl"
+    ) || {
+        let stem = name.trim_start_matches(|c: char| c.is_ascii_digit() || "[,]-".contains(c));
+        super::nomenclature::RULES
+            .assembly
+            .replacement_prefix_order
+            .keys()
+            .any(|element| {
+                stem.starts_with(element.as_str())
+                    || ["di", "tri", "tetra"].iter().any(|multiplier| {
+                        stem.strip_prefix(multiplier)
+                            .is_some_and(|base| base.starts_with(element.as_str()))
+                    })
+            })
+    } || name.split_once('[').is_some_and(|(stem, tail)| {
+        // A fusion descriptor ends with a letter inside the square brackets.
+        // The brackets of von Baeyer and spiro parents have other meanings.
+        !stem.is_empty()
+            && !["bicyclo", "tricyclo", "spiro"]
+                .iter()
+                .any(|p| stem.ends_with(p))
+            && tail.split_once(']').is_some_and(|(descriptor, _)| {
+                descriptor.ends_with(|c: char| c.is_ascii_lowercase())
+            })
+    })
+}
+
+/// P-16.3.5(a) uses derived multipliers for substituted prefixes. Prefer
+/// the classification retained from assembly, when the caller has it.
 // Provenance: fn needs_complex_multiplier | adapted
 // Source: openclatura | src/openclatura/formatting.py::needs_complex_multiplier
-pub fn needs_complex_multiplier(name: &str) -> bool {
-    is_composite_prefix(name)
-        || (name.ends_with("yl") && name.contains("oxy"))
+fn needs_complex_multiplier(name: &str, kind: Option<PrefixKind>) -> bool {
+    let name = if is_fully_enclosed(name) {
+        &name[1..name.len() - 1]
+    } else {
+        name
+    };
+    // Stereodescriptors identify the same simple or substituted prefix.
+    let name = name
+        .strip_prefix('(')
+        .and_then(|name| name.split_once(")-"))
+        .filter(|(descriptor, _)| {
+            descriptor.split(',').all(|term| {
+                let symbol = term.trim_start_matches(|c: char| c.is_ascii_digit() || c == '\'');
+                matches!(
+                    symbol,
+                    "R" | "S" | "E" | "Z" | "M" | "P" | "r" | "s" | "m" | "p"
+                ) || symbol.len() == 2
+                    && symbol.as_bytes()[0].is_ascii_lowercase()
+                    && symbol.ends_with(['R', 'S', 'E', 'Z', 'M', 'P'])
+            })
+        })
+        .map_or(name, |(_, prefix)| prefix);
+    let name = without_hydride_modifiers(name);
+    if ambiguous_basic_multiplier(name) {
+        return true;
+    }
+    if retained_italic_prefix(name) {
+        return false;
+    }
+    if let Some(kind) = kind {
+        return kind == PrefixKind::Substituted;
+    }
+    // Some functional-class paths assemble strings directly. Their parent
+    // locants, retained contractions and enclosed simple acyls still use di.
+    if has_only_parent_locants(name) {
+        return false;
+    }
+    if let Some(stem) = acyl_prefix_stem(name) {
+        // P-35.3.2: concatenating an oxy prefix with carbonyl is compound.
+        if stem.ends_with("oxy") {
+            return true;
+        }
+        // P-16.5.1.4: enclosure alone does not make a simple acyl prefix
+        // complex. Substitution on its hydride still takes bis.
+        if names_parent_hydride_acyl(name) {
+            let is_retained = stem == "hydrazine"
+                || super::nomenclature::RULES
+                    .retained
+                    .substituent_stems
+                    .contains_key(stem);
+            let is_hydrocarbon = ["ane", "ene", "yne"]
+                .iter()
+                .find_map(|ending| stem.strip_suffix(ending))
+                .is_some_and(|hydride| {
+                    let hydride = hydride.strip_prefix("cyclo").unwrap_or(hydride);
+                    (1..=1000).any(|length| stems::stem_for(length) == hydride)
+                });
+            return !(is_retained || is_hydrocarbon);
+        }
+    }
+    // P-63.2.2.1: substituted sulfanyl and uncontracted oxy groups are compound.
+    is_compound_prefix(name)
         || [
             "sulfanyl",
             "selanyl",
             "tellanyl",
-            "phosphanyl",
-            "arsanyl",
             "sulfanylidene",
             "selanylidene",
             "tellanylidene",
-            // P-16.3.6(a): diazaniumyl would name the hydrazinium group.
-            "azaniumyl",
-            "azaniumylidene",
         ]
-        .contains(&name)
+        .iter()
+        .filter_map(|ending| name.strip_suffix(ending))
+        .any(|branch| !branch.is_empty())
+        || ["oxy", "carbamoyl"]
+            .iter()
+            .filter_map(|ending| name.strip_suffix(ending))
+            .any(|branch| branch.ends_with("yl") || branch.ends_with(')'))
+        || name.contains(['(', ' '])
+        || name.contains('-')
+        || name.starts_with(|c: char| c.is_ascii_digit())
 }
-/// P-16.3.4(d): keep multiplied `dec` groups distinct from longer chains.
-// Provenance: fn needs_simple_multiplier_parentheses | original
+
+// Provenance: fn needs_multiplier_parentheses | original
 // Source: ReShiki | src/naming/openclatura/formatting.rs::needs_simple_multiplier_parentheses
-pub fn needs_simple_multiplier_parentheses(name: &str) -> bool {
-    name.starts_with("dec")
+fn needs_multiplier_parentheses(name: &str) -> bool {
+    // P-16.3.4: locants, other enclosing marks and leading numerical terms
+    // require parentheses even when the multiplier is basic, e.g. di(tridecyl).
+    !retained_italic_prefix(name)
+        && (is_complex_prefix(name)
+            || name.contains('[')
+            || name.starts_with("dec")
+            || names_parent_hydride_acyl(name))
 }
+
+/// Keep existing enclosing marks and enclose a multiplied isotope descriptor
+/// with its prefix. Classify the prefix without the descriptor (P-82.2.1).
+// Provenance: fn multiply_prefix | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::multiply_prefix
+pub fn multiply_prefix(
+    name: &str,
+    plain: &str,
+    count: usize,
+    kind: Option<PrefixKind>,
+    enclose: bool,
+) -> String {
+    let derived = needs_complex_multiplier(plain, kind);
+    let multiplier = if derived {
+        multipliers::complex_(count)
+    } else {
+        multipliers::basic(count)
+    };
+    let enclosed = is_fully_enclosed(name);
+    let bare = if enclosed {
+        &name[1..name.len() - 1]
+    } else {
+        name
+    };
+    if !enclose && name == plain && retained_italic_prefix(bare) {
+        format!("{multiplier}-{bare}")
+    } else if enclosed {
+        format!("{multiplier}{name}")
+    } else if derived || enclose || name != plain || needs_multiplier_parentheses(name) {
+        format!("{multiplier}({name})")
+    } else {
+        format!("{multiplier}{name}")
+    }
+}
+
 // Provenance: fn format_multiplier | adapted
 // Source: openclatura | src/openclatura/formatting.py::format_multiplier
 pub fn format_multiplier(name: &str, count: usize, safe_enclose: bool) -> String {
-    // P-16.3.5 (a): a compound prefix takes bis, as in `bis(chloromethyl)`.
-    let complex = is_complex_prefix(name)
-        || (count > 1 && (needs_complex_multiplier(name) || is_compound_prefix(name)));
     if count == 1 {
-        return if (safe_enclose || complex) && !is_fully_enclosed(name) {
+        return if (safe_enclose || is_complex_prefix(name)) && !is_fully_enclosed(name) {
             format!("({name})")
         } else {
             name.into()
         };
     }
-    let mult = if complex {
-        multipliers::complex_(count)
-    } else {
-        multipliers::basic(count)
-    };
-    if (complex || needs_simple_multiplier_parentheses(name)) && !is_fully_enclosed(name) {
-        format!("{mult}({name})")
-    } else {
-        format!("{mult}{name}")
-    }
+    multiply_prefix(name, name, count, None, false)
 }
 
 // Provenance: fn count_names | port
@@ -198,27 +478,19 @@ pub fn format_center_ligands_by<K: Ord>(names: &[String], sort_key: impl Fn(&str
     let mut rendered = String::new();
     for (i, name) in ordered.iter().enumerate() {
         let count = counts[*name];
-        let substituted = stems::terminal_stem(name)
-            .is_some_and(|s| *name != &format!("{s}yl") && *name != &format!("cyclo{s}yl"));
-        let complex =
-            is_complex_prefix(name) || count > 1 && (substituted || needs_complex_multiplier(name));
-        let multiplier = if count == 1 {
-            String::new()
-        } else if complex {
-            multipliers::complex_(count)
-        } else {
-            multipliers::basic(count)
-        };
-        let merges = count == 1
-            && ordered[i + 1..]
-                .iter()
-                .any(|later| counts[*later] > 1 && name.ends_with(later.as_str()));
+        if count > 1 {
+            rendered.push_str(&multiply_prefix(name, name, count, None, i > 0));
+            continue;
+        }
+        let merges = ordered[i + 1..]
+            .iter()
+            .any(|later| counts[*later] > 1 && name.ends_with(later.as_str()));
         // P-16.5.1.3.1: later distinct ligands are enclosed, with a simple
         // multiplying prefix outside the parentheses: ethyldi(methyl).
-        if (complex || merges || i > 0) && !is_fully_enclosed(name) {
-            rendered.push_str(&format!("{multiplier}({name})"));
+        if (is_complex_prefix(name) || merges || i > 0) && !is_fully_enclosed(name) {
+            rendered.push_str(&format!("({name})"));
         } else {
-            rendered.push_str(&format!("{multiplier}{name}"));
+            rendered.push_str(name);
         }
     }
     rendered
@@ -288,27 +560,10 @@ pub fn format_element_substituent(
     let suffix = format!("{suffix}{}", if is_double { "idene" } else { "" });
     // An acyl prefix that names a parent hydride, as methanesulfonyl or
     // ethanethioyl, is enclosed although simple (P-16.5.1.4).
-    let names_hydride = [
-        "sulfonyl",
-        "sulfinyl",
-        "selenonyl",
-        "seleninyl",
-        "telluronyl",
-        "tellurinyl",
-        "carbonyl",
-        "thioyl",
-        "selenoyl",
-        "telluroyl",
-    ]
-    .iter()
-    .filter_map(|acyl| branch.strip_suffix(acyl))
-    .map(|stem| stem.strip_suffix("carbo").unwrap_or(stem))
-    .any(|stem| {
-        ["ane", "ene", "yne", "ine"]
-            .iter()
-            .any(|end| stem.ends_with(end))
-    });
-    if is_complex_prefix(&branch) || is_compound_prefix(&branch) || names_hydride {
+    if is_complex_prefix(&branch)
+        || is_compound_prefix(&branch)
+        || names_parent_hydride_acyl(&branch)
+    {
         format!("({stereo_prefix}({branch}){suffix})")
     } else {
         format!("({stereo_prefix}{branch}{suffix})")
@@ -338,6 +593,8 @@ mod tests {
             ("chloromethyl", 2, "bis(chloromethyl)"),
             ("methyl", 2, "dimethyl"),
             ("ethenyl", 2, "diethenyl"),
+            // P-16.3.6(a): the lambda convention leaves the ambiguity.
+            ("lambda^4-sulfanyl", 2, "bis(lambda^4-sulfanyl)"),
         ] {
             assert_eq!(format_multiplier(name, count, false), expected);
         }

@@ -96,7 +96,7 @@ fn dihydrazides_cite_the_parent_locant_on_n_and_n_prime() {
         ),
         (
             "CC(C)=NNC(=O)CCC(=O)NN=C(C)C",
-            "N'^1,N'^4-bis(propan-2-ylidene)butanedihydrazide",
+            "N'^1,N'^4-di(propan-2-ylidene)butanedihydrazide",
         ),
         // P-66.3.3.3: an acyl group substitutes the senior hydrazide.
         (

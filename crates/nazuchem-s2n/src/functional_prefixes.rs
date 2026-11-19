@@ -1090,7 +1090,7 @@ mod tests {
             ),
             (
                 "OC(=O)c1cc(C(=O)NN)cc(C(=O)NN)c1",
-                "3,5-bis(hydrazinecarbonyl)benzoic acid",
+                "3,5-di(hydrazinecarbonyl)benzoic acid",
             ),
             // Substituted acyl prefixes keep every substituent and its locant
             // (2-methylhydrazine-1-carboxylic acid, P-68.3.1.2.1).

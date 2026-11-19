@@ -1182,7 +1182,7 @@ mod tests {
                 ][..],
             ),
             (
-                "N^1-[(2R)-butan-2-yl]-N'^1,N''^1-bis[(2S)-butan-2-yl]ethane-1,1,1-triamine",
+                "N^1-[(2R)-butan-2-yl]-N'^1,N''^1-di[(2S)-butan-2-yl]ethane-1,1,1-triamine",
                 &[
                     "CC(N[C@H](C)CC)(N[C@@H](C)CC)N[C@@H](C)CC",
                     "CC(N[C@@H](C)CC)(N[C@@H](C)CC)N[C@H](C)CC",

@@ -674,6 +674,7 @@ pub fn add_component_n_substituents(
                 bond_atoms.insert(n);
                 let mut item = SubstituentItem::new(rendered.text, vec![loc.clone()]);
                 item.outer_parentheses_optional = rendered.outer_parentheses_optional;
+                item.prefix_kind = rendered.prefix_kind;
                 item.isotope_atoms = rendered.isotope_atoms;
                 item.isotope_descriptors = rendered.isotope_descriptors;
                 item.bond_ids = bond_ids_within(mol, &bond_atoms);

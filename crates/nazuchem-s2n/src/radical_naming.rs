@@ -606,7 +606,7 @@ mod tests {
             ),
             (
                 "CC(C)(C)O[PH](OC(C)(C)C)OC(C)(C)C",
-                "tris(tert-butoxy)-lambda^5-phosphanyl",
+                "tri-tert-butoxy-lambda^5-phosphanyl",
             ),
             ("C[SeH]CCO", "(2-hydroxyethyl)(methyl)-lambda^4-selanyl"),
             ("C[S](C)C", "trimethyl-lambda^4-sulfanyl"),

@@ -20,10 +20,10 @@ fn chalcogen_peroxy_names_follow_the_blue_book_and_round_trip() {
         ("CCCOS", "propane-1-OS-thioperoxol"),
         ("OSc1ccccc1", "benzene-SO-thioperoxol"),
         ("CCCO[SeH]", "propane-1-OSe-selenoperoxol"),
-        // P-72.2.2.2.2 (benzene-1,4-bis(OS-thioperoxolate)): a suffix with a
-        // letter locant takes bis.
-        ("OSCCSO", "ethane-1,2-bis(SO-thioperoxol)"),
-        ("SOc1ccc(OS)cc1", "benzene-1,4-bis(OS-thioperoxol)"),
+        // P-16.3.3(a), P-63.4.2.1 Table 6.1: the neutral suffix is
+        // formed by functional replacement. The letter locant stays enclosed.
+        ("OSCCSO", "ethane-1,2-di(SO-thioperoxol)"),
+        ("SOc1ccc(OS)cc1", "benzene-1,4-di(OS-thioperoxol)"),
         // P-63.4.2.2: as a prefix the group stays hydroxysulfanyl or
         // sulfanyloxy (3-(sulfanyloxy)propanenitrile).
         ("OSCCO", "2-(hydroxysulfanyl)ethan-1-ol"),
