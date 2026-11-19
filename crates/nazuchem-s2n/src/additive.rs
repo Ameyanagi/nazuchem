@@ -1033,7 +1033,13 @@ fn add_proved_parent_hydrogens(
         return Ok(true);
     }
     if delta.hydrogenated_edges.is_empty() {
-        return Ok(false);
+        // The completed fusion plan verified the H-bearing lambda atom and
+        // the hydrogen distribution of every allowed parent assignment.
+        return Ok(plan.is_some_and(|p| {
+            p.lambda_descriptors
+                .iter()
+                .any(|d| mol.atoms[&d.atom_id].total_h_count > 0)
+        }));
     }
     let indicated: AtomSet = parts
         .parent_hydride

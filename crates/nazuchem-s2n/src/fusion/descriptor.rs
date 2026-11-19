@@ -3383,7 +3383,9 @@ mod tests {
                 });
             }
         }
-        let matches = registry.match_faces(&mol, &mol, &faces, None).unwrap();
+        let matches = registry
+            .match_faces(&mol, &mol, &faces, None, false)
+            .unwrap();
         (mol, matches)
     }
 

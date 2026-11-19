@@ -608,7 +608,7 @@ impl FusionComponentRegistry {
         mol: &Molecule,
         model: &FaceModel,
     ) -> Result<Vec<FusionComponentMatch>, String> {
-        self.match_faces(mol, mol, &model.faces, None)
+        self.match_faces(mol, mol, &model.faces, None, false)
     }
     /// P-25.3.2.4: assess the rendered parent without adding planning candidates.
     // Provenance: fn FusionComponentRegistry::has_senior_unregistered_retained_component | original
@@ -691,6 +691,7 @@ impl FusionComponentRegistry {
         matching_parent: &Molecule,
         faces: &[Face],
         skeleton: Option<&BTreeMap<usize, usize>>,
+        benzo_lambda_h: bool,
     ) -> Result<Vec<FusionComponentMatch>, String> {
         if faces.is_empty() {
             return Ok(Vec::new());
@@ -807,7 +808,9 @@ impl FusionComponentRegistry {
                 if explicit.contains(&f.id) {
                     continue;
                 }
-                for (component, local) in self.generated_for_ring(mol, &f.atom_cycle)? {
+                for (component, local) in
+                    self.generated_for_ring(mol, &f.atom_cycle, benzo_lambda_h)?
+                {
                     let spec = &component.spec;
                     let face_ids = BTreeSet::from([f.id]);
                     let identity = (
@@ -1193,12 +1196,13 @@ impl FusionComponentRegistry {
         &self,
         mol: &Molecule,
         path: &[usize],
+        benzo_lambda_h: bool,
     ) -> Result<Vec<GeneratedRingMatch>, String> {
-        if !(3..=10).contains(&path.len())
-            || path.iter().copied().collect::<AtomSet>().len() != path.len()
-        {
+        let ring_atoms: AtomSet = path.iter().copied().collect();
+        if !(3..=10).contains(&path.len()) || ring_atoms.len() != path.len() {
             return Ok(Vec::new());
         }
+        let mut lambda_sites = AtomSet::new();
         let mut all_carbon = true;
         for &i in path {
             let Some(a) = mol.atoms.get(&i) else {
@@ -1229,7 +1233,11 @@ impl FusionComponentRegistry {
                         .map(|b| b.order)
                         .sum::<usize>();
                 if bonding != e.standard_valence {
-                    return Ok(Vec::new());
+                    if !benzo_lambda_h || !super::valence::endocyclic_lambda_h(mol, &ring_atoms, i)
+                    {
+                        return Ok(Vec::new());
+                    }
+                    lambda_sites.insert(i);
                 }
             }
         }
@@ -1241,13 +1249,6 @@ impl FusionComponentRegistry {
             return Ok(Vec::new());
         };
         let symbols: Vec<_> = first.iter().map(|i| mol.atoms[i].symbol.clone()).collect();
-        let expected = retained::mancude_bond_orders(&symbols)
-            .iter()
-            .filter(|&&n| n == 2)
-            .count();
-        if expected == 0 {
-            return Ok(Vec::new());
-        }
         let mut actual = 0;
         let mut unavailable: Vec<_> = path
             .iter()
@@ -1255,8 +1256,20 @@ impl FusionComponentRegistry {
                 mol.atoms[i]
                     .element()
                     .is_some_and(|e| e.mancude_forced_single)
+                    && !lambda_sites.contains(i)
             })
             .collect();
+        let expected = if lambda_sites.is_empty() {
+            retained::mancude_bond_orders(&symbols)
+                .iter()
+                .filter(|&&n| n == 2)
+                .count()
+        } else {
+            maximum_cycle_matching(&unavailable)
+        };
+        if expected == 0 {
+            return Ok(Vec::new());
+        }
         for p in 0..path.len() {
             let next = (p + 1) % path.len();
             let Some(b) = mol.get_bond(path[p], path[next]) else {
@@ -2340,7 +2353,7 @@ mod tests {
                     size: 6,
                     edge_cycle: Vec::new(),
                 };
-                let matches = r.match_faces(&mol, &mol, &[face], None).unwrap();
+                let matches = r.match_faces(&mol, &mol, &[face], None, false).unwrap();
                 assert!(!matches.is_empty(), "{smiles}");
                 assert!(matches.iter().all(|m| m.spec_key == name), "{smiles}");
             }
@@ -2358,7 +2371,7 @@ mod tests {
             size: 6,
             edge_cycle: Vec::new(),
         };
-        let matches = r.match_faces(&mol, &mol, &[f], None).unwrap();
+        let matches = r.match_faces(&mol, &mol, &[f], None, false).unwrap();
         assert_eq!(matches.len(), 6);
         for m in &matches {
             let spec = r.spec_for_match(m).unwrap();
@@ -2368,6 +2381,27 @@ mod tests {
         }
         let rebuilt = r.get(&matches[0].spec_key).unwrap();
         assert_eq!(rebuilt.spec.template.atoms.len(), 6);
+
+        // The general cover search cannot prove a lambda-H parent. For a
+        // larger fused system, never seed that search with the sulfur face.
+        let mol = read_smiles(
+            "[SH]1=CC=CSC2=C1C=C3C=CC=C4C=CC=C4C3=C2",
+            &Default::default(),
+        )
+        .unwrap();
+        let atoms = mol.atoms.keys().copied().collect();
+        let bounded = super::super::faces::cached_bounded_face_model(&mol, &atoms)
+            .unwrap()
+            .unwrap();
+        let model = super::super::faces::typed_face_model(&mol, &bounded);
+        assert_eq!(model.faces.len(), 4);
+        let matches = r.match_face_model(&mol, &model).unwrap();
+        assert!(matches.iter().any(|m| m.spec_key == "benzene"));
+        assert!(
+            matches
+                .iter()
+                .all(|m| !m.spec_key.starts_with("generated-hw:"))
+        );
     }
     fn benzo_test_pair(
         source: &str,

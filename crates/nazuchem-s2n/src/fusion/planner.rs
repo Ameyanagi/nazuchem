@@ -317,15 +317,44 @@ fn plan_uncached(
         Err(error) => return rejected(error),
     };
     let face_model = typed_face_model(mol, &bounded);
-    let matches = match registry.match_faces(mol, &matching_parent, &face_model.faces, None) {
+    let benzo = mol.use_benzoheterocycle_names() && face_model.faces.len() == 2;
+    // The lambda-H proof expands one ring bonding model. An exocyclic
+    // multiple bond on another heteroatom needs a joint valence/H proof.
+    let benzo_lambda_h = benzo
+        && atoms
+            .iter()
+            .any(|&id| super::valence::endocyclic_lambda_h(mol, atoms, id))
+        && !atoms.iter().any(|&id| {
+            !mol.atoms[&id].is_carbon()
+                && mol
+                    .get_neighbors(id)
+                    .iter()
+                    .any(|&n| !atoms.contains(&n) && mol.bond_order(id, n) > 1)
+        });
+    let match_faces = |allow_lambda_h| {
+        registry.match_faces(
+            mol,
+            &matching_parent,
+            &face_model.faces,
+            None,
+            allow_lambda_h,
+        )
+    };
+    let mut matches = match match_faces(benzo_lambda_h) {
         Ok(matches) => matches,
         Err(error) => return rejected(error),
     };
-    if mol.use_benzoheterocycle_names()
-        && face_model.faces.len() == 2
-        && let Some(plan) = plan_benzoheterocycle(mol, atoms, &matches, registry, &face_model)?
+    if benzo && let Some(plan) = plan_benzoheterocycle(mol, atoms, &matches, registry, &face_model)?
     {
         return Ok(Some(plan));
+    }
+    // Only the standalone benzo parent builds the expanded-valence bond
+    // model. Its extra HW component matches cannot enter general fusion.
+    if benzo_lambda_h {
+        matches = match match_faces(false) {
+            Ok(matches) => matches,
+            Err(error) => return rejected(error),
+        };
     }
     let mut intrinsic_layouts = None;
     if !can_use_component_entry_layout(&face_model) {
@@ -645,11 +674,17 @@ fn plan_benzoheterocycle(
                     ..Default::default()
                 };
                 let specs = component_specs(&ast, registry)?;
-                let graph = component_parent_graph(
+                let mut graph = component_parent_graph(
                     &ast,
                     &specs,
                     component_carbon_h_relocation_scope(&ast, &specs),
                 )?;
+                for site in &mut graph.atoms {
+                    if super::valence::endocyclic_lambda_h(mol, atoms, site.id) {
+                        site.pi_capacity = 1;
+                        site.forced_single = false;
+                    }
+                }
                 let intrinsic_sites = intrinsic_parent_lone_pair_sites(mol, &graph);
                 let model = if intrinsic_sites.is_empty() {
                     parent_bond_model(&graph)?
@@ -669,6 +704,20 @@ fn plan_benzoheterocycle(
                 }
             }
         }
+    }
+    // P-25.6 breaks otherwise equivalent benzoheterocycle numberings by
+    // giving the higher bonding numbers the lowest locants.
+    let lambda_key = |p: &FusionParentPlan| {
+        let mut sites: Vec<_> = p
+            .lambda_descriptors
+            .iter()
+            .map(|d| (std::cmp::Reverse(d.bonding_number), locant_key(&d.locant)))
+            .collect();
+        sites.sort();
+        sites
+    };
+    if let Some(best) = variants.iter().map(lambda_key).min() {
+        variants.retain(|p| lambda_key(p) == best);
     }
     let Some(mut plan) = variants.first().cloned() else {
         return Ok(None);
@@ -904,6 +953,32 @@ fn complete_fusion_plan(
     }
     let rendered_core = render_fusion_name(ast, registry)?;
     let lambda_descriptors = fusion_lambda_descriptors(mol, atoms, &input_locants)?;
+    if lambda_descriptors
+        .iter()
+        .any(|d| mol.atoms[&d.atom_id].total_h_count > 0)
+    {
+        // A lambda-H parent can dispense with a separate hydrogen citation
+        // only when every Kekulé form preserves both the observed H sites
+        // and localized bond orders. Aromatic bonds can alternate within an
+        // equivalent Kekulé form, but moving S=S to N=N changes the compound.
+        let paired: AtomSet = mol
+            .bonds
+            .values()
+            .filter(|b| b.order == 2 && atoms.contains(&b.u) && atoms.contains(&b.v))
+            .flat_map(|b| [b.u, b.v])
+            .collect();
+        if !observed_parent_matches_bond_model(mol, &bond_model)
+            || bond_model.allowed_kekule_assignments.iter().any(|a| {
+                a.paired_atoms() != paired
+                    || a.orders.iter().any(|&((u, v), order)| {
+                        mol.get_bond(u, v)
+                            .is_none_or(|b| !b.is_aromatic && b.order != order)
+                    })
+            })
+        {
+            return Ok(None);
+        }
+    }
     let mut rendered = String::new();
     if !indicated_h.is_empty() {
         rendered.push_str(

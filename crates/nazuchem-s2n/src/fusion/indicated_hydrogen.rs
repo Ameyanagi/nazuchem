@@ -48,6 +48,7 @@ pub(super) fn parent_hydrogen_candidates(
     // that hydrogen with a substituent. Outside benzo names only aromatic
     // (pyrrolic) N qualifies; a saturated N may instead be a hydro site.
     let atoms = locants.keys().copied().collect();
+    candidates.retain(|&a| !super::valence::endocyclic_lambda_h(mol, &atoms, a));
     candidates.extend(locants.keys().filter(|&&a| {
         (mol.atoms[&a].is_aromatic || ast.plan_kind == "benzoheterocycle")
             && single_bonded_parent_nitrogen(mol, &atoms, a)

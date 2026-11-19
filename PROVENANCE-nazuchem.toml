@@ -7691,6 +7691,15 @@ sources = [
 notes = "Original facade regression for issue #170: generated salt names with a multiplied ester anion parsed back to the input structure, the ester and substituent readings of a multiplied bracketed anion with and without a space, several ester groups, a ratio, names that are read as before, and a round trip of every multi-component name in the golden fixture, each checked against the IUPAC 2013 rule cited beside it."
 
 [[file]]
+path = "crates/nazuchem/tests/fused_lambda.rs"
+origin = "original"
+license = "MIT OR Apache-2.0"
+sources = [
+  { project = "Nazuchem", path = "crates/nazuchem/tests/fused_lambda.rs", ref = "issue #6", license = "MIT OR Apache-2.0" },
+]
+notes = "Facade regression for the IUPAC P-25.6 benzodithiepine example, covering bonding number, numbering and structure round trip."
+
+[[file]]
 path = "crates/nazuchem/tests/one_carbon_nitrile.rs"
 origin = "original"
 license = "MIT OR Apache-2.0"

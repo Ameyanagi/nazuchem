@@ -204,7 +204,14 @@ pub fn audit_fusion_plan(
             charge_operations,
             &mut errors,
         );
-        audit_component_pi_constraints(ast, &specs, abstract_parent_graph, &mut errors)?;
+        audit_component_pi_constraints(
+            mol,
+            parent_atoms,
+            ast,
+            &specs,
+            abstract_parent_graph,
+            &mut errors,
+        )?;
         audit_numbering(
             mol,
             parent_atoms,
@@ -1421,6 +1428,8 @@ fn audit_reconstructed_graph(
     }
 }
 fn audit_component_pi_constraints(
+    mol: &Molecule,
+    parent_atoms: &AtomSet,
     ast: &FusionNameAst,
     specs: &Specs,
     graph: &FusionGraph,
@@ -1451,13 +1460,18 @@ fn audit_component_pi_constraints(
         let components = expected
             .get(&atom.id)
             .ok_or("abstract atom has no component pi constraint")?;
-        if atom.pi_capacity
-            != components
+        let lambda_h = super::valence::endocyclic_lambda_h(mol, parent_atoms, atom.id);
+        let capacity = if lambda_h {
+            1
+        } else {
+            components
                 .iter()
                 .map(RetainedGraphAtomTemplate::resolved_pi_capacity)
                 .min()
                 .unwrap_or(0)
-            || atom.forced_single != components.iter().any(|a| a.forced_single)
+        };
+        if atom.pi_capacity != capacity
+            || atom.forced_single != (!lambda_h && components.iter().any(|a| a.forced_single))
             || atom.saturated != components.iter().any(|a| a.saturated)
         {
             issue(
