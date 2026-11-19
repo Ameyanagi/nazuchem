@@ -2238,6 +2238,18 @@ impl<'a> ComponentProcessor<'a> {
                 arena[word].set_attribute(LOCANT_ATR, &values[0]);
                 assigned = Some(values);
             }
+            if self.state.current_word_rule.as_deref() == Some("anhydride")
+                && let Some(locants) = arena[word].attribute(LOCANT_ATR)
+            {
+                let values: Vec<_> = locants.split(',').map(str::to_owned).collect();
+                if values.len() != count {
+                    return Err(error(
+                        "Anhydride end locants do not match the acid multiplier",
+                    ));
+                }
+                arena[word].set_attribute(LOCANT_ATR, &values[0]);
+                assigned = Some(values);
+            }
             if arena.value(multiplier) == "non"
                 && !arena[multiplier]
                     .attribute(SUBSEQUENTUNSEMANTICTOKEN_ATR)
@@ -3726,6 +3738,35 @@ impl ComponentProcessor<'_> {
                     arena[w].set_attribute(LOCANT_ATR, &value);
                     arena.detach(locant);
                 }
+            }
+            // P-65.7.6.2–.3: a leading numeral on a simple or fully
+            // enclosed acid word identifies its connection to the polybasic
+            // acid. Move it before the component's locants are interpreted.
+            if self.state.current_word_rule.as_deref() == Some("anhydride")
+                && rule_words.len() >= 3
+                && let Some(&class) = rule_words.last()
+                && !arena.descendants_named(class, MULTIPLIER_EL).is_empty()
+                && let [element] = arena[word].children.as_slice()
+                && matches!(arena[*element].name.as_str(), ROOT_EL | BRACKET_EL)
+                && (arena[*element].name == BRACKET_EL
+                    || arena
+                        .children_named(*element, UNSATURATOR_EL)
+                        .iter()
+                        .all(|&unsaturator| arena[unsaturator].attribute(VALUE_ATR) == Some("1")))
+                && let Some(&locant) = arena[*element].children.first()
+                && arena[locant].name == LOCANT_EL
+                && arena
+                    .value(locant)
+                    .split(',')
+                    .all(crate::fragment_tools::is_numeric_locant)
+                && (!arena.value(locant).contains(',')
+                    || arena
+                        .next_sibling(locant)
+                        .is_some_and(|node| arena[node].name == MULTIPLIER_EL))
+            {
+                let value = arena.value(locant);
+                arena[word].set_attribute(LOCANT_ATR, value);
+                arena.detach(locant);
             }
             let roots = arena.descendants_named(word, ROOT_EL);
             if roots.len() > 1 {

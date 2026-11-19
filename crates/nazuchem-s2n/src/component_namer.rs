@@ -5,6 +5,7 @@
 // Source: ReShiki | src/naming/openclatura/component_namer.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/fixtures/diverse_corpus.csv | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_namer.rs | issue #110
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura component decision pipeline with local derivation, isotope and spiro projection adapters.
@@ -98,6 +99,37 @@ pub(super) fn name_component_with_citation(
     citation: Option<&str>,
     principal_atom: Option<usize>,
 ) -> Result<ComponentName, String> {
+    name_component_with_locant_policy(mol, component_atoms, citation, principal_atom, false, &[])
+}
+
+// Provenance: fn name_component_for_anhydride | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_namer.rs::name_component_for_anhydride
+pub(super) fn name_component_for_anhydride(
+    mol: &Molecule,
+    component_atoms: &AtomSet,
+    retain_locants: bool,
+    anhydride_ends: &[(usize, usize)],
+) -> Result<ComponentName, String> {
+    name_component_with_locant_policy(
+        mol,
+        component_atoms,
+        Some("anhydride_half"),
+        None,
+        retain_locants,
+        anhydride_ends,
+    )
+}
+
+// Provenance: fn name_component_with_locant_policy | adapted
+// Source: ReShiki | src/naming/openclatura/component_namer.rs::name_component_with_citation
+fn name_component_with_locant_policy(
+    mol: &Molecule,
+    component_atoms: &AtomSet,
+    citation: Option<&str>,
+    principal_atom: Option<usize>,
+    retain_locants: bool,
+    anhydride_ends: &[(usize, usize)],
+) -> Result<ComponentName, String> {
     match component_pipeline(
         mol,
         component_atoms,
@@ -106,6 +138,7 @@ pub(super) fn name_component_with_citation(
         None,
         None,
         None,
+        anhydride_ends,
     )? {
         ComponentResult::Shortcut(name) => Ok(ComponentName {
             text: name.name,
@@ -116,6 +149,10 @@ pub(super) fn name_component_with_citation(
             },
         }),
         ComponentResult::Plan(mut plan, parent_atoms, component_splits) => {
+            if retain_locants {
+                plan.parts.omit_redundant_locants = false;
+                plan.parts.elided_substituent_locants.clear();
+            }
             let text = render_component_parent(
                 mol,
                 &mut plan.parts,
@@ -172,6 +209,7 @@ pub(super) fn name_component_with_atom_locants(
         None,
         isotope_source,
         tied_parent,
+        &[],
     )? {
         ComponentResult::Shortcut(name) => Ok(IsotopeParentName {
             rendered_parent: name.name.clone(),
@@ -275,6 +313,7 @@ pub(super) fn build_spiro_component_parts(
                 }),
                 None,
                 None,
+                &[],
             )? {
                 ComponentResult::Shortcut(_) => None,
                 ComponentResult::Plan(plan, _, _) => Some(*plan),
@@ -336,6 +375,7 @@ fn component_pipeline(
     // A parent to name instead of the selected one, when parents tie. With the
     // bond from it to a linking group, the name is that of a multiplied unit.
     tied_parent: Option<(&ParentSelection, Option<(usize, usize)>)>,
+    anhydride_ends: &[(usize, usize)],
 ) -> Result<ComponentResult, String> {
     let _depth = mol.enter_naming()?;
     let as_prefix = projection.as_ref().is_some_and(|p| {
@@ -479,6 +519,7 @@ fn component_pipeline(
                             None,
                             isotope_source,
                             Some((parent, None)),
+                            anhydride_ends,
                         )? {
                             let prefixes = plan.parts.substituents.clone();
                             let (name, mut parent) = render_component_and_parent(
@@ -704,6 +745,21 @@ fn component_pipeline(
             .map_or_else(BTreeMap::new, |subs| subs.numbering_modifiers()),
         ester_alcohols: front.numbering_modifiers(),
         acid_isotopes: front.acid_isotopes(isotope_source),
+        anhydride_ends: anhydride_ends
+            .iter()
+            .filter_map(|&(center, priority)| {
+                // A carboxylic acid on a ring uses the number of its attachment
+                // atom, while a chain acid numbers its carbonyl carbon directly.
+                let atom = if parent.contains(&center) {
+                    center
+                } else {
+                    *mol.get_neighbors(center)
+                        .iter()
+                        .find(|idx| parent.contains(idx))?
+                };
+                Some((atom, priority))
+            })
+            .collect(),
     };
     let mut plan = if let Some(projection) = &projection {
         if !parent.contains(&projection.junction) {

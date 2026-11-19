@@ -140,7 +140,21 @@ impl WordRules {
             if first + count > words.len() {
                 continue;
             }
-            for (offset, description) in rule.words.iter().enumerate() {
+            if rule.name == "anhydride" && count == 4 {
+                // The long rule covers three or more consecutive acid words
+                // followed by the functional class term (P-65.7.6.2–.3).
+                while first + count < words.len()
+                    && word_matches(arena, words[first + count - 1], &rule.words[0])?
+                {
+                    count += 1;
+                }
+            }
+            for offset in 0..count {
+                let description = if offset + 1 == count {
+                    rule.words.last().unwrap()
+                } else {
+                    &rule.words[offset.min(rule.words.len() - 2)]
+                };
                 if !word_matches(arena, words[first + offset], description)? {
                     continue 'rule;
                 }

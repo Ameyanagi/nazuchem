@@ -1168,8 +1168,169 @@ impl Builder<'_> {
         let b = two.remove_functional_atom(self.assembly.graph_mut(), 0)?;
         self.form_anhydride_link(smiles, a, b)
     }
+    fn acid_contains_anhydride(&self, acid: &BuildResults) -> bool {
+        let graph = self.assembly.graph();
+        acid.fragments.iter().any(|&fragment| {
+            graph.fragment(fragment).atoms.iter().any(|&atom| {
+                let bridge = graph.atom(atom);
+                bridge.element.is_chalcogen()
+                    && bridge.bonds.len() == 2
+                    && graph.neighbours(atom).iter().all(|&center| {
+                        graph.atom(center).bonds.iter().any(|&bond| {
+                            let bond = graph.bond(bond);
+                            bond.order == 2
+                                && graph
+                                    .atom(bond.other_atom(center).unwrap())
+                                    .element
+                                    .is_chalcogen()
+                        })
+                    })
+            })
+        })
+    }
+
+    fn build_polyanhydride(
+        &mut self,
+        smiles: &str,
+        count: usize,
+        acid_words: &[NodeId],
+    ) -> Result<()> {
+        let mut acids = Vec::with_capacity(acid_words.len());
+        for &word in acid_words {
+            self.assembly.resolve_word_or_bracket(word)?;
+            acids.push(self.results(word)?);
+        }
+        let locants: Vec<_> = acid_words
+            .iter()
+            .map(|&word| self.assembly.attr(word, "locant"))
+            .collect();
+        let any_located = locants.iter().any(Option::is_some);
+        let values: Vec<_> = acid_words
+            .iter()
+            .map(|&word| self.assembly.attr(word, "value"))
+            .collect();
+        let polybasic: Vec<_> = acids
+            .iter()
+            .enumerate()
+            .filter_map(|(i, acid)| (acid.functional_atoms.len() == count).then_some(i))
+            .collect();
+        if let [central] = polybasic[..]
+            && acids.len() == count + 1
+            && acids
+                .iter()
+                .enumerate()
+                .all(|(i, acid)| i == central || acid.functional_atoms.len() == 1)
+        {
+            let equal_ends = values
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| *i != central)
+                .map(|(_, value)| value)
+                .all(|value| value == &values[usize::from(central == 0)]);
+            // P-65.7.6.1 uses sequence for a simple dianhydride. Equal
+            // multiplied ends and the names in .2 and .3 may put the
+            // polybasic word last.
+            let composed = acids.iter().any(|acid| self.acid_contains_anhydride(acid));
+            if count == 2 && central != 1 && !equal_ends && !any_located && !composed {
+                return Err(error("Invalid dianhydride description"));
+            }
+            if count > 2 && central + 1 != acids.len() {
+                return Err(error(
+                    "The polybasic acid must come last in a polyanhydride",
+                ));
+            }
+            let mut parent = acids.remove(central);
+            if locants[central].is_some() {
+                return Err(error("Anhydride end locant on the polybasic acid"));
+            }
+            if any_located
+                && locants
+                    .iter()
+                    .enumerate()
+                    .any(|(i, locant)| i != central && locant.is_none())
+            {
+                return Err(error("Missing anhydride end locant"));
+            }
+            if !any_located && !equal_ends {
+                let stereo = !self
+                    .assembly
+                    .arena
+                    .descendants_named(acid_words[central], "stereochemistry")
+                    .is_empty();
+                if count > 2
+                    || stereo
+                    || !crate::ambiguity::all_atoms_equivalent(
+                        self.assembly.graph(),
+                        &parent.functional_atoms,
+                    )?
+                {
+                    return Err(error("Polyanhydride needs locants for its end acids"));
+                }
+            }
+            let mut end_locants = locants;
+            end_locants.remove(central);
+            let parent_atoms = if any_located {
+                let mut chosen = Vec::with_capacity(count);
+                for locant in end_locants.iter().flatten() {
+                    // Each locant must identify one unused acid group.
+                    let mut matches =
+                        parent.functional_atoms.iter().enumerate().filter(|(_, a)| {
+                            ft::is_numeric_locant(locant)
+                                && self.search_non_suffix_locant(**a, locant).is_some()
+                        });
+                    let Some((index, _)) = matches.next() else {
+                        return Err(error("Unable to find anhydride linkage locant"));
+                    };
+                    if matches.next().is_some() {
+                        return Err(error("Anhydride linkage locant is ambiguous"));
+                    }
+                    chosen.push(parent.remove_functional_atom(self.assembly.graph_mut(), index)?);
+                }
+                chosen
+            } else {
+                (0..count)
+                    .map(|_| parent.remove_functional_atom(self.assembly.graph_mut(), 0))
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            };
+            for (acid, parent_atom) in acids.iter_mut().zip(parent_atoms) {
+                let end = acid.remove_functional_atom(self.assembly.graph_mut(), 0)?;
+                self.form_anhydride_link(smiles, end, parent_atom)?;
+            }
+            return Ok(());
+        }
+        // P-65.7.6.2 method (2): an ordered residue chain, with each
+        // intermediate residue contributing two equivalent acid groups.
+        if count < 3 || any_located || acids.len() != count + 1 {
+            return Err(error("Invalid polyanhydride description"));
+        }
+        for (i, acid) in acids.iter().enumerate() {
+            let terminal = i == 0 || i + 1 == acids.len();
+            if acid.functional_atoms.len() != if terminal { 1 } else { 2 } {
+                return Err(error("Invalid acid functionality in linear polyanhydride"));
+            }
+            if !terminal
+                && (!self
+                    .assembly
+                    .arena
+                    .descendants_named(acid_words[i], "stereochemistry")
+                    .is_empty()
+                    || !crate::ambiguity::all_atoms_equivalent(
+                        self.assembly.graph(),
+                        &acid.functional_atoms,
+                    )?)
+            {
+                return Err(error("Linear polyanhydride needs linkage locants"));
+            }
+        }
+        for i in 1..acids.len() {
+            let (left, right) = acids.split_at_mut(i);
+            self.link_anhydride_results(smiles, &mut left[i - 1], &mut right[0])?;
+        }
+        Ok(())
+    }
+
     fn build_anhydride(&mut self, words: &[NodeId]) -> Result<()> {
-        if !(2..=4).contains(&words.len()) {
+        if words.len() < 2 {
             return Err(error("Unexpected number of words in anhydride"));
         }
         let word = *words.last().unwrap();
@@ -1202,42 +1363,14 @@ impl Builder<'_> {
             .collect();
         let (first, last) = (symbols.first().cloned(), symbols.last().cloned());
         let mixed = first != last;
-        if words.len() == 4 {
-            // P-65.7.6.1: "acetic methanedisulfonic propanoic dianhydride" links
-            // the acids in their order of occurrence. In "diacetic butanedioic
-            // dianhydride" the multiplied word became two equal copies, and
-            // both link to the dibasic acid.
-            if count != 2 || locant.is_some() || mixed {
+        if count > 1 && words.len() > 3 {
+            if locant.is_some() || mixed {
                 return Err(error("Unsupported or invalid anhydride"));
             }
-            let mut acids = [words[0], words[1], words[2]];
-            if self.assembly.attr(acids[0], "value") == self.assembly.attr(acids[1], "value") {
-                acids.swap(1, 2);
-            }
-            let mut results = Vec::new();
-            for acid in acids {
-                self.assembly.resolve_word_or_bracket(acid)?;
-                results.push(self.results(acid)?);
-            }
-            let [mut one, mut two, mut three] = <[BuildResults; 3]>::try_from(results).unwrap();
-            if one.functional_atoms.is_empty()
-                || three.functional_atoms.is_empty()
-                || two.functional_atoms.len() != 2
-            {
-                return Err(error("Invalid dianhydride description"));
-            }
-            // Unlike end acids on unlike acid groups need locants
-            // (P-65.7.6.2), which are not read.
-            if self.assembly.attr(acids[0], "value") != self.assembly.attr(acids[2], "value")
-                && !crate::ambiguity::all_atoms_equivalent(
-                    self.assembly.graph(),
-                    &two.functional_atoms,
-                )?
-            {
-                return Err(error("Dianhydride needs locants for its end acids"));
-            }
-            self.link_anhydride_results(&smiles, &mut one, &mut two)?;
-            return self.link_anhydride_results(&smiles, &mut three, &mut two);
+            return self.build_polyanhydride(&smiles, count, &words[..words.len() - 1]);
+        }
+        if words.len() > 3 {
+            return Err(error("Unexpected number of words in anhydride"));
         }
         self.assembly.resolve_word_or_bracket(words[0])?;
         let mut one = self.results(words[0])?;
@@ -1257,6 +1390,9 @@ impl Builder<'_> {
             if count > 1 {
                 if mixed {
                     return Err(error("Unsupported or invalid anhydride"));
+                }
+                if acid_locants.iter().any(Option::is_some) {
+                    return Err(error("Locanted anhydride ends must be cited explicitly"));
                 }
                 for i in (0..count).rev() {
                     if two.functional_atoms.is_empty() {

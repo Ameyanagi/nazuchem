@@ -50,6 +50,8 @@ pub struct NumberingModifiers {
     pub nitrogen_substituents: BTreeMap<usize, Vec<(usize, String)>>,
     pub ester_alcohols: BTreeMap<usize, String>,
     pub acid_isotopes: Vec<(usize, String, u16)>,
+    /// Anhydride end acid rank in order of citation (P-65.7.6.3).
+    pub anhydride_ends: BTreeMap<usize, usize>,
 }
 
 #[derive(Default, PartialEq, Eq, PartialOrd, Ord)]
@@ -58,6 +60,7 @@ struct ModifierPreference {
     nitrogen_citation: Vec<(usize, usize)>,
     isotope_locants: Vec<Vec<LocantKey>>,
     alcohol_citation: Vec<LocantKey>,
+    anhydride_citation: Vec<LocantKey>,
 }
 
 // Provenance: impl NumberingModifiers | original
@@ -111,6 +114,15 @@ impl NumberingModifiers {
                 locants
             }))
             .collect();
+        let mut anhydride_citation: Vec<_> = self
+            .anhydride_ends
+            .iter()
+            .filter_map(|(atom, priority)| {
+                map.get(atom)
+                    .map(|locant| (priority, retained_locant_sort_key(locant)))
+            })
+            .collect();
+        anhydride_citation.sort();
         ModifierPreference {
             nitrogen_locants,
             nitrogen_citation: nitrogen_citation
@@ -119,6 +131,10 @@ impl NumberingModifiers {
                 .collect(),
             isotope_locants,
             alcohol_citation: alcohol_citation
+                .into_iter()
+                .map(|(_, locant)| locant)
+                .collect(),
+            anhydride_citation: anhydride_citation
                 .into_iter()
                 .map(|(_, locant)| locant)
                 .collect(),

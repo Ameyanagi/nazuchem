@@ -5,9 +5,8 @@
 
 #![cfg(all(feature = "n2s", feature = "s2n"))]
 
-//! Issue #110: a dibasic acid whose two acid groups each form an anhydride
-//! with a monobasic acid is named as a dianhydride (IUPAC 2013 P-65.7.6),
-//! and the name reads back as the structure it was generated from.
+//! Issue #110: anhydrides with several linkages (IUPAC 2013 P-65.7.6),
+//! including the connection of unlike ends to specific acid groups.
 
 use nazuchem::{
     Budget, NameReason, NameStatus, name_to_smiles, s2n::canonical_smiles, smiles_to_name,
@@ -45,11 +44,9 @@ fn dianhydrides_follow_the_blue_book_and_round_trip() {
             "acetic methanedisulfonic propanoic dianhydride",
             false,
         ),
-        // P-65.7.6.1 writes "diacetic 2-methylbutanedioic dianhydride"; the
-        // acid namer omits the locant, so the name stays unverified.
         (
             "CC(=O)OC(=O)C(C)CC(=O)OC(C)=O",
-            "diacetic methylbutanedioic dianhydride",
+            "diacetic 2-methylbutanedioic dianhydride",
             false,
         ),
         // P-65.7.6.1 with other dibasic acids.
@@ -108,6 +105,12 @@ fn dianhydrides_follow_the_blue_book_and_round_trip() {
             "diacetic methanedisulfonic bis(thioanhydride)",
             false,
         ),
+        // P-65.7.6.4.3 example: a dibasic thioacid.
+        (
+            "CC(=O)OC(=S)CCC(=S)OC(C)=O",
+            "diacetic butanebis(thioic) dianhydride",
+            true,
+        ),
         // P-65.7.6.4.3 example: a thioacid end.
         (
             "CC(=S)OC(=O)CCC(=O)OC(C)=O",
@@ -139,7 +142,7 @@ fn dianhydrides_follow_the_blue_book_and_round_trip() {
 #[test]
 fn blue_book_dianhydride_names_are_read() {
     for (name, smiles) in [
-        // P-65.7.6.1 example, with the locant the generated name omits.
+        // P-65.7.6.1 example.
         (
             "diacetic 2-methylbutanedioic dianhydride",
             "CC(=O)OC(=O)C(C)CC(=O)OC(C)=O",
@@ -179,6 +182,224 @@ fn unlike_ends_on_a_stereogenic_dibasic_acid_keep_distinct_names() {
             name.text
         });
         assert_ne!(names[0], names[1]);
+    }
+}
+
+#[test]
+fn linear_polyanhydrides_use_substitutive_end_acids() {
+    let examples = [
+        (
+            "CC(=O)OC(=O)CCC(=O)OC(=O)CCC(=O)OC(=O)CC",
+            "acetic butanedioic 4-oxo-4-(propanoyloxy)butanoic dianhydride",
+        ),
+        (
+            "CC(=O)OC(=O)CC(=O)OC(=O)CCC(=O)OC(C)=O",
+            "acetic 3-(acetyloxy)-3-oxopropanoic butanedioic dianhydride",
+        ),
+        (
+            "CC(=O)OC(=O)CCC(=O)OC(=O)CC(C)C(=O)OC(=O)CC",
+            "4-[4-(acetyloxy)-4-oxobutanoic] 2-methylbutanedioic 1-propanoic dianhydride",
+        ),
+    ];
+    for (smiles, expected) in examples {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        same_structure(&name.text, smiles);
+    }
+
+    // The alternative linear description (P-65.7.6.2 method (2)) and the
+    // example spelling of the first substitutive end denote the same graph.
+    same_structure("acetic dibutanedioic propanoic trianhydride", examples[0].0);
+    same_structure(
+        "acetic butanedioic 4-(propanoyloxy)-4-oxobutanoic dianhydride",
+        examples[0].0,
+    );
+    same_structure(
+        "acetic butanedioic propanedioic acetic trianhydride",
+        examples[1].0,
+    );
+}
+
+#[test]
+fn unlike_ends_are_located_on_the_dibasic_acid() {
+    for (smiles, expected) in [
+        (
+            "CC(=O)OC(=O)C(C)CC(=O)OC(=O)CC",
+            "1-acetic 2-methylbutanedioic 4-propanoic dianhydride",
+        ),
+        (
+            "CC(=O)OC(=O)CC(C)C(=O)OC(=O)CC",
+            "4-acetic 2-methylbutanedioic 1-propanoic dianhydride",
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        same_structure(expected, smiles);
+    }
+    for invalid in [
+        "1-acetic 2-methylbutanedioic 1-propanoic dianhydride",
+        "1-acetic 2-methylbutanedioic 2-propanoic dianhydride",
+        "1-acetic 2-methylbutanedioic propanoic dianhydride",
+    ] {
+        assert!(name_to_smiles(invalid).is_err(), "{invalid}");
+    }
+}
+
+#[test]
+fn polybasic_acid_names_use_locants_and_multipliers() {
+    for (name, smiles) in [
+        (
+            "3,6-diacetic 2-propanoic naphthalene-2,3,6-tricarboxylic trianhydride",
+            "CCC(=O)OC(=O)c1cc2ccc(C(=O)OC(C)=O)cc2cc1C(=O)OC(C)=O",
+        ),
+        (
+            "triacetic benzene-1,3,5-tricarboxylic trianhydride",
+            "CC(=O)OC(=O)c1cc(C(=O)OC(C)=O)cc(C(=O)OC(C)=O)c1",
+        ),
+        (
+            "3,6-diacetic 2-propanoic naphthalene-2,3,6-tricarboxylic tris(thioanhydride)",
+            "CCC(=O)SC(=O)c1cc2ccc(C(=O)SC(C)=O)cc2cc1C(=O)SC(C)=O",
+        ),
+    ] {
+        let actual = smiles_to_name(smiles).unwrap();
+        assert_eq!(actual.text, name, "{smiles}");
+        same_structure(name, smiles);
+    }
+    assert!(
+        name_to_smiles("2,3-diacetic 2-propanoic naphthalene-2,3,6-tricarboxylic trianhydride")
+            .is_err()
+    );
+}
+
+#[test]
+fn locanted_polyanhydrides_with_unsaturated_ends_round_trip() {
+    for smiles in [
+        "CC(=O)OC(=O)C(C)CC(=O)OC(=O)C=CC",
+        "CC(=O)OC(=O)C(C)CC(=O)OC(=O)/C=C/C",
+        "CC(=O)OC(=O)c1cc(C(=O)OC(C)=O)cc(C(=O)OC(=O)C=CC)c1",
+        "CC(=O)OC(=O)c1cc(C(=O)OC(C)=O)cc(C(=O)OC(=O)/C=C/C)c1",
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        same_structure(&name.text, smiles);
+    }
+}
+
+#[test]
+fn cyclic_dianhydride_keeps_the_acid_prefix_locants() {
+    let smiles = "O=C1OC(=O)c2cc3c(cc12)C(=O)OC3=O";
+    for name in [
+        "1,2,4,5-benzenetetracarboxylic acid 1,2:4,5-dianhydride",
+        "1,2,4,5-benzenetetracarboxylic 1,2:4,5-dianhydride",
+    ] {
+        same_structure(name, smiles);
+    }
+}
+
+#[test]
+fn symmetric_polybasic_acid_gives_lowest_locants_to_the_first_end_acid() {
+    let expected = "1,3-diacetic 5-propanoic benzene-1,3,5-tricarboxylic trianhydride";
+    for smiles in [
+        "CC(=O)OC(=O)c1cc(C(=O)OC(C)=O)cc(C(=O)OC(=O)CC)c1",
+        "CCC(=O)OC(=O)c1cc(C(=O)OC(C)=O)cc(C(=O)OC(C)=O)c1",
+        "CC(=O)OC(=O)c1cc(C(=O)OC(=O)CC)cc(C(=O)OC(C)=O)c1",
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        same_structure(&name.text, smiles);
+    }
+}
+
+#[test]
+fn enantiomeric_polyanhydride_ends_give_r_the_lower_locant() {
+    let expected = "1-acetic 3-[(2R)-2-methylbutanoic] 5-[(2S)-2-methylbutanoic] benzene-1,3,5-tricarboxylic trianhydride";
+    for smiles in [
+        "CC(=O)OC(=O)c1cc(C(=O)OC(=O)[C@H](C)CC)cc(C(=O)OC(=O)[C@@H](C)CC)c1",
+        "CC(=O)OC(=O)c1cc(C(=O)OC(=O)[C@@H](C)CC)cc(C(=O)OC(=O)[C@H](C)CC)c1",
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        same_structure(&name.text, smiles);
+    }
+}
+
+#[test]
+fn identical_chiral_ends_are_multiplied_before_citing_the_enantiomer() {
+    let expected = "1,3-bis[(2R)-2-methylbutanoic] 5-[(2S)-2-methylbutanoic] benzene-1,3,5-tricarboxylic trianhydride";
+    for smiles in [
+        "CC[C@@H](C)C(=O)OC(=O)c1cc(C(=O)OC(=O)[C@@H](C)CC)cc(C(=O)OC(=O)[C@H](C)CC)c1",
+        "CC[C@@H](C)C(=O)OC(=O)c1cc(C(=O)OC(=O)[C@H](C)CC)cc(C(=O)OC(=O)[C@@H](C)CC)c1",
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        same_structure(&name.text, smiles);
+    }
+}
+
+#[test]
+fn implicit_anhydride_ends_cannot_discard_locants() {
+    for invalid in [
+        "8-acetic benzene-1,2,4-tricarboxylic dianhydride",
+        "9-acetic butanedioic dianhydride",
+        "acetic 9-butanedioic dianhydride",
+    ] {
+        assert!(name_to_smiles(invalid).is_err(), "{invalid}");
+    }
+
+    let succinic = "CC(=O)OC(=O)CCC(=O)OC(C)=O";
+    same_structure("acetic butanedioic dianhydride", succinic);
+    same_structure("acetic 1,4-butanedioic dianhydride", succinic);
+    same_structure(
+        "1,4-diacetic 2-methylbutanedioic dianhydride",
+        "CC(=O)OC(=O)C(C)CC(=O)OC(C)=O",
+    );
+}
+
+#[test]
+fn locanted_compound_acid_ends_are_enclosed() {
+    for (smiles, expected) in [
+        (
+            "O=C(OC(=O)C)c1cc(C(=O)OC(=O)C)cc(C(=O)OC(=O)C(F)(F)F)c1",
+            "1,3-diacetic 5-(trifluoroacetic) benzene-1,3,5-tricarboxylic trianhydride",
+        ),
+        (
+            "CC(=O)OC(=O)c1cc(C(=O)OC(C)=O)cc(C(=O)OC(=O)CCl)c1",
+            "1,3-diacetic 5-(chloroacetic) benzene-1,3,5-tricarboxylic trianhydride",
+        ),
+        (
+            "CC(=O)OC(=O)c1cc(C(=O)OC(=O)CCl)cc(C(=O)OC(=O)C(F)(F)F)c1",
+            "1-acetic 3-(chloroacetic) 5-(trifluoroacetic) benzene-1,3,5-tricarboxylic trianhydride",
+        ),
+        (
+            "CC(=O)OC(=O)c1cc(C(=O)OC(=O)C(F)(F)F)cc(C(=O)OC(=O)C(F)(F)F)c1",
+            "1-acetic 3,5-bis(trifluoroacetic) benzene-1,3,5-tricarboxylic trianhydride",
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        same_structure(&name.text, smiles);
+    }
+}
+
+#[test]
+fn locanted_carbamic_ends_use_substitutive_names() {
+    for (smiles, expected) in [
+        (
+            "O=C(OC(=O)C)C(C)CC(=O)OC(=O)N",
+            "acetic 4-(carbamoyloxy)-2-methyl-4-oxobutanoic anhydride",
+        ),
+        (
+            "O=C(OC(=O)C)C(C)CC(=O)OC(=O)NC",
+            "acetic 2-methyl-4-[(methylcarbamoyl)oxy]-4-oxobutanoic anhydride",
+        ),
+        (
+            "CC(=O)OC(=O)c1cc(C(=O)OC(C)=O)cc(C(=O)OC(=O)N)c1",
+            "acetic 3-[(acetyloxy)carbonyl]-5-[(carbamoyloxy)carbonyl]benzoic anhydride",
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        assert_ne!(name.status, NameStatus::Preferred, "{smiles}");
+        same_structure(&name.text, smiles);
     }
 }
 
@@ -231,6 +452,20 @@ fn anhydride_preference_reasons_are_independent_of_atom_order() {
                 "CC(=O)N(C(C)=O)CCC(=O)OC(=O)CCC(=O)OC(=O)N=[N+]=[N-]",
             ],
             "azidoformic butanedioic 3-(diacetylamino)propanoic dianhydride",
+        ),
+        (
+            [
+                "[N-]=[N+]=NC(=O)OC(=O)CCC(=O)OC(=O)CCC(=O)OC(=O)CCN(C(C)=O)C(C)=O",
+                "CC(=O)N(C(C)=O)CCC(=O)OC(=O)CCC(=O)OC(=O)CCC(=O)OC(=O)N=[N+]=[N-]",
+            ],
+            "azidoformic butanedioic 4-{[3-(diacetylamino)propanoyl]oxy}-4-oxobutanoic dianhydride",
+        ),
+        (
+            [
+                "CC(=O)OC(=O)c1cc(C(=O)OC(C)=O)cc(C(=O)OC(=O)CCN(C(C)=O)C(C)=O)c1",
+                "CC(=O)N(C(C)=O)CCC(=O)OC(=O)c1cc(C(=O)OC(C)=O)cc(C(=O)OC(C)=O)c1",
+            ],
+            "1,3-diacetic 5-[3-(diacetylamino)propanoic] benzene-1,3,5-tricarboxylic trianhydride",
         ),
     ] {
         for smiles in pair {

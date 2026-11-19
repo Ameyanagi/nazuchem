@@ -22,6 +22,8 @@
 // Source: openclatura | tests/unit/test_chalcogen_functional_groups.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/data/parser_xml_resources/functionalTerms.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_all_chalcogen_acyl_regressions.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #110
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs | issue #182
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Large openclatura shortcut/ligand/functional-class adaptation, consolidated across role modules, with local shortcut safety/certification extensions and tests that include adapted upstream cases.
@@ -4496,29 +4498,38 @@ fn peroxide_linkage_name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<Strin
     Ok(Some(format!("{phrase} {class}")))
 }
 
-// Provenance: fn anhydride_half_atoms | adapted
-// Source: openclatura | src/openclatura/special_cases.py::_anhydride_half_atoms
-fn anhydride_half_atoms(mol: &Molecule, start: usize, bridge: &AtomSet) -> AtomSet {
-    subgraph_component(mol, start, bridge)
-}
-struct AnhydrideHalfName {
+struct AnhydrideAcid {
     text: String,
+    status: NameStatus,
     cited: bool,
     unsubstituted: bool,
-    status: NameStatus,
+    complete: bool,
+    parent_size: usize,
+    locants: Vec<Option<String>>,
 }
 
 // Provenance: fn anhydride_half_name | adapted
 // Source: openclatura | src/openclatura/special_cases.py::anhydride_half_name
-/// Names and assesses the acid of one anhydride component, with a hydroxy
-/// group on each of `starts`. Also records whether each one is cited as a
-/// suffix and whether all atoms belong to the parent or suffixes.
 fn anhydride_half_name(
     mol: &Molecule,
     starts: &[usize],
     bridge: &AtomSet,
-) -> Result<AnhydrideHalfName, String> {
-    let mut atoms = anhydride_half_atoms(mol, starts[0], bridge);
+) -> Result<AnhydrideAcid, String> {
+    name_anhydride_acid(mol, starts, bridge, false, &[])
+}
+
+/// Name the acid obtained by adding one hydroxy group to each listed centre.
+// Provenance: fn name_anhydride_acid | adapted
+// Source: openclatura | src/openclatura/special_cases.py::_anhydride_half_atoms
+// Source: openclatura | src/openclatura/special_cases.py::anhydride_half_name
+fn name_anhydride_acid(
+    mol: &Molecule,
+    starts: &[usize],
+    bridge: &AtomSet,
+    retain_locants: bool,
+    anhydride_ends: &[(usize, usize)],
+) -> Result<AnhydrideAcid, String> {
+    let mut atoms = subgraph_component(mol, starts[0], bridge);
     let mut fragment = mol.subgraph(&atoms);
     let first_oh = mol.atoms.keys().max().copied().unwrap_or(0) + 100;
     let mut hydroxy = Vec::new();
@@ -4531,16 +4542,15 @@ fn anhydride_half_name(
         atoms.insert(oh);
         hydroxy.push(oh);
     }
-    // The fragment shares its naming budget with the anhydride. Assess its
-    // status separately so an earlier component cannot mask this one's status,
-    // and certifying this one cannot certify the complete anhydride.
+    // Each fragment shares the original naming budget. Assess it in
+    // isolation and leave the complete compound's status for its caller.
     let prior_status = mol.name_status();
     mol.set_name_status(NameStatus::Unverified(NameReason::UnauditedPath));
-    let name = super::component_namer::name_component_with_citation(
+    let name = super::component_namer::name_component_for_anhydride(
         &fragment,
         &atoms,
-        Some("anhydride_half"),
-        None,
+        retain_locants,
+        anhydride_ends,
     )
     .inspect(|name| super::assess_derivation(&fragment, &name.derivation));
     let status = fragment.name_status();
@@ -4549,25 +4559,66 @@ fn anhydride_half_name(
     let cited = hydroxy
         .iter()
         .all(|oh| name.principal_group_atoms.contains(oh));
-    let unsubstituted = matches!(&name.derivation, super::component_namer::Derivation::Plan { parent_atoms, .. }
-        if atoms.iter().all(|a| parent_atoms.contains(a) || name.principal_group_atoms.contains(a)));
-    // An acid named as a whole, such as hydrazinecarboxylic acid, keeps its
-    // class word, which an anhydride name omits (P-65.7.2). Only for a
-    // carbon acid: the anhydrides of sulfurocyanidic and sulfurocyanidous
-    // acid (issue #158) are not generated, so those halves keep the word
-    // and the callers decline them.
-    let text = if mol.atoms[&starts[0]].is_carbon() {
-        name.text.strip_suffix(" acid").unwrap_or(&name.text)
-    } else {
-        &name.text
-    };
-    Ok(AnhydrideHalfName {
-        text: text.to_owned(),
+    let complete = name.principal_group_atoms.iter().all(|atom| {
+        !matches!(
+            fragment.atoms[atom].symbol.as_str(),
+            "O" | "S" | "Se" | "Te"
+        ) || fragment.get_neighbors(*atom).len() != 1
+            || fragment.atoms[atom].total_h_count != 1
+            || hydroxy.contains(atom)
+    });
+    let mut locants = vec![None; starts.len()];
+    let (mut parent_size, mut unsubstituted) = (0, false);
+    if let super::component_namer::Derivation::Plan {
+        parent_atoms,
+        parent_locants,
+        ..
+    } = &name.derivation
+    {
+        parent_size = parent_atoms.len();
+        unsubstituted = atoms
+            .iter()
+            .all(|a| parent_atoms.contains(a) || name.principal_group_atoms.contains(a));
+        for (locant, &center) in locants.iter_mut().zip(starts) {
+            *locant = parent_locants
+                .get(&center)
+                .or_else(|| {
+                    // Carboxylic acid suffixes on rings take the locant of the
+                    // parent atom bonded to the carboxyl carbon.
+                    let parent = fragment
+                        .get_neighbors(center)
+                        .into_iter()
+                        .find(|a| parent_atoms.contains(a))?;
+                    parent_locants.get(&parent)
+                })
+                .cloned();
+        }
+    }
+    let mut text = name.text;
+    // Thioic O-acid names lose the acid word and chalcogen locant: the
+    // anhydride class already specifies the linkage atom (P-65.7.6.4.3).
+    if let Some(parent) = text.strip_suffix("(thioic O-acid)") {
+        text = format!("{parent}(thioic)");
+    } else if mol.atoms[&starts[0]].is_carbon() && text.ends_with(" acid") {
+        text.truncate(text.len() - " acid".len());
+    }
+    Ok(AnhydrideAcid {
+        text,
+        status,
         cited,
         unsubstituted,
-        status,
+        complete,
+        parent_size,
+        locants,
     })
 }
+
+// Provenance: fn is_anhydride_acid_word | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::is_anhydride_acid_word
+fn is_anhydride_acid_word(text: &str) -> bool {
+    text.ends_with("ic") || text.ends_with("(thioic)")
+}
+
 // Provenance: fn anhydride_class_name | adapted
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py::anhydride_class_name
 fn anhydride_class_name(mol: &Molecule, path: &[usize]) -> Option<String> {
@@ -4725,6 +4776,406 @@ pub(super) fn alphanumerical_order_key(name: &str) -> AlphanumericalKey {
     let all: Vec<_> = locants.into_iter().map(|l| l.1).collect();
     (roman, italic, primary, all, marks)
 }
+// Provenance: fn multiply_anhydride_acid | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::multiply_anhydride_acid
+fn multiply_anhydride_acid(text: &str, count: usize, unsubstituted: bool) -> String {
+    let multiplier = if unsubstituted {
+        super::rules::multipliers::basic(count)
+    } else {
+        super::rules::multipliers::complex_(count)
+    };
+    if unsubstituted
+        && text.bytes().all(|b| b.is_ascii_lowercase())
+        && !super::formatting::starts_with_multiplier(text)
+    {
+        format!("{multiplier}{text}")
+    } else {
+        format!("{multiplier}({text})")
+    }
+}
+
+struct AnhydrideEnd {
+    acid: AnhydrideAcid,
+    terminal: bool,
+    locant: Option<String>,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct AnhydrideCitationOrder {
+    alphanumerical: AlphanumericalKey,
+    rs_descriptors: Vec<bool>,
+    text: String,
+}
+
+impl AnhydrideEnd {
+    // Provenance: fn AnhydrideEnd::citation_order | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::AnhydrideEnd::citation_order
+    fn citation_order(&self) -> AnhydrideCitationOrder {
+        let text = &self.acid.text;
+        // P-45.6.3: R precedes S when the alphanumerical key ties.
+        // Keep distinct complete names separate before comparing locants.
+        AnhydrideCitationOrder {
+            alphanumerical: alphanumerical_order_key(text),
+            rs_descriptors: super::assembly_prefixes::rs_descriptors(text),
+            text: text.clone(),
+        }
+    }
+
+    // Provenance: fn AnhydrideEnd::requires_enclosure | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::AnhydrideEnd::requires_enclosure
+    fn requires_enclosure(&self) -> bool {
+        !self.acid.unsubstituted || self.acid.text.contains(['-', '(', '[', '{'])
+    }
+
+    // Provenance: fn AnhydrideEnd::citation | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::AnhydrideEnd::citation
+    fn citation(&self, cite_locant: bool) -> String {
+        let acid = &self.acid.text;
+        let Some(locant) = self.locant.as_deref().filter(|_| cite_locant) else {
+            return acid.clone();
+        };
+        if self.requires_enclosure() {
+            // Normalization selects the enclosing mark for the nesting level.
+            format!("{locant}-({acid})")
+        } else {
+            format!("{locant}-{acid}")
+        }
+    }
+}
+
+/// The atom on each side of a bridge belongs to a different acid residue.
+#[derive(Clone, Copy)]
+struct AnhydrideArm {
+    bridge: usize,
+    center: usize,
+    outer: usize,
+}
+
+impl AnhydrideArm {
+    // Provenance: fn AnhydrideArm::has_carboxylic_end | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::AnhydrideArm::has_carboxylic_end
+    fn has_carboxylic_end(&self, mol: &Molecule) -> bool {
+        // The anhydride descriptor already proves one double bond and the
+        // bridge. An ordinary carboxylic acid leaves carbon or H on the end.
+        mol.atoms[&self.outer].is_carbon()
+            && mol.get_neighbors(self.outer).iter().all(|&neighbor| {
+                neighbor == self.bridge
+                    || match mol.bond_order(self.outer, neighbor) {
+                        1 => mol.atoms[&neighbor].is_carbon(),
+                        2 => mol.atoms[&neighbor].symbol == "O",
+                        _ => false,
+                    }
+            })
+    }
+}
+
+// Provenance: fn strongest_anhydride_acid_status | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::strongest_anhydride_acid_status
+fn strongest_anhydride_acid_status(statuses: impl Iterator<Item = NameStatus>) -> NameStatus {
+    // Equal severities use the order of the naming reason registry so
+    // the reason is stable across equivalent input atom orders.
+    statuses
+        .max_by_key(|status| {
+            let reason_order = match status {
+                NameStatus::NotPreferred(reason) | NameStatus::Unverified(reason) => {
+                    NAME_REASONS.iter().position(|known| known == reason)
+                }
+                _ => None,
+            };
+            (
+                status.severity(),
+                std::cmp::Reverse(reason_order.unwrap_or(usize::MAX)),
+            )
+        })
+        .unwrap_or(NameStatus::Preferred)
+}
+
+// Provenance: fn name_polyanhydride | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::name_polyanhydride
+fn name_polyanhydride(
+    mol: &Molecule,
+    links: &[&PerceivedGroup],
+) -> Result<Option<StructuralParentName>, String> {
+    let mut bridges = AtomSet::new();
+    let mut arms = Vec::new();
+    let mut bridge_classes = BTreeSet::new();
+    for link in links {
+        let Some(path) = link
+            .descriptor
+            .as_ref()
+            .and_then(|d| d.linker_paths.first())
+        else {
+            return Ok(None);
+        };
+        let &[a, bridge, b] = path.as_slice() else {
+            return Ok(None);
+        };
+        let Some(class) = anhydride_class_name(mol, path) else {
+            return Ok(None);
+        };
+        if !bridges.insert(bridge) {
+            return Ok(None);
+        }
+        bridge_classes.insert(class);
+        arms.extend([
+            AnhydrideArm {
+                bridge,
+                center: a,
+                outer: b,
+            },
+            AnhydrideArm {
+                bridge,
+                center: b,
+                outer: a,
+            },
+        ]);
+    }
+    // For mixed linkages, choose oxygen when present (P-65.7.6.4.2).
+    // Further mixed chalcogen classes require choosing their senior bridge.
+    let bridge_class = if bridge_classes.contains("anhydride") {
+        "anhydride"
+    } else if bridge_classes.len() == 1 {
+        bridge_classes.first().unwrap()
+    } else {
+        return Ok(None);
+    };
+    let oxygen_bridges = bridge_class == "anhydride";
+    if !bridges.is_disjoint(&get_cyclic_atoms(mol, &AtomSet::new())) {
+        return Ok(None);
+    }
+    require_stereo_free_core(mol, &bridges)?;
+    let mut residues: Vec<(AtomSet, Vec<AnhydrideArm>)> = Vec::new();
+    for arm in arms {
+        if let Some((_, attached)) = residues
+            .iter_mut()
+            .find(|(atoms, _)| atoms.contains(&arm.center))
+        {
+            attached.push(arm);
+        } else {
+            residues.push((subgraph_component(mol, arm.center, &bridges), vec![arm]));
+        }
+    }
+    let hubs: Vec<_> = residues.iter().filter(|(_, arms)| arms.len() > 2).collect();
+    if hubs.len() > 1 {
+        return Ok(None);
+    }
+    let central_residues: Vec<_> = if hubs.is_empty() {
+        residues
+            .iter()
+            .filter(|(_, arms)| arms.len() == 2)
+            .collect()
+    } else {
+        hubs
+    };
+    let mut candidates = Vec::new();
+    for (central_atoms, central_arms) in central_residues {
+        if oxygen_bridges
+            && central_arms
+                .iter()
+                .any(|arm| mol.atoms[&arm.bridge].symbol != "O")
+        {
+            continue;
+        }
+        // Methods (1) and (3) name the uncut portion of each arm
+        // substitutively, retaining all but the bridges on the chosen acid.
+        let blocked = central_arms.iter().map(|arm| arm.bridge).collect();
+        let component_splits: BTreeSet<_> = central_arms
+            .iter()
+            .flat_map(|arm| {
+                [
+                    normalize_edge(arm.center, arm.bridge),
+                    normalize_edge(arm.bridge, arm.outer),
+                ]
+            })
+            .collect();
+        let centers: Vec<_> = central_arms.iter().map(|arm| arm.center).collect();
+        if centers
+            .iter()
+            .any(|&center| !mol.atoms[&center].is_carbon())
+        {
+            continue;
+        }
+        let mut ends = Vec::new();
+        for arm in central_arms {
+            let acid = name_anhydride_acid(mol, &[arm.outer], &blocked, false, &[])?;
+            if !acid.cited || !acid.complete || !is_anhydride_acid_word(&acid.text) {
+                break;
+            }
+            let terminal = residues
+                .iter()
+                .any(|(atoms, arms)| arms.len() == 1 && atoms.contains(&arm.outer));
+            ends.push(AnhydrideEnd {
+                acid,
+                terminal,
+                locant: None,
+            });
+        }
+        if ends.len() != centers.len() {
+            continue;
+        }
+        let distinct_ends = ends.iter().any(|end| end.acid.text != ends[0].acid.text);
+        let ranks = canonical_ranks(mol, Some(central_atoms));
+        let equivalent_sites = centers.len() == 2 && ranks[&centers[0]] == ranks[&centers[1]];
+        if distinct_ends && require_stereo_free_core(mol, central_atoms).is_err() {
+            continue;
+        }
+        let needs_locants = distinct_ends && !equivalent_sites;
+        // Limit locanted end citations to ordinary carboxylic acids.
+        // Even these require a substitutive name if the bare acid stem
+        // would need enclosure, as in 4-(but-2-enoic).
+        if needs_locants
+            && (central_arms.iter().any(|arm| !arm.has_carboxylic_end(mol))
+                || ends
+                    .iter()
+                    .any(|end| end.acid.unsubstituted && end.requires_enclosure()))
+        {
+            continue;
+        }
+        let mut end_order: Vec<_> = ends
+            .iter()
+            .enumerate()
+            .map(|(i, end)| (end.citation_order(), centers[i]))
+            .collect();
+        end_order.sort();
+        let certified = end_order.windows(2).all(|pair| {
+            let (left, right) = (&pair[0].0, &pair[1].0);
+            // Full text makes the order deterministic. It does not establish
+            // preference for descriptors other than the R/S case above.
+            left.alphanumerical != right.alphanumerical
+                || left.rs_descriptors != right.rs_descriptors
+                || left.text == right.text
+        });
+        let mut priorities = Vec::new();
+        for (priority, group) in end_order.chunk_by(|a, b| a.0 == b.0).enumerate() {
+            priorities.extend(group.iter().map(|(_, center)| (*center, priority)));
+        }
+        let central = name_anhydride_acid(mol, &centers, &blocked, true, &priorities)?;
+        if !central.cited || !central.complete || !is_anhydride_acid_word(&central.text) {
+            continue;
+        }
+        for (end, locant) in ends.iter_mut().zip(central.locants) {
+            end.locant = locant;
+        }
+        if needs_locants
+            && ends
+                .iter()
+                .filter_map(|end| end.locant.as_ref())
+                .collect::<BTreeSet<_>>()
+                .len()
+                != centers.len()
+        {
+            continue;
+        }
+        ends.sort_by_cached_key(|end| {
+            (
+                end.citation_order(),
+                end.locant
+                    .as_deref()
+                    .map(super::locants::retained_locant_sort_key),
+            )
+        });
+        let acid_status = strongest_anhydride_acid_status(
+            ends.iter()
+                .map(|end| end.acid.status)
+                .chain(std::iter::once(central.status)),
+        );
+        let certified = certified && acid_status == NameStatus::Preferred;
+        let class = if oxygen_bridges {
+            format!(
+                "{}anhydride",
+                super::rules::multipliers::basic(centers.len())
+            )
+        } else {
+            format!(
+                "{}({bridge_class})",
+                super::rules::multipliers::complex_(centers.len())
+            )
+        };
+        if centers.len() == 2 {
+            // P-65.7.6.2 permits one substitutively named end.
+            let Some(terminal) = ends
+                .iter()
+                .filter(|end| end.terminal)
+                .map(|end| alphanumerical_order_key(&end.acid.text))
+                .min()
+            else {
+                continue;
+            };
+            let central_key = alphanumerical_order_key(&central.text);
+            let left = ends[0].citation(needs_locants);
+            let right = ends[1].citation(needs_locants);
+            let name = if !distinct_ends && links.len() == 2 {
+                let acid = &ends[0].acid;
+                let ends = multiply_anhydride_acid(&acid.text, 2, acid.unsubstituted);
+                format!("{ends} {} {class}", central.text)
+            } else if needs_locants || links.len() == 2 {
+                format!("{left} {} {right} {class}", central.text)
+            } else {
+                let mut words = [left, central.text, right];
+                words.sort_by_cached_key(|text| alphanumerical_order_key(text));
+                format!("{} {class}", words.join(" "))
+            };
+            candidates.push((
+                (
+                    std::cmp::Reverse(central.parent_size),
+                    central.unsubstituted,
+                    terminal,
+                    central_key,
+                    name,
+                    !certified,
+                    component_splits,
+                ),
+                acid_status,
+            ));
+        } else {
+            // P-65.7.6.3: collect like ends and put the polybasic acid last.
+            let mut words = Vec::new();
+            for group in ends.chunk_by(|a, b| a.acid.text == b.acid.text) {
+                let end = &group[0];
+                let word = if group.len() == 1 {
+                    end.citation(needs_locants)
+                } else {
+                    let term = multiply_anhydride_acid(
+                        &end.acid.text,
+                        group.len(),
+                        end.acid.unsubstituted,
+                    );
+                    if needs_locants {
+                        let locants = group
+                            .iter()
+                            .map(|end| end.locant.as_deref().unwrap())
+                            .collect::<Vec<_>>();
+                        format!("{}-{term}", locants.join(","))
+                    } else {
+                        term
+                    }
+                };
+                words.push(word);
+            }
+            words.extend([central.text, class]);
+            mol.mark_name(acid_status);
+            return Ok(Some(StructuralParentName {
+                certified,
+                component_splits,
+                ..StructuralParentName::ordinary(words.join(" "))
+            }));
+        }
+    }
+    Ok(candidates
+        .into_iter()
+        .min_by(|(left, _), (right, _)| left.cmp(right))
+        .map(
+            |((_, _, _, _, name, unverified, component_splits), acid_status)| {
+                mol.mark_name(acid_status);
+                StructuralParentName {
+                    certified: !unverified,
+                    component_splits,
+                    ..StructuralParentName::ordinary(name)
+                }
+            },
+        ))
+}
+
 // Provenance: fn try_name_anhydride_component | adapted
 // Source: openclatura | src/openclatura/special_cases.py::try_name_anhydride_component_result
 pub(super) fn try_name_anhydride_component(
@@ -4732,28 +5183,6 @@ pub(super) fn try_name_anhydride_component(
     groups: &[PerceivedGroup],
     principal_key: Option<&str>,
 ) -> Result<Option<StructuralParentName>, String> {
-    let assess_acids = |statuses: &[NameStatus]| {
-        // Equal severities use the order of the naming reason registry so
-        // the reason is stable across equivalent input atom orders.
-        let strongest = statuses
-            .iter()
-            .copied()
-            .max_by_key(|status| {
-                let reason_order = match status {
-                    NameStatus::NotPreferred(reason) | NameStatus::Unverified(reason) => {
-                        NAME_REASONS.iter().position(|known| known == reason)
-                    }
-                    _ => None,
-                };
-                (
-                    status.severity(),
-                    std::cmp::Reverse(reason_order.unwrap_or(usize::MAX)),
-                )
-            })
-            .unwrap_or(NameStatus::Preferred);
-        mol.mark_name(strongest);
-        strongest == NameStatus::Preferred
-    };
     // The caller supplies component-scoped groups. Count all anhydride types,
     // including those with a different principal key (P-65.7.6).
     let anhydride_count = groups
@@ -4776,6 +5205,16 @@ pub(super) fn try_name_anhydride_component(
                 .is_some_and(|r| r.has_capability("anhydride"))
         })
         .collect();
+    if links.len() > 2
+        && links
+            .iter()
+            .any(|link| Some(link.key.as_str()) == principal_key)
+    {
+        let result = mol.candidate(|| name_polyanhydride(mol, &links))?;
+        if let Some(name) = result {
+            return Ok(Some(name));
+        }
+    }
     if let [g1, g2] = links[..]
         && [g1, g2]
             .iter()
@@ -4816,16 +5255,19 @@ pub(super) fn try_name_anhydride_component(
             }
             let left_acid = anhydride_half_name(mol, &[e1], &bridges)?;
             let right_acid = anhydride_half_name(mol, &[e2], &bridges)?;
-            let central_acid = anhydride_half_name(mol, &[m1, m2], &bridges)?;
+            let central_acid = name_anhydride_acid(mol, &[m1, m2], &bridges, true, &[])?;
             let (left, right, dibasic) = (left_acid.text, right_acid.text, central_acid.text);
-            // A multiplied thioic suffix is cited as bis(thioic) (P-65.7.6.4.3),
-            // which the acid namer does not yet write.
+            // A multiplied thioic suffix is cited as bis(thioic) (P-65.7.6.4.3).
             let thioxo = [m1, m2].iter().any(|&m| {
                 mol.get_neighbors(m)
                     .iter()
                     .any(|n| mol.bond_order(m, *n) == 2 && mol.atoms[n].symbol != "O")
             });
-            if !central_acid.cited || thioxo || !left.ends_with("ic") || !right.ends_with("ic") {
+            if !central_acid.cited
+                || (thioxo && !dibasic.ends_with("(thioic)"))
+                || !is_anhydride_acid_word(&left)
+                || !is_anhydride_acid_word(&right)
+            {
                 return Ok(None);
             }
             // Different ends on unlike acid groups of the dibasic acid need
@@ -4866,9 +5308,8 @@ pub(super) fn try_name_anhydride_component(
                 ends.sort_by_cached_key(|end| alphanumerical_order_key(end));
                 format!("{} {dibasic} {} {class}", ends[0], ends[1])
             };
-            // P-65.7.6.1 cites "2-methylbutanedioic" where P-14.3.4.3 omits
-            // the locant of a substituted dibasic acid; such names stay
-            // unverified.
+            // Retain the conservative certification boundary for substituted
+            // dibasic acids.
             // The di/bis choice for a carbamic or hydrazinecarboxylic end
             // or other repeated whole-acid name is not audited here.
             let nitrogen_end = [e1, e2].iter().any(|&e| {
@@ -4876,12 +5317,14 @@ pub(super) fn try_name_anhydride_component(
                     .iter()
                     .any(|n| mol.atoms[n].symbol == "N")
             });
-            let preferred_acids =
-                assess_acids(&[left_acid.status, right_acid.status, central_acid.status]);
+            let acid_status = strongest_anhydride_acid_status(
+                [left_acid.status, right_acid.status, central_acid.status].into_iter(),
+            );
+            mol.mark_name(acid_status);
             Ok(Some(StructuralParentName {
                 certified: class == "dianhydride"
                     && central_acid.unsubstituted
-                    && preferred_acids
+                    && acid_status == NameStatus::Preferred
                     && (!equal_ends || left_acid.cited)
                     && !nitrogen_end
                     && bridges.is_disjoint(&get_cyclic_atoms(mol, &AtomSet::new())),
@@ -4894,6 +5337,9 @@ pub(super) fn try_name_anhydride_component(
         })?;
         if result.is_some() {
             return Ok(result);
+        }
+        if let Some(name) = mol.candidate(|| name_polyanhydride(mol, &links))? {
+            return Ok(Some(name));
         }
     }
     for group in groups {
@@ -4935,9 +5381,11 @@ pub(super) fn try_name_anhydride_component(
             // P-65.7.1–P-65.7.4: O bridges, or chalcogen/peroxy bridges between
             // graph-equivalent acid halves.
             let ranks = canonical_ranks(mol, None);
-            let preferred_acids = assess_acids(&[left_acid.status, right_acid.status]);
+            let acid_status =
+                strongest_anhydride_acid_status([left_acid.status, right_acid.status].into_iter());
+            mol.mark_name(acid_status);
             let certified = anhydride_count == 1
-                && preferred_acids
+                && acid_status == NameStatus::Preferred
                 && bridge.is_disjoint(&get_cyclic_atoms(mol, &AtomSet::new()))
                 && (path.len() == 3 && mol.atoms[&path[1]].symbol == "O"
                     || ranks[&descriptor.centers[0]] == ranks[&descriptor.centers[1]]);
