@@ -2663,7 +2663,10 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
             .copied()
             .find(|&n| m.bond_order(c, n) == 2 && m.degree(n) == 1);
         if let Some(n) = dn {
+            // P-61.8: the neutral prefix cannot carry a charge on the
+            // cumulene or cite extra ligands on a cationic nitrogen.
             if let Some(e) = double_s.or(double_o)
+                && [c, n, e].iter().all(|x| m.atoms[x].charge == 0)
                 && let Some(attach) = m.get_neighbors(n).iter().copied().find(|x| *x != c)
             {
                 let key = if double_s.is_some() {

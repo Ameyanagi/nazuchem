@@ -26,7 +26,7 @@ use super::formatting::{
     format_center_ligands_by, is_complex_prefix, is_composite_prefix, strip_outer_parentheses,
     substituted_alkoxy_prefix,
 };
-use super::heteroatom_subgraphs::name_heteroatom_subgraph;
+use super::heteroatom_subgraphs::{name_heteroatom_subgraph, upstream_bond_order};
 use super::locant_elision::apply_redundant_locant_elision;
 use super::molecule::{Atom, AtomSet, Bond, Molecule, bond_ids_within, charged_atoms};
 use super::nomenclature::RULES;
@@ -118,6 +118,7 @@ fn direct_subgraph_prefix(
     mol: &Molecule,
     start: usize,
     component: &AtomSet,
+    upstream: Option<usize>,
 ) -> Result<Option<String>, String> {
     if mol.atoms[&start].is_carbon() {
         let terminal: Vec<_> = mol
@@ -127,11 +128,18 @@ fn direct_subgraph_prefix(
             .filter(|n| {
                 component.contains(n)
                     && mol.atoms[n].symbol == "S"
+                    && mol.atoms[n].charge == 0
+                    && mol.atoms[n].total_h_count == 0
                     && mol.get_bond(start, *n).is_some_and(|b| b.order == 2)
                     && mol.get_neighbors(*n).iter().all(|n| *n == start)
             })
             .collect();
-        if terminal.len() == 1 && component == &AtomSet::from([start, terminal[0]]) {
+        // The thioacyl prefix joins its parent by a single bond.
+        if terminal.len() == 1
+            && upstream_bond_order(mol, start, upstream) == 1
+            && mol.atoms[&start].charge == 0
+            && component == &AtomSet::from([start, terminal[0]])
+        {
             return Ok(Some("(methanethioyl)".into()));
         }
         let phosphorus: Vec<_> = mol
@@ -504,7 +512,7 @@ fn name_subgraph_rendered_except_stereo(
             return Ok(rendered);
         }
     }
-    if let Some(text) = direct_subgraph_prefix(mol, start, &component)? {
+    if let Some(text) = direct_subgraph_prefix(mol, start, &component, upstream)? {
         return Ok(RenderedSubstituentName {
             text,
             ..Default::default()

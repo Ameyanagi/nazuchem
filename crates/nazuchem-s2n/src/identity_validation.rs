@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | issue #186
 // Source: ReShiki | src/naming/openclatura/identity_validation.rs | 327d32fed63a5b3df15b7b8dc5ab84a7c36e0865
 // Copyright (c) 2026 lamalab-org
 // Source: openclatura | tests/data/parser_xml_resources/heteroAtoms.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -224,6 +225,59 @@ pub fn validate_mancude_duplicate_ranking(mol: &Molecule) -> Result<(), String> 
 #[cfg(test)]
 mod tests {
     use crate::name_smiles;
+
+    #[test]
+    // Provenance: fn tests::charged_characteristic_groups_preserve_identity | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::charged_characteristic_groups_preserve_identity
+    fn charged_characteristic_groups_preserve_identity() {
+        let budget = Default::default();
+        for (smiles, expected) in [
+            (
+                "CC[N+](C)=C=S",
+                "N-ethyl-N-methyl-1-sulfanylidenemethaniminium",
+            ),
+            ("CC[N+](C)=C=O", "N-ethyl-N-methyl-1-oxomethaniminium"),
+            (
+                "C1CCC[N+]1=C=S",
+                "1-(sulfanylidenemethylidene)pyrrolidin-1-ium",
+            ),
+            (
+                "[O-]C(=O)CC[N+](C)=C=S",
+                "3-[methyl(sulfanylidenemethylidene)ammonio]propanoate",
+            ),
+            (
+                "C[NH+](C)[N+](C)=C=S",
+                "N-methyl-N-[methyl(sulfanylidenemethylidene)ammonio]methanaminium",
+            ),
+            (
+                "CC[N+](C)=C=S.[Cl-]",
+                "N-ethyl-N-methyl-1-sulfanylidenemethaniminium chloride",
+            ),
+            ("CCN=C=[OH+]", "N-ethyl-1-oxidaniumylidenemethanimine"),
+            ("CCN=C=S", "isothiocyanatoethane"),
+            ("CNNC(C)=O", "N'-methylacetohydrazide"),
+            ("[NH-]C(=O)C", "acetylazanide"),
+        ] {
+            let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+            let result = [
+                name_smiles(smiles, &budget),
+                crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+            ];
+            for name in result {
+                assert_eq!(name.unwrap().text, expected, "{smiles}");
+            }
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        for smiles in ["CN[N-]C(C)=O", "CCN=C=[SH+]", "C[NH+](C)N=C=[SH+]"] {
+            let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+            assert!(name_smiles(smiles, &budget).is_err(), "{smiles}");
+            assert!(
+                crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget).is_err(),
+                "{smiles}"
+            );
+        }
+    }
 
     #[test]
     // Provenance: fn tests::public_entry_declines_kekule_dependent_cip_ranks | original

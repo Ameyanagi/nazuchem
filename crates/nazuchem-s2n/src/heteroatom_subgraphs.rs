@@ -928,7 +928,12 @@ fn name_nitrogen(
             } else {
                 acyl
             }
-        } else if mol.atoms[&n].is_carbon() && sulfur.len() == 1 {
+        } else if mol.atoms[&n].is_carbon()
+            && mol.bond_order(start, n) == 1
+            && sulfur.len() == 1
+            && mol.atoms[&sulfur[0]].charge == 0
+            && mol.atoms[&sulfur[0]].total_h_count == 0
+        {
             carbonyl_like_fragment(
                 mol,
                 n,
@@ -1040,6 +1045,11 @@ fn hydrazinyl_prefix(
         || mol.atoms[&far].charge != 0
         || cyclic.contains(&start)
         || cyclic.contains(&far)
+    {
+        return Ok(None);
+    }
+    // Preserve the preselected isothiocyanato prefix (P-61.8) for N=C=S.
+    if nitrogen_heterocumulene(mol, far, exclude, Some(start)).as_deref() == Some("isothiocyanato")
     {
         return Ok(None);
     }
@@ -2075,7 +2085,7 @@ fn nitrogen_heterocumulene(
     exclude: &AtomSet,
     upstream: Option<usize>,
 ) -> Option<String> {
-    if upstream_bond_order(mol, start, upstream) != 1 {
+    if upstream_bond_order(mol, start, upstream) != 1 || mol.atoms[&start].charge != 0 {
         return None;
     }
     let mut candidates = Vec::new();
@@ -2083,6 +2093,7 @@ fn nitrogen_heterocumulene(
         if Some(center) == upstream
             || exclude.contains(&center)
             || !mol.atoms[&center].is_carbon()
+            || mol.atoms[&center].charge != 0
             || mol.get_bond(start, center)?.order != 2
         {
             continue;
@@ -2095,6 +2106,7 @@ fn nitrogen_heterocumulene(
             .collect();
         if terminal.len() == 1
             && matches!(mol.atoms[&terminal[0]].symbol.as_str(), "O" | "S" | "Se")
+            && mol.atoms[&terminal[0]].charge == 0
             && mol.get_bond(center, terminal[0])?.order == 2
         {
             candidates.push(terminal[0]);
