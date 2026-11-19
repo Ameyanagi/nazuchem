@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Origin: original
 // Source: Nazuchem | crates/nazuchem/tests/polyanhydrides.rs | issue #110
+// Source: Nazuchem | crates/nazuchem/tests/polyanhydrides.rs | issue #182
 
 #![cfg(all(feature = "n2s", feature = "s2n"))]
 
@@ -8,7 +9,9 @@
 //! with a monobasic acid is named as a dianhydride (IUPAC 2013 P-65.7.6),
 //! and the name reads back as the structure it was generated from.
 
-use nazuchem::{Budget, NameStatus, name_to_smiles, s2n::canonical_smiles, smiles_to_name};
+use nazuchem::{
+    Budget, NameReason, NameStatus, name_to_smiles, s2n::canonical_smiles, smiles_to_name,
+};
 
 fn same_structure(name: &str, smiles: &str) {
     let parsed = name_to_smiles(name).unwrap_or_else(|e| panic!("{name}: {e:?}"));
@@ -176,5 +179,69 @@ fn unlike_ends_on_a_stereogenic_dibasic_acid_keep_distinct_names() {
             name.text
         });
         assert_ne!(names[0], names[1]);
+    }
+}
+
+#[test]
+fn anhydrides_inherit_the_preference_of_each_cited_acid() {
+    // P-65.1.8.1 recommends functional replacement for this structure.
+    let acid = smiles_to_name("[N-]=[N+]=NC(=O)O").unwrap();
+    assert_eq!(acid.text, "azidoformic acid");
+    assert!(matches!(acid.status, NameStatus::NotPreferred(_)));
+    for (smiles, expected) in [
+        ("[N-]=[N+]=NC(=O)OC(=O)N=[N+]=[N-]", "azidoformic anhydride"),
+        ("[N-]=[N+]=NC(=O)OC(C)=O", "acetic azidoformic anhydride"),
+        ("CC(=O)OC(=O)N=[N+]=[N-]", "acetic azidoformic anhydride"),
+        (
+            "[N-]=[N+]=NC(=O)OC(=O)CCC(=O)OC(C)=O",
+            "acetic butanedioic azidoformic dianhydride",
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        assert_eq!(name.status, acid.status, "{smiles}");
+        same_structure(&name.text, smiles);
+    }
+
+    // P-65.1.8.2 explicitly allows this substitution on formic acid.
+    for (smiles, expected) in [
+        ("[O-][N+](=O)C(=O)O", "nitroformic acid"),
+        ("[O-][N+](=O)C(=O)OC(C)=O", "acetic nitroformic anhydride"),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+        same_structure(&name.text, smiles);
+    }
+}
+
+#[test]
+fn anhydride_preference_reasons_are_independent_of_atom_order() {
+    for (pair, expected) in [
+        (
+            [
+                "[N-]=[N+]=NC(=O)OC(=O)CCN(C(C)=O)C(C)=O",
+                "CC(=O)N(C(C)=O)CCC(=O)OC(=O)N=[N+]=[N-]",
+            ],
+            "azidoformic 3-(diacetylamino)propanoic anhydride",
+        ),
+        (
+            [
+                "[N-]=[N+]=NC(=O)OC(=O)CCC(=O)OC(=O)CCN(C(C)=O)C(C)=O",
+                "CC(=O)N(C(C)=O)CCC(=O)OC(=O)CCC(=O)OC(=O)N=[N+]=[N-]",
+            ],
+            "azidoformic butanedioic 3-(diacetylamino)propanoic dianhydride",
+        ),
+    ] {
+        for smiles in pair {
+            let name = smiles_to_name(smiles).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(
+                name.status,
+                NameStatus::NotPreferred(NameReason::AminoPrefix),
+                "{smiles}"
+            );
+            same_structure(&name.text, smiles);
+        }
     }
 }

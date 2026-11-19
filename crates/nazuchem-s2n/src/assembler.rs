@@ -233,11 +233,19 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
         }
     }
     // Formic acids, formyl halides and formamides substituted on carbon are
-    // carbamic or carbonic acid derivatives (P-65.1.8.1).
+    // carbamic or carbonic acid derivatives (P-65.1.8.1). Anhydrides cite
+    // the formic acid parent as "formic" (P-65.7).
     let formyl_parent = parts.retained_name.as_deref().is_some_and(|name| {
-        matches!(name, "formic acid" | "formate" | "formamide") || name.starts_with("formyl ")
+        matches!(name, "formic" | "formic acid" | "formate" | "formamide")
+            || name.starts_with("formyl ")
     });
+    // P-65.1.8.2 lists nitroformic acid as a PIN.
+    let nitroformic = matches!(
+        parts.retained_name.as_deref(),
+        Some("formic" | "formic acid")
+    ) && matches!(parts.substituents.as_slice(), [item] if item.name == "nitro");
     if formyl_parent
+        && !nitroformic
         && parts
             .substituents
             .iter()

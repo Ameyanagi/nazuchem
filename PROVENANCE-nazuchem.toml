@@ -7673,8 +7673,9 @@ origin = "original"
 license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "crates/nazuchem/tests/one_carbon_nitrile.rs", ref = "issue #158", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem/tests/one_carbon_nitrile.rs", ref = "issue #182", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original facade regression for issue #158: sulfurocyanidic and sulfurocyanidous acid, their anions, salts and esters, declined names for a nitrile carbon that would be the whole parent, unchanged neighbouring cyano names and the sulfonatoformate dianion, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
+notes = "Original facade regression for issue #158: sulfurocyanidic and sulfurocyanidous acid, their anions, salts and esters, declined names for a nitrile carbon that would be the whole parent, unchanged neighbouring cyano names and the sulfonatoformate dianion, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure. Issue #182 adds the carbonocyanidic acid PIN and its symmetric and mixed anhydrides (P-65.2.1.4, P-65.7.1 and P-65.7.2)."
 
 [[file]]
 path = "crates/nazuchem/tests/acyl_cyanides.rs"
@@ -7718,8 +7719,9 @@ origin = "original"
 license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "crates/nazuchem/tests/polyanhydrides.rs", ref = "issue #110", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem/tests/polyanhydrides.rs", ref = "issue #182", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original facade regression for issue #110: generated dianhydride names, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure, and Blue Book dianhydride names read by the parser."
+notes = "Original facade regression for issue #110: generated dianhydride names, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure, and Blue Book dianhydride names read by the parser. Issue #182 checks that the preference status of anhydride names respects the cited acids and tests the PIN example in P-65.1.8.2."
 
 [[file]]
 path = "crates/nazuchem/tests/phosphorus_acid_anions.rs"

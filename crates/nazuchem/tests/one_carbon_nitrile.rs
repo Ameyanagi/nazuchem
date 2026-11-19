@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Origin: original
 // Source: Nazuchem | crates/nazuchem/tests/one_carbon_nitrile.rs | issue #158
+// Source: Nazuchem | crates/nazuchem/tests/one_carbon_nitrile.rs | issue #182
 
 #![cfg(all(feature = "n2s", feature = "s2n"))]
 
@@ -89,9 +90,7 @@ fn neighbours_of_the_one_carbon_nitrile_keep_their_names() {
         // P-66.5.1.1.4: cyano on a parent that has its own carbon.
         ("N#CCS(O)(=O)=O", "cyanomethanesulfonic acid"),
         ("OS(=O)(=O)C(C#N)S(O)(=O)=O", "cyanomethanedisulfonic acid"),
-        // Unchanged and not labelled preferred: the PIN is carbonocyanidic
-        // acid (P-65.2.1.4), which is not generated.
-        ("N#CC(=O)O", "cyanoformic acid"),
+        ("N#CCC(=O)O", "cyanoacetic acid"),
         // P-67.1.4.4: cyanosulfonyl is the preferred prefix for -SO2-CN.
         ("N#CS(=O)(=O)OCC(=O)O", "(cyanosulfonyloxy)acetic acid"),
         ("N#CS(=O)(=O)CC(=O)O", "(cyanosulfonyl)acetic acid"),
@@ -107,6 +106,32 @@ fn neighbours_of_the_one_carbon_nitrile_keep_their_names() {
         assert_eq!(name, expected, "{smiles}");
         assert_round_trip(smiles, &name);
     }
+}
+
+#[test]
+fn carbonocyanidic_acid_is_used_in_anhydride_names() {
+    for (smiles, expected) in [
+        // P-65.2.1.4 identifies the acid. P-65.7.1 replaces its class
+        // word for the symmetric anhydride, while P-65.7.2 cites both acid
+        // names in alphabetical order for a mixed anhydride.
+        ("N#CC(=O)O", "carbonocyanidic acid"),
+        ("N#CC(=O)OC(=O)C#N", "carbonocyanidic anhydride"),
+        ("N#CC(=O)OC(C)=O", "acetic carbonocyanidic anhydride"),
+        ("CC(=O)OC(=O)C#N", "acetic carbonocyanidic anhydride"),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+        assert_round_trip(smiles, &name.text);
+    }
+
+    // P-65.7.6.1 repeats the end acid. The multiplier for a whole acid
+    // named by functional replacement has yet to be audited.
+    let smiles = "N#CC(=O)OC(=O)CCC(=O)OC(=O)C#N";
+    let name = smiles_to_name(smiles).unwrap();
+    assert_eq!(name.text, "bis(carbonocyanidic) butanedioic dianhydride");
+    assert!(matches!(name.status, NameStatus::Unverified(_)));
+    assert_round_trip(smiles, &name.text);
 }
 
 #[test]
