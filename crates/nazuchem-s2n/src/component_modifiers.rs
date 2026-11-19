@@ -32,7 +32,7 @@ struct FrontModifier {
 #[derive(Default)]
 pub struct ComponentFrontModifiers {
     modifiers: Vec<FrontModifier>,
-    mixed_diester: bool,
+    mixed_ester: bool,
     acid_atoms: AtomSet,
     /// P-82.2.4: the labels that the ester groups cite, (1-14C)ethyl propanoate.
     isotope_atoms: AtomSet,
@@ -46,7 +46,7 @@ impl ComponentFrontModifiers {
     // Source: ReShiki | src/naming/openclatura/component_modifiers.rs::ComponentFrontModifiers::acid_isotopes
     pub fn acid_isotopes(&self, source: Option<&Molecule>) -> Vec<(usize, String, u16)> {
         source
-            .filter(|_| self.mixed_diester)
+            .filter(|_| self.mixed_ester)
             .map_or_else(Vec::new, |source| {
                 source
                     .atoms
@@ -71,7 +71,7 @@ impl ComponentFrontModifiers {
     // Provenance: fn ComponentFrontModifiers::numbering_modifiers | original
     // Source: ReShiki | src/naming/openclatura/component_modifiers.rs::ComponentFrontModifiers::numbering_modifiers
     pub fn numbering_modifiers(&self) -> BTreeMap<usize, String> {
-        if self.mixed_diester {
+        if self.mixed_ester {
             self.modifiers
                 .iter()
                 .map(|modifier| {
@@ -104,15 +104,31 @@ impl ComponentFrontModifiers {
                 .front_modifier_locants
                 .push(locants.get(&modifier.attachment).cloned());
         }
-        if self.mixed_diester {
-            let sites: Vec<_> = self
-                .modifiers
-                .iter()
-                .filter_map(|modifier| modifier.ester_center)
-                .collect();
-            let acid = subgraph_component(mol, sites[0], &self.consumed);
-            parts.ester_site_exchange_proven =
-                super::locant_elision::ester_sites_are_equivalent(mol, &acid, &sites);
+        if self.mixed_ester {
+            let mut sites_by_modifier: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+            for modifier in &self.modifiers {
+                if let Some(site) = modifier.ester_center {
+                    sites_by_modifier
+                        .entry(&modifier.name)
+                        .or_default()
+                        .push(site);
+                }
+            }
+            let singleton = if sites_by_modifier.len() == 2 {
+                sites_by_modifier
+                    .values()
+                    .find(|sites| sites.len() == 1)
+                    .map(|sites| sites[0])
+            } else {
+                None
+            };
+            let sites: Vec<_> = sites_by_modifier.into_values().flatten().collect();
+            parts.ester_site_exchange_proven = super::locant_elision::ester_sites_are_equivalent(
+                mol,
+                &self.acid_atoms,
+                &sites,
+                singleton,
+            );
         }
     }
 }
@@ -186,14 +202,9 @@ pub fn collect_component_front_modifiers(
             .descriptor
             .as_ref()
             .filter(|descriptor| {
-                matches!(group.key.as_str(), "ester" | "ring_carboxylate")
-                    && descriptor.family == "acyl"
+                descriptor.family == "acyl"
                     && descriptor.derivative == "ester"
                     && descriptor.centers.len() == 1
-                    && descriptor
-                        .ligands
-                        .iter()
-                        .all(|ligand| ligand.element == "O")
             })
             .and_then(|descriptor| descriptor.centers.first().copied());
         collected.modifiers.push(FrontModifier {
@@ -206,17 +217,20 @@ pub fn collect_component_front_modifiers(
             .component_splits
             .insert(normalize_edge(linker, root));
     }
-    if collected.modifiers.len() == 2
+    if collected.modifiers.len() >= 2
         && groups
             .iter()
             .filter(|group| Some(group.key.as_str()) == key)
             .count()
-            == 2
+            == collected.modifiers.len()
         && collected
             .modifiers
             .iter()
             .all(|modifier| modifier.ester_center.is_some())
-        && collected.modifiers[0].name != collected.modifiers[1].name
+        && collected
+            .modifiers
+            .iter()
+            .any(|modifier| modifier.name != collected.modifiers[0].name)
     {
         let sites: AtomSet = collected
             .modifiers
@@ -235,7 +249,7 @@ pub fn collect_component_front_modifiers(
             .flat_map(|descriptor| descriptor.centers.iter().copied())
             .filter(|center| collected.acid_atoms.contains(center))
             .collect();
-        collected.mixed_diester = sites.len() == 2 && acid_sites == sites;
+        collected.mixed_ester = sites.len() == collected.modifiers.len() && acid_sites == sites;
     }
     Ok(collected)
 }
@@ -707,11 +721,11 @@ mod tests {
     use crate::graph_io::read_smiles;
 
     #[test]
-    fn mixed_diester_collection_requires_two_fully_esterified_acid_sites() {
+    fn mixed_ester_collection_requires_all_acid_sites_to_be_fully_esterified() {
         for (smiles, omitted_center, expected) in [
             ("CCOC(=O)CC(=O)OC", None, true),
             ("CCOC(=O)CC(=O)O", None, false),
-            ("CCOC(=O)C(C(=O)OC)C(=O)OC", None, false),
+            ("CCOC(=O)C(C(=O)OC)C(=O)OC", None, true),
             ("CCOC(=O)C(CCOC(=O)C)C(=O)OC", Some(9), false),
         ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
@@ -720,7 +734,7 @@ mod tests {
             let collected =
                 collect_component_front_modifiers(&mol, &groups, Some("ester"), &AtomSet::new())
                     .unwrap();
-            assert_eq!(collected.mixed_diester, expected, "{smiles}");
+            assert_eq!(collected.mixed_ester, expected, "{smiles}");
         }
     }
 

@@ -90,21 +90,23 @@ impl FunctionalGroupDescriptor {
     pub fn ligands_with_role(&self, role: LigandRole) -> Vec<&ChalcogenLigand> {
         self.ligands.iter().filter(|l| l.role == role).collect()
     }
-    // Provenance: fn FunctionalGroupDescriptor::names_its_chalcogens | original
-    // Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs::FunctionalGroupDescriptor::names_its_chalcogens
-    /// A carboxylic acid group whose prefix must say where its chalcogens
-    /// are: a peroxy acid, or a mixed acid such as -CO-SH or -CS-OH. Ending
-    /// a carbon chain it is cited with simple prefixes, as hydroperoxy with
-    /// oxo or sulfanyl with oxo (P-65.1.4.2 (2), P-65.1.5.1, P-65.1.5.3).
-    /// -COOH stays carboxy and -CS-SH dithiocarboxy (P-65.2.1.6).
-    pub fn names_its_chalcogens(&self) -> bool {
+    // Provenance: fn FunctionalGroupDescriptor::uses_chain_end_ligand_prefixes | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs::FunctionalGroupDescriptor::uses_chain_end_ligand_prefixes
+    /// At the end of a carbon chain these groups cite the carbonyl and
+    /// single-bonded ligands directly (P-65.5.4, P-65.6.3.2.3, P-66.1.1.4.1.1).
+    /// The same applies to peroxy and mixed chalcogen acids (P-65.1.4.2,
+    /// P-65.1.5.1, P-65.1.5.3).
+    pub fn uses_chain_end_ligand_prefixes(&self) -> bool {
         self.family == "acyl"
-            && self.derivative == "acid"
-            && match self.ligands.as_slice() {
-                [double, single] => double.element != single.element,
-                // -Te-OH is not rendered as hydroxytellanyl outside the acid
-                // prefix yet, so it keeps (hydroxytellanyl)carbonyl.
-                [_, link, terminal] => !(link.element == "Te" && terminal.element == "O"),
+            && match self.derivative.as_str() {
+                "amide" | "ester" | "acid_halide" => true,
+                "acid" => match self.ligands.as_slice() {
+                    // -COOH stays carboxy and -CS-SH dithiocarboxy.
+                    [double, single] => double.element != single.element,
+                    // -Te-OH is not rendered separately as hydroxytellanyl.
+                    [_, link, terminal] => !(link.element == "Te" && terminal.element == "O"),
+                    _ => false,
+                },
                 _ => false,
             }
     }

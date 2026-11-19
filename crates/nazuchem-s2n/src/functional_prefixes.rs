@@ -674,19 +674,12 @@ pub fn collect_component_prefix_substituents(
             .as_ref()
             .is_some_and(|r| r.families.contains("prefix_skip"))
             || !parent.contains(&group.attachment_carbon)
-            // P-66.1.1.4.1.1: an amide carbonyl carbon ending a parent chain
-            // is cited as amino with oxo, both named as ordinary substituents
-            // (4-amino-4-oxobutanoic acid). An acyl carbon that is the whole
-            // parent has no carbon left for a carbamoyl or carbonyl prefix,
-            // so its ligands are cited the same way; a hydrazide is handled
-            // below. P-65.1.4.2 (2), P-65.1.5.1, P-65.1.5.3: a peroxy acid
-            // or a mixed chalcogen acid ending the chain is cited the same
-            // way (6-hydroperoxy-6-oxohexanoic acid,
-            // 4-oxo-4-sulfanylbutanoic acid).
+            // Branch collection names the separate ligands of a chain-end
+            // acyl group, or of an acyl carbon that is the whole parent.
+            // Hydrazides use their own prefix handling below.
             || group.descriptor.as_ref().is_some_and(|d| {
                 d.family == "acyl"
-                    && (d.derivative == "amide"
-                        || d.names_its_chalcogens()
+                    && (d.uses_chain_end_ligand_prefixes()
                         || path.len() == 1 && d.derivative != "hydrazide")
                     && d.centers.contains(&group.attachment_carbon)
             })

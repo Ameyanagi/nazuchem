@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "2218f756151cff714d40234b767119fe12d9884bcc8192de50e65f9de59ec984"
+sha256 = "56b8c59349f077b4550e8f57d1fe1fd098bccdd5dd79bf3a2d9516fa48b76076"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "1cbb27728bd30f20892181fcb3241097f388b01df939e0cde7f42c6e1198596d"
+sha256 = "12c613375468c9eb66a50b7d4a067a18f8e0f4e9f34e117ddb832b865b639fb7"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1662,7 +1662,7 @@ sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixApplicability.xml", license = "MIT" },
 ]
 notes = "OPSIN suffix applicability with original native edits: aminiumyl/aminiumylidene substituent suffixes (IUPAC P-73.6) and standardGroup entries for the added chalcogen peroxy acid, peroxol and tellanal suffixes (issue #26), the peroxy acid ate forms (issue #90) and the mixed peroxolate anions (issue #138). Do not claim byte equality for this file."
-sha256 = "1d10496b8e863008f909094a55cc964a9a97110b628359384ad7d58bf04a45b3"
+sha256 = "cd7a1b9abcbac03b751766dc0d32a91f7f5acbd7f55809af93a174429d283824"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/suffixPrefix.xml"
@@ -1702,7 +1702,7 @@ sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixes.xml", license = "MIT" },
 ]
 notes = "OPSIN suffix tokens with original native additions (issue #26): chalcogen peroxy acid suffixes with their SO/OS-type acid locants (P-65.1.5.3), Table 6.1 peroxol suffixes (P-63.4.2.1) and tellanal (P-66.6.3); (issue #90) the ate forms of the peroxy acid suffixes for esters and anions (P-65.6.3.3.7.1); and (issue #138) the bracketed mixed peroxolate anion suffixes such as (SO-thioperoxolate) (P-72.2.2.2.2). Do not claim byte equality for this file."
-sha256 = "4c96c7e561881892ffbb49d8d232764fbe3c9595a7cebc201261b87ec31d1b05"
+sha256 = "8586771b82976433512ec81ba3321d223a38b9815e4e252930c265484eedd42f"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/tokenFiles.dtd"
@@ -4316,7 +4316,7 @@ parts = [
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/component_modifiers.py", license = "MIT", symbol = "_nitrogen_alphabetical_rank" }], items = ["fn nitrogen_rank"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/component_modifiers.py", license = "MIT", symbol = "n_substituent_locant" }], items = ["fn n_substituent_locant"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/component_modifiers.py", license = "MIT", symbol = "add_component_n_substituents" }], items = ["fn add_component_n_substituents"] },
-  { items = ["mod tests"], origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/component_modifiers.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "tests" }], members = { "mod tests" = ["fn tests::mixed_diester_collection_requires_two_fully_esterified_acid_sites", "fn tests::nitrogen_ranking_discards_provisional_branch_status"] } },
+  { items = ["mod tests"], origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/component_modifiers.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "tests" }], members = { "mod tests" = ["fn tests::mixed_ester_collection_requires_all_acid_sites_to_be_fully_esterified", "fn tests::nitrogen_ranking_discards_provisional_branch_status"] } },
 ]
 
 [[file]]
@@ -5880,7 +5880,7 @@ notes = "Consolidated openclatura functional-group, chalcogen and nitrogen-role 
 parts = [
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/perception.py", license = "MIT", symbol = "PerceivedGroup.atom_ids" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_roles.py", license = "MIT", symbol = "FunctionalGroupDescriptor.atom_ids" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_vocabulary.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/nitrogen_roles.py", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn FunctionalGroupDescriptor::atom_ids"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_roles.py", license = "MIT", symbol = "FunctionalGroupDescriptor.ligands_with_role" }], items = ["fn FunctionalGroupDescriptor::ligands_with_role"] },
-  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/perception.rs", ref = "issue #138", license = "MIT OR Apache-2.0", symbol = "FunctionalGroupDescriptor::names_its_chalcogens" }], items = ["fn FunctionalGroupDescriptor::names_its_chalcogens"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/perception.rs", ref = "issue #138", license = "MIT OR Apache-2.0", symbol = "FunctionalGroupDescriptor::uses_chain_end_ligand_prefixes" }], items = ["fn FunctionalGroupDescriptor::uses_chain_end_ligand_prefixes"] },
   { items = ["impl PerceivedGroup"], origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/perception.py", license = "MIT", symbol = "PerceivedGroup dataclass fields key/is_principal_candidate/attachment_carbon/atoms_involved/resolved_rule" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_roles.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_vocabulary.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/nitrogen_roles.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/perception.py", license = "MIT", symbol = "PerceivedGroup.atom_ids" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_roles.py", license = "MIT", symbol = "FunctionalGroupDescriptor.atom_ids" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/perception.py", license = "MIT", symbol = "PerceivedGroup.prefix" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/perception.py", license = "MIT", symbol = "inline in _builtin_perceive_groups" }], members = { "impl PerceivedGroup" = ["fn PerceivedGroup::new", "fn PerceivedGroup::atom_ids", "fn PerceivedGroup::prefix", "fn PerceivedGroup::atoms_without_attachment"] } },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/perception.py", license = "MIT", symbol = "inline in _acyl_chalcogen_group" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_roles.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_vocabulary.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/nitrogen_roles.py", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn desc_group"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/perception.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_roles.py", license = "MIT", symbol = "Chalcogen enum values" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chalcogen_vocabulary.py", license = "MIT", symbol = "module scope (mapping uncertain)" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/nitrogen_roles.py", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn is_chalcogen"] },

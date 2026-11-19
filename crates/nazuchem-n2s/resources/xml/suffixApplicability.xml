@@ -182,6 +182,7 @@ The value of the suffix elements corresponds to the value attribute of the suffi
 	<groupType type="nonCarboxylicAcid"><!--e.g. phosphor to phosphoric/phosphourous/phosphoryl-->
 		<suffix value="acylium">acylium_nonCarboxylic</suffix>
 		<suffix value="ate">ate_nonCarboxylic</suffix>
+		<suffix value="carbonic_peroxoic_acid">ic_nonCarboxylic</suffix>
 		<suffix value="ic">ic_nonCarboxylic</suffix>
 		<suffix value="ic_O_acid">ic_acid_locants_nonCarboxylic</suffix>
 		<suffix value="ic_S_acid">ic_acid_locants_nonCarboxylic</suffix>

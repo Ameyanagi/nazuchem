@@ -752,8 +752,7 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
     let have = parts.front_modifier_locants.len() == parts.front_modifiers.len()
         && parts.front_modifier_locants.iter().all(Option::is_some);
     let distinct = parts.front_modifiers.iter().collect::<BTreeSet<_>>().len();
-    let redundant = parts.front_modifiers.len() == 2 && parts.ester_site_exchange_proven;
-    if have && distinct > 1 && !redundant {
+    if have && distinct > 1 && !parts.ester_site_exchange_proven {
         let mut by_name: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
         for (m, l) in parts
             .front_modifiers
@@ -975,6 +974,7 @@ mod tests {
         );
         parts.front_modifiers.push("methyl".into());
         parts.front_modifier_locants.push(Some("2".into()));
+        parts.ester_site_exchange_proven = false;
         assert_eq!(
             add_front_modifiers(&parts, "parent"),
             "1-ethyl 4-(2-methoxyethyl) 2-methyl parent"

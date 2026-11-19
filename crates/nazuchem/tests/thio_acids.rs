@@ -251,6 +251,16 @@ fn acid_suffix_seniority_and_carbonic_analogues_follow_the_blue_book() {
         // carbonotrithioic acid. P-65.2.1.5: carbonothioic O,O-acid.
         ("O=C(O)OO", "carbonoperoxoic acid"),
         ("OOC(=O)OO", "carbonodiperoxoic acid"),
+        ("O=C(O)OS", "carbono(thioperoxoic) OS-acid"),
+        ("O=C(O)SO", "carbono(thioperoxoic) SO-acid"),
+        ("OSC(=O)OS", "carbonobis(thioperoxoic) OS,SO-acid"),
+        ("O=C(OS)OS", "carbonobis(thioperoxoic) OS,OS-acid"),
+        ("O=C(SO)SO", "carbonobis(thioperoxoic) SO,SO-acid"),
+        ("O=C(O)O[SeH]", "carbono(selenoperoxoic) OSe-acid"),
+        (
+            "O[Te]C(=O)O[TeH]",
+            "carbonobis(telluroperoxoic) OTe,TeO-acid",
+        ),
         ("O=C(O)S", "carbonothioic S-acid"),
         ("O=C(O)[SeH]", "carbonoselenoic Se-acid"),
         ("OC(=S)O", "carbonothioic O,O-acid"),
@@ -269,17 +279,114 @@ fn acid_suffix_seniority_and_carbonic_analogues_follow_the_blue_book() {
             "{smiles} -> {expected} -> {parsed}"
         );
     }
-    // P-65.2.1.2: carbono(thioperoxoic) OS-acid is not read back yet, and
-    // the Blue Book shows no letter locants for HO-CS-SH or for two
-    // replacing elements. Their names on methane are not preferred names.
-    for smiles in [
-        "O=C(O)OS",
-        "OSC(=O)OS",
-        "O=C(S)OO",
-        "OC(=S)S",
-        "O=C(S)[SeH]",
-    ] {
+    // The names on methane for other carbonic replacements are unverified.
+    for smiles in ["O=C(S)OO", "OC(=S)S", "O=C(S)[SeH]"] {
         let name = smiles_to_name(smiles).unwrap();
         assert_ne!(name.status, NameStatus::Preferred, "{smiles} {}", name.text);
     }
+}
+
+#[test]
+fn carbonic_mixed_peroxy_acid_locants_match_the_suffix() {
+    for name in [
+        "carbono(thioperoxoic) acid",
+        "carbono(thioperoxoic) SeO-acid",
+        "carbono(thioperoxoic) OS,SO-acid",
+        "carbonobis(thioperoxoic) OS-acid",
+        "carbonobis(thioperoxoic) OS,SO,SO-acid",
+        "phosphorobis(thioperoxoic) OS,SO-acid",
+    ] {
+        assert!(name_to_smiles(name).is_err(), "{name}");
+    }
+}
+
+#[test]
+fn chain_end_acid_halides_and_esters_cite_separate_ligands() {
+    for (smiles, expected) in [
+        // P-65.5.4 (3): the halide and oxo at the end of the parent chain.
+        ("O=C(O)CC(=O)Cl", "3-chloro-3-oxopropanoic acid"),
+        ("O=C(O)CC(=O)C(=O)Br", "4-bromo-3,4-dioxobutanoic acid"),
+        (
+            "O=C(O)CC(=O)OC(=O)Br",
+            "3-(carbonobromidoyloxy)-3-oxopropanoic acid",
+        ),
+        ("O=C(O)CC(=S)Cl", "3-chloro-3-sulfanylidenepropanoic acid"),
+        // The same form can occur in a substituent chain.
+        (
+            "O=C(O)c1ccc(CC(=O)Cl)cc1",
+            "4-(2-chloro-2-oxoethyl)benzoic acid",
+        ),
+        // P-65.6.3.2.3 and P-65.6.3.3.5: neutral partial ester and its salt.
+        ("CCOC(=O)CCC(=O)O", "4-ethoxy-4-oxobutanoic acid"),
+        (
+            "CCOC(=O)CCC(=O)[O-].[Na+]",
+            "sodium 4-ethoxy-4-oxobutanoate",
+        ),
+        ("O=C(O)CCC(=O)SCC", "4-(ethylsulfanyl)-4-oxobutanoic acid"),
+        ("CCOC(=O)c1ccccc1C(=O)O", "2-(ethoxycarbonyl)benzoic acid"),
+        // P-65.6.3.3.4.2: the attachment carbonyl appears in propanoyl.
+        (
+            "CCOC(=O)CC(=O)Oc1ccc(OC(=O)CCC(=O)OC)cc1",
+            "4-[(3-ethoxy-3-oxopropanoyl)oxy]phenyl methyl butanedioate",
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+        let parsed = name_to_smiles(&name.text).unwrap_or_else(|e| panic!("{expected}: {e:?}"));
+        let budget = Budget::default();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget),
+            canonical_smiles(smiles, &budget),
+            "{smiles} -> {expected} -> {parsed}"
+        );
+    }
+}
+
+#[test]
+fn ester_organyl_locants_are_omitted_when_acid_sites_are_interchangeable() {
+    for (smiles, expected) in [
+        ("CCOC(=O)CCC(=O)OC", "ethyl methyl butanedioate"),
+        ("CCSC(=O)CCC(=O)SC", "S-ethyl S-methyl butanebis(thioate)"),
+        (
+            "CCOSC(=O)CCC(=O)SOC",
+            "SO-ethyl SO-methyl butanebis(thioperoxoate)",
+        ),
+        (
+            "CCOC(=O)c1cc(C(=O)OCC)cc(C(=O)OC)c1",
+            "diethyl methyl benzene-1,3,5-tricarboxylate",
+        ),
+        (
+            "CCOC(=O)c1cc(C(=O)OC)c(C(=O)OC)cc1C(=O)OC",
+            "ethyl trimethyl benzene-1,2,4,5-tetracarboxylate",
+        ),
+        // A chloro substituent breaks the exchange symmetry.
+        (
+            "CCSC(=O)CC(Cl)C(=O)SC",
+            "4-S-ethyl 1-S-methyl 2-chlorobutanebis(thioate)",
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+        let parsed = name_to_smiles(&name.text).unwrap_or_else(|e| panic!("{expected}: {e:?}"));
+        let budget = Budget::default();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget),
+            canonical_smiles(smiles, &budget),
+            "{smiles} -> {expected} -> {parsed}"
+        );
+    }
+    // Two ethyl groups may sit at several distinct relative positions.
+    let smiles = "CCOC(=O)c1cc(C(=O)OCC)c(C(=O)OC)cc1C(=O)OC";
+    let name = smiles_to_name(smiles).unwrap();
+    assert!(
+        name.text.starts_with(|c: char| c.is_ascii_digit()),
+        "{name:?}"
+    );
+    let parsed = name_to_smiles(&name.text).unwrap();
+    assert_eq!(
+        canonical_smiles(&parsed, &Budget::default()),
+        canonical_smiles(smiles, &Budget::default())
+    );
 }

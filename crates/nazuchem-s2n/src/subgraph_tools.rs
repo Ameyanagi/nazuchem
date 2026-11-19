@@ -357,6 +357,17 @@ pub fn add_substituent(
     if let Some(existing) = parts.substituents.iter_mut().find(|existing| {
         existing.name == item.name
             && existing.outer_parentheses_optional == item.outer_parentheses_optional
+            // Acyl promotion consumes the attachment carbonyl, while another
+            // carbonyl remains a separate prefix (3-ethoxy-3-oxopropanoyl,
+            // P-65.6.3.3.4.2).
+            && !(parts.is_substituent
+                && parts.attachment_order == 1
+                && parts.attachment_locant == "1"
+                && matches!(
+                    item.name.as_str(),
+                    "oxo" | "sulfanylidene" | "selanylidene" | "tellanylidene"
+                )
+                && (existing.locants == ["1"] || item.locants == ["1"]))
             // Upstream divergence: keep spiro instances separate to preserve their component metadata.
             && existing.spiro.is_none()
             && item.spiro.is_none()

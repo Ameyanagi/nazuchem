@@ -356,17 +356,12 @@ pub fn retarget_external_carbonyl_groups(
             .filter(|n| m.atoms[n].is_carbon() && !g.atoms_involved.contains(n))
             .collect::<Vec<_>>();
         if adj.len() == 1 {
-            // P-66.1.1.4.1.1, P-66.3.2.2: an amide or hydrazide carbonyl
-            // carbon on a chain stays a chain atom, cited as amino or
-            // hydrazinyl with oxo when it ends the parent chain
-            // (4-amino-4-oxobutanoic acid, 3-hydrazinyl-3-oxopropanoic acid).
-            // P-65.1.4.2 (2), P-65.1.5.1: so does the carbon of a peroxy
-            // acid or of a mixed chalcogen acid (6-hydroperoxy-6-oxohexanoic
-            // acid, 4-oxo-4-sulfanylbutanoic acid).
+            // The carbon remains a parent candidate when its characteristic
+            // group can cite separate ligands at the end of a chain.
             if !cyclic.contains(&adj[0])
                 && g.descriptor.as_ref().is_some_and(|d| {
-                    d.family == "acyl" && matches!(d.derivative.as_str(), "amide" | "hydrazide")
-                        || d.names_its_chalcogens()
+                    d.uses_chain_end_ligand_prefixes()
+                        || d.family == "acyl" && d.derivative == "hydrazide"
                 })
             {
                 continue;

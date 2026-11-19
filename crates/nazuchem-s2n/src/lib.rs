@@ -1497,7 +1497,10 @@ mod tests {
                 "ClCOc1ccc(CCl)cc1",
                 "1-(chloromethoxy)-4-(chloromethyl)benzene",
             ),
-            ("ClCCOC(=O)CC(=O)O", "(2-chloroethoxycarbonyl)acetic acid"),
+            (
+                "ClCCOC(=O)CC(=O)O",
+                "3-(2-chloroethoxy)-3-oxopropanoic acid",
+            ),
             ("CC(C)CO[SiH2]C", "methyl(2-methylpropoxy)silane"),
         ] {
             assert_eq!(

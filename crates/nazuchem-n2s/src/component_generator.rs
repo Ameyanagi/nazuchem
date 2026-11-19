@@ -1506,8 +1506,35 @@ impl<'a> ComponentGenerator<'a> {
     fn handle_suffix_irregularities(&mut self, sub: NodeId) -> Result {
         for s in self.arena.children_named(sub, SUFFIX_EL) {
             let value = self.val(s);
-            // P-65.2.1.2 (carbonobis(thioperoxoic) OS,SO-acid): a list of
-            // pair locants has one for each peroxy acid group.
+            if self.attr_is(s, VALUE_ATR, "carbonic_peroxoic_acid") {
+                let stem = self.arena.previous_sibling(s);
+                if !stem
+                    .is_some_and(|id| self.arena[id].name == GROUP_EL && self.val(id) == "carbon")
+                {
+                    return err("This peroxy acid suffix requires a carbonic acid stem");
+                }
+                let locants = value
+                    .split_once(") ")
+                    .and_then(|(_, suffix)| suffix.strip_suffix("-acid"))
+                    .ok_or_else(|| {
+                        ComponentGenerationError("Missing peroxy acid locants".into())
+                    })?;
+                let mut infixes = Vec::new();
+                for locant in locants.split(',') {
+                    infixes.push(match locant.to_ascii_lowercase().as_str() {
+                        "os" => "-O-:OS",
+                        "so" => "-O-:SO",
+                        "ose" => "-O-:O[Se|2]",
+                        "seo" => "-O-:[Se|2]O",
+                        "ote" => "-O-:O[Te|2]",
+                        "teo" => "-O-:[Te|2]O",
+                        _ => return err("Invalid peroxy acid locant"),
+                    });
+                }
+                self.set(s, INFIX_ATR, infixes.join(";"));
+                continue;
+            }
+            // A list of pair locants has one for each peroxy acid group.
             if value.contains("peroxoic) ") && value.contains(',') {
                 let mut before = self.arena.previous_sibling(s);
                 while let Some(prefix) = before.filter(|&b| self.arena[b].name == SUFFIXPREFIX_EL) {

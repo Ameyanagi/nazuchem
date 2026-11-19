@@ -638,6 +638,28 @@ fn name_oxygen(
         }
     }
     if mol.atoms[&next].is_carbon() && no.len() == 1 {
+        // P-65.5.4 (1): Br-CO-O- is carbonobromidoyloxy.
+        if mol.degree(next) == 3
+            && !exclude.contains(&no[0])
+            && mol.atoms[&next].isotope.is_none()
+            && mol.atoms[&no[0]].isotope.is_none()
+            && let Some(&leaving) = mol
+                .get_neighbors(next)
+                .iter()
+                .find(|&&n| n != start && n != no[0])
+        {
+            let atom = &mol.atoms[&leaving];
+            if !exclude.contains(&leaving)
+                && matches!(atom.symbol.as_str(), "F" | "Cl" | "Br" | "I")
+                && atom.charge == 0
+                && atom.isotope.is_none()
+                && mol.degree(leaving) == 1
+                && mol.bond_order(next, leaving) == 1
+            {
+                let halide = &NAMER_RULES.chalcogen_acyl_leaving_groups[&atom.symbol].word;
+                return Ok(format!("(carbono{}oyloxy)", halide.trim_end_matches('e')));
+            }
+        }
         let acyl = plain_branch(mol, next, &with_atoms(exclude, [start]), start)?;
         return Ok(if acyl.is_empty() {
             "formyloxy".into()

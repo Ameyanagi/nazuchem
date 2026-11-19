@@ -103,11 +103,11 @@ fn chalcogen_peroxy_names_follow_the_blue_book_and_round_trip() {
         ),
         (
             "CSC(=O)c1ccc(-c2ccc(C(=O)SCC)cc2)cc1",
-            "4'-S-ethyl 4-S-methyl [1,1'-biphenyl]-4,4'-dicarbothioate",
+            "S-ethyl S-methyl [1,1'-biphenyl]-4,4'-dicarbothioate",
         ),
         (
             "COSC(=O)c1ccc(-c2ccc(C(=O)SOCC)cc2)cc1",
-            "4'-SO-ethyl 4-SO-methyl [1,1'-biphenyl]-4,4'-dicarbo(thioperoxoate)",
+            "SO-ethyl SO-methyl [1,1'-biphenyl]-4,4'-dicarbo(thioperoxoate)",
         ),
         // P-65.1.5.3 (4-[(hydroxysulfanyl)carbonyl]cyclohexane-1-carboxylic
         // acid): a peroxy acid cited as a prefix names its own chalcogens.

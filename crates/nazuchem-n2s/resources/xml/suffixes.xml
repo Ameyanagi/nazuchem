@@ -98,6 +98,11 @@ al is allowed on standardGroup/aminoAcids but not on acidStems c.f. acetal != ac
 		<token value="onaphthone">onaphthone|onaphthon|naphthone|naphthon</token>
 		<token value="ophenone">ophenone|ophenon|phenone|phenon</token>
 		<token value="ous">ous|ousacid|ous acid</token>
+		<!-- P-65.2.1.2: each peroxy unit replaces one OH on the carbonic stem.
+		     The connecting o and bis belong to this acid-stem form. -->
+		<token value="carbonic_peroxoic_acid">o(thioperoxoic) os-acid|o(thioperoxoic) so-acid|obis(thioperoxoic) os,os-acid|obis(thioperoxoic) os,so-acid|obis(thioperoxoic) so,os-acid|obis(thioperoxoic) so,so-acid</token>
+		<token value="carbonic_peroxoic_acid">o(selenoperoxoic) ose-acid|o(selenoperoxoic) seo-acid|obis(selenoperoxoic) ose,ose-acid|obis(selenoperoxoic) ose,seo-acid|obis(selenoperoxoic) seo,ose-acid|obis(selenoperoxoic) seo,seo-acid</token>
+		<token value="carbonic_peroxoic_acid">o(telluroperoxoic) ote-acid|o(telluroperoxoic) teo-acid|obis(telluroperoxoic) ote,ote-acid|obis(telluroperoxoic) ote,teo-acid|obis(telluroperoxoic) teo,ote-acid|obis(telluroperoxoic) teo,teo-acid</token>
 	</tokenList>
 
 <!--allowed to prefixed by carbo(x)/sulfon etc. e.g. carboxamide, sulfonamide etc.-->

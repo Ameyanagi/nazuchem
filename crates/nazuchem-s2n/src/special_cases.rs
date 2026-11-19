@@ -1841,10 +1841,8 @@ fn oxoacid_parent_name(mol: &Molecule, atoms: &AtomSet) -> Option<String> {
 /// place of oxygen keeps its stem and takes infixes: carbonoperoxoic acid,
 /// carbonodiperoxoic acid, carbonothioic S-acid (HO-CO-SH), carbonothioic
 /// O,O-acid (HO-CS-OH), carbonodiselenoic Se,Se-acid, carbonotrithioic acid.
-/// The Blue Book shows no letter locants for HO-CS-SH or for two replacing
-/// elements, and the parser does not read carbono(thioperoxoic) OS-acid, so
-/// those fall through to a substitutive name that
-/// assembler::mark_assembled_name leaves unverified.
+/// Mixed peroxy groups use paired locants, as in carbono(thioperoxoic)
+/// OS-acid and carbonobis(thioperoxoic) OS,SO-acid.
 // Provenance: fn carbonic_replacement_acid_name | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::carbonic_replacement_acid_name
 fn carbonic_replacement_acid_name(mol: &Molecule, atoms: &AtomSet) -> Option<StructuralParentName> {
@@ -1888,9 +1886,25 @@ fn carbonic_replacement_acid_name(mol: &Molecule, atoms: &AtomSet) -> Option<Str
         return None;
     }
     let infix = |element| chalcogen_replacement_infix(element).unwrap_or_default();
+    let peroxy_replacement = |(a, b)| match (a, b) {
+        ("O", x) | (x, "O") if x != "O" => chalcogen_replacement_infix(x),
+        _ => None,
+    };
+    peroxy.sort_unstable();
     let name = match (double?, single.as_slice(), peroxy.as_slice()) {
         ("O", ["O"], [("O", "O")]) => "carbonoperoxoic acid".into(),
         ("O", [], [("O", "O"), ("O", "O")]) => "carbonodiperoxoic acid".into(),
+        ("O", ["O"], &[pair @ (a, b)]) => {
+            let replacement = peroxy_replacement(pair)?;
+            format!("carbono({replacement}peroxoic) {a}{b}-acid")
+        }
+        ("O", [], &[first @ (a, b), second @ (c, d)]) => {
+            let replacement = peroxy_replacement(first)?;
+            if peroxy_replacement(second)? != replacement {
+                return None;
+            }
+            format!("carbonobis({replacement}peroxoic) {a}{b},{c}{d}-acid")
+        }
         ("O", ["O", x] | [x, "O"], []) if *x != "O" => {
             format!("carbono{}ic {x}-acid", infix(x))
         }

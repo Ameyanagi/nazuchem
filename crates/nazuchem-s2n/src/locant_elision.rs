@@ -659,8 +659,10 @@ fn isomorphic<'a>(
     )
 }
 
-/// P-65.6.3.3.2.1: the two alcohol assignments coincide only when the
-/// complete acid component admits an exchange of its ester carbonyl sites.
+/// P-65.6.3.3.2.1: modifier locants can be omitted if any placement gives
+/// the same ester. For one distinct modifier, its site must map to every
+/// other ester site. Otherwise exchanges with the first site, fixing every
+/// other site, suffice to generate all permutations.
 // Provenance: fn ester_sites_are_equivalent | adapted
 // Source: openclatura | src/openclatura/locant_elision.py::_elision_is_safe
 // Source: openclatura | src/openclatura/locant_elision.py::_decorated_labels
@@ -668,10 +670,25 @@ pub fn ester_sites_are_equivalent(
     mol: &super::molecule::Molecule,
     acid_atoms: &super::molecule::AtomSet,
     sites: &[usize],
+    singleton: Option<usize>,
 ) -> bool {
-    sites.len() == 2
-        && sites[0] != sites[1]
-        && sites_correspond(mol, acid_atoms, sites, &[sites[1], sites[0]], false)
+    if sites.len() < 2 {
+        return false;
+    }
+    if let Some(site) = singleton {
+        return sites
+            .iter()
+            .copied()
+            .filter(|&other| other != site)
+            .all(|other| sites_correspond(mol, acid_atoms, &[site], &[other], sites, false));
+    }
+    let mut images = sites.to_vec();
+    (1..sites.len()).all(|i| {
+        images.swap(0, i);
+        let equivalent = sites_correspond(mol, acid_atoms, sites, &images, &[], false);
+        images.swap(0, i);
+        equivalent
+    })
 }
 
 /// Whether a symmetry of the component carries `from` onto `to`; unlike an
@@ -687,7 +704,7 @@ pub fn site_maps_onto(
     from: usize,
     to: usize,
 ) -> bool {
-    sites_correspond(mol, atoms, &[from], &[to], true)
+    sites_correspond(mol, atoms, &[from], &[to], &[], true)
 }
 
 // Provenance: fn sites_correspond | adapted
@@ -698,6 +715,7 @@ fn sites_correspond(
     acid_atoms: &super::molecule::AtomSet,
     sites: &[usize],
     images: &[usize],
+    preserved_sites: &[usize],
     cip_labels: bool,
 ) -> bool {
     let mut parts = AssemblyParts::new(acid_atoms.len());
@@ -762,6 +780,21 @@ fn sites_correspond(
             }
         })
         .collect();
+    if !preserved_sites.is_empty() {
+        let Some(positions) = preserved_sites
+            .iter()
+            .map(position)
+            .map(|p| p.map(Position::Node))
+            .collect()
+        else {
+            return false;
+        };
+        all.push(Feature {
+            category: "ester_site",
+            key: String::new(),
+            positions,
+        });
+    }
     let fixed = all.len();
     for (i, &position) in positions.iter().enumerate() {
         all.push(Feature {
@@ -1214,7 +1247,7 @@ mod tests {
         ] {
             let (mol, atoms, sites) = acid_graph(smiles);
             assert_eq!(
-                ester_sites_are_equivalent(&mol, &atoms, &sites),
+                ester_sites_are_equivalent(&mol, &atoms, &sites, None),
                 equivalent,
                 "{smiles}"
             );
@@ -1224,15 +1257,15 @@ mod tests {
     #[test]
     fn ester_site_exchange_ignores_aromatic_kekule_orders() {
         let (mut mol, atoms, sites) = acid_graph("O=C(O)c1cccc(C(=O)O)c1");
-        assert!(ester_sites_are_equivalent(&mol, &atoms, &sites));
+        assert!(ester_sites_are_equivalent(&mol, &atoms, &sites, None));
         for bond in mol.bonds.values_mut().filter(|b| b.is_aromatic) {
             bond.order = 3 - bond.order;
         }
-        assert!(ester_sites_are_equivalent(&mol, &atoms, &sites));
+        assert!(ester_sites_are_equivalent(&mol, &atoms, &sites, None));
         for bond in mol.bonds.values_mut() {
             bond.is_aromatic = false;
         }
-        assert!(!ester_sites_are_equivalent(&mol, &atoms, &sites));
+        assert!(!ester_sites_are_equivalent(&mol, &atoms, &sites, None));
     }
 
     #[test]
@@ -1244,7 +1277,7 @@ mod tests {
         ] {
             let (mol, atoms, sites) = acid_graph(smiles);
             assert!(
-                !ester_sites_are_equivalent(&mol, &atoms, &sites),
+                !ester_sites_are_equivalent(&mol, &atoms, &sites, None),
                 "{smiles}"
             );
         }
