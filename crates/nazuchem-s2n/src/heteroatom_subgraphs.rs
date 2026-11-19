@@ -489,10 +489,13 @@ fn carbonyl_like_fragment(
     {
         return Ok(format!("({before}{base})"));
     }
+    // P-16.5.1.1 and P-16.5.1.2 apply to the ligand within the acyl
+    // prefix as well as to the completed prefix.
+    let fragment = format_element_substituent("", &name, branch_suffix, false);
     Ok(if wrap {
-        format!("({name}{branch_suffix})")
+        fragment
     } else {
-        format!("{name}{branch_suffix}")
+        strip_outer_parentheses(&fragment)
     })
 }
 
@@ -2396,10 +2399,10 @@ mod tests {
     fn heteroatom_branches_preserve_acyl_ligands_and_oxo_roles() -> Result<(), String> {
         for (smiles, expected) in [
             // P-16.5.1.1: an acyl prefix is enclosed inside amino.
-            ("CNC(=S)CC(C)C", "((2-methylpropylcarbonothioyl)amino)"),
+            ("CNC(=S)CC(C)C", "(((2-methylpropyl)carbonothioyl)amino)"),
             ("CNC(=S)N(C)C", "((dimethylcarbamothioyl)amino)"),
             ("CN(C(=O)OC)C", "((methoxycarbonyl)(methyl)amino)"),
-            ("COC(=S)N(C)C", "(dimethylaminocarbonothioyloxy)"),
+            ("COC(=S)N(C)C", "((dimethylamino)carbonothioyloxy)"),
             ("CP(=O)(O)ON", "((aminooxy)(hydroxy)phosphoryl)"),
             // P-16.5.1.1: the compound prefix ethylideneamino is enclosed.
             ("CS(=O)(=O)ON=CC", "((ethylideneamino)oxysulfonyl)"),

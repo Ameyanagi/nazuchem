@@ -1032,14 +1032,26 @@ mod tests {
         use nazuchem_kernel::smiles;
 
         for (expected, inputs) in [
-            // P-31.1.4.2 (1)-(3): fewest compound locants, then lowest locants. The
-            // third input carries atom maps.
+            // P-31.1.4.2 (1)-(3): fewest compound locants, then lowest locants.
+            // Porphine uses two compound locants. This beats the older
+            // numbering with three, whose set of primary locants includes 12.
             (
                 "21,22,23,24-tetraazapentacyclo[16.2.1.1^{3,6}.1^{8,11}.1^{13,16}]tetracosa-1(21),2,4,6(24),7,9,11,13,15,17,19-undecaene",
                 &[
                     "C1=Cc2cc3ccc(cc4ccc(cc5nc(cc1n2)C=C5)[nH]4)[nH]3",
                     "C1=Cc2cc3nc(cc4ccc(cc5ccc(cc1n2)[nH]5)[nH]4)C=C3",
+                    "C1=CC2=CC3=CC=C(N3)C=C4C=CC(=N4)C=C5C=CC(=N5)C=C1N2",
                     "[CH:24]1=[CH:23][c:22]2[cH:21][c:20]3[cH:19][cH:18][c:17]([cH:16][c:15]4[cH:14][cH:13][c:12]([cH:11][c:10]5[n:9][c:8]([cH:7][c:6]1[n:5]2)[CH:4]=[CH:3]5)[nH:2]4)[nH:1]3",
+                ][..],
+            ),
+            // [2.2]Paracyclophane needs one compound locant across aromatic
+            // and Kekulé inputs. 1(13),4(16),5,7(15),10(14),11 needs four.
+            (
+                "tricyclo[8.2.2.2^{4,7}]hexadeca-1(12),4,6,10,13,15-hexaene",
+                &[
+                    "C1CC2=CC=C(CCC3=CC=C1C=C3)C=C2",
+                    "C1Cc2ccc(cc2)CCc2ccc1cc2",
+                    "C1CC2=CC=C(C=C2)CCC2=CC=C1C=C2",
                 ][..],
             ),
             ("bicyclo[4.2.0]oct-6-ene", &["C1CCC2=CCC2C1"][..]),
@@ -3542,6 +3554,10 @@ mod tests {
             ("C1CC1CNCC(=O)O", "[(cyclopropylmethyl)amino]acetic acid"),
             ("ClC[Se]CC(=O)O", "[(chloromethyl)selanyl]acetic acid"),
             ("CONSCC(=O)O", "[(methoxyamino)sulfanyl]acetic acid"),
+            (
+                "CCCOC1=CC=C(C=C1)C(=O)NC(=S)NC2=[NH+]C=C(C=C2)Br",
+                "5-bromo-2-{[(4-propoxybenzamido)carbonothioyl]amino}pyridin-1-ium",
+            ),
             (
                 "ClCN=C1CCCC1C(=O)O",
                 "2-[(chloromethyl)imino]cyclopentane-1-carboxylic acid",
