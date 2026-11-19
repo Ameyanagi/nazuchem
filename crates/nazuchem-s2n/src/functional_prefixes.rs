@@ -1059,6 +1059,23 @@ mod tests {
                 "NC(=N)c1ccc(cc1)C(=O)NN",
                 "4-(hydrazinecarbonyl)benzene-1-carboximidamide",
             ),
+            // P-66.3.5.2 illustrates the enclosed acyl group on O and N.
+            (
+                "NNC(=O)Oc1ccc(C(=O)O)cc1",
+                "4-[(hydrazinecarbonyl)oxy]benzoic acid",
+            ),
+            (
+                "OC(=O)c1ccc(NC(=O)NN)cc1",
+                "4-[(hydrazinecarbonyl)amino]benzoic acid",
+            ),
+            (
+                "OC(=O)CCOC(=O)NN",
+                "3-[(hydrazinecarbonyl)oxy]propanoic acid",
+            ),
+            (
+                "OC(=O)CCNC(=O)NN",
+                "3-[(hydrazinecarbonyl)amino]propanoic acid",
+            ),
             (
                 "OC(=O)c1ccc(cc1)C(=S)NN",
                 "4-(hydrazinecarbothioyl)benzoic acid",
@@ -1100,15 +1117,9 @@ mod tests {
                 "{expected}"
             );
         }
-        // Not labelled preferred: the hydrazinecarboxylic ester and amide
-        // prefixes (P-68.3.1.2) are not generated, and a diacylhydrazine
-        // prefix is not chosen between P-66.3.2.3 (1) and P-66.3.3.3.
-        for smiles in [
-            "OC(=O)CCOC(=O)NN",
-            "OC(=O)CCNC(=O)NN",
-            "OC(=O)CCC(=O)NNC(C)=O",
-            "OC(=O)c1ccc(cc1)C(=O)NNC(C)=O",
-        ] {
+        // A diacylhydrazine prefix is not chosen between P-66.3.2.3 (1)
+        // and P-66.3.3.3.
+        for smiles in ["OC(=O)CCC(=O)NNC(C)=O", "OC(=O)c1ccc(cc1)C(=O)NNC(C)=O"] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_ne!(
                 name.status,

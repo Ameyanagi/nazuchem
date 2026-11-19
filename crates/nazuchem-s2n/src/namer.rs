@@ -18,7 +18,7 @@ use super::assembly_parts::{AssemblyParts, RenderedSubstituentName, SubstituentI
 use super::assembly_prefixes::substituent_sort_key;
 use super::chains::{find_all_carbon_paths, find_ring_systems, get_cyclic_atoms};
 use super::component_group_rules::{
-    amide_nitrogen, is_carboxylate_group, is_carboxylic_acid_group,
+    amide_nitrogen, is_carboxylate_group, is_carboxylic_acid_group, linked_hydrazinecarbonyl,
     retarget_external_carbonyl_groups,
 };
 use super::component_namer::{name_component, name_component_with_citation};
@@ -120,6 +120,15 @@ fn direct_subgraph_prefix(
     component: &AtomSet,
     upstream: Option<usize>,
 ) -> Result<Option<String>, String> {
+    // Functional-group perception reserves the whole O/N-linked group for a
+    // possible hydrazine parent. P-66.3.2.1 and P-66.3.5.2 cite its acyl
+    // fragment as (hydrazinecarbonyl) when reached through the linker.
+    if let Some(linker) = upstream
+        && let Some(atoms) = linked_hydrazinecarbonyl(mol, start, linker)
+        && atoms.iter().all(|id| component.contains(id))
+    {
+        return Ok(Some("(hydrazinecarbonyl)".into()));
+    }
     if mol.atoms[&start].is_carbon() {
         let terminal: Vec<_> = mol
             .get_neighbors(start)

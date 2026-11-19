@@ -32,6 +32,7 @@ use super::{
         format_replacement_prefixes, format_substituent_prefixes, substituent_sort_key,
     },
     assembly_utils::{needs_hyphen, parse_locant},
+    component_group_rules::linked_hydrazinecarbonyl,
     formatting::format_multiplier,
     fused_ion_templates::{consume_fused_ion_operation, select_fused_ion_operation},
     nomenclature::NAMER_RULES,
@@ -86,8 +87,8 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
                             .any(|&o| symbol(o) == "O" && mol.bond_order(t, o) == 2)
                 })
             };
-            // P-68.3.1.2.4: under a class senior to amides (P-41),
-            // H2N-CO-NH-NH- is the preferred prefix 2-carbamoylhydrazin-1-yl.
+            // Under a class senior to amides (P-41), allow the documented
+            // substituent forms (P-66.3.5.2, P-68.3.1.2.4).
             let senior = rule
                 .and_then(|rule| rule.seniority.as_ref())
                 .is_some_and(|seniority| seniority[0] < 60);
@@ -126,9 +127,18 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
                     }) && around.iter().any(|&n| {
                         on_hydrazine(n)
                             && !carbamoyl(c, n)
-                            && around
-                                .iter()
-                                .any(|&y| y != n && single(c, y) && !matches!(symbol(y), "C" | "H"))
+                            && around.iter().any(|&y| {
+                                y != n
+                                    && single(c, y)
+                                    && !matches!(symbol(y), "C" | "H")
+                                    && !(senior
+                                        && linked_hydrazinecarbonyl(mol, c, y).is_some()
+                                        && parts.substituents.iter().any(|item| {
+                                            item.atom_ids.contains(&c)
+                                                && item.atom_ids.contains(&y)
+                                                && item.name.contains("(hydrazinecarbonyl)")
+                                        }))
+                            })
                     })
                         // P-66.3.1.2.1: NC-NH-NH2 is cyanohydrazide, named by
                         // special_cases::cyanohydrazide_name.

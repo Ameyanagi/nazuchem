@@ -4274,6 +4274,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/group_atom_roles.py", license = "MIT" },
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/component_group_rules.py", license = "MIT" },
   { project = "ReShiki", path = "src/naming/openclatura/component_group_rules.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/component_group_rules.rs", ref = "issue #141", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/fixtures/diverse_corpus.csv", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
 ]
 notes = "Openclatura parent preprocessing and atom roles with local external-chain carboxylic selection."
@@ -4287,6 +4288,7 @@ parts = [
   { origin = "port", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/group_atom_roles.py", license = "MIT", symbol = "ester_or_peroxy_single_oxygen" }], items = ["fn ester_or_peroxy_single_oxygen"] },
   { origin = "port", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/group_atom_roles.py", license = "MIT", symbol = "sulfonyl_sulfur" }], items = ["fn sulfonyl_sulfur"] },
   { origin = "port", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/group_atom_roles.py", license = "MIT", symbol = "amide_nitrogen" }], items = ["fn amide_nitrogen"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/component_group_rules.rs", ref = "issue #141", license = "MIT OR Apache-2.0", symbol = "linked_hydrazinecarbonyl" }], items = ["fn linked_hydrazinecarbonyl"] },
   { origin = "port", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/group_atom_roles.py", license = "MIT", symbol = "hydrazone_characteristic_carbon" }], items = ["fn hydrazone_characteristic_carbon"] },
   { origin = "port", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/group_atom_roles.py", license = "MIT", symbol = "group_carbon_off_attachment" }], items = ["fn group_carbon_off_attachment"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/component_group_rules.py", license = "MIT", symbol = "retarget_external_carbonyl_groups" }], items = ["fn retarget_external_carbonyl_groups"] },

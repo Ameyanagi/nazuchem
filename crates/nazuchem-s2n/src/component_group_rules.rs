@@ -3,6 +3,7 @@
 // Source: openclatura | src/openclatura/group_atom_roles.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/component_group_rules.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/component_group_rules.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_group_rules.rs | issue #141
 // Source: openclatura | tests/fixtures/diverse_corpus.csv | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
@@ -273,6 +274,70 @@ pub fn amide_nitrogen(m: &Molecule, g: &PerceivedGroup) -> Option<usize> {
         .copied()
         .find(|n| m.atoms[n].symbol == "N")
 }
+
+/// The unsubstituted acyl group in the O- and N-linked prefixes of P-66.3.5.2.
+// Provenance: fn linked_hydrazinecarbonyl | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_group_rules.rs::linked_hydrazinecarbonyl
+pub(super) fn linked_hydrazinecarbonyl(
+    mol: &Molecule,
+    center: usize,
+    linker: usize,
+) -> Option<[usize; 4]> {
+    let linker_hydrogens = match mol.atoms[&linker].symbol.as_str() {
+        "O" => 0,
+        "N" => 1,
+        _ => return None,
+    };
+    if !mol.atoms[&center].is_carbon()
+        || mol.degree(center) != 3
+        || mol.bond_order(center, linker) != 1
+        || mol.degree(linker) != 2
+        || !mol.get_neighbors(linker).iter().any(|&parent| {
+            parent != center
+                && mol.atoms[&parent].is_carbon()
+                && mol.bond_order(linker, parent) == 1
+        })
+    {
+        return None;
+    }
+    let &oxo = mol.get_neighbors(center).iter().find(|&&atom| {
+        mol.atoms[&atom].symbol == "O" && mol.bond_order(center, atom) == 2 && mol.degree(atom) == 1
+    })?;
+    let &near = mol.get_neighbors(center).iter().find(|&&atom| {
+        atom != linker
+            && mol.atoms[&atom].symbol == "N"
+            && mol.bond_order(center, atom) == 1
+            && mol.degree(atom) == 2
+    })?;
+    let &far = mol.get_neighbors(near).iter().find(|&&atom| {
+        mol.atoms[&atom].symbol == "N" && mol.bond_order(near, atom) == 1 && mol.degree(atom) == 1
+    })?;
+    let atoms = [center, oxo, near, far];
+    let unmodified = atoms
+        .into_iter()
+        .zip([0, 0, 1, 2])
+        .chain([(linker, linker_hydrogens)])
+        .all(|(id, hydrogens)| {
+            let atom = &mol.atoms[&id];
+            atom.charge == 0
+                && atom.radical_electrons == 0
+                && !atom.is_aromatic
+                && !atom.has_stereo()
+                && atom.isotope.is_none()
+                && atom.total_h_count == hydrogens
+        });
+    if unmodified
+        && !mol
+            .isotope_sites()
+            .iter()
+            .any(|site| site.anchor == linker || atoms.contains(&site.anchor))
+    {
+        Some(atoms)
+    } else {
+        None
+    }
+}
+
 // Provenance: fn hydrazone_characteristic_carbon | port
 // Source: openclatura | src/openclatura/group_atom_roles.py::hydrazone_characteristic_carbon
 pub fn hydrazone_characteristic_carbon(m: &Molecule, g: &PerceivedGroup) -> Option<usize> {
