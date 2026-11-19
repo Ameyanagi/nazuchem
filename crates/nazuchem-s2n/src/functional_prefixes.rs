@@ -1192,11 +1192,15 @@ mod tests {
 
     #[test]
     fn peroxy_ester_prefix_encloses_only_complex_ligands() {
+        // On a ring the ester carbon stays in the compound peroxycarbonyl prefix.
         for (smiles, expected) in [
-            ("COOC(=O)CC(=O)O", "(methylperoxycarbonyl)acetic acid"),
             (
-                "CC(C)OOC(=O)CC(=O)O",
-                "[(propan-2-yl)peroxycarbonyl]acetic acid",
+                "COOC(=O)c1ccccc1C(=O)O",
+                "2-(methylperoxycarbonyl)benzoic acid",
+            ),
+            (
+                "CC(C)OOC(=O)c1ccccc1C(=O)O",
+                "2-[(propan-2-yl)peroxycarbonyl]benzoic acid",
             ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();

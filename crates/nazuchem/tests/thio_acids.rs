@@ -323,6 +323,17 @@ fn chain_end_acid_halides_and_esters_cite_separate_ligands() {
             "sodium 4-ethoxy-4-oxobutanoate",
         ),
         ("O=C(O)CCC(=O)SCC", "4-(ethylsulfanyl)-4-oxobutanoic acid"),
+        ("COOC(=O)CC(=O)O", "3-(methylperoxy)-3-oxopropanoic acid"),
+        (
+            "CC(C)OOC(=O)CC(=O)O",
+            "3-oxo-3-[(propan-2-yl)peroxy]propanoic acid",
+        ),
+        // P-65.6.3.3.7.1: the ordinary ester takes the suffix and
+        // the chain-end thiono ester cites its ligands separately.
+        (
+            "CCCCOC(=S)CCC(=O)OCC",
+            "ethyl 4-butoxy-4-sulfanylidenebutanoate",
+        ),
         ("CCOC(=O)c1ccccc1C(=O)O", "2-(ethoxycarbonyl)benzoic acid"),
         // P-65.6.3.3.4.2: the attachment carbonyl appears in propanoyl.
         (
