@@ -712,6 +712,8 @@ mod tests {
         // nitrogen takes the suffix iminide (butaniminide). Anions are senior
         // to every neutral class (P-41), so the ketone and the ester of the
         // PubChem row (CID 149515574) are cited as prefixes.
+        // Enclose the substituted ethoxy ligand inside the carbonyl prefix
+        // under P-16.5.1.1 and P-65.6.3.2.3.
         let parser = nazuchem_n2s::Parser::new().unwrap();
         for (smiles, expected) in [
             ("CCCC=[N-]", "butan-1-iminide"),
@@ -723,7 +725,7 @@ mod tests {
             ("[Na+].CCC=[N-]", "sodium propan-1-iminide"),
             (
                 "CC(=O)C(=C=[N-])C(=O)OCCC1=CC=C(C=C1)NC(=O)C",
-                "2-[2-(4-acetamidophenyl)ethoxycarbonyl]-3-oxobut-1-en-1-iminide",
+                "2-{[2-(4-acetamidophenyl)ethoxy]carbonyl}-3-oxobut-1-en-1-iminide",
             ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default())
