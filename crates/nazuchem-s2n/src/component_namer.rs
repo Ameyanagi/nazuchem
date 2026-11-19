@@ -133,12 +133,12 @@ fn name_component_with_locant_policy(
     match component_pipeline(
         mol,
         component_atoms,
-        citation,
-        principal_atom,
-        None,
-        None,
-        None,
-        anhydride_ends,
+        ComponentContext {
+            citation,
+            principal_atom,
+            anhydride_ends,
+            ..Default::default()
+        },
     )? {
         ComponentResult::Shortcut(name) => Ok(ComponentName {
             text: name.name,
@@ -204,12 +204,11 @@ pub(super) fn name_component_with_atom_locants(
     match component_pipeline(
         mol,
         component_atoms,
-        None,
-        None,
-        None,
-        isotope_source,
-        tied_parent,
-        &[],
+        ComponentContext {
+            isotope_source,
+            tied_parent,
+            ..Default::default()
+        },
     )? {
         ComponentResult::Shortcut(name) => Ok(IsotopeParentName {
             rendered_parent: name.name.clone(),
@@ -303,17 +302,15 @@ pub(super) fn build_spiro_component_parts(
             match component_pipeline(
                 mol,
                 component_atoms,
-                None,
-                None,
-                Some(SpiroProjection {
-                    junction,
-                    required_core,
-                    prefix_only,
-                    prioritize_junction,
-                }),
-                None,
-                None,
-                &[],
+                ComponentContext {
+                    projection: Some(SpiroProjection {
+                        junction,
+                        required_core,
+                        prefix_only,
+                        prioritize_junction,
+                    }),
+                    ..Default::default()
+                },
             )? {
                 ComponentResult::Shortcut(_) => None,
                 ComponentResult::Plan(plan, _, _) => Some(*plan),
@@ -363,20 +360,33 @@ pub(super) fn structural_parent(
     })
 }
 
+#[derive(Default)]
+struct ComponentContext<'a> {
+    citation: Option<&'a str>,
+    principal_atom: Option<usize>,
+    projection: Option<SpiroProjection<'a>>,
+    isotope_source: Option<&'a Molecule>,
+    // A parent to name instead of the selected one, when parents tie. With the
+    // bond from it to a linking group, the name is that of a multiplied unit.
+    tied_parent: Option<(&'a ParentSelection, Option<(usize, usize)>)>,
+    anhydride_ends: &'a [(usize, usize)],
+}
+
 // Provenance: fn component_pipeline | adapted
 // Source: openclatura | src/openclatura/component_namer.py::name_component
 fn component_pipeline(
     mol: &Molecule,
     component_atoms: &AtomSet,
-    citation: Option<&str>,
-    principal_atom: Option<usize>,
-    projection: Option<SpiroProjection<'_>>,
-    isotope_source: Option<&Molecule>,
-    // A parent to name instead of the selected one, when parents tie. With the
-    // bond from it to a linking group, the name is that of a multiplied unit.
-    tied_parent: Option<(&ParentSelection, Option<(usize, usize)>)>,
-    anhydride_ends: &[(usize, usize)],
+    context: ComponentContext<'_>,
 ) -> Result<ComponentResult, String> {
+    let ComponentContext {
+        citation,
+        principal_atom,
+        projection,
+        isotope_source,
+        tied_parent,
+        anhydride_ends,
+    } = context;
     let _depth = mol.enter_naming()?;
     let as_prefix = projection.as_ref().is_some_and(|p| {
         p.prefix_only
@@ -514,12 +524,13 @@ fn component_pipeline(
                         if let ComponentResult::Plan(mut plan, ..) = component_pipeline(
                             mol,
                             component_atoms,
-                            citation,
-                            None,
-                            None,
-                            isotope_source,
-                            Some((parent, None)),
-                            anhydride_ends,
+                            ComponentContext {
+                                citation,
+                                isotope_source,
+                                tied_parent: Some((parent, None)),
+                                anhydride_ends,
+                                ..Default::default()
+                            },
                         )? {
                             let prefixes = plan.parts.substituents.clone();
                             let (name, mut parent) = render_component_and_parent(

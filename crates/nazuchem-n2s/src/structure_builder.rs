@@ -1298,6 +1298,35 @@ impl Builder<'_> {
             }
             return Ok(());
         }
+        // The two-link sequence can leave acid groups unused on the
+        // outer residues. An initial multiplied end word puts both of
+        // its copies before the dibasic acid.
+        if count == 2
+            && !any_located
+            && let [left, middle, right] = acids.as_mut_slice()
+        {
+            let (central, right, right_value) = if values[0] == values[1] {
+                (right, middle, &values[1])
+            } else {
+                (middle, right, &values[2])
+            };
+            if left.functional_atoms.is_empty()
+                || right.functional_atoms.is_empty()
+                || central.functional_atoms.len() != 2
+            {
+                return Err(error("Invalid dianhydride description"));
+            }
+            if &values[0] != right_value
+                && !crate::ambiguity::all_atoms_equivalent(
+                    self.assembly.graph(),
+                    &central.functional_atoms,
+                )?
+            {
+                return Err(error("Dianhydride needs locants for its end acids"));
+            }
+            self.link_anhydride_results(smiles, left, central)?;
+            return self.link_anhydride_results(smiles, right, central);
+        }
         // P-65.7.6.2 method (2): an ordered residue chain, with each
         // intermediate residue contributing two equivalent acid groups.
         if count < 3 || any_located || acids.len() != count + 1 {

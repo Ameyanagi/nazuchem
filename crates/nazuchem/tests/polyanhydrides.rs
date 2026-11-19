@@ -480,3 +480,33 @@ fn anhydride_preference_reasons_are_independent_of_atom_order() {
         }
     }
 }
+
+#[test]
+fn unlocanted_dianhydrides_can_have_free_acid_groups_on_the_ends() {
+    for (name, smiles) in [
+        (
+            "acetic butanedioic butanedioic dianhydride",
+            "CC(=O)OC(=O)CCC(=O)OC(=O)CCC(=O)O",
+        ),
+        (
+            "acetic propanedioic butanedioic dianhydride",
+            "CC(=O)OC(=O)CC(=O)OC(=O)CCC(=O)O",
+        ),
+        (
+            "butanedioic propanedioic butanedioic dianhydride",
+            "OC(=O)CCC(=O)OC(=O)CC(=O)OC(=O)CCC(=O)O",
+        ),
+        (
+            "dibutanedioic propanedioic dianhydride",
+            "OC(=O)CCC(=O)OC(=O)CC(=O)OC(=O)CCC(=O)O",
+        ),
+    ] {
+        same_structure(name, smiles);
+    }
+    for invalid in [
+        "1-acetic butanedioic 4-butanedioic dianhydride",
+        "acetic 2-methylbutanedioic butanedioic dianhydride",
+    ] {
+        assert!(name_to_smiles(invalid).is_err(), "{invalid}");
+    }
+}

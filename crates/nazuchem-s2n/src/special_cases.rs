@@ -4587,9 +4587,9 @@ fn name_anhydride_acid(
                     // parent atom bonded to the carboxyl carbon.
                     let parent = fragment
                         .get_neighbors(center)
-                        .into_iter()
+                        .iter()
                         .find(|a| parent_atoms.contains(a))?;
-                    parent_locants.get(&parent)
+                    parent_locants.get(parent)
                 })
                 .cloned();
         }
@@ -4934,10 +4934,12 @@ fn name_polyanhydride(
     // Further mixed chalcogen classes require choosing their senior bridge.
     let bridge_class = if bridge_classes.contains("anhydride") {
         "anhydride"
-    } else if bridge_classes.len() == 1 {
-        bridge_classes.first().unwrap()
     } else {
-        return Ok(None);
+        let mut classes = bridge_classes.iter();
+        match (classes.next(), classes.next()) {
+            (Some(class), None) => class.as_str(),
+            _ => return Ok(None),
+        }
     };
     let oxygen_bridges = bridge_class == "anhydride";
     if !bridges.is_disjoint(&get_cyclic_atoms(mol, &AtomSet::new())) {
@@ -5141,10 +5143,13 @@ fn name_polyanhydride(
                         end.acid.unsubstituted,
                     );
                     if needs_locants {
-                        let locants = group
+                        let Some(locants) = group
                             .iter()
-                            .map(|end| end.locant.as_deref().unwrap())
-                            .collect::<Vec<_>>();
+                            .map(|end| end.locant.as_deref())
+                            .collect::<Option<Vec<_>>>()
+                        else {
+                            return Ok(None);
+                        };
                         format!("{}-{term}", locants.join(","))
                     } else {
                         term
