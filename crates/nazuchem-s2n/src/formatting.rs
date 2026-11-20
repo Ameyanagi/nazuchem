@@ -305,6 +305,53 @@ fn ambiguous_basic_multiplier(name: &str) -> bool {
     })
 }
 
+/// Read a generated IUPAC nuclide descriptor from a flattened prefix.
+/// A locant list may precede a nuclide, as in (2,2-2H2)ethyl.
+// Provenance: fn without_leading_isotope_descriptor | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::without_leading_isotope_descriptor
+fn without_leading_isotope_descriptor(name: &str) -> &str {
+    let Some((descriptor, rest)) = name.strip_prefix('(').and_then(|s| s.split_once(')')) else {
+        return name;
+    };
+    // The renderer puts a hyphen after a nuclide only before a numeric locant.
+    let prefix = rest.strip_prefix('-').unwrap_or(rest);
+    if prefix.is_empty()
+        || rest.starts_with('-') && !prefix.starts_with(|c: char| c.is_ascii_digit())
+    {
+        return name;
+    }
+    let is_locant =
+        |s: &str| has_numeric_locants(s) || matches!(s, "N" | "O" | "S" | "Se" | "Te" | "P" | "As");
+    let is_nuclide = |s: &str| {
+        let symbol_and_count = s.trim_start_matches(|c: char| c.is_ascii_digit());
+        let element = symbol_and_count.trim_end_matches(|c: char| c.is_ascii_digit());
+        let count = &symbol_and_count[element.len()..];
+        s.len() > symbol_and_count.len()
+            && !s.starts_with('0')
+            && !count.starts_with('0')
+            && super::rules::elements::is_known(element)
+            // Generated hydrogen nuclides always give a count. This also
+            // keeps indicated hydrogen such as (1H) out of the classifier.
+            && (element != "H" || !count.is_empty())
+    };
+    let mut pending_locant = false;
+    for term in descriptor.split(',') {
+        if let Some((locant, nuclide)) = term.split_once('-') {
+            if !is_locant(locant) || !is_nuclide(nuclide) {
+                return name;
+            }
+            pending_locant = false;
+        } else if !pending_locant && is_nuclide(term) {
+            continue;
+        } else if is_locant(term) {
+            pending_locant = true;
+        } else {
+            return name;
+        }
+    }
+    if pending_locant { name } else { prefix }
+}
+
 /// P-16.3.5(a) uses derived multipliers for substituted prefixes. Prefer
 /// the classification retained from assembly, when the caller has it.
 // Provenance: fn needs_complex_multiplier | adapted
@@ -331,6 +378,9 @@ fn needs_complex_multiplier(name: &str, kind: Option<PrefixKind>) -> bool {
             })
         })
         .map_or(name, |(_, prefix)| prefix);
+    // P-16.3.4(f): a simple ligand with a nuclide descriptor keeps its basic
+    // multiplier and takes enclosing marks. Keep the descriptor in the name.
+    let name = without_leading_isotope_descriptor(name);
     let name = without_hydride_modifiers(name);
     if ambiguous_basic_multiplier(name) {
         return true;

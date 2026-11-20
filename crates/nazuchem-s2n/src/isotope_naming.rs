@@ -1088,6 +1088,52 @@ mod tests {
     }
 
     #[test]
+    fn nested_ligands_multiply_according_to_the_underlying_prefix() {
+        // Issue #134. P-16.3.4(f) keeps a basic multiplier for a simple
+        // prefix with an isotope descriptor, including after a stereodescriptor.
+        for (smiles, expected) in [
+            (
+                "O=C(O)c1cc(N([13CH](C)C)[13CH](C)C)ccc1",
+                "3-{di[(2-13C)propan-2-yl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13CH3])[13CH3])ccc1",
+                "3-{di[(13C)methyl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(C([2H])[13CH3])C([2H])[13CH3])ccc1",
+                "3-{di[(2-13C,1-2H1)ethyl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(CC([2H])[2H])CC([2H])[2H])ccc1",
+                "3-{di[(2,2-2H2)ethyl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13C@H](C)CC)[13C@H](C)CC)ccc1",
+                "3-{di[(2R)-(2-13C)butan-2-yl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13CH2]Cl)[13CH2]Cl)ccc1",
+                "3-{bis[chloro(13C)methyl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([34SH])[34SH])ccc1",
+                "3-{bis[(34S)sulfanyl]amino}benzoic acid",
+            ),
+        ] {
+            let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default())
+                .unwrap_or_else(|e| panic!("{smiles}: {e}"));
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(
+                name.status,
+                NameStatus::Unverified(NameReason::IsotopePlacement),
+                "{smiles}"
+            );
+            verify(smiles, &name.text).unwrap_or_else(|e| panic!("{smiles}: {e}"));
+        }
+    }
+
+    #[test]
     fn modified_atoms_and_groups_take_the_lowest_locants_in_one_series() {
         // Issue #27. P-82.5.2: the modified atoms and groups are considered
         // together, {2,5} before {3,6}, in either atom order.
