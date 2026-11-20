@@ -17,7 +17,7 @@ use super::{
     locants::parse_locant,
     molecule::{AtomSet, Molecule, bond_ids_within},
     namer::name_subgraph_rendered,
-    perception::{LigandRole, PerceivedGroup},
+    perception::{LigandRole, PerceivedGroup, is_organyl_carbonotrithioate_end},
     subgraph_tools::subgraph_component,
 };
 use nazuchem_ir::{NameReason, NameStatus};
@@ -207,6 +207,11 @@ pub fn collect_component_front_modifiers(
                     && descriptor.centers.len() == 1
             })
             .and_then(|descriptor| descriptor.centers.first().copied());
+        // This ester spelling preserves the acyl carbonotrithioate linkage.
+        // The preferred mixed-anhydride citation (P-65.7.2–3) is unverified.
+        if ester_center.is_some() && is_organyl_carbonotrithioate_end(mol, root, linker) {
+            mol.mark_name(NameStatus::Unverified(NameReason::FunctionalClass));
+        }
         collected.modifiers.push(FrontModifier {
             name: modifier,
             attachment: group.attachment_carbon,

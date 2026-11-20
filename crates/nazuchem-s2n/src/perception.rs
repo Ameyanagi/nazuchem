@@ -1675,6 +1675,11 @@ fn is_complete_acyl_end(m: &Molecule, center: usize, double: usize, linkage: usi
     if m.atoms[&substituent].symbol == "N" && m.atoms[&substituent].charge == 0 {
         return true;
     }
+    // A distal ring or multiple bond in the S-organyl group does not
+    // determine how the acyl carbonotrithioate is cited.
+    if is_organyl_carbonotrithioate_end(m, center, linkage) {
+        return false;
+    }
     let mut component = AtomSet::from([substituent]);
     let mut frontier = vec![substituent];
     while let Some(current) = frontier.pop() {
@@ -1690,6 +1695,35 @@ fn is_complete_acyl_end(m: &Molecule, center: usize, double: usize, linkage: usi
         .filter(|b| component.contains(&b.u) && component.contains(&b.v))
         .collect::<Vec<_>>();
     edges.len() >= component.len() || edges.iter().any(|b| b.order > 1)
+}
+
+/// Identify the ester-bearing end of R-C(=X)-S-C(=S)-S-organyl.
+// Provenance: fn is_organyl_carbonotrithioate_end | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs::is_organyl_carbonotrithioate_end
+pub(super) fn is_organyl_carbonotrithioate_end(
+    m: &Molecule,
+    center: usize,
+    linkage: usize,
+) -> bool {
+    if !m.atoms[&center].is_carbon() || m.degree(center) != 3 || m.atoms[&linkage].symbol != "S" {
+        return false;
+    }
+    let Some(double) = terminal_double(m, center, &AtomSet::new()).filter(|l| l.element == "S")
+    else {
+        return false;
+    };
+    m.get_neighbors(center)
+        .iter()
+        .copied()
+        .find(|&id| id != linkage && id != double.atom)
+        .and_then(|id| classify_chalcogen_ligand(m, center, id))
+        .filter(|l| l.element == "S" && l.role == LigandRole::CarbonLink)
+        .is_some_and(|l| {
+            l.attachment_atom.is_some_and(|root| {
+                m.bond_order(l.atom, root) == 1
+                    && terminal_double(m, root, &AtomSet::new()).is_none()
+            })
+        })
 }
 
 /// Characteristic groups named with an anionic suffix or prefix (P-72.2.2).

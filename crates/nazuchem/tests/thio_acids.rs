@@ -8,7 +8,32 @@
 //! compound ester groups and -SSH prefixes are named after the IUPAC 2013
 //! recommendations and read back as the structure they were generated from.
 
-use nazuchem::{Budget, NameStatus, name_to_smiles, s2n::canonical_smiles, smiles_to_name};
+use nazuchem::{
+    Budget, NameReason, NameStatus, name_to_smiles, s2n::canonical_smiles, smiles_to_name,
+};
+
+/// Issue #27. A cyano group on the S-organyl part does not change the
+/// thiocarboxylate modifier's connectivity (P-65.2.1.5, P-65.6.3.3.7.1).
+#[test]
+fn acyl_carbonotrithioate_preserves_the_s_organyl_nitrile() {
+    let budget = Budget::default();
+    for smiles in ["Cc1ccc(C(=O)SC(=S)SCC#N)cc1", "N#CCSC(=S)SC(=O)c1ccc(C)cc1"] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(
+            name.text,
+            "S-{[(cyanomethyl)sulfanyl]carbonothioyl} 4-methylbenzene-1-carbothioate"
+        );
+        assert_eq!(
+            name.status,
+            NameStatus::Unverified(NameReason::FunctionalClass)
+        );
+        let parsed = name_to_smiles(&name.text).unwrap();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget).unwrap(),
+            canonical_smiles(smiles, &budget).unwrap()
+        );
+    }
+}
 
 #[test]
 fn thio_acid_and_ester_names_follow_the_blue_book_and_round_trip() {
