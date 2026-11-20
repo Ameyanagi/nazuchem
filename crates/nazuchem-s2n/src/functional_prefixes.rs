@@ -13,8 +13,11 @@
 use super::{
     assembly_parts::{RenderedSubstituentName, SubstituentItem},
     assembly_prefixes::substituent_sort_key,
-    component_group_rules::{amide_nitrogen, ester_or_peroxy_single_oxygen, is_carboxylate_group},
-    formatting::{format_center_ligands_by, format_multiplier, strip_outer_parentheses},
+    component_group_rules::{amide_nitrogen, ester_single_oxygen, is_carboxylate_group},
+    formatting::{
+        format_center_ligands_by, format_element_substituent, format_multiplier,
+        strip_outer_parentheses,
+    },
     molecule::{AtomSet, Molecule, bond_ids_within},
     namer::{name_subgraph_rendered, name_subgraph_with_upstream},
     nomenclature::{ChalcogenElement, NAMER_RULES, RULES},
@@ -104,6 +107,24 @@ fn descriptor_ester_prefix(
     let mut blocked = context.sub_exclude.clone();
     blocked.insert(terminal.atom);
     let branch = name_subgraph_rendered(context.mol, root, &blocked, Some(terminal.atom), false)?;
+    let base = if d.family == "central_acid" {
+        central_linkage_prefix(group).unwrap_or("")
+    } else {
+        chalcogen_term(&doubles[0].element, "acyl_center_prefix", |e| {
+            &e.acyl_center_prefix
+        })?
+    };
+    if d.family == "acyl"
+        && let [linker, _] = linkers.as_slice()
+        && linker.role == LigandRole::ChalcogenLink
+        && linker.element == "O"
+        && terminal.element == "O"
+    {
+        // P-63.3.1 and P-16.5.1.1: the organylperoxy group is a compound
+        // prefix when concatenated with carbonyl (P-65.2.1.5).
+        let peroxy = format_element_substituent("", &branch.text, "peroxy", false);
+        return Ok(Some(format_element_substituent("", &peroxy, base, false)));
+    }
     let mut ligand = element_ligand(branch, &terminal.element)?;
     for linker in linkers[..linkers.len() - 1].iter().rev() {
         ligand = element_ligand(
@@ -114,13 +135,6 @@ fn descriptor_ester_prefix(
             &linker.element,
         )?;
     }
-    let base = if d.family == "central_acid" {
-        central_linkage_prefix(group).unwrap_or("")
-    } else {
-        chalcogen_term(&doubles[0].element, "acyl_center_prefix", |e| {
-            &e.acyl_center_prefix
-        })?
-    };
     Ok(Some(format!(
         "({}{base})",
         strip_outer_parentheses(&ligand)
@@ -328,7 +342,7 @@ pub fn ester_prefix_from_group(
     exclude: &AtomSet,
     suffix: &str,
 ) -> Result<String, String> {
-    let Some(oxygen) = ester_or_peroxy_single_oxygen(mol, group) else {
+    let Some(oxygen) = ester_single_oxygen(mol, group) else {
         return Ok(String::new());
     };
     let Some(&root) = mol
@@ -341,12 +355,6 @@ pub fn ester_prefix_from_group(
     let mut blocked = exclude.clone();
     blocked.insert(oxygen);
     let branch = name_subgraph_rendered(mol, root, &blocked, Some(oxygen), false)?;
-    if RULES.prefixes.peroxy_ester_groups.contains(&group.key) {
-        return Ok(format!(
-            "({}peroxycarbonyl)",
-            format_multiplier(&strip_outer_parentheses(&branch.text), 1, false)
-        ));
-    }
     Ok(format!("({}{suffix})", branch.into_oxy_prefix()))
 }
 
@@ -622,9 +630,7 @@ pub fn prefix_from_group(
         return amide_prefix_from_group(context.mol, group, context.sub_exclude);
     }
     if families.contains("ester_like") || rule.has_capability("ester_like") {
-        if !RULES.prefixes.peroxy_ester_groups.contains(&group.key)
-            && let Some(prefix) = descriptor_ester_prefix(context, group)?
-        {
+        if let Some(prefix) = descriptor_ester_prefix(context, group)? {
             return Ok(prefix);
         }
         return ester_prefix_from_group(context.mol, group, context.sub_exclude, "carbonyl");
@@ -1191,27 +1197,48 @@ mod tests {
     }
 
     #[test]
-    fn peroxy_ester_prefix_encloses_only_complex_ligands() {
-        // On a ring the ester carbon stays in the compound peroxycarbonyl prefix.
-        for (smiles, expected) in [
+    fn peroxy_ester_prefix_enclosure_is_independent_of_atom_order() {
+        for (expected, inputs) in [
             (
-                "COOC(=O)c1ccccc1C(=O)O",
-                "2-(methylperoxycarbonyl)benzoic acid",
+                "2-[(methylperoxy)carbonyl]benzoic acid",
+                ["COOC(=O)c1ccccc1C(=O)O", "O=C(O)c1ccccc1C(=O)OOC"],
             ),
             (
-                "CC(C)OOC(=O)c1ccccc1C(=O)O",
-                "2-[(propan-2-yl)peroxycarbonyl]benzoic acid",
+                "4-[(methylperoxy)carbonyl]benzoic acid",
+                ["O=C(O)c1ccc(C(=O)OOC)cc1", "COOC(=O)c1ccc(C(=O)O)cc1"],
+            ),
+            (
+                "2-{[(propan-2-yl)peroxy]carbonyl}benzoic acid",
+                ["CC(C)OOC(=O)c1ccccc1C(=O)O", "O=C(O)c1ccccc1C(=O)OOC(C)C"],
+            ),
+            (
+                "4-{[(chloromethyl)peroxy]carbonyl}benzoic acid",
+                ["O=C(O)c1ccc(C(=O)OOCCl)cc1", "ClCOOC(=O)c1ccc(C(=O)O)cc1"],
+            ),
+            (
+                "4-[(methylperoxy)carbonothioyl]benzoic acid",
+                ["O=C(O)c1ccc(C(=S)OOC)cc1", "COOC(=S)c1ccc(C(=O)O)cc1"],
+            ),
+            (
+                "4-(methoxycarbonyl)benzoic acid",
+                ["O=C(O)c1ccc(C(=O)OC)cc1", "COC(=O)c1ccc(C(=O)O)cc1"],
+            ),
+            (
+                "methyl benzenecarboperoxoate",
+                ["COOC(=O)c1ccccc1", "O=C(OOC)c1ccccc1"],
             ),
         ] {
-            let name = name_smiles(smiles, &Default::default()).unwrap();
-            assert_eq!(name.text, expected, "{smiles}");
-            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
-            assert_eq!(
-                crate::test_support::canonical_smiles(smiles).unwrap(),
-                crate::test_support::canonical_smiles(&parsed).unwrap(),
-                "{}",
-                name.text
-            );
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            let canonical = crate::test_support::canonical_smiles(&parsed).unwrap();
+            for smiles in inputs {
+                let name = name_smiles(smiles, &Default::default()).unwrap();
+                assert_eq!(name.text, expected, "{smiles}");
+                assert_eq!(
+                    crate::test_support::canonical_smiles(smiles).unwrap(),
+                    canonical,
+                    "{smiles} -> {expected}"
+                );
+            }
         }
     }
 

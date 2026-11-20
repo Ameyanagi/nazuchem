@@ -240,20 +240,25 @@ pub fn ester_single_oxygen(m: &Molecule, g: &PerceivedGroup) -> Option<usize> {
         .copied()
         .find(|n| m.atoms[n].symbol == "O" && (m.degree(*n) == 2 || m.atoms[n].charge == -1))
 }
-// Provenance: fn peroxy_ester_single_oxygen | port
+// Provenance: fn peroxy_ester_single_oxygen | adapted
 // Source: openclatura | src/openclatura/group_atom_roles.py::peroxy_ester_single_oxygen
-pub fn peroxy_ester_single_oxygen(m: &Molecule, g: &PerceivedGroup) -> Option<usize> {
-    g.atoms_involved.iter().copied().find(|n| {
-        m.atoms[n].symbol == "O"
-            && m.get_bond(*n, g.attachment_carbon).is_none()
-            && m.degree(*n) == 2
-    })
+fn peroxy_ester_single_oxygen(group: &PerceivedGroup) -> Option<usize> {
+    // Either oxygen is outside the parent when the acyl center is on a ring.
+    // The CarbonLink role identifies the one that carries the organyl group.
+    group
+        .descriptor
+        .as_ref()?
+        .ligands
+        .iter()
+        .find_map(|ligand| {
+            (ligand.role == LigandRole::CarbonLink && ligand.element == "O").then_some(ligand.atom)
+        })
 }
 // Provenance: fn ester_or_peroxy_single_oxygen | port
 // Source: openclatura | src/openclatura/group_atom_roles.py::ester_or_peroxy_single_oxygen
 pub fn ester_or_peroxy_single_oxygen(m: &Molecule, g: &PerceivedGroup) -> Option<usize> {
     if RULES.prefixes.peroxy_ester_groups.contains(&g.key) {
-        peroxy_ester_single_oxygen(m, g)
+        peroxy_ester_single_oxygen(g)
     } else {
         ester_single_oxygen(m, g)
     }
@@ -451,7 +456,7 @@ pub fn exclude_nonparent_group_atoms(
         let selected = if g.key == "anhydride" {
             bridge_oxygen(m, g)
         } else if family("peroxy_ester") {
-            peroxy_ester_single_oxygen(m, g)
+            peroxy_ester_single_oxygen(g)
         } else if family("ester_like") {
             ester_single_oxygen(m, g)
         } else if family("sulfonyl") {
