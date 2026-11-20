@@ -9,6 +9,7 @@ use crate::{
     graph::{Atom, AtomId, BondId, Element, FragmentId, Graph, GraphError, StereoReference},
     parse_tree::{Arena, NodeId},
     smiles, valence,
+    xml_declarations::RING_TYPE_VAL,
 };
 use std::collections::BTreeMap;
 
@@ -54,7 +55,14 @@ impl FragmentManager {
         labels: &str,
     ) -> Result<FragmentId, GraphError> {
         let fragment_type = arena[token].attribute("type").unwrap_or("");
-        let fragment = self.build_smiles(smiles, fragment_type, labels)?;
+        let fragment = smiles::build_fragment_with_token_dialect(
+            &mut self.graph,
+            smiles,
+            fragment_type,
+            labels,
+            fragment_type == RING_TYPE_VAL,
+        )?;
+        self.register_fragment(fragment);
         self.graph.fragment_mut(fragment).sub_type =
             arena[token].attribute("subType").unwrap_or("").into();
         self.graph.fragment_mut(fragment).token_attributes = arena[token]
