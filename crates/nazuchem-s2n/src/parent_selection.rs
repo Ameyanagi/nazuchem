@@ -82,6 +82,7 @@ struct ParentScore {
     assembly_junctions: Option<(Vec<LocantKey>, Vec<LocantKey>)>,
     split_acyl: usize,
     suffix_unsaturation_locants: Option<(Vec<usize>, Vec<usize>, Vec<usize>)>,
+    retained_locants: Option<(Vec<LocantKey>, Vec<LocantKey>)>,
     attached_prefixes: i64,
     assembly_substituent_locants: Option<Vec<LocantKey>>,
     assembly_substituent_citation: Option<AssemblyCitation>,
@@ -377,6 +378,7 @@ fn score(
         double_bonds: -double,
         split_acyl,
         suffix_unsaturation_locants: None,
+        retained_locants: None,
         attached_prefixes: -attached,
         assembly_substituent_locants: None,
         assembly_substituent_citation: None,
@@ -640,7 +642,7 @@ fn prefer_suffix_and_unsaturation_locants(
         // Ordinary monocyclic carbocycles have neither fixed locant maps nor
         // indicated/hydro hydrogen. Their suffix and unsaturation locants
         // can be compared without recursively naming substituent branches.
-        // Other rings keep the existing assembled-name comparison.
+        // Retained rings use intrinsic numbering and template locants.
         for &i in &tied {
             let selection = &candidates[i].1;
             if selection.requires_fixed_substituent_start()
@@ -650,6 +652,7 @@ fn prefer_suffix_and_unsaturation_locants(
                 })
                 || super::parent_pipeline::resolve_retained_parent(mol, selection).is_some()
             {
+                prefer_retained_locants(mol, candidates, &tied, principal);
                 return;
             }
         }
@@ -686,6 +689,122 @@ fn prefer_suffix_and_unsaturation_locants(
     }
     for (i, key) in keys {
         candidates[i].0.suffix_unsaturation_locants = Some(key);
+    }
+}
+
+/// Compare like retained hydrides using their own numberings. A saturated
+/// monocycle has no hydrogenation locants. In a fully conjugated carbocyclic
+/// template with only endocyclic pi bonds, the saturated sites bear hydro.
+// Provenance: fn prefer_retained_locants | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_selection.rs::prefer_retained_locants
+fn prefer_retained_locants(
+    mol: &Molecule,
+    candidates: &mut [(ParentScore, ParentSelection)],
+    tied: &[usize],
+    principal: &[usize],
+) {
+    use super::rules::retained::is_saturated_ring_site;
+    let mut parent_name = None;
+    let mut keys = Vec::new();
+    for &i in tied {
+        let selection = &candidates[i].1;
+        let Some(retained) = super::parent_pipeline::resolve_retained_parent(mol, selection) else {
+            return;
+        };
+        if parent_name.get_or_insert_with(|| retained.name.clone()) != &retained.name {
+            return;
+        }
+        let ring = selection.atom_set();
+        // Nonstandard bonding numbers precede suffix locants (P-44.4.1.3).
+        // Only compare locants after proving standard bonding throughout.
+        if ring.iter().any(|&a| {
+            let atom = &mol.atoms[&a];
+            let bonding = atom.total_h_count
+                + mol
+                    .get_neighbors(a)
+                    .iter()
+                    .map(|&b| mol.bond_order(a, b))
+                    .sum::<usize>();
+            atom.charge != 0
+                || atom.element().is_none_or(|e| bonding != e.standard_valence)
+                || mol
+                    .get_neighbors(a)
+                    .iter()
+                    .any(|&b| !ring.contains(&b) && mol.bond_order(a, b) != 1)
+        }) {
+            return;
+        }
+        let saturated: Vec<_> = ring
+            .iter()
+            .copied()
+            .filter(|&a| is_saturated_ring_site(mol, a, &ring))
+            .collect();
+        let fused = !retained.locant_maps.is_empty();
+        if fused {
+            if ring.iter().any(|&a| {
+                let neighbors = mol.get_neighbors(a);
+                mol.atoms[&a].symbol != "C"
+                    || neighbors.iter().any(|&b| mol.bond_order(a, b) > 2)
+                    || neighbors
+                        .iter()
+                        .filter(|&&b| mol.bond_order(a, b) == 2)
+                        .count()
+                        > 1
+            }) || !super::retained_fused_templates::retained_parent_metadata(&retained.name)
+                .is_some_and(|m| {
+                    !m.fusion_locants.is_empty() && 2 * m.mancude_double_bonds == ring.len()
+                })
+            {
+                return;
+            }
+        } else if selection.requires_fixed_substituent_start()
+            || saturated.len() != ring.len()
+            || ring.iter().filter(|a| mol.atoms[a].symbol != "C").count() != 1
+        {
+            return;
+        }
+        let (path, map) = super::numbering::choose_parent_numbering(
+            mol,
+            &Default::default(),
+            &selection.paths,
+            principal,
+            None,
+            &BTreeMap::new(),
+            &retained.locant_maps,
+            true,
+            Some(&retained.name),
+            false,
+            Default::default(),
+            None,
+        );
+        let map = map.unwrap_or_else(|| {
+            path.into_iter()
+                .enumerate()
+                .map(|(n, a)| (a, (n + 1).to_string()))
+                .collect()
+        });
+        let locants = |atoms: &[usize]| {
+            let mut keys: Vec<_> = atoms
+                .iter()
+                .filter_map(|a| map.get(a))
+                .map(|l| retained_locant_sort_key(l))
+                .collect();
+            keys.sort();
+            keys
+        };
+        keys.push((
+            locants(principal),
+            if fused {
+                locants(&saturated)
+            } else {
+                Vec::new()
+            },
+        ));
+    }
+    if keys.iter().all(|k| k.1.len() == keys[0].1.len()) {
+        for (&i, key) in tied.iter().zip(keys) {
+            candidates[i].0.retained_locants = Some(key);
+        }
     }
 }
 
@@ -2137,6 +2256,42 @@ mod tests {
         ] {
             for smiles in inputs {
                 assert_eq!(name(smiles), expected, "{smiles}");
+            }
+        }
+    }
+
+    #[test]
+    fn tied_retained_parents_prefer_suffix_and_hydro_locants_before_prefix_count() {
+        for (expected, inputs) in [
+            (
+                "7-[(3-methyl-5,8-dihydronaphthalen-2-yl)oxy]-1,2-dihydronaphthalene",
+                [
+                    "C1=CCCc2cc(ccc12)Oc1c(C)cc2CC=CCc2c1",
+                    "Cc1cc2CC=CCc2cc1Oc1ccc2C=CCCc2c1",
+                ],
+            ),
+            (
+                "4-[(5-hydroxy-4-methylpiperidin-3-yl)oxy]piperidin-2-ol",
+                ["N1C(O)CC(OC2CNCC(O)C2C)CC1", "CC1C(O)CNCC1OC1CC(O)NCC1"],
+            ),
+            // The four-coordinate sulfur precedes the lower suffix locant.
+            (
+                "4-[(2-hydroxythian-4-yl)oxy]-1,1-dimethylthian-3-ol",
+                [
+                    "[S]1(C)(C)CC(O)C(OC2CC(O)SCC2)CC1",
+                    "S1C(O)CC(OC2C(O)C[S](C)(C)CC2)CC1",
+                ],
+            ),
+            // Both suffix locants are 3, so P-45.2.1 selects the methylated ring.
+            (
+                "5-[(3-hydroxypiperidin-4-yl)oxy]-4-methylpiperidin-3-ol",
+                ["N1CC(O)C(OC2CNCC(O)C2C)CC1", "CC1C(O)CNCC1OC1C(O)CNCC1"],
+            ),
+        ] {
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            for smiles in inputs {
+                assert_eq!(name(smiles), expected, "{smiles}");
+                crate::test_support::verify_identity(smiles, &parsed).unwrap();
             }
         }
     }
