@@ -4,6 +4,7 @@
 // Source: openclatura | src/openclatura/fusion/mancude.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/fusion/mancude.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/unit/test_fusion_pi_redistribution.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/mancude.rs | issue #15
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura parent bond-state and hydrogen derivative proofs, extended by local protonated-H and suffix-composition entry points.
@@ -127,6 +128,18 @@ pub(super) fn all_single(mol: &Molecule, id: usize) -> bool {
     mol.get_neighbors(id)
         .iter()
         .all(|&n| mol.get_bond(id, n).is_some_and(|b| b.order == 1))
+}
+// Provenance: fn neutral_hydro_heteroatom | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/mancude.rs::neutral_hydro_heteroatom
+pub(super) fn neutral_hydro_heteroatom(mol: &Molecule, id: usize) -> bool {
+    let atom = &mol.atoms[&id];
+    matches!(atom.symbol.as_str(), "N" | "P" | "As" | "Si" | "B")
+        && atom.charge == 0
+        && !atom.is_aromatic
+        && all_single(mol, id)
+        && atom
+            .element()
+            .is_some_and(|element| atom.total_h_count + mol.degree(id) == element.standard_valence)
 }
 // Provenance: fn bonding_number | adapted
 // Source: openclatura | src/openclatura/fusion/mancude.py::inline in prove_pi_redistribution
@@ -787,13 +800,10 @@ pub(super) fn prove_pi_redistribution(
         if value.symbol == "C" || neutral_lambda_oxo_bonding_number(mol, id).is_some() {
             continue;
         }
-        if value.symbol != "N"
-            || value.charge != 0
-            || value.is_aromatic
-            || parent_degree(mol, atoms, id) != 2
-            || value.total_h_count + mol.degree(id) != 3
-            || !all_single(mol, id)
-        {
+        // P-31.2.1 permits hydro prefixes at these neutral ring sites.
+        // For a fused heteranthrene the two lost pi sites need not have
+        // shared a bond; redistribution keeps the flanking arenes intact.
+        if parent_degree(mol, atoms, id) != 2 || !neutral_hydro_heteroatom(mol, id) {
             return Ok(None);
         }
     }

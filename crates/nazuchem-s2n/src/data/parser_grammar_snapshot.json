@@ -149,6 +149,13 @@
       "phenothiatellurine",
       "phenoselenatellurine",
       "phosphanthrene",
+      "10H-phenoxasiline",
+      "10H-phenoxagermine",
+      "10H-phenoxastannine",
+      "10H-phenoxabismine",
+      "10H-phenoxaborinine",
+      "phenophospharsinine",
+      "boranthrene",
       "arsanthrene",
       "silanthrene",
       "phenazaphosphinine",
@@ -1847,6 +1854,90 @@
       ],
       "fusion_stems": [
         "phosphanthreno"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "10H-phenoxasiline": {
+      "parent_stems": [
+        "phenoxasilin"
+      ],
+      "substituent_stems": [
+        "phenoxasilin"
+      ],
+      "fusion_stems": [
+        "phenoxasilino"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "10H-phenoxagermine": {
+      "parent_stems": [
+        "phenoxagermin"
+      ],
+      "substituent_stems": [
+        "phenoxagermin"
+      ],
+      "fusion_stems": [
+        "phenoxagermino"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "10H-phenoxastannine": {
+      "parent_stems": [
+        "phenoxastannin"
+      ],
+      "substituent_stems": [
+        "phenoxastannin"
+      ],
+      "fusion_stems": [
+        "phenoxastannino"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "10H-phenoxabismine": {
+      "parent_stems": [
+        "phenoxabismin"
+      ],
+      "substituent_stems": [
+        "phenoxabismin"
+      ],
+      "fusion_stems": [
+        "phenoxabismino"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "10H-phenoxaborinine": {
+      "parent_stems": [
+        "phenoxaborinin"
+      ],
+      "substituent_stems": [
+        "phenoxaborinin"
+      ],
+      "fusion_stems": [
+        "phenoxaborinino"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "phenophospharsinine": {
+      "parent_stems": [
+        "phenophospharsinin"
+      ],
+      "substituent_stems": [
+        "phenophospharsinin"
+      ],
+      "fusion_stems": [
+        "phenophospharsinino"
+      ],
+      "derivative_status": "production_safe"
+    },
+    "boranthrene": {
+      "parent_stems": [
+        "boranthren"
+      ],
+      "substituent_stems": [
+        "boranthren"
+      ],
+      "fusion_stems": [
+        "boranthreno"
       ],
       "derivative_status": "production_safe"
     },

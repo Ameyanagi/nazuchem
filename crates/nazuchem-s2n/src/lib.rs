@@ -3206,6 +3206,22 @@ mod tests {
             ),
             // P-25.2.2.2 (P, As, Si) and P-25.2.2.3 (N with P or As): the PIN is the
             // mancude ring; P-31.2.1 hydro prefixes give the usual 5,10-dihydro forms.
+            ("c1ccc2c(c1)Oc1ccccc1[SiH2]2", "10H-phenoxasiline"),
+            (
+                "c1ccc2c(c1)Oc1ccc3ccccc3c1[SiH2]2",
+                "12H-benzo[a]phenoxasiline",
+            ),
+            ("c1ccc2c(c1)Oc1ccccc1[GeH2]2", "10H-phenoxagermine"),
+            ("c1ccc2c(c1)Oc1ccccc1[SnH2]2", "10H-phenoxastannine"),
+            ("c1ccc2c(c1)Oc1ccccc1[BiH]2", "10H-phenoxabismine"),
+            ("c1ccc2c(c1)Oc1ccccc1B2", "10H-phenoxaborinine"),
+            ("c1ccc2c(c1)P=C1C=CC=CC1=[As]2", "phenophospharsinine"),
+            (
+                "c1ccc2c(c1)Pc1ccccc1[AsH]2",
+                "5,10-dihydrophenophospharsinine",
+            ),
+            ("c1ccc2c(c1)B=C1C=CC=CC1=B2", "boranthrene"),
+            ("c1ccc2c(c1)Bc1ccccc1B2", "5,10-dihydroboranthrene"),
             ("c1ccc2c(c1)P=C1C=CC=CC1=P2", "phosphanthrene"),
             ("c1ccc2pc3ccccc3pc2c1", "phosphanthrene"),
             ("c1ccc2c(c1)Pc1ccccc1P2", "5,10-dihydrophosphanthrene"),
@@ -3236,6 +3252,22 @@ mod tests {
                 "5,5,10,10-tetramethyl-5,10-dihydrosilanthrene",
             ),
             ("c1ccc2c(c1)P=C1C=Cc3ccccc3C1=P2", "benzo[a]phosphanthrene"),
+            (
+                "c1ccc2c(c1)Pc1ccc3ccccc3c1P2",
+                "7,12-dihydrobenzo[a]phosphanthrene",
+            ),
+            (
+                "c1ccc2c(c1)[AsH]c1ccc3ccccc3c1[AsH]2",
+                "7,12-dihydrobenzo[a]arsanthrene",
+            ),
+            (
+                "c1ccc2c(c1)[SiH2]c1ccc3ccccc3c1[SiH2]2",
+                "7,12-dihydrobenzo[a]silanthrene",
+            ),
+            (
+                "c1ccc2c(c1)Bc1ccc3ccccc3c1B2",
+                "7,12-dihydrobenzo[a]boranthrene",
+            ),
             (
                 "c1ccc2c(c1)P=C1C=Cc3ccccc3C1=N2",
                 "benzo[c]phenazaphosphinine",
@@ -3425,11 +3457,9 @@ mod tests {
             ("O=C1CC=C2Oc3cc4[N+](C)(C)c5ccccc5Sc4cc3NC2=C1", &fallback),
             ("OC(=O)c1ccc2nc3c(cc(=O)c4ccccc34)oc2c1", &unregistered),
             ("C[N+]1(C)c2ccccc2Sc2cc3Oc4ccccc4N(C)c3cc21", &fallback),
-            // #15: pheno...ine pairs (P-25.2.2.3) and boranthrene (P-25.2.2.2)
-            // without a template keep their dibenzo names, not preferred.
-            ("c1ccc2c(c1)Oc1ccccc1[SiH2]2", &unregistered),
-            ("Cc1ccc2Oc3ccccc3Bc2c1", &unregistered),
-            ("c1ccc2c(c1)B=C1C=CC=CC1=B2", &unregistered),
+            // #15: the pheno...ine family includes this unregistered S/Si
+            // component (P-25.2.2.3) even inside a larger fused ring system.
+            ("c1ccc2c(c1)Sc1ccc3ccccc3c1[SiH2]2", &unregistered),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(&name.status, status, "{smiles}: {}", name.text);

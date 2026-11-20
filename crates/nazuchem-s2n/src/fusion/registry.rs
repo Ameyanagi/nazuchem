@@ -2011,7 +2011,7 @@ mod tests {
                 .iter()
                 .filter(|c| c.spec.parent_hydride_only)
                 .count(),
-            31
+            38
         );
         // P-25.2.2.2 and P-25.2.2.3 PINs; P-25.3.2.2.2 turns the final 'e'
         // into 'o' for the fusion prefix.
@@ -2102,6 +2102,7 @@ mod tests {
                 "phenotellurastibinine",
                 "phenotellurastibinino",
             ),
+            ("boranthrene", "boranthrene", "boranthreno"),
             ("phosphanthrene", "phosphanthrene", "phosphanthreno"),
             ("arsanthrene", "arsanthrene", "arsanthreno"),
             ("silanthrene", "silanthrene", "silanthreno"),
@@ -2145,6 +2146,7 @@ mod tests {
         assert!(key("telluranthrene") < key("phosphanthrene"));
         assert!(key("phosphanthrene") < key("arsanthrene"));
         assert!(key("arsanthrene") < key("silanthrene"));
+        assert!(key("silanthrene") < key("boranthrene"));
     }
     #[test]
     fn parent_hydride_components_are_unregistered_for_fused_ring_derivatives() {

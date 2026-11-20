@@ -10,6 +10,7 @@
 // Source: openclatura | tests/unit/test_fused_bonds.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_locant_elision.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_audit_reconstruction.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_pipeline.rs | issue #15
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura parent planning adapted to native graph/CIP with original rendered-parent status policy and ring-face parity proof.
@@ -143,36 +144,11 @@ fn mark_fusion_plan_status(mol: &Molecule, plan: &super::fusion::model::FusionPa
     mark_retained_parent_status(mol, &plan.rendered_base_name);
     if super::fusion::registry::fusion_component_registry()
         .has_senior_unregistered_retained_component(mol, plan)
+        || bypasses_heterotricyclic_parent(mol, plan)
     {
         mol.mark_name(NameStatus::NotPreferred(
             NameReason::UnregisteredRetainedComponent,
         ));
-    }
-    // P-25.2.2.2, P-25.2.2.3: two benzene rings fused to a 1,4-diheterabenzene
-    // are a boranthrene (the other heteranthrenes have templates) or, with
-    // different heteroatoms, a pheno...ine. A fusion name for that whole ring
-    // system means the pair has no template, so the name is not the PIN.
-    let faces = &plan.numbering.selected_face_model.faces;
-    let hetero = |face: &super::fusion::model::Face| -> Vec<usize> {
-        let ring = face.atom_cycle.iter().copied();
-        ring.filter(|a| mol.atoms[a].symbol != "C").collect()
-    };
-    if let Some(middle) = faces.iter().find(|face| hetero(face).len() == 2)
-        && faces.len() == 3
-        && faces.iter().all(|face| face.size == 6)
-        && faces.iter().filter(|face| hetero(face).is_empty()).count() == 2
-        && middle.atom_cycle.iter().all(|a| {
-            mol.atoms[a].symbol != "C"
-                || faces.iter().filter(|f| f.atom_cycle.contains(a)).count() == 2
-        })
-    {
-        let pair = hetero(middle);
-        let (first, second) = (&mol.atoms[&pair[0]].symbol, &mol.atoms[&pair[1]].symbol);
-        if mol.get_bond(pair[0], pair[1]).is_none() && (first != second || first == "B") {
-            mol.mark_name(NameStatus::NotPreferred(
-                NameReason::UnregisteredRetainedComponent,
-            ));
-        }
     }
     // PIN fusion names use [1,2]oxazole and [1,2]thiazole (P-25.3.2.1.2).
     if ["isoxazole", "isothiazole"]
@@ -205,6 +181,59 @@ fn mark_fusion_plan_status(mol: &Molecule, plan: &super::fusion::model::FusionPa
     if repeats_base {
         mol.mark_name(NameStatus::Unverified(NameReason::FusionMultiparent));
     }
+}
+
+// P-25.2.2.2 and P-25.2.2.3 define a single three-ring component
+// when two benzene rings flank a 1,4-diheterabenzene. By P-25.3.2.4(b),
+// it is senior to a smaller parent containing the same heteroatoms.
+// Provenance: fn bypasses_heterotricyclic_parent | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_pipeline.rs::bypasses_heterotricyclic_parent
+fn bypasses_heterotricyclic_parent(
+    mol: &Molecule,
+    plan: &super::fusion::model::FusionParentPlan,
+) -> bool {
+    let faces = &plan.numbering.selected_face_model.faces;
+    for parent in &plan.ast.component_occurrences {
+        if !plan.ast.parent_occurrences.contains(&parent.occurrence_id)
+            || parent.covered_face_ids.len() >= 3
+        {
+            continue;
+        }
+        for middle in faces
+            .iter()
+            .filter(|face| face.size == 6 && parent.covered_face_ids.contains(&face.id))
+        {
+            let hetero: Vec<_> = middle
+                .atom_cycle
+                .iter()
+                .enumerate()
+                .filter(|&(_, a)| mol.atoms[a].symbol != "C")
+                .collect();
+            let [(i, first), (j, second)] = hetero.as_slice() else {
+                continue;
+            };
+            if j - i != 3
+                || (mol.atoms[first].symbol == mol.atoms[second].symbol
+                    && !matches!(
+                        mol.atoms[first].symbol.as_str(),
+                        "N" | "O" | "S" | "Se" | "Te" | "P" | "As" | "Si" | "B"
+                    ))
+            {
+                continue;
+            }
+            let has_carbon_face_at = |edge: usize| {
+                faces.iter().any(|face| {
+                    face.size == 6
+                        && face.edge_cycle.contains(&middle.edge_cycle[edge])
+                        && face.atom_cycle.iter().all(|a| mol.atoms[a].symbol == "C")
+                })
+            };
+            if has_carbon_face_at((i + 1) % 6) && has_carbon_face_at((j + 1) % 6) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 // Provenance: fn mark_retained_parent_status | original

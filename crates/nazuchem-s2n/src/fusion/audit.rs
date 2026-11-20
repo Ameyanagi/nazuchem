@@ -2582,14 +2582,14 @@ fn has_consistent_derivative_operations(
         if a.symbol == "C" {
             continue;
         }
-        let neighbors = mol.get_neighbors(id);
-        if a.symbol != "N"
-            || a.charge != 0
-            || a.is_aromatic
-            || neighbors
-                .iter()
-                .any(|&n| mol.get_bond(id, n).is_none_or(|b| b.order != 1))
-            || a.total_h_count + neighbors.len() != 3
+        // For P, As, Si and B, require the reconstructed pi redistribution
+        // to prove that each locant marks a net gain of hydrogen.
+        if !mancude::neutral_hydro_heteroatom(mol, id)
+            || (a.symbol != "N"
+                && state
+                    .pi_redistribution
+                    .as_ref()
+                    .is_none_or(|proof| !proof.hydrogenated_atom_ids.contains(&id)))
         {
             return Ok(false);
         }

@@ -76,7 +76,7 @@ fn organic(symbol: &str) -> bool {
 fn aromatic(symbol: &str) -> bool {
     matches!(
         symbol,
-        "c" | "n" | "o" | "p" | "s" | "si" | "as" | "se" | "sb" | "te"
+        "b" | "c" | "n" | "o" | "p" | "s" | "si" | "as" | "se" | "sb" | "te" | "ge" | "sn" | "bi"
     )
 }
 

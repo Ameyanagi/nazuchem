@@ -165,7 +165,23 @@ pub fn add_parent_features(
                         .filter(|&v| v >= heavy_bonding)
                         .min()
                 });
-            if implied_valence != Some(heavy_bonding + atom.total_h_count) {
+            // A cited hydrogen at a conventional-valence site (such as Sn in
+            // 10H-phenoxastannine) can select a higher standard bonding number
+            // than the SMILES minimum for the heavy bonds alone.
+            let observed_valence = heavy_bonding + atom.total_h_count;
+            let indicated_standard_valence = atom.charge == 0
+                && atom
+                    .element()
+                    .is_some_and(|e| e.standard_valence == observed_valence)
+                && parts
+                    .retained_parent_metadata
+                    .as_ref()
+                    .is_some_and(|metadata| {
+                        locants
+                            .get(&idx)
+                            .is_some_and(|locant| metadata.default_indicated_h.contains(locant))
+                    });
+            if implied_valence != Some(observed_valence) && !indicated_standard_valence {
                 return Err(format!(
                     "openclatura: retained parent hydrogen state for {} is not supported",
                     atom.symbol

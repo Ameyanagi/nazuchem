@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "56b8c59349f077b4550e8f57d1fe1fd098bccdd5dd79bf3a2d9516fa48b76076"
+sha256 = "3a7e89df856d95fe04da22991b5599bf145bba47e9ff0ba66c450aacc2b15cda"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "12c613375468c9eb66a50b7d4a067a18f8e0f4e9f34e117ddb832b865b639fb7"
+sha256 = "d41cc8bad251e4434d77461884b2843a488af1c82aae33eeb0a0a3162a3b665c"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1301,7 +1301,7 @@ sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/arylGroups.xml", license = "MIT" },
 ]
 notes = "Byte-preserved upstream data."
-sha256 = "6f81457d7baf3430dd40ffea5cfba2df83258535b2073cf59677e9f9782cdd5a"
+sha256 = "64a235a2713840811c2ba18b86fed30eff4637e7c76c7a8f5bccc7a9ea3c9865"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/arylSubstituents.xml"
@@ -1401,7 +1401,7 @@ sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/fusionComponents.xml", license = "MIT" },
 ]
 notes = "Byte-preserved upstream data."
-sha256 = "e78aafe162d998a6df4bedfd48b3f4b0446b7a67cec9726e56d7a2dce7be56c0"
+sha256 = "3fc1e1f3f19da407ad3c01af5dc3a04bb4812c34d7aa824c3cd9b4edf2d98b5f"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/germanTokens.xml"
@@ -4403,7 +4403,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/data/fusion_components.json", license = "MIT" },
 ]
 notes = "openclatura registry extended with retained-component status and additional senior components; not byte-identical."
-sha256 = "821afbd19c9b22ff96374d31f5030843f8430308d4a81568026db5ad82d69c65"
+sha256 = "7f93f62883a440be66445457af51e86a607cb03b276f70732035747bc99c0af5"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/fusion_composite_bridges.json"
@@ -4466,7 +4466,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "tests/data/parser_xml_resources/hwHeteroAtoms.json", license = "MIT" },
 ]
 notes = "openclatura runtime snapshot derived from six OPSIN XML resources; retained tokens/gates changed; not byte-identical. Unresolved: Underlying OPSIN XML revision is unrecorded in the inherited snapshot; direct XML-to-JSON tree comparison with 2.9.0 differs (normalized tokens, attributes and structure), so no exact OPSIN pin is asserted."
-sha256 = "c0469c0fcb1969d87eae2e4a58485960b674278273694db15fa5cdc625220be2"
+sha256 = "67b484d2da111bdde21d094169b366373445260f1236e7fbd96016b151cc570d"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/retained_fused_graph_templates.json"
@@ -4477,7 +4477,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "tests/roundtrip/test_retained_fused_production.py", license = "MIT" },
 ]
 notes = "openclatura locanted graph templates expanded from base_templates with local parent/numbering additions; not byte-identical."
-sha256 = "83ff9b49a884e059ac188ea42b071ed920804ac0d8012ea7e274a19d256a798f"
+sha256 = "1ad78e4c099950ee7aa26b4639fdb2f1aba7b5a1d097cf57a3577dae8dcdb0a4"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/retained_fused_hydrocarbon_templates.json"
@@ -4977,6 +4977,7 @@ path = "crates/nazuchem-s2n/src/fusion/mancude.rs"
 origin = "mixed"
 license = "MIT AND (MIT OR Apache-2.0)"
 sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/fusion/mancude.rs", ref = "issue #15", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/fusion/mancude.rs", ref = "issue #87", license = "MIT OR Apache-2.0" },
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/mancude.py", license = "MIT" },
   { project = "ReShiki", path = "src/naming/openclatura/fusion/mancude.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0" },
@@ -4989,6 +4990,7 @@ parts = [
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/mancude.py", license = "MIT", symbol = "inline in _external_pi_parent_delta" }], items = ["fn touches"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/mancude.py", license = "MIT", symbol = "inline in prove_pi_redistribution" }], items = ["fn parent_degree"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/mancude.py", license = "MIT", symbol = "inline in _single_bonded_parent_nitrogen" }], items = ["fn all_single"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/fusion/mancude.rs", ref = "issue #15", license = "MIT OR Apache-2.0", symbol = "neutral_hydro_heteroatom" }], items = ["fn neutral_hydro_heteroatom"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/mancude.py", license = "MIT", symbol = "inline in prove_pi_redistribution" }], items = ["fn bonding_number"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/mancude.py", license = "MIT", symbol = "indicated_hydrogen_parent_bond_model" }], items = ["fn indicated_hydrogen_parent_bond_model"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/mancude.py", license = "MIT", symbol = "_single_site_parent_model" }], items = ["fn single_site_parent_model"] },
@@ -5790,6 +5792,7 @@ path = "crates/nazuchem-s2n/src/parent_pipeline.rs"
 origin = "mixed"
 license = "MIT AND (MIT OR Apache-2.0)"
 sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/parent_pipeline.rs", ref = "issue #15", license = "MIT OR Apache-2.0" },
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/parent_pipeline.py", license = "MIT" },
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/parent_pipeline.rs", license = "MIT OR Apache-2.0" },
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/audit/relative_stereo.py", license = "MIT" },
@@ -5806,6 +5809,7 @@ parts = [
   { origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/parent_pipeline.rs", license = "MIT OR Apache-2.0", symbol = "mark_rendered_parent_status" }], items = ["fn mark_rendered_parent_status"] },
   { origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/parent_pipeline.rs", license = "MIT OR Apache-2.0", symbol = "mark_parent_hydride_status" }], items = ["fn mark_parent_hydride_status"] },
   { origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/parent_pipeline.rs", license = "MIT OR Apache-2.0", symbol = "mark_fusion_plan_status" }], items = ["fn mark_fusion_plan_status"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/parent_pipeline.rs", ref = "issue #15", license = "MIT OR Apache-2.0", symbol = "bypasses_heterotricyclic_parent" }], items = ["fn bypasses_heterotricyclic_parent"] },
   { origin = "original", sources = [{ project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/parent_pipeline.rs", license = "MIT OR Apache-2.0", symbol = "mark_retained_parent_status" }], items = ["fn mark_retained_parent_status"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/parent_pipeline.py", license = "MIT", symbol = "resolve_retained_parent" }], items = ["fn resolve_retained_parent"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/parent_pipeline.py", license = "MIT", symbol = "resolve_parent_hydride_plan" }], items = ["fn resolve_parent_hydride_plan"] },
