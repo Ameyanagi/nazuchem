@@ -564,3 +564,27 @@ fn peroxy_acyl_substituents_keep_unverified_ligand_and_isotope_citations() {
         );
     }
 }
+
+#[test]
+fn an_aminide_ring_assembly_can_cite_a_terminal_carbanion_in_its_prefix() {
+    // Issue #180. The ring assembly and carboxylate chain each have two
+    // anionic centres. The assembly's two aminide centres outrank the chain
+    // with one ide and one oate (P-72.7(a), (b)).
+    let expected = "5-(2-carboxylatobutan-4-id-1-yl)[1,1'-bi(cyclopentane)]-3,3'-bis(aminide)";
+    let parsed = name_to_smiles(expected).unwrap();
+    let budget = Budget::default();
+    let round_trip = canonical_smiles(&parsed, &budget).unwrap();
+    for input in [
+        "C1CC([NH-])CC1C2CC([NH-])CC2CC(C(=O)[O-])C[CH2-]",
+        "[CH2-]CC(C([O-])=O)CC1CC([NH-])CC1C2CC([NH-])CC2",
+    ] {
+        let name = smiles_to_name(input).unwrap();
+        assert_eq!(name.text, expected, "{input}");
+        assert_eq!(name.status, NameStatus::Preferred, "{input}");
+        assert_eq!(
+            canonical_smiles(input, &budget).unwrap(),
+            round_trip,
+            "{input}"
+        );
+    }
+}

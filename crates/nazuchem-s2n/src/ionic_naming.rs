@@ -205,20 +205,31 @@ pub(super) fn prepare_anion_parent(
             && !(hydro("added_hydrogen")
                 && (!parts.substituents.is_empty() || hydro("additive_hydrogen")))
     });
-    // A saturated substituent that cites its stem and attachment (`propan-2-yl`).
-    let saturated_attachment = parts.is_substituent
+    let saturated_substituent = parts.is_substituent
         && !parts.is_acyl_substituent
         && parts.attachment_order == 1
         && parts.retained_name.is_none()
         && parts.unsaturations.is_empty()
-        && parts.parent_length > 1
+        && parts.parent_length > 1;
+    // A saturated substituent that cites its stem and attachment (`propan-2-yl`).
+    let saturated_attachment = saturated_substituent
         && (parts.attachment_locant != "1"
             || super::assembly_parent::always_print_substituent_locant(parts));
+    // P-72.6.3: a terminal -CH2(-) on a saturated carbon-chain prefix
+    // takes a locanted -id- before the free valence, as in butan-4-id-1-yl.
+    let terminal_chain_anion = saturated_substituent
+        && !parts.is_ring
+        && parts.a_prefixes.is_empty()
+        && negative.len() == 1;
     let supported = |site: &&ChargeSite| {
         zwitterion
             || retained_supported
             || parts.retained_name.is_none() && site.symbol == "C" && !parts.is_substituent
             || site.symbol == "C" && site.locant == parts.attachment_locant && saturated_attachment
+            || site.symbol == "C"
+                && site.locant != parts.attachment_locant
+                && terminal_chain_anion
+                && mol.atoms[&site.atom].total_h_count == 2
     };
     if !negative.iter().all(supported) {
         return Ok(());
