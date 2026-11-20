@@ -38,6 +38,26 @@ pub fn validate_principal_charge_roles(
             "openclatura: mixed ester and anion principal citations are not supported".into(),
         );
     }
+    // The audited thioate equivalence covers R-C(=O)S(-) and R-C(=S)O(-)
+    // for carbon or hydrogen R. The same suffix attached to a heteroatom
+    // can still produce a draft name, but its round trip is unaudited.
+    if matches!(
+        key,
+        Some("acyl_anion_O_S_chain" | "acyl_anion_O_S_external")
+    ) && selected().any(|g| {
+        g.descriptor.as_ref().is_some_and(|d| {
+            d.centers.iter().any(|&c| {
+                mol.get_neighbors(c).iter().any(|n| {
+                    !d.ligands.iter().any(|l| l.atom == *n)
+                        && !matches!(mol.atoms[n].symbol.as_str(), "C" | "H")
+                })
+            })
+        })
+    }) {
+        mol.mark_name(nazuchem_ir::NameStatus::Unverified(
+            nazuchem_ir::NameReason::AnionParent,
+        ));
+    }
     // P-72.2.2.2.4: a neutral suffix such as amide would drop the charge of
     // its nitrogen (acetamide for acetylazanide).
     if selected().any(|g| {

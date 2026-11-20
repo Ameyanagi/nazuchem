@@ -4,6 +4,7 @@
 // Source: openclatura | src/openclatura/component_group_rules.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/component_group_rules.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: Nazuchem | crates/nazuchem-s2n/src/component_group_rules.rs | issue #141
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_group_rules.rs | issue #180
 // Source: openclatura | tests/fixtures/diverse_corpus.csv | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
@@ -206,6 +207,14 @@ pub fn is_carboxylate_group(g: &PerceivedGroup) -> bool {
             && d.ligands.len() == 2
             && d.ligands.iter().all(|l| l.element == "O")
     })
+}
+
+// Provenance: fn is_peroxy_acyl_anion | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_group_rules.rs::is_peroxy_acyl_anion
+pub fn is_peroxy_acyl_anion(g: &PerceivedGroup) -> bool {
+    g.descriptor
+        .as_ref()
+        .is_some_and(|d| d.family == "acyl" && d.derivative == "anion" && d.ligands.len() == 3)
 }
 
 // Provenance: fn is_carboxylic_acid_group | original

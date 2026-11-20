@@ -28,7 +28,8 @@ and peroxide class names, the bracketed letter-locanted acid suffix in
 acid-anion prefixes of chalcogen-replaced sulfinic and sulfonic acids, such as
 `sulfinothioato` (P-72.6.1, P-65.3.1.3), and of the selenium and tellurium
 acids, `selenonato`, `seleninato`, `telluronato` and `tellurinato`
-(P-65.6.2.3.1). Native `arylGroups.xml` and `fusionComponents.xml` tokens read
+(P-65.6.2.3.1), and `carboperoxoato` for the peroxycarboxylic acid anion
+prefix (P-65.1.4.1 and P-72.6.1). Native `arylGroups.xml` and `fusionComponents.xml` tokens read
 the pheno...ine ring systems that P-25.2.2.3 forms from Hantzsch-Widman names,
 such as `phenothiaselenine` and `10H-phenoselenarsinine`, and the PIN spellings
 `phenazaphosphinine` and `phenazarsinine`. The same token lists read
@@ -230,7 +231,7 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`34b2ae6ddc64f23c3c91952cad09795b27bd63ab5212b76cb57944482544266d`.
+`fadcffe2bc19fccca5003e893064fe84caba5b1d5ff992ace75a120ee84a5b4a`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph

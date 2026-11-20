@@ -453,11 +453,16 @@ fn resolve_acyl(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGrou
     }) {
         return (row.key.clone(), None);
     }
-    let mut sites = double.element.clone();
+    let mut es = vec![double.element.clone()];
     if let Some(s) = single {
-        sites.push('_');
-        sites.push_str(&s.element);
+        es.push(s.element.clone());
     }
+    // P-72.2.2.2.1.1: the two terminal O/S contributors have one suffix.
+    // Give them one key and rank so either drawing counts toward that suffix.
+    if d.derivative == "anion" && es.as_slice() == ["S", "O"] {
+        es.swap(0, 1);
+    }
+    let mut sites = es.join("_");
     if let Some(l) = leaving {
         sites.push('_');
         sites.push_str(&l.kind);
@@ -474,10 +479,6 @@ fn resolve_acyl(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGrou
         .get(&d.derivative)
         .cloned()
         .unwrap_or_default();
-    let mut es = vec![double.element.clone()];
-    if let Some(s) = single {
-        es.push(s.element.clone());
-    }
     let mut seniority = vec![policy.seniority.unwrap_or(60)];
     if policy.ranked_seniority {
         seniority[0] += rank(&double.element);
@@ -1751,6 +1752,10 @@ pub(super) fn is_anionic_group_key(key: &str) -> bool {
             | "carboxylate"
             | "ring_carboxylate"
             | "sulfonate"
+            | "acyl_anion_O_S_chain"
+            | "acyl_anion_O_S_external"
+            | "acyl_anion_O_O_O_chain"
+            | "acyl_anion_O_O_O_external"
     ) || key.starts_with("peroxolate_")
 }
 

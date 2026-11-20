@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "37ea476f8f17d0f92e838d922066a9a83f1666636dc7d9858e5561985caa96a5"
+sha256 = "c077dc0286920c6e8b3fd5bbac1fca2e1c6d7e8b12e4b92b4be038d3b0c9eaa5"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "7cf54ac19706be6e3cd2fa10d08b5da8a195a47b79bae22a3a4e03377c4c564e"
+sha256 = "5afecbffef8fa2d00a79294abf73809c9ae1d758e1a63d0ca2832ab5ff0f4177"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1631,8 +1631,8 @@ license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/simpleSubstituents.xml", license = "MIT" },
 ]
-notes = "OPSIN simple substituents with original native additions (issue #83): the P-72.6.1 acid-anion prefixes of chalcogen-replaced sulfinic and sulfonic acids (sulfinothioato through sulfonoditelluroato, and the mixed sulfonoselenothioato, sulfonoselenotelluroato and sulfonotellurothioato), and for issue #145 the selenium and tellurium acid-anion prefixes selenonato, seleninato, telluronato and tellurinato (P-65.6.2.3.1). Do not claim byte equality for this file."
-sha256 = "b0668ba0777208eb9341fdea56b2910aec0498abebe5d787ac0dc861659cfc18"
+notes = "OPSIN simple substituents with original native additions (issue #83): the P-72.6.1 acid-anion prefixes of chalcogen-replaced sulfinic and sulfonic acids (sulfinothioato through sulfonoditelluroato, and the mixed sulfonoselenothioato, sulfonoselenotelluroato and sulfonotellurothioato), and for issue #145 the selenium and tellurium acid-anion prefixes selenonato, seleninato, telluronato and tellurinato (P-65.6.2.3.1). Issue #180 adds the peroxycarboxylate prefix carboperoxoato (P-65.1.4.1 and P-72.6.1). Do not claim byte equality for this file."
+sha256 = "0e2308165461cd72e2214e86058e4f19a9555b0766879ddd882305c9fa0f8113"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/substituents.xml"
@@ -4285,12 +4285,14 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/component_group_rules.py", license = "MIT" },
   { project = "ReShiki", path = "src/naming/openclatura/component_group_rules.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/component_group_rules.rs", ref = "issue #141", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/component_group_rules.rs", ref = "issue #180", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/fixtures/diverse_corpus.csv", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
 ]
 notes = "Openclatura parent preprocessing and atom roles with local external-chain carboxylic selection."
 parts = [
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/component_group_rules.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "external_chain_carboxylic_parent" }], items = ["fn external_chain_carboxylic_parent"] },
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/component_group_rules.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "is_carboxylate_group" }], items = ["fn is_carboxylate_group"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/component_group_rules.rs", ref = "issue #180", license = "MIT OR Apache-2.0", symbol = "is_peroxy_acyl_anion" }], items = ["fn is_peroxy_acyl_anion"] },
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/component_group_rules.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "is_carboxylic_acid_group" }], items = ["fn is_carboxylic_acid_group"] },
   { origin = "port", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/group_atom_roles.py", license = "MIT", symbol = "bridge_oxygen" }], items = ["fn bridge_oxygen"] },
   { origin = "port", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/group_atom_roles.py", license = "MIT", symbol = "ester_single_oxygen" }], items = ["fn ester_single_oxygen"] },
@@ -5731,12 +5733,14 @@ sources = [
   { project = "openclatura", path = "tests/unit/test_analysis.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/roundtrip/test_acids.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/data/parser_xml_resources/arylSubstituents.json", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/namer.rs", ref = "issue #180", license = "MIT OR Apache-2.0" },
 ]
 notes = "Openclatura recursive substituent pipeline with local scope, status and acid attachment preservation."
 parts = [
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/namer.py", license = "MIT", symbol = "name_subgraph" }], items = ["fn name_subgraph_with_upstream"] },
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/namer.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "name_subgraph_without_attachment_stereo" }], items = ["fn name_subgraph_without_attachment_stereo"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/namer.py", license = "MIT", symbol = "_direct_amide_subgraph_prefix" }], items = ["fn direct_amide_prefix"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/namer.rs", ref = "issue #180", license = "MIT OR Apache-2.0", symbol = "can_cite_peroxycarboxylate_prefix" }], items = ["fn can_cite_peroxycarboxylate_prefix"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/namer.py", license = "MIT", symbol = "DirectSubgraphPrefix" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/namer.py", license = "MIT", symbol = "_direct_subgraph_prefix" }], items = ["fn direct_subgraph_prefix"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/namer.py", license = "MIT", symbol = "_select_subgraph_parent" }], items = ["fn select_subgraph_parent"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/namer.py", license = "MIT", symbol = "_collect_subgraph_substituents" }], items = ["fn collect_subgraph_substituents"] },

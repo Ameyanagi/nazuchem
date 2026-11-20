@@ -333,6 +333,8 @@
 		<token value="-N=O">nitroso</token>
 		<token value="-C(=O)O" functionalIDs="3">carboxy|carboxyl</token>
 		<token value="-C(=O)[O-]">carboxylato</token>
+		<!--P-65.1.4.1, P-72.6.1 peroxycarboxylic acid anion prefix-->
+		<token value="-C(=O)O[O-]">carboperoxoato</token>
 		<token value="-C(N)=N" usableAsAJoiner="yes" defaultInID="2">amidino|guanyl</token>
 
 		<token value="-C(=O)C(=O)O">oxalo</token>

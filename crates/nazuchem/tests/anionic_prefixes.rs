@@ -494,25 +494,33 @@ fn amide_nitrogen_anions_are_azanides() {
 
 #[test]
 fn peroxy_acid_anion_prefix_reads_back() {
-    // Issue #180. P-72.6.3: -O-O(-) is dioxidanidyl, formed like
-    // disulfanidyl, here on carbonyl. P-72.6.1 has no example of an `ato`
-    // prefix for a peroxy acid anion, so the names are not labelled
-    // preferred. P-72.7(b): the aminide is the suffix.
+    // Issue #180. P-72.6.1: the external -C(=O)OO(-) group uses
+    // carboperoxoate with its ending changed to -ato.
+    // P-72.7(b): the aminide is the suffix.
     for (smiles, expected) in [
-        ("[NH-]CC(=O)O[O-]", "1-(dioxidanidylcarbonyl)methanaminide"),
-        ("[O-]OC(=O)CC(=O)[O-]", "(dioxidanidylcarbonyl)acetate"),
+        ("[NH-]CC(=O)O[O-]", "1-carboperoxoatomethanaminide"),
+        ("[O-]OC(=O)CC(=O)[O-]", "carboperoxoatoacetate"),
+        ("[O-]OC(=O)c1ccccc1C(=O)[O-]", "2-carboperoxoatobenzoate"),
         (
-            "[O-]OC(=O)c1ccccc1C(=O)[O-]",
-            "2-(dioxidanidylcarbonyl)benzoate",
+            "[O-]OC(=O)CC(C(=O)O[O-])CC(=O)O[O-]",
+            "3-carboperoxoatopentanediperoxoate",
+        ),
+        (
+            "O=C(O[O-])C(CC(=O)O[O-])CC(=O)O[O-]",
+            "3-carboperoxoatopentanediperoxoate",
+        ),
+        (
+            "[O-]OC(=O)CC(C(=O)O[O-])(C(=O)O[O-])CC(=O)O[O-]",
+            "3,3-dicarboperoxoatopentanediperoxoate",
+        ),
+        (
+            "[O-]OC(=O)CCC(CC(=O)O[O-])CCC(=O)O[O-]",
+            "4-(carboperoxoatomethyl)heptanediperoxoate",
         ),
     ] {
         let name = smiles_to_name(smiles).unwrap();
         assert_eq!(name.text, expected, "{smiles}");
-        assert_eq!(
-            name.status,
-            NameStatus::Unverified(NameReason::AnionParent),
-            "{smiles}"
-        );
+        assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
         let parsed = name_to_smiles(&name.text).unwrap_or_else(|e| panic!("{expected}: {e:?}"));
         let budget = Budget::default();
         assert_eq!(
@@ -523,4 +531,36 @@ fn peroxy_acid_anion_prefix_reads_back() {
     }
     // The chalcogen analogues have no validated prefix.
     assert!(smiles_to_name("[S-]OC(=O)CC(=O)[O-]").is_err());
+}
+
+#[test]
+fn peroxy_acyl_substituents_keep_unverified_ligand_and_isotope_citations() {
+    for (smiles, expected, reason) in [
+        (
+            "[O-]OC(=O)CCC(CC(=O)O[S-])CCC(=O)O[O-]",
+            "4-[2-oxo-2-(sulfidooxy)ethyl]heptanediperoxoate",
+            NameReason::AnionParent,
+        ),
+        (
+            "[O-]OC(=O)CC([13C](=O)O[O-])CC(=O)O[O-]",
+            "3-(13C)carboperoxoatopentanediperoxoate",
+            NameReason::IsotopePlacement,
+        ),
+        (
+            "[O-]OC(=O)CC(C(=[18O])O[O-])CC(=O)O[O-]",
+            "3-{dioxidanidyl[(18O)oxo]methyl}pentanediperoxoate",
+            NameReason::IsotopePlacement,
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        assert_eq!(name.status, NameStatus::Unverified(reason), "{smiles}");
+        let parsed = name_to_smiles(&name.text).unwrap_or_else(|e| panic!("{expected}: {e:?}"));
+        let budget = Budget::default();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget),
+            canonical_smiles(smiles, &budget),
+            "{smiles} -> {expected} -> {parsed}"
+        );
+    }
 }

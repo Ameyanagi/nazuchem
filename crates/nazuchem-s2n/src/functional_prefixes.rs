@@ -135,6 +135,17 @@ fn descriptor_ester_prefix(
             &linker.element,
         )?;
     }
+    if d.family == "acyl"
+        && doubles[0].element == "S"
+        && terminal.element == "S"
+        && linkers.len() == 1
+    {
+        // P-65.6.3.3.7.1: -(CS)-SR is cited as (organylsulfanyl)carbonothioyl.
+        return Ok(Some(format!(
+            "(({}){base})",
+            strip_outer_parentheses(&ligand)
+        )));
+    }
     Ok(Some(format!(
         "({}{base})",
         strip_outer_parentheses(&ligand)
@@ -420,10 +431,8 @@ pub fn prefix_from_group(
     if is_carboxylate_group(group) {
         return Ok("carboxylato".into());
     }
-    // P-72.6.3: -O-O(-) is dioxidanidyl, formed like disulfanidyl, here on
-    // carbonyl. The preferred P-72.6.1 `ato` prefix of a peroxy acid anion
-    // has not been audited, so the name is not certified; a chalcogen
-    // analogue has no validated one.
+    // P-65.1.4.1 and P-72.6.1: replace the external acid anion suffix
+    // carboperoxoate's ending with -ato for a singly bonded substituent.
     if let Some(d) = &group.descriptor
         && d.family == "acyl"
         && d.derivative == "anion"
@@ -434,10 +443,7 @@ pub fn prefix_from_group(
         {
             return Err("openclatura: peroxy acid anion prefix not ported".into());
         }
-        context
-            .mol
-            .mark_name(NameStatus::Unverified(NameReason::AnionParent));
-        return Ok("(dioxidanidylcarbonyl)".into());
+        return Ok("carboperoxoato".into());
     }
     if RULES.functional_groups.get(&group.key).is_none()
         && let Some(d) = &group.descriptor
@@ -1228,6 +1234,10 @@ mod tests {
             (
                 "4-[(methylperoxy)carbonothioyl]benzoic acid",
                 ["O=C(O)c1ccc(C(=S)OOC)cc1", "COOC(=S)c1ccc(C(=O)O)cc1"],
+            ),
+            (
+                "4-[(methylsulfanyl)carbonothioyl]benzoic acid",
+                ["O=C(O)c1ccc(C(=S)SC)cc1", "CSC(=S)c1ccc(C(=O)O)cc1"],
             ),
             (
                 "4-(methoxycarbonyl)benzoic acid",
