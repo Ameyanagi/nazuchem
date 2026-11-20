@@ -2836,6 +2836,13 @@ mod tests {
                 "bis(4-phenoxyphenyl)phosphinic acid",
                 NameStatus::NotPreferred(NameReason::LinearPhane),
             ),
+            // P-41, P-65.6.3.2.3: the senior acid takes the suffix and
+            // the carbonate prefix keeps the four-ring phane skeleton intact.
+            (
+                "O=C(O)c1ccc(Oc2ccc(OC(=O)Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
+                "4-(4-{[(4-phenoxyphenoxy)carbonyl]oxy}phenoxy)benzoic acid",
+                NameStatus::NotPreferred(NameReason::LinearPhane),
+            ),
             // A phosphonate prefix under a senior nitrile keeps the full skeleton.
             (
                 "N#Cc1ccc(Oc2ccc(P(=O)(OC)Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",

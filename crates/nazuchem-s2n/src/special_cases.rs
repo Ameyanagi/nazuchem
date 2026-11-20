@@ -2095,7 +2095,16 @@ fn oxoacid_ester_name(
             continue;
         };
         let base = spec.ester_suffix.as_str();
-        if base.is_empty() {
+        // P-41, P-65.6.3.2.3: a free carboxylic acid takes the suffix.
+        // The carbonate is then a prefix on the acid parent.
+        if base.is_empty()
+            || base == "carbonate"
+                && groups.iter().any(|g| {
+                    matches!(g.key.as_str(), "carboxylic_acid" | "ring_carboxylic_acid")
+                        && g.is_principal_candidate
+                        && g.atom_ids().is_subset(atoms)
+                })
+        {
             continue;
         }
         let esters: Vec<_> = role

@@ -97,6 +97,7 @@ struct Unit<'a> {
 /// unbranched alkane chain or a benzene ring.
 struct Segment {
     atoms: AtomSet,
+    methyl_sites: Vec<usize>,
     /// Bonds to the neighbouring components and units, inner atom first.
     ports: Vec<(usize, usize)>,
 }
@@ -105,26 +106,35 @@ impl Segment {
     /// The prefix for the given attachment atoms. In an arm they are the atom
     /// towards the central group, then the atom towards the unit.
     fn name(&self, mol: &Molecule, ports: &[usize], central: bool) -> Option<String> {
-        let inside = |a: usize| {
-            mol.get_neighbors(a)
-                .iter()
-                .filter(|n| self.atoms.contains(n))
-                .count()
-        };
-        let first = *self.atoms.first()?;
         if let Some(prefix) = self.atom_prefix(mol, ports) {
             return Some(prefix.into());
         }
         if !self.atoms.iter().all(|a| mol.atoms[a].is_carbon()) || self.atoms.len() < 2 {
             return None;
         }
-        let ring = mol.atoms[&first].is_aromatic;
-        if ring && (self.atoms.len() != 6 || self.atoms.iter().any(|&a| inside(a) != 2)) {
+        let aromatic: AtomSet = self
+            .atoms
+            .iter()
+            .copied()
+            .filter(|a| mol.atoms[a].is_aromatic)
+            .collect();
+        let ring = !aromatic.is_empty();
+        if ring && (aromatic.len() != 6 || !central && !self.methyl_sites.is_empty()) {
+            return None;
+        }
+        let skeleton = if ring { &aromatic } else { &self.atoms };
+        let inside = |a: usize| {
+            mol.get_neighbors(a)
+                .iter()
+                .filter(|n| skeleton.contains(n))
+                .count()
+        };
+        if ring && aromatic.iter().any(|&a| inside(a) != 2) {
             return None;
         }
         // Walk the ring from any atom, or the chain from an end.
         let start = if ring {
-            first
+            *aromatic.first()?
         } else {
             *self.atoms.iter().find(|&&a| inside(a) == 1)?
         };
@@ -132,11 +142,11 @@ impl Segment {
         while let Some(&next) = mol
             .get_neighbors(path[path.len() - 1])
             .iter()
-            .find(|n| self.atoms.contains(n) && !path.contains(n))
+            .find(|n| skeleton.contains(n) && !path.contains(n))
         {
             path.push(next);
         }
-        if path.len() != self.atoms.len() {
+        if path.len() != skeleton.len() {
             return None;
         }
         let size = path.len();
@@ -152,7 +162,7 @@ impl Segment {
                 .into_iter()
                 .map(|n: Vec<usize>| n.into_iter().rev().collect()),
         );
-        let locants = numberings
+        let (_, methyl_locants, locants) = numberings
             .iter()
             .filter_map(|numbering| {
                 let mut locants = ports
@@ -160,22 +170,44 @@ impl Segment {
                     .map(|p| Some(numbering.iter().position(|a| a == p)? + 1))
                     .collect::<Option<Vec<_>>>()?;
                 if central {
-                    // P-29.3.2.2: lowest locants to the free valences.
+                    // P-29.3.2.2 and P-14.4: free valences take lower
+                    // locants before detachable prefixes.
                     locants.sort();
-                    Some((locants.clone(), locants))
+                    let mut methyl_locants = self
+                        .methyl_sites
+                        .iter()
+                        .map(|p| Some(numbering.iter().position(|a| a == p)? + 1))
+                        .collect::<Option<Vec<_>>>()?;
+                    methyl_locants.sort();
+                    Some((locants.clone(), methyl_locants, locants))
                 } else {
                     // P-15.3.1.2.2.4: the lowest locant is nearest to the
                     // unit and is cited last, as in ethane-2,1-diyl.
-                    Some((locants.iter().rev().copied().collect(), locants))
+                    Some((locants.iter().rev().copied().collect(), Vec::new(), locants))
                 }
             })
-            .min()?
-            .1;
+            .min()?;
         let cited = locants
             .iter()
             .map(usize::to_string)
             .collect::<Vec<_>>()
             .join(",");
+        let prefix = if methyl_locants.is_empty() {
+            String::new()
+        } else {
+            let locants = methyl_locants
+                .iter()
+                .map(usize::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            let count = methyl_locants.len();
+            let multiplier = if count > 1 {
+                multipliers::basic(count)
+            } else {
+                String::new()
+            };
+            format!("{locants}-{multiplier}methyl")
+        };
         Some(if !ring {
             // P-29.3.2.2: propane-1,2-diyl, ethane-1,1,2-triyl.
             format!(
@@ -185,9 +217,13 @@ impl Segment {
             )
         } else if ports.len() == 2 {
             // P-29.6.1: the retained prefix phenylene.
-            format!("{cited}-phenylene")
+            let separator = if prefix.is_empty() { "" } else { "-" };
+            format!("{prefix}{separator}{cited}-phenylene")
         } else {
-            format!("benzene-{cited}-{}yl", multipliers::basic(ports.len()))
+            format!(
+                "{prefix}benzene-{cited}-{}yl",
+                multipliers::basic(ports.len())
+            )
         })
     }
 
@@ -298,6 +334,25 @@ fn parts(mol: &Molecule, component: &AtomSet) -> Option<String> {
             && mol.bond_order(a, b) == 2
             && matches!(mol.atoms[&b].symbol.as_str(), "S" | "Se" | "Te")
     };
+    // A methyl substituent belongs to its aromatic linker segment. Retain
+    // the ring sites for numbering after assigning the free valences.
+    let methyl_sites: BTreeMap<_, _> = linker
+        .iter()
+        .filter_map(|&a| {
+            let atom = &mol.atoms[&a];
+            if !atom.is_carbon() || atom.is_aromatic || atom.total_h_count != 3 {
+                return None;
+            }
+            let mut neighbors = mol.get_neighbors(a).iter().copied().filter(heavy);
+            let b = neighbors.next()?;
+            (neighbors.next().is_none()
+                && linker.contains(&b)
+                && mol.atoms[&b].is_aromatic
+                && mol.atoms[&b].is_carbon()
+                && plain(a, b))
+            .then_some((a, b))
+        })
+        .collect();
     // Chains and aromatic rings are one component each; every other atom
     // stands alone, with its oxo groups.
     let joined: EdgeSet = mol
@@ -307,6 +362,8 @@ fn parts(mol: &Molecule, component: &AtomSet) -> Option<String> {
         .filter(|b| {
             chain(b.u) && chain(b.v)
                 || b.is_aromatic && mol.atoms[&b.u].is_carbon() && mol.atoms[&b.v].is_carbon()
+                || methyl_sites.get(&b.u) == Some(&b.v)
+                || methyl_sites.get(&b.v) == Some(&b.u)
                 || oxo(b.u, b.v)
                 || oxo(b.v, b.u)
         })
@@ -337,7 +394,14 @@ fn parts(mol: &Molecule, component: &AtomSet) -> Option<String> {
             return None;
         }
         owner.extend(atoms.iter().map(|&a| (a, segments.len())));
-        segments.push(Segment { atoms, ports });
+        segments.push(Segment {
+            methyl_sites: atoms
+                .iter()
+                .filter_map(|a| methyl_sites.get(a).copied())
+                .collect(),
+            atoms,
+            ports,
+        });
     }
     // P-51.4.1.1: four heterounits call for skeletal replacement names.
     if segments
@@ -374,11 +438,19 @@ fn parts(mol: &Molecule, component: &AtomSet) -> Option<String> {
             }
             arms.push(arm);
         }
-        if used != segments.len() || arms.iter().any(|arm| arm != &arms[0]) {
+        if used != segments.len()
+            || arms.len() != units.len()
+            || arms.iter().any(|arm| arm != &arms[0])
+        {
             return None;
         }
         let ports: Vec<_> = centre.ports.iter().map(|p| p.0).collect();
         let central = centre.name(mol, &ports, true)?;
+        let central = if !centre.methyl_sites.is_empty() && !arms[0].is_empty() {
+            format!("({central})")
+        } else {
+            central
+        };
         Some(match &arms[0][..] {
             [] if centre.atom_prefix(mol, &ports).is_some() => central,
             [] => format!("({central})"),
@@ -740,6 +812,18 @@ mod tests {
                 "c1ccccc1Oc2cc(Oc3ccccc3)cc(Oc4ccccc4)c2",
                 "1,1',1''-[benzene-1,3,5-triyltris(oxy)]tribenzene",
                 "1,3,5-triphenoxybenzene",
+            ),
+            // P-15.3.1.2.2.3 and P-29.6.1: methyl groups may substitute
+            // the central phenylene, after its free valences are numbered.
+            (
+                "c1ccccc1Oc2ccc(Oc3ccccc3)c(C)c2",
+                "1,1'-[(2-methyl-1,4-phenylene)bis(oxy)]dibenzene",
+                "2-methyl-1,4-diphenoxybenzene",
+            ),
+            (
+                "Cc1cc(Oc2ccccc2)cc(C)c1Oc1ccccc1",
+                "1,1'-[(2,6-dimethyl-1,4-phenylene)bis(oxy)]dibenzene",
+                "1,3-dimethyl-2,5-diphenoxybenzene",
             ),
             // P-15.3.1.2.2.1: benzene-1,2,4-triyltris(oxy).
             (
