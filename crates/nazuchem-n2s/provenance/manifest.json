@@ -54,11 +54,11 @@
     "resources/xml/simpleSubstituents.xml": "b0668ba0777208eb9341fdea56b2910aec0498abebe5d787ac0dc861659cfc18",
     "resources/xml/substituents.xml": "41a7f584e7d532dd21526bacd4078d34f8b8ec2df6b833b6f5347b63e3164a35",
     "resources/xml/suffixApplicability.dtd": "50e57c6484ac2ec522cb6ca30e33d25288a74a036ad03432a40db1bb59787c16",
-    "resources/xml/suffixApplicability.xml": "cd7a1b9abcbac03b751766dc0d32a91f7f5acbd7f55809af93a174429d283824",
+    "resources/xml/suffixApplicability.xml": "310671d969f7910ae94072847b3e2cf6aa9a6653cdacbbe2016ebb9fcbe4fe33",
     "resources/xml/suffixPrefix.xml": "5428dbc34ce8e458f81e36ccf456023284bcf8b822d2ada7de5b41e248a7d1c5",
     "resources/xml/suffixRules.dtd": "307af66d255095c9d117493c8bddf5e2b9dcc4741e998e7dd7fdcb38304d4daf",
-    "resources/xml/suffixRules.xml": "abb6d036f42ddf4f02002218c15a28f814b871c039885ce8f86075e66ea8fa21",
-    "resources/xml/suffixes.xml": "8586771b82976433512ec81ba3321d223a38b9815e4e252930c265484eedd42f",
+    "resources/xml/suffixRules.xml": "e237438d8f49c5db3951c5bd5c384a05a90f9a2c6064a8593897e3b0015b3c1a",
+    "resources/xml/suffixes.xml": "a315cec502ebde06425435e78f021aae329dddac39cb426b67e297d80e1e53d4",
     "resources/xml/tokenFiles.dtd": "3acb49df364b02a65ea20aef8d33758b047fa1426289be3811386a7450e57355",
     "resources/xml/tokenLists.dtd": "35ab7b9c52960ea27aa715dd73f1fadb5fc5c5e9081f8fdd9dd8967fdad96100",
     "resources/xml/unsaturators.xml": "d528b967c52d64a434563dc237d0a28e0784d1916784772381fe545c9bdf6bc1",
@@ -67,7 +67,7 @@
   },
   "resource_fingerprint": {
     "algorithm": "SHA256 of sorted resource UTF8 path, NUL, raw bytes, NUL for every resources entry",
-    "sha256": "48a8e4d31b3571dcdf371acf05020051b9692737cf84852e3d624e286f1d7b4c"
+    "sha256": "53e6783996fdc0b72e2cc4eb450ff370c35eaacec6015a4e12fe161f7e5da67f"
   },
   "development_export_sources": {
     "provenance/ExportComponents.java.txt": "8012e1f6090e0d3f594457f5d248193844dbc225d92437a3371c23af1169aae2",
@@ -290,6 +290,11 @@
       "grammar": "aminiumyl and aminiumylidene inline suffix tokens (IUPAC P-73.6 method (1)) with suffixApplicability and suffixRules entries for standard groups",
       "automata": [],
       "exporter": "None; dictionary tokens of the existing inline-suffix symbol, DFA table unchanged"
+    },
+    "carboxamidium_suffix": {
+      "resources": ["suffixes.xml", "suffixApplicability.xml", "suffixRules.xml"],
+      "change": "A complete carboxamidium suffix for standard groups, including bracketed multipliers under P-73.1.2.1 and Table 7.4",
+      "automata": []
     },
     "chalcogen_peroxy_names": {
       "resources": ["suffixes.xml", "suffixRules.xml", "suffixApplicability.xml", "functionalTerms.xml"],

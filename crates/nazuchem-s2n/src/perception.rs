@@ -519,7 +519,9 @@ fn resolve_acyl(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGrou
     let vals = [
         (
             "carbo",
-            if d.is_external {
+            if d.is_external && d.derivative == "amidium" && double.element == "O" {
+                "carbox".into()
+            } else if d.is_external {
                 "carbo".into()
             } else {
                 "".into()

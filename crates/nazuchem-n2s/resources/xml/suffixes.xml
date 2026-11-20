@@ -84,6 +84,8 @@
 al is allowed on standardGroup/aminoAcids but not on acidStems c.f. acetal != acetaldehyde-->
 	<tokenList tagname="suffix" type="root" subType="terminal" symbol="s">
 		<token value="al">al</token>
+		<!-- P-73.1.2.1: a whole suffix for bracketed bis(carboxamidium). -->
+		<token value="carboxamidium">carboxamidium</token>
 		<token value="tellanal">tellanal</token>
 	</tokenList>
 	<tokenList tagname="suffix" type="root" subType="terminal" symbol="ü">

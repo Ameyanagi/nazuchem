@@ -37,7 +37,10 @@ spare valence at boron to represent the mancude component. The mixed-ring
 tokens also cover oxygen paired with silicon, germanium, tin, bismuth or
 boron, and phosphorus paired with arsenic (P-22.2.2.1.6, P-25.2.2.3). A native `wordRules.xml` rule reads a
 dianhydride of three acid words (P-65.7.6.1). A native `simpleGroups.xml` token reads
-`cyanohydrazide` with the locants N and N′ (P-66.3.1.2.1, P-66.3.3.1). These additions only add dictionary tokens or a word rule to
+`cyanohydrazide` with the locants N and N′ (P-66.3.1.2.1, P-66.3.3.1). A native terminal
+`carboxamidium` entry in `suffixes.xml`, `suffixApplicability.xml`, and
+`suffixRules.xml` supports bracketed suffix multipliers such as
+`bis(carboxamidium)` (P-73.1.2.1 and Table 7.4). These additions only add dictionary tokens or a word rule to
 existing token lists, so the DFA tables are unchanged. `native_extensions` in
 the manifest records these changes.
 
@@ -217,7 +220,7 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`48a8e4d31b3571dcdf371acf05020051b9692737cf84852e3d624e286f1d7b4c`.
+`53e6783996fdc0b72e2cc4eb450ff370c35eaacec6015a4e12fe161f7e5da67f`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph

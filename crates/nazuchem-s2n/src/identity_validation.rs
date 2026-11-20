@@ -446,6 +446,80 @@ mod tests {
     }
 
     #[test]
+    // Provenance: fn tests::ring_external_amidium_suffixes_round_trip | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::ring_external_amidium_suffixes_round_trip
+    fn ring_external_amidium_suffixes_round_trip() {
+        use crate::test_support::{canonical_smiles, parse_strict};
+        use nazuchem_ir::{NameReason, NameStatus};
+
+        let budget = Default::default();
+        for (smiles, expected, status) in [
+            (
+                "[NH3+]C(=O)c1ccc(C(=O)[NH3+])cc1",
+                "benzene-1,4-bis(carboxamidium)",
+                NameStatus::Preferred,
+            ),
+            (
+                "[NH3+]C(=O)C1CCC(C(=O)[NH3+])CC1",
+                "cyclohexane-1,4-bis(carboxamidium)",
+                NameStatus::Preferred,
+            ),
+            (
+                "[NH3+]C(=O)c1cc(C(=O)[NH3+])cc(C(=O)[NH3+])c1",
+                "benzene-1,3,5-tris(carboxamidium)",
+                NameStatus::Preferred,
+            ),
+            (
+                "C[NH2+]C(=O)c1ccc(C(=O)[NH3+])cc1",
+                "N-methylbenzene-1,4-bis(carboxamidium)",
+                NameStatus::NotPreferred(NameReason::DiamideLocants),
+            ),
+            (
+                "[NH3+]C(=O)c1ccc(C(=O)[NH2+]C)cc1",
+                "N-methylbenzene-1,4-bis(carboxamidium)",
+                NameStatus::NotPreferred(NameReason::DiamideLocants),
+            ),
+            ("[NH3+]C(=O)c1ccccc1", "benzamidium", NameStatus::Preferred),
+            (
+                "[NH3+]C(=O)C1CCCCC1",
+                "cyclohexanecarboxamidium",
+                NameStatus::Preferred,
+            ),
+            (
+                "[NH3+]C(=S)c1ccc(C(=S)[NH3+])cc1",
+                "benzene-1,4-bis(carbothioamidium)",
+                NameStatus::Preferred,
+            ),
+            (
+                "[NH3+]C(=[Se])c1ccc(C(=[Se])[NH3+])cc1",
+                "benzene-1,4-bis(carboselenoamidium)",
+                NameStatus::Preferred,
+            ),
+            (
+                "[NH3+]C(=[Te])c1ccc(C(=[Te])[NH3+])cc1",
+                "benzene-1,4-bis(carbotelluroamidium)",
+                NameStatus::Preferred,
+            ),
+        ] {
+            let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+            let reconstructed = parse_strict(expected).unwrap();
+            assert_eq!(
+                canonical_smiles(&reconstructed).unwrap(),
+                canonical_smiles(smiles).unwrap(),
+                "{smiles} -> {expected} -> {reconstructed}",
+            );
+            for result in [
+                name_smiles(smiles, &budget),
+                crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+            ] {
+                let name = result.unwrap_or_else(|error| panic!("{smiles}: {error}"));
+                assert_eq!(name.text, expected, "{smiles}");
+                assert_eq!(name.status, status, "{smiles}");
+            }
+        }
+    }
+
+    #[test]
     // Provenance: fn tests::multiplied_amidium_n_locants_are_independent_of_atom_order | original
     // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::multiplied_amidium_n_locants_are_independent_of_atom_order
     fn multiplied_amidium_n_locants_are_independent_of_atom_order() {

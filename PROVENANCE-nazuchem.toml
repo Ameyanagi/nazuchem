@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "3a7e89df856d95fe04da22991b5599bf145bba47e9ff0ba66c450aacc2b15cda"
+sha256 = "f9dbc651503e5e01a6ac1a34e213d4daca3dca3c058efa9dbba18a58284727ab"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "d41cc8bad251e4434d77461884b2843a488af1c82aae33eeb0a0a3162a3b665c"
+sha256 = "f142f8f58ee74ed98e0af1372afe69803db9f556bc1fea70b8b054869df91cfe"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1661,8 +1661,8 @@ license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixApplicability.xml", license = "MIT" },
 ]
-notes = "OPSIN suffix applicability with original native edits: aminiumyl/aminiumylidene substituent suffixes (IUPAC P-73.6) and standardGroup entries for the added chalcogen peroxy acid, peroxol and tellanal suffixes (issue #26), the peroxy acid ate forms (issue #90) and the mixed peroxolate anions (issue #138). Do not claim byte equality for this file."
-sha256 = "cd7a1b9abcbac03b751766dc0d32a91f7f5acbd7f55809af93a174429d283824"
+notes = "OPSIN suffix applicability with original native edits: aminiumyl/aminiumylidene substituent suffixes (IUPAC P-73.6) and standardGroup entries for the added chalcogen peroxy acid, peroxol and tellanal suffixes (issue #26), the peroxy acid ate forms (issue #90) and the mixed peroxolate anions (issue #138). A local carboxamidium entry supports bracketed suffix multipliers (P-73.1.2.1). Do not claim byte equality for this file."
+sha256 = "310671d969f7910ae94072847b3e2cf6aa9a6653cdacbbe2016ebb9fcbe4fe33"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/suffixPrefix.xml"
@@ -1691,8 +1691,8 @@ license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixRules.xml", license = "MIT" },
 ]
-notes = "OPSIN suffix rules with original native edits: aminiumyl/aminiumylidene substituent suffixes (IUPAC P-73.6) and rules for the added chalcogen peroxy acid, peroxol and tellanal suffixes (issue #26), the peroxy acid ate forms (issue #90) and the mixed peroxolate anions (issue #138). Do not claim byte equality for this file."
-sha256 = "abb6d036f42ddf4f02002218c15a28f814b871c039885ce8f86075e66ea8fa21"
+notes = "OPSIN suffix rules with original native edits: aminiumyl/aminiumylidene substituent suffixes (IUPAC P-73.6) and rules for the added chalcogen peroxy acid, peroxol and tellanal suffixes (issue #26), the peroxy acid ate forms (issue #90) and the mixed peroxolate anions (issue #138). A local carboxamidium entry supports bracketed suffix multipliers (P-73.1.2.1). Do not claim byte equality for this file."
+sha256 = "e237438d8f49c5db3951c5bd5c384a05a90f9a2c6064a8593897e3b0015b3c1a"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/suffixes.xml"
@@ -1701,8 +1701,8 @@ license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/suffixes.xml", license = "MIT" },
 ]
-notes = "OPSIN suffix tokens with original native additions (issue #26): chalcogen peroxy acid suffixes with their SO/OS-type acid locants (P-65.1.5.3), Table 6.1 peroxol suffixes (P-63.4.2.1) and tellanal (P-66.6.3); (issue #90) the ate forms of the peroxy acid suffixes for esters and anions (P-65.6.3.3.7.1); and (issue #138) the bracketed mixed peroxolate anion suffixes such as (SO-thioperoxolate) (P-72.2.2.2.2). Do not claim byte equality for this file."
-sha256 = "8586771b82976433512ec81ba3321d223a38b9815e4e252930c265484eedd42f"
+notes = "OPSIN suffix tokens with original native additions (issue #26): chalcogen peroxy acid suffixes with their SO/OS-type acid locants (P-65.1.5.3), Table 6.1 peroxol suffixes (P-63.4.2.1) and tellanal (P-66.6.3); (issue #90) the ate forms of the peroxy acid suffixes for esters and anions (P-65.6.3.3.7.1); and (issue #138) the bracketed mixed peroxolate anion suffixes such as (SO-thioperoxolate) (P-72.2.2.2.2). A local carboxamidium entry supports bracketed suffix multipliers (P-73.1.2.1). Do not claim byte equality for this file."
+sha256 = "a315cec502ebde06425435e78f021aae329dddac39cb426b67e297d80e1e53d4"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/tokenFiles.dtd"
@@ -5408,6 +5408,7 @@ parts = [
   { items = ["fn tests::amidium_names_preserve_charge_in_both_public_naming_paths"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "amide nitrogen charge follow-up", license = "MIT OR Apache-2.0", symbol = "tests::amidium_names_preserve_charge_in_both_public_naming_paths" }] },
   { items = ["fn tests::charged_amidium_variants_preserve_protons_and_charge_pairs"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "amide nitrogen charge follow-up", license = "MIT OR Apache-2.0", symbol = "tests::charged_amidium_variants_preserve_protons_and_charge_pairs" }] },
   { items = ["fn tests::amide_nitrogen_chalcogenides_keep_the_neutral_amide_suffix"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "amide nitrogen charge follow-up", license = "MIT OR Apache-2.0", symbol = "tests::amide_nitrogen_chalcogenides_keep_the_neutral_amide_suffix" }] },
+  { items = ["fn tests::ring_external_amidium_suffixes_round_trip"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "amide nitrogen charge follow-up", license = "MIT OR Apache-2.0", symbol = "tests::ring_external_amidium_suffixes_round_trip" }] },
   { items = ["fn tests::multiplied_amidium_n_locants_are_independent_of_atom_order"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "amide nitrogen charge follow-up", license = "MIT OR Apache-2.0", symbol = "tests::multiplied_amidium_n_locants_are_independent_of_atom_order" }] },
   { items = ["fn tests::shared_nitrogen_amidium_parent_is_independent_of_atom_order"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "amide nitrogen charge follow-up", license = "MIT OR Apache-2.0", symbol = "tests::shared_nitrogen_amidium_parent_is_independent_of_atom_order" }] },
   { items = ["fn tests::amidium_substituent_prefixes_without_a_charge_citation_are_declined"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "amide nitrogen charge follow-up", license = "MIT OR Apache-2.0", symbol = "tests::amidium_substituent_prefixes_without_a_charge_citation_are_declined" }] },
