@@ -130,6 +130,46 @@ fn dihydrazides_cite_the_parent_locant_on_n_and_n_prime() {
             "C1(C(=O)NNC)(C(=O)NNCC)CC(C(=O)NN(C)C)CCC1",
             "N'^1-ethyl-N'''^1,N'^3,N'^3-trimethylcyclohexane-1,1,3-tricarbohydrazide",
         ),
+        // Compare nitrogen locants before citation order or the total count
+        // of substituents across a geminal group (P-14.3.5).
+        (
+            "C1CCCCC1(C(=O)N(C)N)C(=O)NNC",
+            "N^1,N'''^1-dimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1CCCCC1(C(=O)NNC)C(=O)N(C)N",
+            "N^1,N'''^1-dimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "CN(C(=O)C1(C(=O)NNC)CCCCC1)N",
+            "N^1,N'''^1-dimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1CCCCC1(C(=O)N(C)N)C(=O)NNCC",
+            "N'''^1-ethyl-N^1-methylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1CCCCC1(C(=O)N(C)N)C(=O)NN(C)C",
+            "N^1,N'''^1,N'''^1-trimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1CCCCC1(C(=O)NN(C)C)C(=O)N(C)N",
+            "N^1,N'''^1,N'''^1-trimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        // When both groups occupy the same sites, the first cited
+        // substituent takes the lower locants (P-14.4).
+        (
+            "C1CCCCC1(C(=O)N(CC)NC)C(=O)N(C)NCC",
+            "N^1,N'''^1-diethyl-N'^1,N''^1-dimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1CCCCC1(C(=O)N(C)NCC)C(=O)N(CC)NC",
+            "N^1,N'''^1-diethyl-N'^1,N''^1-dimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1(C(=O)NNCC)(C(=O)NNC)CC(C(=O)NN(C)C)CCC1",
+            "N'^1-ethyl-N'''^1,N'^3,N'^3-trimethylcyclohexane-1,1,3-tricarbohydrazide",
+        ),
         // One hydrazide group keeps N and N' (P-66.3.3.1).
         ("CC(=O)N(C)NC", "N,N'-dimethylacetohydrazide"),
         ("NNC(=O)CCC(=O)NN", "butanedihydrazide"),

@@ -581,22 +581,46 @@ pub fn add_component_n_substituents(
         let mut ranked = Vec::with_capacity(selected.len());
         for group in selected {
             let carbon = group.attachment_carbon;
+            let centers = group
+                .descriptor
+                .as_ref()
+                .map(|d| d.centers.as_slice())
+                .unwrap_or(std::slice::from_ref(&carbon));
+            let mut proximal_count = 0;
             let mut names = Vec::new();
             for &n in &group.atoms_involved {
-                if mol.atoms[&n].symbol == "N" {
-                    names.extend(nitrogen_substituent_ranks(
-                        mol,
-                        n,
-                        |r| r == carbon || group.atoms_involved.contains(&r),
-                        exclude,
-                    )?);
+                if mol.atoms[&n].symbol != "N" {
+                    continue;
                 }
+                let distal = geminal_hydrazides
+                    && !centers
+                        .iter()
+                        .any(|&center| mol.get_bond(n, center).is_some());
+                let ranks = nitrogen_substituent_ranks(
+                    mol,
+                    n,
+                    |r| r == carbon || group.atoms_involved.contains(&r),
+                    exclude,
+                )?;
+                if !distal {
+                    proximal_count += ranks.len();
+                }
+                names.extend(
+                    ranks
+                        .into_iter()
+                        .map(|(name, stereo)| ((name, distal), stereo)),
+                );
             }
             names.sort();
             let (names, descriptors): (Vec<_>, Vec<_>) = names.into_iter().unzip();
             let rank = (
                 parse_locant(&locants[&carbon]),
-                std::cmp::Reverse(names.len()),
+                // A geminal group occupies two consecutive N locants. At
+                // the first difference, prefer more occurrences of the lower
+                // locant, then of the higher one (P-14.3.5). If these counts
+                // tie, compare the sites in prefix citation order.
+                std::cmp::Reverse(proximal_count),
+                std::cmp::Reverse(names.len() - proximal_count),
                 names,
                 descriptors,
             );
