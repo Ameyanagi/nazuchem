@@ -179,6 +179,64 @@ fn linear_phanes_number_from_the_end_with_the_lower_locants() -> Result<(), Stri
             "c1ccccc1Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2",
             "2,4,6-trioxa-1,7(1),3,5(1,4)-tetrabenzenaheptaphane",
         ),
+        (
+            "Oc1ccc(Oc2ccc(-c3ccc(CCc4ccccc4)cc3)cc2)cc1",
+            "2-oxa-1,7(1),3,4(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+        ),
+        (
+            "Oc1ccc(Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
+            "2,4,6-trioxa-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+        ),
+        (
+            "Oc1ccc(Cc2ccc(Cc3ccc(Cc4ccccc4)cc3)cc2)cc1",
+            "1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+        ),
+        (
+            "Oc1ccc(Oc2ccc(Sc3ccc(Oc4ccccc4)cc3)cc2)cc1",
+            "2,6-dioxa-4-thia-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+        ),
+        (
+            "c1ccccc1SCc1ccc(cc1)Nc1ccc(cc1)CCc1ccccc1",
+            "2-thia-5-aza-1,9(1),4,6(1,4)-tetrabenzenanonaphane",
+        ),
+        (
+            "c1ccccc1Cc1ccc(Cc2ccc(Oc3ccccc3)cn2)cn1",
+            "6-oxa-3,5(2,5)-dipyridina-1,7(1)-dibenzenaheptaphane",
+        ),
+        (
+            "c1ccccc1Cc1ccc(Cc2cc(Cc3ccc(Cc4ccccc4)cn3)oc2)cn1",
+            "3,7(5,2)-dipyridina-5(2,4)-furana-1,9(1)-dibenzenanonaphane",
+        ),
+        (
+            "c1ccccc1CC1CCC(CCc2ccccc2Cc2ccccc2)CC1",
+            "1,8(1),3(1,2)-tribenzena-6(1,4)-cyclohexanaoctaphane",
+        ),
+        (
+            "c1ccccc1CCCc1ccc(Cc2ccc(CCc3ccccc3)cc2)cc1",
+            "1,10(1),4,6(1,4)-tetrabenzenadecaphane",
+        ),
+        (
+            "Clc1ccc(Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
+            "1⁴-chloro-2,4,6-trioxa-1,7(1),3,5(1,4)-tetrabenzenaheptaphane",
+        ),
+        (
+            "Oc1ccc(-c2ccnc(-c3ccc(-c4ccnc(-c5ccc(-c6ccnc(-c7ccccc7)c6)cc5)c4)cc3)c2)cc1",
+            "2,4,6(2,4)-tripyridina-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-7⁴-ol",
+        ),
+        (
+            "O=C(O)c1ccc(Oc2ccc(OC(=O)Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
+            "5-oxo-2,4,6,8-tetraoxa-1,9(1),3,7(1,4)-tetrabenzenanonaphane-1⁴-carboxylic acid",
+        ),
+        (
+            "Oc1cocc1SCCSc1cocc1SCCSc1c(SCCSc2ccoc2)coc1",
+            "2,5,7,10,12,15-hexathia-1,16(3),6,11(3,4)-tetrafuranahexadecaphan-1⁴-ol",
+        ),
+        // P-26.4.2.4, final example: all three pyridine rings share an
+        // attachment set, so compare their locants in skeletal order.
+        (
+            "c1ccccc1Cc1ccc(Cc2ccc(Cc3ccc(Cc4ccccc4)nc3)cn2)cn1",
+            "3,5(2,5),7(5,2)-tripyridina-1,9(1)-dibenzenanonaphane",
+        ),
         // P-51.3.2.2.
         (
             "c1ccccc1Oc1cccc(c1)Oc1cccc(c1)Oc1ccccc1",
@@ -236,19 +294,13 @@ fn linear_phanes_number_from_the_end_with_the_lower_locants() -> Result<(), Stri
             &crate::test_support::parse_strict(&alternative.name)?,
         )?;
     }
-    // P-52.2.5.1 (2): four rings and seven nodes. Substituted nodes, amine
-    // nodes and skeletons past nine nodes are not built.
+    // P-52.2.5.1 (2) requires four rings and seven nodes. The
+    // sixteen-node example has ambiguous flattened replacement locants.
     for smiles in [
+        "c1cocc1SCCSc1cocc1SCCSc1c(SCCSc2ccoc2)coc1",
         "c1ccccc1Oc2ccc(Oc3ccccc3)cc2",
         "c1ccccc1-c1cc(cnc1)-c1cccc(c1)-c1cccc(c1)-c1ccccc1",
         "c1ccccc1Oc1ccc(cc1)C(C)(C)c1ccc(Oc2ccccc2)cc1",
-        "Oc1ccc(Oc2ccc(-c3ccc(CCc4ccccc4)cc3)cc2)cc1",
-        "c1ccccc1SCc1ccc(cc1)Nc1ccc(cc1)CCc1ccccc1",
-        "c1cocc1SCCSc1cocc1SCCSc1c(SCCSc2ccoc2)coc1",
-        // P-26.4.2.3, P-26.4.2.4: the ends differ only in the order of the
-        // attachment locants.
-        "c1ccccc1Cc1ccc(Cc2ccc(Oc3ccccc3)cn2)cn1",
-        "c1ccccc1Cc1ccc(Cc2cc(Cc3ccc(Cc4ccccc4)cn3)oc2)cn1",
     ] {
         assert!(
             name(&graph_io::read_smiles(smiles, &Default::default())?).is_none(),

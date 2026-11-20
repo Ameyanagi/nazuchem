@@ -1781,8 +1781,8 @@ mod tests {
             ),
             (
                 "Oc1ccc(Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
-                "4-[4-(4-phenoxyphenoxy)phenoxy]phenol",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "2,4,6-trioxa-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+                NameStatus::Preferred,
             ),
             (
                 "C1C2CC3CC1CC2C3",
@@ -2633,8 +2633,8 @@ mod tests {
     }
 
     #[test]
-    fn linear_phane_assemblies_keep_nonpreferred_status_and_round_trip() {
-        use nazuchem_ir::{NameReason, NameStatus};
+    fn linear_phane_assemblies_and_controls_round_trip() {
+        use nazuchem_ir::NameStatus;
         for (smiles, expected, status) in [
             // P-52.2.5.3: unsubstituted linear phanes take the phane name.
             (
@@ -2659,23 +2659,23 @@ mod tests {
             // P-52.2.5.3 applies without identical-unit ring junctions.
             (
                 "Oc1ccc(Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
-                "4-[4-(4-phenoxyphenoxy)phenoxy]phenol",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "2,4,6-trioxa-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+                NameStatus::Preferred,
             ),
             (
                 "Oc1ccc(Cc2ccc(Cc3ccc(Cc4ccccc4)cc3)cc2)cc1",
-                "4-({4-[(4-benzylphenyl)methyl]phenyl}methyl)phenol",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+                NameStatus::Preferred,
             ),
             (
                 "Oc1ccc(Oc2ccc(Sc3ccc(Oc4ccccc4)cc3)cc2)cc1",
-                "4-{4-[(4-phenoxyphenyl)sulfanyl]phenoxy}phenol",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "2,6-dioxa-4-thia-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+                NameStatus::Preferred,
             ),
             (
                 "Oc1ccc(-c2ccnc(-c3ccc(-c4ccnc(-c5ccc(-c6ccnc(-c7ccccc7)c6)cc5)c4)cc3)c2)cc1",
-                "4-[2-(4-{2-[4-(2-phenylpyridin-4-yl)phenyl]pyridin-4-yl}phenyl)pyridin-4-yl]phenol",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "2,4,6(2,4)-tripyridina-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-7⁴-ol",
+                NameStatus::Preferred,
             ),
             // A linear phane outranks the multiplicative name (P-51.3.2).
             (
@@ -2836,8 +2836,8 @@ mod tests {
             // the carbonate prefix keeps the four-ring phane skeleton intact.
             (
                 "O=C(O)c1ccc(Oc2ccc(OC(=O)Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
-                "4-(4-{[(4-phenoxyphenoxy)carbonyl]oxy}phenoxy)benzoic acid",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "5-oxo-2,4,6,8-tetraoxa-1,9(1),3,7(1,4)-tetrabenzenanonaphane-1⁴-carboxylic acid",
+                NameStatus::Preferred,
             ),
             // A phosphonate prefix under a senior nitrile keeps the full skeleton.
             (
