@@ -2781,19 +2781,17 @@ mod tests {
                 "3-(2-carbamoylhydrazin-1-yl)propanoic acid",
                 NameStatus::Preferred,
             ),
-            // P-66.3.2.3: method (2); the preferred prefix is
-            // acetohydrazido, which is not generated.
+            // P-66.3.2.3 (1) and P-66.3.5.3 (2): these terminal
+            // nitrogen attachments use the hydrazido prefixes.
             (
                 "OC(=O)c1ccc(NNC(C)=O)cc1",
-                "4-(2-acetylhydrazin-1-yl)benzoic acid",
-                NameStatus::NotPreferred(NameReason::AminoPrefix),
+                "4-acetohydrazidobenzoic acid",
+                NameStatus::Preferred,
             ),
-            // P-66.3.5.3: 3-(2-formylhydrazin-1-yl)propanoic acid, beside the
-            // preferred 3-formohydrazidopropanoic acid.
             (
                 "OC(=O)CCNNC=O",
-                "3-(2-formylhydrazin-1-yl)propanoic acid",
-                NameStatus::NotPreferred(NameReason::AminoPrefix),
+                "3-formohydrazidopropanoic acid",
+                NameStatus::Preferred,
             ),
             // No Blue Book example places E/Z in the prefix, so a configured
             // hydrazone keeps the amino form.

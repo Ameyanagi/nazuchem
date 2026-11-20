@@ -1062,6 +1062,12 @@ mod tests {
                 "OC(=O)CCC(=O)N(N)C(C)=O",
                 "4-(1-acetylhydrazin-1-yl)-4-oxobutanoic acid",
             ),
+            // P-66.3.2.2 and P-66.3.2.3 (1): at a chain end the
+            // acetohydrazido prefix accompanies oxo.
+            (
+                "OC(=O)CCC(=O)NNC(C)=O",
+                "4-acetohydrazido-4-oxobutanoic acid",
+            ),
             // P-66.3.2.1 (1), P-16.5.1.4: on a ring, a heteroatom or a
             // nonterminal chain atom the acyl prefix of the hydrazine acid,
             // enclosed because it names the parent hydride hydrazine, as in
@@ -1139,24 +1145,23 @@ mod tests {
                 "{expected}"
             );
         }
-        // A diacylhydrazine prefix is not chosen between P-66.3.2.3 (1)
-        // and P-66.3.3.3.
-        for smiles in ["OC(=O)CCC(=O)NNC(C)=O", "OC(=O)c1ccc(cc1)C(=O)NNC(C)=O"] {
-            let name = name_smiles(smiles, &Default::default()).unwrap();
-            assert_ne!(
-                name.status,
-                NameStatus::Preferred,
-                "{smiles}: {}",
-                name.text
-            );
-            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
-            assert_eq!(
-                crate::test_support::canonical_smiles(&parsed).unwrap(),
-                crate::test_support::canonical_smiles(smiles).unwrap(),
-                "{}",
-                name.text
-            );
-        }
+        // The diacylhydrazine attached to the ring through the acyl
+        // carbon still requires a choice under P-66.3.2.1 and P-66.3.3.3.
+        let smiles = "OC(=O)c1ccc(cc1)C(=O)NNC(C)=O";
+        let name = name_smiles(smiles, &Default::default()).unwrap();
+        assert_ne!(
+            name.status,
+            NameStatus::Preferred,
+            "{smiles}: {}",
+            name.text
+        );
+        let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+        assert_eq!(
+            crate::test_support::canonical_smiles(&parsed).unwrap(),
+            crate::test_support::canonical_smiles(smiles).unwrap(),
+            "{}",
+            name.text
+        );
     }
 
     #[test]
