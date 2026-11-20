@@ -4028,10 +4028,11 @@ mod tests {
                 "N1CCC(C)C2C1CNC2",
                 "4-methyloctahydro-1H-pyrrolo[3,4-b]pyridine",
             ),
-            // Eleven ring atoms.
+            // Eleven ring atoms. P-25.3.4.2.4(c) prefers the attached component
+            // locant set 1,2,3,4 over 1,2,4,5 for the tied b,b' parent sides.
             (
                 "N1CCC2C1C1CCNC1C2",
-                "decahydro-1H-cyclopenta[1,2-b:4,5-b']dipyrrole",
+                "decahydro-1H-cyclopenta[1,2-b:3,4-b']dipyrrole",
             ),
             // Even ring sizes need no indicated hydrogen.
             ("C1NCC2C1CC1CNCC1C2", "dodecahydropyrrolo[3,4-f]isoindole"),
