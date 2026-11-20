@@ -224,6 +224,7 @@ pub(super) fn name_component_with_atom_locants(
                         rendered_parent: name.name.clone(),
                         locants: BTreeMap::new(),
                         prefix_isotopes: AtomSet::new(),
+                        prefix_isotope_descriptors: vec![],
                         prefix_atoms: AtomSet::new(),
                     });
             Ok(IsotopeParentName {
@@ -231,7 +232,7 @@ pub(super) fn name_component_with_atom_locants(
                 locants: parts.locants,
                 rendered_parent: parts.rendered_parent,
                 prefix_isotopes: parts.prefix_isotopes,
-                prefix_isotope_descriptors: vec![],
+                prefix_isotope_descriptors: parts.prefix_isotope_descriptors,
                 prefix_atoms: parts.prefix_atoms,
                 derivation: Derivation::Shortcut {
                     component_splits: name.component_splits,

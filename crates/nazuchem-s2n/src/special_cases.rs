@@ -2712,6 +2712,7 @@ fn homonuclear_chain_parent_name(
         && oxide.is_empty()
         && branches.len() <= 1;
     let mut prefix_isotopes = AtomSet::new();
+    let mut prefix_isotope_descriptors = Vec::new();
     let mut simple_modified_ligand = false;
     let mut ligands = Vec::new();
     let mut covered = chain_set.clone();
@@ -2758,6 +2759,7 @@ fn homonuclear_chain_parent_name(
                 && !super::formatting::is_complex_prefix(&rendered.text[descriptor.len()..]);
             name = rendered.text;
             prefix_isotopes.extend(rendered.isotope_atoms);
+            prefix_isotope_descriptors.extend(rendered.isotope_descriptors);
         } else if name.is_empty() {
             name = branch_name(mol, &ligand_atoms, root, &chain_set, attachment)?;
         }
@@ -2915,6 +2917,7 @@ fn homonuclear_chain_parent_name(
             .collect(),
         rendered_parent: parent,
         prefix_isotopes,
+        prefix_isotope_descriptors,
         prefix_atoms: atoms.difference(&chain_set).copied().collect(),
     });
     Ok(Some(StructuralParentName {
@@ -5837,6 +5840,7 @@ pub(super) struct ShortcutIsotopeParts {
     pub(super) locants: BTreeMap<usize, String>,
     pub(super) rendered_parent: String,
     pub(super) prefix_isotopes: AtomSet,
+    pub(super) prefix_isotope_descriptors: Vec<String>,
     pub(super) prefix_atoms: AtomSet,
 }
 
