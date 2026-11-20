@@ -2120,19 +2120,31 @@ mod tests {
                 crate::test_support::verify_identity(input, &parsed).unwrap();
             }
         }
-        let nested_lambda = "2-[1-(lambda^5-phosphanyl)-1-(lambda^6-sulfanyl)ethyl]-2-[1-(lambda^5-phosphanyl)-1-(lambda^4-sulfanyl)ethyl]heptanoic acid";
-        let parsed = crate::test_support::parse_strict(nested_lambda).unwrap();
-        for input in [
-            "CCCCCC(C([PH4])([SH3])C)(C([PH4])([SH5])C)C(=O)O",
-            "CCCCCC(C([SH5])([PH4])C)(C([SH3])([PH4])C)C(=O)O",
+        for (expected, reason, inputs) in [
+            (
+                "2-[1-(lambda^5-phosphanyl)-1-(lambda^6-sulfanyl)ethyl]-2-[1-(lambda^5-phosphanyl)-1-(lambda^4-sulfanyl)ethyl]heptanoic acid",
+                nazuchem_ir::NameReason::LambdaPrefixOrder,
+                [
+                    "CCCCCC(C([PH4])([SH3])C)(C([PH4])([SH5])C)C(=O)O",
+                    "CCCCCC(C([SH5])([PH4])C)(C([SH3])([PH4])C)C(=O)O",
+                ],
+            ),
+            (
+                "2-(1lambda^6,4lambda^4-dithiacycloheptan-6-yl)-2-(1lambda^4,4lambda^4-dithiacycloheptan-6-yl)octanoic acid",
+                nazuchem_ir::NameReason::UnauditedParent,
+                [
+                    "CCCCCCC(C1C[SH2]CC[SH2]C1)(C1C[SH4]CC[SH2]C1)C(=O)O",
+                    "CCCCCCC(C1C[SH4]CC[SH2]C1)(C1C[SH2]CC[SH2]C1)C(=O)O",
+                ],
+            ),
         ] {
-            let named = crate::name_smiles(input, &Default::default()).unwrap();
-            assert_eq!(named.text, nested_lambda, "{input}");
-            assert_eq!(
-                named.status,
-                nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::LambdaPrefixOrder)
-            );
-            crate::test_support::verify_identity(input, &parsed).unwrap();
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            for input in inputs {
+                let named = crate::name_smiles(input, &Default::default()).unwrap();
+                assert_eq!(named.text, expected, "{input}");
+                assert_eq!(named.status, nazuchem_ir::NameStatus::Unverified(reason));
+                crate::test_support::verify_identity(input, &parsed).unwrap();
+            }
         }
         let mixed_lambda =
             "[(33S)lambda^4-sulfanyl][(34S)lambda^4-sulfanyl](lambda^6-sulfanyl)acetic acid";

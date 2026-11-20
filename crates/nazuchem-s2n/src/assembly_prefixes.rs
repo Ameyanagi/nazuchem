@@ -291,11 +291,15 @@ pub(super) fn cited_substituent_groups(
             let mut lambda = Vec::new();
             for segment in segments {
                 normalized.push_str("lambda^");
-                if let Some((number, rest)) = segment.split_once('-')
+                let digits = segment
+                    .find(|ch: char| !ch.is_ascii_digit())
+                    .unwrap_or(segment.len());
+                let (number, rest) = segment.split_at(digits);
+                if rest.starts_with(['-', ','])
                     && let Ok(number) = number.parse::<usize>()
                 {
                     lambda.push(number);
-                    normalized.push_str("0-");
+                    normalized.push('0');
                     normalized.push_str(rest);
                 } else {
                     normalized.push_str(segment);
