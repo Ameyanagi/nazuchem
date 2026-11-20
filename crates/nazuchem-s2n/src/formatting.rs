@@ -89,7 +89,7 @@ pub fn is_complex_prefix(name: &str) -> bool {
         || name.starts_with(|c: char| c.is_ascii_digit())
         || name.contains('-')
         || name.contains(' ')
-        || starts_with_multiplier(name)
+        || (name != "diphosphanyl" && starts_with_multiplier(name))
 }
 // Provenance: fn is_composite_prefix | port
 // Source: openclatura | src/openclatura/formatting.py::is_composite_prefix
@@ -110,6 +110,9 @@ pub fn is_composite_prefix(name: &str) -> bool {
 // Provenance: fn is_compound_prefix | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::is_compound_prefix
 pub fn is_compound_prefix(name: &str) -> bool {
+    if name == "diphosphanyl" {
+        return false;
+    }
     is_composite_prefix(name)
         || ["amino", "diazenyl", "phosphanyl", "arsanyl", "stibanyl"]
             .iter()

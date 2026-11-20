@@ -1889,6 +1889,16 @@ pub fn name_heteroatom_subgraph(
 ) -> Result<Option<String>, String> {
     let symbol = mol.atoms[&start].symbol.as_str();
     let order = upstream_bond_order(mol, start, upstream);
+    if upstream.is_some_and(|i| mol.atoms[&i].is_carbon())
+        && let Some(pair) = super::identity_validation::diphosphanyl_hydrogens(mol, start)
+    {
+        let ligand = match pair {
+            (3, 2) => "(1lambda^5-diphosphan-1-yl)",
+            (1, 4) => "(2lambda^5-diphosphan-1-yl)",
+            _ => "diphosphanyl",
+        };
+        return Ok(Some(ligand.into()));
+    }
     // P-45.3.1: the hydrogen count on a terminal ligand is part of its name.
     if mol.degree(start) == 1 && order == 1 && mol.atoms[&start].charge == 0 {
         let h = mol.atoms[&start].total_h_count;

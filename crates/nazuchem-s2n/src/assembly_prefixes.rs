@@ -88,6 +88,14 @@ pub fn substituent_sort_key(name: &str) -> (String, String) {
             _ => ignored_prefix_len(text),
         };
         if n == 0 {
+            // P-45.3: the expanded diphosphan-1-yl and contracted
+            // diphosphanyl have the same alphabetizing term.
+            if let Some(tail) = text.strip_prefix("diphosphan-1-yl") {
+                return (
+                    format!("diphosphanyl{}", tail.trim_start_matches(')')),
+                    initial,
+                );
+            }
             return (text.to_owned(), initial);
         }
         if !text[..n].contains(')') && !text.starts_with("lambda^") {

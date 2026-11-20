@@ -531,7 +531,7 @@ pub(super) fn assembled_name_preference(
     prefixes: &[SubstituentItem],
     name: &str,
     sites: &[super::isotope_naming::Site],
-    bonding_numbers: Vec<usize>,
+    bonding_numbers: Vec<(usize, std::cmp::Reverse<usize>)>,
 ) -> impl Ord + use<> {
     let mut cited: Vec<_> = prefixes
         .iter()
@@ -568,6 +568,7 @@ pub(super) fn assembled_name_preference(
                     .map(move |l| (parse_locant(l), labels.clone()))
             }),
     );
+    let (bonding_numbers, lambda_locants): (Vec<_>, Vec<_>) = bonding_numbers.into_iter().unzip();
     let (roman, italic, _, numbers, _) = alphanumerical_order_key(name);
     // P-45.6.3: R precedes S in the descriptors, in order of appearance.
     let descriptors = rs_descriptors(name);
@@ -575,7 +576,10 @@ pub(super) fn assembled_name_preference(
         std::cmp::Reverse(cited.len()),
         locants,
         cited,
-        std::cmp::Reverse(bonding_numbers),
+        (
+            std::cmp::Reverse(bonding_numbers),
+            std::cmp::Reverse(lambda_locants),
+        ),
         modified,
         roman,
         italic,
@@ -2119,6 +2123,17 @@ mod tests {
                 &[
                     "CN(C)C1(O)CCC(OC2CCC(O)(N)C(C)C2)CC1",
                     "CC1CC(OC2CCC(O)(N(C)C)CC2)CCC1(N)O",
+                ][..],
+            ),
+            (
+                "4-(2lambda^5-diphosphan-1-yl)-2-(2-diphosphanylethyl)butanenitrile",
+                &["P([PH4])CCC(C#N)CCPP", "PPCCC(C#N)CCP[PH4]"][..],
+            ),
+            (
+                "5-(1lambda^5-diphosphan-1-yl)-2-[3-(2lambda^5-diphosphan-1-yl)propyl]pentanoic acid",
+                &[
+                    "[PH3](P)CCCC(C(=O)O)CCCP[PH4]",
+                    "[PH4]PCCCC(C(=O)O)CCC[PH3]P",
                 ][..],
             ),
             (

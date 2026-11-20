@@ -631,9 +631,7 @@ fn component_pipeline(
                             // within an alkyl side chain is one level further away.
                             let lambda = name.contains("lambda");
                             if !lambda
-                                || super::identity_validation::terminal_hydrides_on_alkanoic_acid(
-                                    mol,
-                                )
+                                || super::identity_validation::supported_hydride_prefix_context(mol)
                             {
                                 let mut bonding_numbers = Vec::new();
                                 if lambda {
@@ -647,7 +645,24 @@ fn component_pipeline(
                                             (atom.symbol.as_str(), atom.total_h_count),
                                             ("P", 4) | ("S", 3 | 5)
                                         ) {
-                                            bonding_numbers.push(atom.total_h_count + 1);
+                                            bonding_numbers.push((
+                                                atom.total_h_count + 1,
+                                                std::cmp::Reverse(1),
+                                            ));
+                                        } else if let Some(pair) =
+                                            super::identity_validation::diphosphanyl_hydrogens(
+                                                mol, *id,
+                                            )
+                                        {
+                                            match pair {
+                                                (3, 2) => {
+                                                    bonding_numbers.push((5, std::cmp::Reverse(1)))
+                                                }
+                                                (1, 4) => {
+                                                    bonding_numbers.push((5, std::cmp::Reverse(2)))
+                                                }
+                                                _ => {}
+                                            }
                                         }
                                     }
                                     bonding_numbers.sort_by(|a, b| b.cmp(a));

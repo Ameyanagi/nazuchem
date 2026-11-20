@@ -78,16 +78,45 @@ pub fn validate_principal_charge_roles(
     Ok(())
 }
 
-/// A terminal lambda hydride may be a substituent on an alkanoic acid.
-/// Restrict admission to the proved prefix route: all P/S atoms terminate
-/// saturated carbon branches, and both oxygens belong to the same acid.
-// Provenance: fn terminal_hydrides_on_alkanoic_acid | original
-// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::terminal_hydrides_on_alkanoic_acid
-pub(super) fn terminal_hydrides_on_alkanoic_acid(mol: &Molecule) -> bool {
+/// Hydrogens at each end identify the bonding numbers in R-P-PHn.
+// Provenance: fn diphosphanyl_hydrogens | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::diphosphanyl_hydrogens
+pub(super) fn diphosphanyl_hydrogens(mol: &Molecule, root: usize) -> Option<(usize, usize)> {
+    let atom = &mol.atoms[&root];
+    let neighbors = mol.get_neighbors(root);
+    if atom.symbol != "P" || neighbors.len() != 2 {
+        return None;
+    }
+    let &tip = neighbors.iter().find(|n| mol.atoms[n].symbol == "P")?;
+    let terminal = &mol.atoms[&tip];
+    let &carbon = neighbors.iter().find(|n| mol.atoms[n].is_carbon())?;
+    if mol
+        .get_neighbors(carbon)
+        .iter()
+        .any(|&n| mol.bond_order(n, carbon) != 1)
+        || neighbors.iter().any(|&n| mol.bond_order(root, n) != 1)
+        || mol.degree(tip) != 1
+        || [atom, terminal].iter().any(|a| {
+            a.charge != 0 || a.isotope.is_some() || a.has_stereo() || a.radical_electrons != 0
+        })
+    {
+        return None;
+    }
+    let pair = (atom.total_h_count, terminal.total_h_count);
+    matches!(pair, (1, 2 | 4) | (3, 2)).then_some(pair)
+}
+
+/// Admit terminal hydride prefixes on saturated alkanoic acids and the
+/// diphosphanyl prefixes on alkanenitriles in P-45.3.1–2.
+// Provenance: fn supported_hydride_prefix_context | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::supported_hydride_prefix_context
+pub(super) fn supported_hydride_prefix_context(mol: &Molecule) -> bool {
     if mol.bonds.len() + 1 != mol.atoms.len() {
         return false;
     }
     let mut oxygens = Vec::new();
+    let mut nitriles = 0;
+    let mut paired = false;
     for atom in mol.atoms.values() {
         let adj = mol.get_neighbors(atom.idx);
         if atom.charge != 0 {
@@ -96,6 +125,18 @@ pub(super) fn terminal_hydrides_on_alkanoic_acid(mol: &Molecule) -> bool {
         match atom.symbol.as_str() {
             "O" if adj.len() == 1 && mol.atoms[&adj[0]].is_carbon() => {
                 oxygens.push((adj[0], mol.bond_order(atom.idx, adj[0]), atom.total_h_count));
+            }
+            "N" if adj.len() == 1
+                && mol.atoms[&adj[0]].is_carbon()
+                && mol.bond_order(atom.idx, adj[0]) == 3
+                && atom.total_h_count == 0 =>
+            {
+                nitriles += 1;
+            }
+            "P" if diphosphanyl_hydrogens(mol, atom.idx).is_some()
+                || (adj.len() == 1 && diphosphanyl_hydrogens(mol, adj[0]).is_some()) =>
+            {
+                paired = true;
             }
             "P" | "S"
                 if adj.len() == 1
@@ -109,20 +150,22 @@ pub(super) fn terminal_hydrides_on_alkanoic_acid(mol: &Molecule) -> bool {
                         (atom.symbol.as_str(), atom.total_h_count),
                         ("P", 2 | 4) | ("S", 1 | 3 | 5)
                     ) => {}
-            "C" if adj
-                .iter()
-                .all(|&n| mol.atoms[&n].symbol == "O" || mol.bond_order(atom.idx, n) == 1) => {}
+            "C" if adj.iter().all(|&n| {
+                matches!(mol.atoms[&n].symbol.as_str(), "O" | "N")
+                    || mol.bond_order(atom.idx, n) == 1
+            }) => {}
             _ => return false,
         }
     }
     oxygens.sort();
-    matches!(oxygens.as_slice(), [(a, 1, 1), (b, 2, 0)] if a == b)
+    (nitriles == 0 && matches!(oxygens.as_slice(), [(a, 1, 1), (b, 2, 0)] if a == b))
+        || (paired && nitriles == 1 && oxygens.is_empty())
 }
 
 // Provenance: fn validate_input | original
 // Source: ReShiki | src/naming/openclatura/identity_validation.rs::validate_input
 pub fn validate_input(mol: &Molecule) -> Result<(), String> {
-    let admitted_hydrides = std::cell::LazyCell::new(|| terminal_hydrides_on_alkanoic_acid(mol));
+    let admitted_hydrides = std::cell::LazyCell::new(|| supported_hydride_prefix_context(mol));
     for (&idx, atom) in &mol.atoms {
         // Upstream divergence: elemental ion shortcuts require their exact charge and hydrogen state.
         if mol.atoms.len() == 1
