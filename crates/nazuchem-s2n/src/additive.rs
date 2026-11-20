@@ -2017,6 +2017,17 @@ mod tests {
                 "7-methyl-6,7-dihydro-5H-cyclopenta[b]pyridin-5-one",
             ),
             ("O=C1CCCc2ncccc12", "7,8-dihydroquinolin-5(6H)-one"),
+            // Issue #27. The bicyclic parent has no intrinsic indicated H.
+            // P-58.2.2.2 gives the added H a lower locant than the hydro prefixes.
+            (
+                "CCCNC1=NC(=O)C2=C(N1)CSC2",
+                "2-(propylamino)-5,7-dihydrothieno[3,4-d]pyrimidin-4(1H)-one",
+            ),
+            // The tricyclic parent can accommodate its ketone with indicated H.
+            (
+                "CC1=NC2=C(C3=C(S2)CCC3)C(=O)N1C[C@H](COCC4=CC=CC=C4Cl)O",
+                "3-{(2R)-3-[(2-chlorophenyl)methoxy]-2-hydroxypropyl}-2-methyl-3,5,6,7-tetrahydro-4H-cyclopenta[4,5]thieno[2,3-d]pyrimidin-4-one",
+            ),
             ("O=C1NC2=C(O1)C=CO2", "furo[2,3-d][1,3]oxazol-2(3H)-one"),
             ("O=C1NC2=C(OC=C2)O1", "furo[3,2-d][1,3]oxazol-2(1H)-one"),
             ("O=C1OC2=C(O1)C=CN2", "4H-[1,3]dioxolo[4,5-b]pyrrol-2-one"),

@@ -1082,13 +1082,15 @@ fn external_pi_parent_state(
             .map(|a| locant_key(&locants[a]))
             .collect();
         hydro_keys.sort();
+        let added_locants: Vec<_> = ordered.iter().map(|a| locant_key(&locants[a])).collect();
+        // P-58.2.2.2: when composing a suffix, added indicated hydrogen
+        // takes the lowest possible locants before hydro prefixes. The
+        // number of redistributed pi bonds does not set that priority.
         let rank = (
             !delta.additional_multiple_bond_ids.is_empty(),
+            suffix_composition.then(|| (added_locants.len(), added_locants.clone())),
             delta.hydrogenated_edges.len(),
-            ordered
-                .iter()
-                .map(|a| locant_key(&locants[a]))
-                .collect::<Vec<_>>(),
+            added_locants,
             hydro_keys,
         );
         candidates.push((rank, state));
