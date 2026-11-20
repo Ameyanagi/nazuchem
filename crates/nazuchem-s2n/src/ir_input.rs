@@ -447,7 +447,8 @@ pub(crate) fn from_smiles(text: &str, budget: &Budget) -> Result<Molecule, Strin
     use nazuchem_ir::{Atom as IrAtom, Bond as IrBond, StereoGroup as IrGroup};
     use nazuchem_kernel::{identity, kekulize, ranking, smiles};
     let prepared = smiles::read(text, budget).map_err(|error| error.to_string())?;
-    if prepared.dropped_cumulene_ez {
+    // IR v1 has no record for odd-cumulene E/Z.
+    if prepared.dropped_cumulene_ez || !prepared.prepared.cumulene_ez.is_empty() {
         return Err(CUMULENE_STEREO.into());
     }
     let mut state = identity::apply_axis_markers(&prepared.prepared.state, budget)

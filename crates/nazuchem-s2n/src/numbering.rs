@@ -763,8 +763,8 @@ pub(super) fn parent_preference_before_stereo(
     )
 }
 
-/// P-14.4(j): after structural numbering ties, prefer R to S and M to P
-/// at the first differing locant. An internal axis is cited once, at its lower
+/// P-14.4(j): after structural numbering ties, prefer Z to E, R to S
+/// and M to P at the first differing locant. An internal axis is cited once, at its lower
 /// locant; an axis leaving this parent is cited at the parent endpoint.
 // Provenance: fn stereochemistry_preference | adapted
 // Source: openclatura | src/openclatura/numbering.py::_stereochemistry_sequence
@@ -779,9 +779,24 @@ fn stereochemistry_preference(
         .map(|(position, &atom)| (atom, position))
         .collect();
     let mut descriptors = Vec::new();
+    let mut previous_double = false;
     for (position, &idx) in path.iter().enumerate() {
         if include_atom_descriptors && let Some(stereo) = mol.atoms[&idx].stereo.as_ref() {
-            descriptors.push(usize::from(stereo != "R"));
+            descriptors.push(usize::from(!matches!(stereo.as_str(), "R" | "r")));
+        }
+        if let Some(bond) = path
+            .get(position + 1)
+            .and_then(|&next| mol.get_bond(idx, next))
+            .filter(|bond| bond.order == 2)
+        {
+            // Perceived E/Z is copied onto the whole cumulated system. Its
+            // only numbering descriptor is at the first double bond.
+            if !previous_double && let Some(stereo @ ("E" | "Z")) = bond.stereo.as_deref() {
+                descriptors.push(usize::from(stereo == "E"));
+            }
+            previous_double = true;
+        } else {
+            previous_double = false;
         }
         for &neighbor in mol.get_neighbors(idx) {
             if positions

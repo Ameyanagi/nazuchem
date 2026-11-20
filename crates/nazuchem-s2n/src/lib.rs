@@ -272,7 +272,7 @@ pub fn name_molecule(
         if canonical.contains('.') {
             return Err("Openclatura requires a single connected molecule".into());
         }
-        let mol = graph_io::read_state(state, Some(molecule))?;
+        let mol = graph_io::read_state(state, Some(molecule), &[])?;
         unknown_stereo::name_graph(normal, &mol)?
     } else if canonical.contains('.') {
         #[cfg(test)]
@@ -292,7 +292,7 @@ pub fn name_molecule(
         ir_proof_tests::record_fallback("radical ion");
         name_radical_ion(neutral, suffix, style, budget)?
     } else {
-        name_graph(graph_io::read_state(state, Some(molecule))?, style)?
+        name_graph(graph_io::read_state(state, Some(molecule), &[])?, style)?
     };
     finish_name(name)
 }

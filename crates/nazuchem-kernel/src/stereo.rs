@@ -20,7 +20,8 @@ pub mod allene;
 pub mod cip;
 mod cumulene;
 mod drawing;
-pub use cumulene::{Cumulene, stereogenic_odd_cumulenes};
+pub use cumulene::{Cumulene, CumuleneEz, cumulene_is_e, odd_cumulenes, stereogenic_odd_cumulenes};
+pub(crate) use cumulene::{check_stereo_alongside_cumulenes, unspecified_directed_alkenes};
 pub use drawing::wedging;
 pub mod perception;
 // Nazuchem extension (not in RDKit): classify both full-CIP trial configurations.

@@ -8,13 +8,16 @@
 //! Plain molecular SMILES from RDKit SmilesWrite.cpp (2026.03.6).
 //! Copyright (C) 2002-2025 Greg Landrum and other RDKit contributors.
 //! BSD-3-Clause; see licenses/rdkit/LICENSE and NOTICE.
-// Copied unchanged from crates/chemistry/src/smiles/write.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3
+// Copied from crates/chemistry/src/smiles/write.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: carry odd-cumulene geometry through canonical traversal
 mod fragments;
 use super::{stereo, symbols, traversal};
 use crate::{
     kekulize::{self, Direction},
     ranking, rings,
-    stereo::perception::{self, RingCache, RingKind, State},
+    stereo::{
+        CumuleneEz, cumulene_is_e,
+        perception::{self, RingCache, RingKind, State},
+    },
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -74,15 +77,39 @@ fn put<T>(values: &mut [T], id: usize) -> Result<&mut T, Error> {
 /// the computed-property semantics of preparation/perception. Random traversal,
 /// queries and CX extensions are not part of this plain SMILES interface.
 pub fn write(input: &State, options: Options) -> Result<traversal::Output, Error> {
+    with_cumulenes_and_options(input, None, options)
+}
+
+pub(crate) fn with_cumulenes(
+    input: &State,
+    cumulenes: &[CumuleneEz],
+) -> Result<traversal::Output, Error> {
+    with_cumulenes_and_options(input, Some(cumulenes), Options::default())
+}
+
+fn with_cumulenes_and_options(
+    input: &State,
+    cumulenes: Option<&[CumuleneEz]>,
+    options: Options,
+) -> Result<traversal::Output, Error> {
     input.graph.validate().map_err(invalid)?;
     let properties = vec![symbols::AtomProperties::default(); input.graph.atoms.len()];
-    with_symbols(input, &properties, options)
+    write_fragments(input, &properties, cumulenes, options)
 }
 
 /// Preserve custom atom symbols and supplemental labels when explicitly supplied.
 pub fn with_symbols(
     input: &State,
     properties: &[symbols::AtomProperties<'_>],
+    options: Options,
+) -> Result<traversal::Output, Error> {
+    write_fragments(input, properties, None, options)
+}
+
+fn write_fragments(
+    input: &State,
+    properties: &[symbols::AtomProperties<'_>],
+    cumulenes: Option<&[CumuleneEz]>,
     options: Options,
 ) -> Result<traversal::Output, Error> {
     validate(input)?;
@@ -110,7 +137,28 @@ pub fn with_symbols(
                     .ok_or(Error::Limit)
             })
             .transpose()?;
-        let mut part = component(fragment.state, &props, Options { root, ..options })?;
+        let local_index = |atom| {
+            fragment
+                .atoms
+                .binary_search(&atom)
+                .map_err(|_| invalid("Cumulene crosses molecular fragments"))
+        };
+        let mut local_cumulenes = Vec::new();
+        for ez in cumulenes.unwrap_or_default() {
+            if fragment.atoms.binary_search(&ez.ends[0]).is_ok() {
+                local_cumulenes.push(CumuleneEz {
+                    ends: [local_index(ez.ends[0])?, local_index(ez.ends[1])?],
+                    refs: [local_index(ez.refs[0])?, local_index(ez.refs[1])?],
+                    cis: ez.cis,
+                });
+            }
+        }
+        let mut part = component(
+            fragment.state,
+            &props,
+            cumulenes.map(|_| local_cumulenes.as_slice()),
+            Options { root, ..options },
+        )?;
         part.atom_order = part
             .atom_order
             .iter()
@@ -163,6 +211,7 @@ pub fn with_symbols(
 fn component(
     mut state: State,
     props: &[symbols::AtomProperties<'_>],
+    cumulenes: Option<&[CumuleneEz]>,
     options: Options,
 ) -> Result<traversal::Output, Error> {
     state.valences = state.graph.provisional_valences().map_err(invalid)?;
@@ -216,6 +265,20 @@ fn component(
             }
         }
     }
+    // Add trusted stereo labels only to the ranking input. The written
+    // molecule uses direction bonds and preserves the original map metadata.
+    let mut ranking_metadata = None;
+    for ez in cumulenes.unwrap_or_default() {
+        let e = cumulene_is_e(&state, ez)
+            .map_err(invalid)?
+            .ok_or_else(|| invalid("Unassignable odd-cumulene E/Z"))?;
+        let metadata = ranking_metadata.get_or_insert_with(|| state.metadata.clone());
+        for &end in &ez.ends {
+            let atom = put(&mut metadata.atoms, end)?;
+            atom.map_number = if e { 900_016 } else { 900_032 };
+            atom.map_present = true;
+        }
+    }
     let ranks = if options.canonical {
         let was_empty = state.rings.kind == RingKind::None;
         let ranking_rings = if was_empty {
@@ -226,7 +289,7 @@ fn component(
         ranking::rank_cached(
             &state.graph,
             &ranking_rings,
-            &state.metadata,
+            ranking_metadata.as_ref().unwrap_or(&state.metadata),
             ranking::Options {
                 include_chirality: options.symbols.isomeric,
                 include_isotopes: options.symbols.isomeric,
@@ -319,7 +382,13 @@ fn component(
     let ring_bonds = ring_bonds(&state)?;
     let walk = traversal::build(&state.graph, &ring_bonds, &ranks, start)?;
     let broken = props.iter().map(|p| p.broken_chirality).collect::<Vec<_>>();
-    let adjusted = stereo::canonicalize(&state, &walk, &broken, options.symbols.isomeric)?;
+    let adjusted = stereo::canonicalize_with_cumulenes(
+        &state,
+        &walk,
+        &broken,
+        options.symbols.isomeric,
+        cumulenes,
+    )?;
     let writer = symbols::Writer::new(&state.graph, &adjusted.metadata, Some(&state.valences))?;
     Ok(walk.render(&writer, &adjusted.directions, props, options.symbols)?)
 }

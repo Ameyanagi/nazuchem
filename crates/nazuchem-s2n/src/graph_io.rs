@@ -43,7 +43,7 @@ pub fn read_smiles(
     let prepared = smiles::prepare(text, budget).map_err(|error| error.to_string())?;
     let state = nazuchem_kernel::identity::apply_axis_markers(&prepared.state, budget)
         .map_err(|_| "openclatura: invalid biaryl axis markers".to_owned())?;
-    read_state(state, None)
+    read_state(state, None, &prepared.cumulene_ez)
 }
 
 /// Read IR directly without changing its atom or bond indices.
@@ -61,7 +61,7 @@ pub(crate) fn read_molecule(
     if canonical.contains('.') {
         return Err("Openclatura requires a single connected molecule".into());
     }
-    read_state(state, Some(molecule))
+    read_state(state, Some(molecule), &[])
 }
 
 /// Shared graph construction keeps the aromatic snapshot and naming decisions
@@ -71,7 +71,22 @@ pub(crate) fn read_molecule(
 pub(crate) fn read_state(
     mut state: perception::State,
     input: Option<&nazuchem_ir::Molecule>,
+    cumulenes: &[nazuchem_kernel::stereo::CumuleneEz],
 ) -> Result<Molecule, String> {
+    // P-93.4.2.3: an odd cumulene has one E/Z descriptor; each of its bonds
+    // carries it so naming can tell if a proposed parent splits the chain.
+    use nazuchem_kernel::stereo::{cumulene_is_e, odd_cumulenes};
+    let mut cumulene_stereo = BTreeMap::new();
+    if !cumulenes.is_empty() {
+        for chain in odd_cumulenes(&state)? {
+            let ends = chain.ends.map(|(end, _)| end);
+            if let Some(ez) = cumulenes.iter().find(|ez| ez.ends == ends) {
+                let e =
+                    cumulene_is_e(&state, ez)?.ok_or("openclatura: unassignable cumulene E/Z")?;
+                cumulene_stereo.extend(chain.bonds.into_iter().map(|bond| (bond, e)));
+            }
+        }
+    }
     // Upstream divergence: aromatic atom endpoints cannot identify localized
     // inter-ring bonds; retain bond aromaticity for the final fusion pi audit.
     let aromatic_bonds: Vec<_> = state.graph.bonds.iter().map(|b| b.aromatic).collect();
@@ -200,7 +215,10 @@ pub(crate) fn read_state(
                 "openclatura: pseudoasymmetric bond stereochemistry is not supported".into(),
             );
         }
-        let stereo = modern_stereo.cloned().or(legacy_stereo);
+        let stereo = match cumulene_stereo.get(&idx) {
+            Some(&e) => Some(if e { "E" } else { "Z" }.into()),
+            None => modern_stereo.cloned().or(legacy_stereo),
+        };
         let in_small_ring = legacy.rings.atoms.iter().any(|ring| {
             (3..=7).contains(&ring.len())
                 && ring

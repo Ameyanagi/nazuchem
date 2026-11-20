@@ -40,6 +40,24 @@ pub fn recover(
     // This also proves the ordinary SMILES retains the original radical state.
     let canonical = crate::canonical_smiles(smiles, budget)?;
     let prepared = smiles::prepare(smiles, budget).map_err(|error| error.to_string())?;
+    if !prepared.cumulene_ez.is_empty()
+        && prepared
+            .state
+            .graph
+            .atoms
+            .iter()
+            .any(|atom| atom.radical_electrons != 0)
+        && prepared
+            .state
+            .graph
+            .atoms
+            .iter()
+            .map(|atom| i32::from(atom.charge))
+            .sum::<i32>()
+            != 0
+    {
+        return Err(UNSUPPORTED.into());
+    }
     let source = nazuchem_kernel::identity::apply_axis_markers(&prepared.state, budget)
         .map_err(|_| UNSUPPORTED)?;
     recover_state(&source, &canonical, budget)
