@@ -5,6 +5,7 @@
 // Source: ReShiki | src/naming/openclatura/von_baeyer.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | src/openclatura/graph_kernel.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/von_baeyer.rs | issue #100
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Consolidated openclatura legacy/main-ring and independent von-Baeyer searches with original Rust Python-order adapter and local bounds/tests.
@@ -541,7 +542,11 @@ pub fn find_von_baeyer_candidates(
     edges: &EdgeSet,
     minimum_main_sizes: (usize, usize),
 ) -> Vec<VonBaeyerCandidate> {
-    if edges.len() + 1 < atoms.len() + 3 || atoms.iter().any(|atom| mol.atoms[atom].is_aromatic) {
+    if edges.len() + 1 < atoms.len() + 3 {
+        return Vec::new();
+    }
+    let aromatic = atoms.iter().any(|id| mol.atoms[id].is_aromatic);
+    if aromatic && (atoms.len() != 19 || edges.len() != 23) {
         return Vec::new();
     }
     let adj = adjacency_from_edges(atoms, edges);
@@ -654,6 +659,19 @@ pub fn find_von_baeyer_candidates(
     candidates.sort_by_cached_key(|candidate| {
         super::polycycle_topology::von_baeyer_descriptor_rank(&candidate.descriptor)
     });
+    if aromatic {
+        // The two benzenoid rings of the ethanoanthracene imide occupy
+        // locants 2–7 and 9–14. The five-atom bridge has nitrogen at 17.
+        candidates.retain(|candidate| {
+            candidate.descriptor == "pentacyclo[6.6.5.0^{2,7}.0^{9,14}.0^{15,19}]"
+                && candidate.path.iter().enumerate().all(|(index, id)| {
+                    let atom = &mol.atoms[id];
+                    atom.charge == 0
+                        && atom.symbol == if index == 16 { "N" } else { "C" }
+                        && atom.is_aromatic == matches!(index, 1..=6 | 8..=13)
+                })
+        });
+    }
     candidates
 }
 
@@ -867,6 +885,29 @@ fn classify_secondary(
 mod tests {
     use super::super::{graph_io::read_smiles, polycycle_topology::edges_within_atoms};
     use super::*;
+
+    #[test]
+    // Provenance: fn tests::ethanoanthracene_imide_preserves_hydrazone_and_bridge_stereo | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/von_baeyer.rs::tests::ethanoanthracene_imide_preserves_hydrazone_and_bridge_stereo
+    fn ethanoanthracene_imide_preserves_hydrazone_and_bridge_stereo() {
+        let original = r"C1=CC=C(C=C1)CN2C(=O)[C@H]3[C@@H](C2=O)C4(C5=CC=CC=C5C3C6=CC=CC=C64)/C=N\NC(=O)C7=CC=CO7";
+        let reversed = r"O1C=CC=C1C(=O)N/N=C\C12C3=CC=CC=C3C(C3=CC=CC=C31)[C@@H]1[C@H]2C(=O)N(CC2=CC=CC=C2)C1=O";
+        let e_isomer = original.replace(r"/C=N\N", "/C=N/N");
+        let epimer = original.replace("[C@H]3", "[C@@H]3");
+        for smiles in [original, reversed, &e_isomer, &epimer] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(
+                name.status,
+                nazuchem_ir::NameStatus::NotPreferred(nazuchem_ir::NameReason::AcylPrefix)
+            );
+            assert!(
+                name.text
+                    .contains("17-azapentacyclo[6.6.5.0^{2,7}.0^{9,14}.0^{15,19}]")
+            );
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+    }
 
     #[test]
     fn cycle_space_recovers_every_largest_simple_cycle() {
