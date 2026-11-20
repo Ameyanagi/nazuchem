@@ -2129,6 +2129,18 @@ mod tests {
                 "3-(lambda^6-sulfanyl)-2-(lambda^4-sulfanylmethyl)propanoic acid",
                 &["[SH3]CC(C[SH5])C(=O)O", "[SH5]CC(C[SH3])C(=O)O"][..],
             ),
+            (
+                "3-[(34S)lambda^6-sulfanyl]-2-{[(34S)lambda^4-sulfanyl]methyl}propanoic acid",
+                &["[34SH5]CC(C[34SH3])C(=O)O", "[34SH3]CC(C[34SH5])C(=O)O"][..],
+            ),
+            (
+                "3-[(34S)lambda^6-sulfanyl]propanoic acid",
+                &["[34SH5]CCC(=O)O"][..],
+            ),
+            (
+                "3-[(32P)lambda^5-phosphanyl]propanoic acid",
+                &["[32PH4]CCC(=O)O", "OC(=O)CC[32PH4]"][..],
+            ),
             // P-45.2.2 example (5): the carbonyl carbon is part of the
             // substituted propyl chain, giving amino and oxo prefixes.
             (

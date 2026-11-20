@@ -498,7 +498,15 @@ fn name_subgraph_rendered_except_stereo(
             let labelled = super::isotope_naming::group_descriptor(mol, &AtomSet::from([start]));
             let cite_start = |rendered: &mut RenderedSubstituentName| {
                 if let Some((descriptor, cited)) = &labelled {
-                    rendered.text = format!("{descriptor}{}", rendered.text);
+                    // The lambda stem and its isotope descriptor occupy one
+                    // prefix enclosure. A separate (34S) before an enclosed
+                    // lambda stem can instead be read as a stereodescriptor.
+                    if rendered.text.starts_with("(lambda^") && rendered.text.ends_with(')') {
+                        let stem = &rendered.text[1..rendered.text.len() - 1];
+                        rendered.text = format!("({descriptor}{stem})");
+                    } else {
+                        rendered.text = format!("{descriptor}{}", rendered.text);
+                    }
                     rendered.isotope_atoms.extend(cited);
                     rendered.isotope_descriptors.push(descriptor.clone());
                 }
