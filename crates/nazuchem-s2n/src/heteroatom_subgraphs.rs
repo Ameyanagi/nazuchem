@@ -1015,6 +1015,12 @@ fn name_nitrogen(
                         &branch.text,
                         &branch.isotope_descriptors,
                     );
+                    // The labelled systematic phenylmethyl prefix is cited
+                    // under its ordinary retained name, benzyl (P-82.2.2.1).
+                    let plain = match plain.as_str() {
+                        "phenylmethyl" | "(phenylmethyl)" => "benzyl".into(),
+                        _ => plain,
+                    };
                     unmodified_ligands.insert(branch.text.clone(), plain);
                 }
                 branch.text

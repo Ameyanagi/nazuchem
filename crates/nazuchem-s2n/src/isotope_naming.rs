@@ -1186,6 +1186,22 @@ mod tests {
                 "3-{[(2-13C)ethyl](ethyl)amino}benzoic acid",
             ),
             (
+                "O=C(O)c1cc(N(C)[13CH2]c2ccccc2)ccc1",
+                "3-{[phenyl(13C)methyl](methyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13CH2]c2ccccc2)C)ccc1",
+                "3-{[phenyl(13C)methyl](methyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(CCCC)[13CH2]c2ccccc2)ccc1",
+                "3-{[phenyl(13C)methyl](butyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13CH2]c2ccccc2)CCCC)ccc1",
+                "3-{[phenyl(13C)methyl](butyl)amino}benzoic acid",
+            ),
+            (
                 "O=C(O)c1cc(N(Cc2ccccc2)[13CH2]c2ccccc2)ccc1",
                 "3-{[phenyl(13C)methyl](benzyl)amino}benzoic acid",
             ),
