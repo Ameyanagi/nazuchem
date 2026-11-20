@@ -620,3 +620,37 @@ fn equivalent_anhydride_sites_preserve_an_axis() {
         );
     }
 }
+
+#[test]
+fn cumulene_geometry_distinguishes_dianhydride_linkage_sites() {
+    let parser = n2s::Parser::new().unwrap();
+    let central = "undeca-2,3,4,7,8,9-hexaenedioic";
+    let ambiguous = format!("acetic (2E,7Z)-{central} propanoic dianhydride");
+    let result = parser.parse(&ambiguous, &n2s::ParseOptions::strict());
+    assert_eq!(result.status, n2s::Status::Failure);
+    assert!(result.message.contains("locants"), "{}", result.message);
+
+    for (name, expected) in [
+        (
+            format!("1-acetic (2E,7Z)-{central} 11-propanoic dianhydride"),
+            r"CC(=O)OC(=O)/C=C=C=C/C/C=C=C=C\C(=O)OC(=O)CC",
+        ),
+        (
+            format!("11-acetic (2E,7Z)-{central} 1-propanoic dianhydride"),
+            r"CC(=O)OC(=O)/C=C=C=C\C/C=C=C=C/C(=O)OC(=O)CC",
+        ),
+        (
+            format!("acetic (2E,7E)-{central} propanoic dianhydride"),
+            "CC(=O)OC(=O)/C=C=C=C/C/C=C=C=C/C(=O)OC(=O)CC",
+        ),
+    ] {
+        let result = parser.parse(&name, &n2s::ParseOptions::strict());
+        assert_eq!(
+            result.status,
+            n2s::Status::Success,
+            "{name}: {}",
+            result.message
+        );
+        same_structure(&name, expected);
+    }
+}

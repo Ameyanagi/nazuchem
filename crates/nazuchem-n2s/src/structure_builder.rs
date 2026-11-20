@@ -1304,21 +1304,21 @@ impl Builder<'_> {
             if imported.dropped_cumulene_ez {
                 return Ok(false);
             }
-            let mut state = imported.prepared.state;
+            let mut prepared = imported.prepared;
             if !axes.is_empty() {
-                let Ok(decoded) = identity::apply_axis_markers(&state, budget) else {
+                let Ok(decoded) = identity::apply_axis_markers(&prepared.state, budget) else {
                     return Ok(false);
                 };
-                state = decoded;
+                prepared.state = decoded;
             }
             if let Some(first) = &first {
-                if !kernel_smiles::equivalent_marked_stereo(first, &state, budget)
+                if !kernel_smiles::equivalent_marked_prepared(first, &prepared, budget)
                     .map_err(|e| error(e.to_string()))?
                 {
                     return Ok(false);
                 }
             } else {
-                first = Some(state);
+                first = Some(prepared);
             }
         }
         Ok(true)

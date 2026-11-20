@@ -77,24 +77,31 @@ fn put<T>(values: &mut [T], id: usize) -> Result<&mut T, Error> {
 /// the computed-property semantics of preparation/perception. Random traversal,
 /// queries and CX extensions are not part of this plain SMILES interface.
 pub fn write(input: &State, options: Options) -> Result<traversal::Output, Error> {
-    with_cumulenes_and_options(input, None, options)
+    with_cumulenes_and_options(input, None, options, true)
 }
 
 pub(crate) fn with_cumulenes(
     input: &State,
     cumulenes: &[CumuleneEz],
 ) -> Result<traversal::Output, Error> {
-    with_cumulenes_and_options(input, Some(cumulenes), Options::default())
+    with_cumulenes_and_options(input, Some(cumulenes), Options::default(), true)
 }
 
-fn with_cumulenes_and_options(
+pub(super) fn with_cumulenes_and_options(
     input: &State,
     cumulenes: Option<&[CumuleneEz]>,
     options: Options,
+    require_cumulene_descriptor: bool,
 ) -> Result<traversal::Output, Error> {
     input.graph.validate().map_err(invalid)?;
     let properties = vec![symbols::AtomProperties::default(); input.graph.atoms.len()];
-    write_fragments(input, &properties, cumulenes, options)
+    write_fragments(
+        input,
+        &properties,
+        cumulenes,
+        options,
+        require_cumulene_descriptor,
+    )
 }
 
 /// Preserve custom atom symbols and supplemental labels when explicitly supplied.
@@ -103,7 +110,7 @@ pub fn with_symbols(
     properties: &[symbols::AtomProperties<'_>],
     options: Options,
 ) -> Result<traversal::Output, Error> {
-    write_fragments(input, properties, None, options)
+    write_fragments(input, properties, None, options, true)
 }
 
 fn write_fragments(
@@ -111,6 +118,7 @@ fn write_fragments(
     properties: &[symbols::AtomProperties<'_>],
     cumulenes: Option<&[CumuleneEz]>,
     options: Options,
+    require_cumulene_descriptor: bool,
 ) -> Result<traversal::Output, Error> {
     validate(input)?;
     if properties.len() != input.graph.atoms.len() {
@@ -158,6 +166,7 @@ fn write_fragments(
             &props,
             cumulenes.map(|_| local_cumulenes.as_slice()),
             Options { root, ..options },
+            require_cumulene_descriptor,
         )?;
         part.atom_order = part
             .atom_order
@@ -213,6 +222,7 @@ fn component(
     props: &[symbols::AtomProperties<'_>],
     cumulenes: Option<&[CumuleneEz]>,
     options: Options,
+    require_cumulene_descriptor: bool,
 ) -> Result<traversal::Output, Error> {
     state.valences = state.graph.provisional_valences().map_err(invalid)?;
     let maps = state
@@ -269,13 +279,18 @@ fn component(
     // molecule uses direction bonds and preserves the original map metadata.
     let mut ranking_metadata = None;
     for ez in cumulenes.unwrap_or_default() {
-        let e = cumulene_is_e(&state, ez)
-            .map_err(invalid)?
-            .ok_or_else(|| invalid("Unassignable odd-cumulene E/Z"))?;
+        let label = match cumulene_is_e(&state, ez).map_err(invalid)? {
+            Some(true) => 900_016,
+            Some(false) => 900_032,
+            // A marked-site comparison can use the physical cis/trans geometry
+            // written below even when CIP cannot order enantiomorphic ligands.
+            None if !require_cumulene_descriptor => 900_048,
+            None => return Err(invalid("Unassignable odd-cumulene E/Z")),
+        };
         let metadata = ranking_metadata.get_or_insert_with(|| state.metadata.clone());
         for &end in &ez.ends {
             let atom = put(&mut metadata.atoms, end)?;
-            atom.map_number = if e { 900_016 } else { 900_032 };
+            atom.map_number = label;
             atom.map_present = true;
         }
     }

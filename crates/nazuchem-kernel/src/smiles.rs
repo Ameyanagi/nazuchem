@@ -37,7 +37,7 @@ use super::{
     ranking::{AtomMetadata, BondMetadata, Metadata},
     stereo::perception::State,
 };
-use crate::budget::Budget;
+use crate::{budget::Budget, stereo::CumuleneEz};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
@@ -131,8 +131,30 @@ fn inverted_stereo_groups(state: &State, units: &[Vec<usize>], mask: usize) -> S
 /// also matches every allowed full-group inversion. Return false if a match
 /// cannot be established within the bounded search.
 pub fn equivalent_marked_stereo(left: &State, right: &State, budget: &Budget) -> Result<bool> {
-    let left_signature = marked_stereo_signature(left, budget)?;
-    let right_signature = marked_stereo_signature(right, budget)?;
+    compare_marked_stereo((left, &[]), (right, &[]), budget)
+}
+
+/// Compare marked prepared molecules, preserving the depicted geometry across
+/// odd cumulenes even when a tetrahedral group inversion changes CIP priority.
+pub fn equivalent_marked_prepared(
+    left: &Prepared,
+    right: &Prepared,
+    budget: &Budget,
+) -> Result<bool> {
+    compare_marked_stereo(
+        (&left.state, &left.cumulene_ez),
+        (&right.state, &right.cumulene_ez),
+        budget,
+    )
+}
+
+fn compare_marked_stereo(
+    (left, left_ez): (&State, &[CumuleneEz]),
+    (right, right_ez): (&State, &[CumuleneEz]),
+    budget: &Budget,
+) -> Result<bool> {
+    let left_signature = marked_stereo_signature(left, left_ez, budget)?;
+    let right_signature = marked_stereo_signature(right, right_ez, budget)?;
     if left_signature == right_signature {
         return Ok(true);
     }
@@ -178,14 +200,14 @@ pub fn equivalent_marked_stereo(left: &State, right: &State, budget: &Budget) ->
     let mut left_signatures = BTreeSet::from([left_signature]);
     for mask in 1..left_count {
         let member = inverted_stereo_groups(left, &left_units, mask);
-        left_signatures.insert(marked_stereo_signature(&member, budget)?);
+        left_signatures.insert(marked_stereo_signature(&member, left_ez, budget)?);
     }
     if left_signatures.contains(&right_signature) {
         return Ok(true);
     }
     for mask in 1..right_count {
         let member = inverted_stereo_groups(right, &right_units, mask);
-        if left_signatures.contains(&marked_stereo_signature(&member, budget)?) {
+        if left_signatures.contains(&marked_stereo_signature(&member, right_ez, budget)?) {
             return Ok(true);
         }
     }
@@ -198,7 +220,11 @@ struct MarkedStereoSignature {
     groups: Vec<(u8, Vec<usize>, Vec<usize>)>,
 }
 
-fn marked_stereo_signature(state: &State, budget: &Budget) -> Result<MarkedStereoSignature> {
+fn marked_stereo_signature(
+    state: &State,
+    cumulenes: &[CumuleneEz],
+    budget: &Budget,
+) -> Result<MarkedStereoSignature> {
     let mut encoded;
     let state = if state
         .metadata
@@ -220,8 +246,14 @@ fn marked_stereo_signature(state: &State, budget: &Budget) -> Result<MarkedStere
     } else {
         state
     };
-    let written =
-        write::write(state, Default::default()).map_err(|error| Error::Write(Box::new(error)))?;
+    // When assignable, E/Z can break traversal ties between otherwise
+    // equivalent chains. Recompute it for the current group representative.
+    let written = if cumulenes.is_empty() {
+        write::write(state, Default::default())
+    } else {
+        write::with_cumulenes_and_options(state, Some(cumulenes), Default::default(), false)
+    }
+    .map_err(|error| Error::Write(Box::new(error)))?;
     let positions = |order: &[usize], members: &[usize]| {
         order
             .iter()

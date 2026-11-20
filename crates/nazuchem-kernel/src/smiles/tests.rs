@@ -1099,3 +1099,25 @@ fn marked_stereo_comparison_preserves_group_kind_and_membership() -> anyhow::Res
     )?);
     Ok(())
 }
+
+#[test]
+fn marked_group_inversion_preserves_cumulene_geometry_between_reference_ligands()
+-> anyhow::Result<()> {
+    let budget = crate::budget::Budget::default();
+    // The first cumulene end bears enantiomorphic ligands. Inverting the
+    // group swaps their CIP priority while preserving their physical geometry.
+    let read = |body: &str| -> anyhow::Result<_> {
+        let imported =
+            super::read_preserving_stereo_groups(&format!("{body} |&1:1,4,11|"), &budget)?;
+        assert_eq!(imported.prepared.cumulene_ez.len(), 1);
+        Ok(imported.prepared)
+    };
+    let left = read("C[C@H](F)/C([C@H](F)C)=C=C=C/C[C@H](Cl)[NH2:1]")?;
+    let right = read("C[C@@H](F)/C([C@@H](F)C)=C=C=C/C[C@@H](Cl)[NH2:1]")?;
+    let opposite = read(r"C[C@@H](F)/C([C@@H](F)C)=C=C=C\C[C@@H](Cl)[NH2:1]")?;
+    assert!(super::equivalent_marked_prepared(&left, &right, &budget)?);
+    assert!(!super::equivalent_marked_prepared(
+        &left, &opposite, &budget
+    )?);
+    Ok(())
+}
