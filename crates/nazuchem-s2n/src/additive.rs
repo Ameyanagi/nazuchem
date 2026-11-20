@@ -19,6 +19,7 @@
 // Source: openclatura | tests/unit/test_retained_parent_precedence_and_order.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_fused_parents.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: Nazuchem | crates/nazuchem-s2n/src/additive.rs | issue #95
+// Source: Nazuchem | crates/nazuchem-s2n/src/additive.rs | issue #96
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura hydrogen-role collection extended by local complete-parent suffix/lambda proofs.
@@ -353,7 +354,84 @@ pub fn add_indicated_hydrogens(
     }
     collect_indicated_hydrogens(mol, parts, numbered_path, locants)?;
     lower_retained_indicated_hydrogen(mol, parts, locants);
-    validate_retained_hydrogen_sites(mol, parts)
+    validate_retained_hydrogen_sites(mol, parts)?;
+    cite_fusion_nitrogen_hydron(mol, parts, locants);
+    Ok(())
+}
+
+/// Use hydrogenation of the mancude cation when the retained neutral
+/// parent's indicated-H spelling would be read as a different structure.
+// Provenance: fn cite_fusion_nitrogen_hydron | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/additive.rs::cite_fusion_nitrogen_hydron
+fn cite_fusion_nitrogen_hydron(
+    mol: &Molecule,
+    parts: &mut AssemblyParts,
+    locants: &BTreeMap<usize, String>,
+) {
+    use nazuchem_ir::{NameReason, NameStatus};
+    let ring = &parts.parent_atom_ids;
+    let Some(nitrogen) = ring.iter().copied().find(|&id| {
+        mol.atoms[&id].total_h_count == 1
+            && is_ium_nitrogen(mol, id)
+            && mol
+                .get_neighbors(id)
+                .iter()
+                .filter(|n| ring.contains(n))
+                .count()
+                == 3
+    }) else {
+        return;
+    };
+    if !super::assembly_charge::has_retained_like_parent(parts) {
+        return;
+    }
+    let saturated = ring.iter().all(|&id| saturated_ring_site(mol, id, ring));
+    // This retained hydride's complete hydrogenation already has an exact
+    // conventional reading, octahydro-2H-quinolizin-5-ium.
+    if saturated && parts.retained_name.as_deref() == Some("2H-quinolizine") {
+        return;
+    }
+    let cite = || {
+        let (_, parent) = parts.retained_name.as_deref()?.split_once("H-")?;
+        if !matches!(parent, "quinolizine" | "pyrrolizine")
+            || ring.iter().any(|&id| {
+                id != nitrogen && (!mol.atoms[&id].is_carbon() || mol.atoms[&id].charge != 0)
+                    || exocyclic_double_bond_site(mol, id, ring)
+            })
+        {
+            return None;
+        }
+        let mut sites: Vec<_> = ring
+            .iter()
+            .filter(|&&id| saturated_ring_site(mol, id, ring))
+            .map(|&id| (locants[&id].clone(), id))
+            .collect();
+        // P-31.2.2: cite a pair of adjacent hydro sites, or every site
+        // of the fully reduced cation. Keep other hydrogen allocations
+        // unverified until a unique reading is available.
+        if !saturated
+            && !(sites.len() == 2
+                && sites
+                    .iter()
+                    .any(|(_, id)| mol.get_neighbors(nitrogen).contains(id)))
+        {
+            return None;
+        }
+        sort_sites(&mut sites);
+        Some((parent.to_owned(), sites))
+    };
+    if let Some((parent, sites)) = cite() {
+        parts.retained_name = Some(parent);
+        parts.indicated_hydrogens.clear();
+        parts.hydro_operations = vec![operation("additive_hydrogen", &sites)];
+        if let Some(metadata) = &mut parts.retained_parent_metadata {
+            metadata.indicated_hydrogen_count = 0;
+            metadata.default_indicated_h.clear();
+        }
+        mol.mark_name(NameStatus::NotPreferred(NameReason::FusionNitrogenHydron));
+    } else {
+        mol.mark_name(NameStatus::Unverified(NameReason::FusionNitrogenHydron));
+    }
 }
 
 /// P-31.2.2, P-58.2.1.2: indicated hydrogen takes lower locants than hydro
@@ -368,22 +446,37 @@ fn lower_retained_indicated_hydrogen(
     locants: &BTreeMap<usize, String>,
 ) {
     let ring = &parts.parent_atom_ids;
-    let (Some(name), Some(metadata), [hydro]) = (
-        parts.retained_name.clone(),
-        &parts.retained_parent_metadata,
-        parts.hydro_operations.as_slice(),
-    ) else {
+    let (Some(name), Some(metadata)) = (&parts.retained_name, &parts.retained_parent_metadata)
+    else {
         return;
     };
-    let cited = name_indicated_hydrogen_locants(Some(&name));
+    let cited = name_indicated_hydrogen_locants(Some(name));
     let (Some(cited), 1) = (cited.first(), cited.len()) else {
         return;
     };
+    let oxo_cation = parts.principal_group.is_none()
+        && ring.iter().any(|&id| is_ium_nitrogen(mol, id))
+        && ring
+            .iter()
+            .any(|&id| super::retained_fused_templates::is_retained_oxo_site(mol, id));
+    let (hydro, explicit_indicated) = match parts.hydro_operations.as_slice() {
+        [hydro] if parts.indicated_hydrogens.is_empty() => (hydro, false),
+        [hydro, indicated]
+            if oxo_cation
+                && indicated.key == "indicated_hydrogen"
+                && indicated.locants.as_slice() == std::slice::from_ref(cited)
+                && indicated.locants == parts.indicated_hydrogens =>
+        {
+            (hydro, true)
+        }
+        _ => return,
+    };
     if hydro.key != "additive_hydrogen"
-        || !parts.indicated_hydrogens.is_empty()
         || ring.iter().any(|&id| {
             mol.atoms[&id].charge != 0 && !is_ium_nitrogen(mol, id)
                 || exocyclic_double_bond_site(mol, id, ring)
+                    && !(oxo_cation
+                        && super::retained_fused_templates::is_retained_oxo_site(mol, id))
         })
     {
         return;
@@ -391,7 +484,7 @@ fn lower_retained_indicated_hydrogen(
     let by_loc: BTreeMap<_, _> = locants.iter().map(|(&id, l)| (l.clone(), id)).collect();
     let Some(template) = super::retained_fused_templates::retained_graph_templates(false)
         .iter()
-        .find(|template| template.name == name)
+        .find(|template| template.name == *name)
     else {
         return;
     };
@@ -441,10 +534,28 @@ fn lower_retained_indicated_hydrogen(
     sort_sites(&mut sites);
     let hydro = &mut parts.hydro_operations[0];
     (hydro.locants, hydro.atom_ids) = sites.into_iter().unzip();
-    parts.retained_name = Some(respell_indicated_hydrogen(&name, &BTreeSet::from([lowest])));
+    if explicit_indicated {
+        parts.indicated_hydrogens = vec![lowest.clone()];
+        parts.hydro_operations[1].locants = vec![lowest.clone()];
+        parts.hydro_operations[1].atom_ids = vec![by_loc[&lowest]];
+    }
+    parts.retained_name = Some(respell_indicated_hydrogen(name, &BTreeSet::from([lowest])));
     if let Some(parent) = &mut parts.parent_hydride {
         parent.parent_name = parts.retained_name.clone();
     }
+}
+
+// Provenance: fn retained_indicated_hydrogen_locants | adapted
+// Source: ReShiki | src/naming/openclatura/additive.rs::validate_retained_hydrogen_sites
+pub(super) fn retained_indicated_hydrogen_locants(name: Option<&str>) -> BTreeSet<String> {
+    let mut sites = name_indicated_hydrogen_locants(name);
+    if let Some(name) = name {
+        // Hydrogenation prefixes can precede the indicated-H parent name.
+        for (offset, _) in name.match_indices('-') {
+            sites.extend(name_indicated_hydrogen_locants(Some(&name[offset + 1..])));
+        }
+    }
+    sites
 }
 
 // Provenance: fn validate_retained_hydrogen_sites | original
@@ -464,13 +575,9 @@ fn validate_retained_hydrogen_sites(mol: &Molecule, parts: &AssemblyParts) -> Re
         .chain(parts.indicated_hydrogens.iter().cloned())
         .chain(metadata.inherent_saturated_locants.iter().cloned())
         .collect();
-    if let Some(name) = parts.retained_name.as_deref() {
-        // Hydrogenation prefixes can precede the indicated-H parent name.
-        sites.extend(name_indicated_hydrogen_locants(Some(name)));
-        for (offset, _) in name.match_indices('-') {
-            sites.extend(name_indicated_hydrogen_locants(Some(&name[offset + 1..])));
-        }
-    }
+    sites.extend(retained_indicated_hydrogen_locants(
+        parts.retained_name.as_deref(),
+    ));
     if sites.iter().any(|locant| {
         parts
             .parent_atom_ids_by_locant

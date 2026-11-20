@@ -600,10 +600,11 @@ fn add_indicated_hydrogen_prefix(parts: &mut AssemblyParts, core: &str) -> (Stri
             m.fusion_locants
                 .iter()
                 .filter(|&locant| {
-                    parts
-                        .parent_atom_symbols_by_locant
-                        .get(locant)
-                        .is_some_and(|symbol| symbol == "N")
+                    !additive.contains(locant)
+                        && parts
+                            .parent_atom_symbols_by_locant
+                            .get(locant)
+                            .is_some_and(|symbol| symbol == "N")
                 })
                 .count()
         });

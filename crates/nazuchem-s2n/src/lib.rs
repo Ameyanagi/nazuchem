@@ -3361,6 +3361,14 @@ mod tests {
                 "c1ccc2c(c1)[N+](C)(C)c1cc3cnc4ccccc4c3cc1O2",
                 "8,8-dimethyl-8H-quinolino[3,4-b]phenoxazin-8-ium",
             ),
+            (
+                "O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3[N+](C)(C)C2=C1",
+                "14,14-dimethyl-2-oxo-2,3,7,14-tetrahydro[1,4]benzothiazino[2,3-b]phenoxazin-14-ium",
+            ),
+            (
+                "O=C1CC=C2Oc3cc4[N+](C)(C)c5ccccc5Sc4cc3NC2=C1",
+                "7,7-dimethyl-2-oxo-2,3,7,14-tetrahydro[1,4]benzothiazino[2,3-b]phenoxazin-7-ium",
+            ),
             // P-58.2.3.1.1: the ketone takes the indicated hydrogen
             // ('7H-1-benzopyran-7-one').
             (
@@ -3466,14 +3474,11 @@ mod tests {
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
         }
         // Not composed yet, so these keep main's names labelled not preferred:
-        // an ion whose ring also has a ketone cites it as 'oxo' (P-73.1.2.1),
         // an 'oxo' prefix needs its own indicated hydrogen, and an ion at a
         // hydro N takes added hydrogen (P-72.2.2.1.1).
         let fallback = NameStatus::NotPreferred(NameReason::VonBaeyerFusionFallback);
         let unregistered = NameStatus::NotPreferred(NameReason::UnregisteredRetainedComponent);
         for (smiles, status) in [
-            ("O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3[N+](C)(C)C2=C1", &fallback),
-            ("O=C1CC=C2Oc3cc4[N+](C)(C)c5ccccc5Sc4cc3NC2=C1", &fallback),
             ("OC(=O)c1ccc2nc3c(cc(=O)c4ccccc34)oc2c1", &unregistered),
             ("C[N+]1(C)c2ccccc2Sc2cc3Oc4ccccc4N(C)c3cc21", &fallback),
             // #15: the pheno...ine family includes this unregistered S/Si

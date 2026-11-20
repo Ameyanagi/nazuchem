@@ -8,6 +8,7 @@
 // Source: openclatura | tests/roundtrip/test_fused_hydrocarbon_retained.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/fixtures/diverse_corpus.csv | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/data/parser_xml_resources/arylGroups.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/ion_spelling_tests.rs | issue #96
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 
 use super::name_smiles;
@@ -500,13 +501,12 @@ fn ion_spelling_matrix() {
             "4-oxo-1,2,3,4-tetrahydroisoquinolin-2-ium",
             NameStatus::Preferred,
         ),
-        // P-73.1.1.2: a hydron at a fusion N. The parser reads this spelling as
-        // the λ5-ylium cation of P-73.3.1 unless the ring is saturated.
+        // P-73.1.1.2: a hydron at a fusion N preserves the neutral parent.
         (
             "#96 protonated fusion N",
             "C1CC[NH+]2CCCCC2C1",
             "octahydro-2H-quinolizin-5-ium",
-            NameStatus::Unverified(NameReason::FusionNitrogenHydron),
+            NameStatus::Preferred,
         ),
         (
             "control nitrobenzene",
@@ -541,4 +541,45 @@ fn ion_spelling_matrix() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+// Provenance: fn fused_cation_aliases_preserve_charge_and_hydrogen_at_the_ring_junction | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/ion_spelling_tests.rs::fused_cation_aliases_preserve_charge_and_hydrogen_at_the_ring_junction
+fn fused_cation_aliases_preserve_charge_and_hydrogen_at_the_ring_junction() {
+    // Strict structures from the baseline reader. Both retained spellings
+    // keep the same carbon tautomer and the same valence at the junction N.
+    for (root, junction, indicated, expected) in [
+        ("indolizin", 4, 1, "C1C=C[N+]2=CC=CC=C12"),
+        ("indolizin", 4, 2, "C=1CC=[N+]2C=CC=CC12"),
+        ("indolizin", 4, 3, "C1=CC[N+]2=CC=CC=C12"),
+        ("indolizin", 4, 4, "C=1C=C[NH+]2C=CC=CC12"),
+        ("indolizin", 4, 5, "C1=CC=[N+]2CC=CC=C12"),
+        ("indolizin", 4, 6, "C=1C=C[N+]2=CCC=CC12"),
+        ("indolizin", 4, 7, "C1=CC=[N+]2C=CCC=C12"),
+        ("indolizin", 4, 8, "C=1C=C[N+]2=CC=CCC12"),
+        ("quinolizin", 5, 1, "C1C=CC[N+]2=CC=CC=C12"),
+        ("quinolizin", 5, 3, "C1=CCC[N+]2=CC=CC=C12"),
+        ("quinolizin", 5, 4, "C1=CCC[N+]2=CC=CC=C12"),
+        ("quinolizin", 5, 5, "C=1C=CC[NH+]2C=CC=CC12"),
+        ("quinolizin", 5, 7, "C=1C=CC[N+]2=CCC=CC12"),
+        ("quinolizin", 5, 9, "C=1C=CC[N+]2=CC=CCC12"),
+        ("pyrrolizin", 4, 1, "C1CC=[N+]2C=CC=C12"),
+        ("pyrrolizin", 4, 2, "C1CC=[N+]2C=CC=C12"),
+        ("pyrrolizin", 4, 4, "C1C=C[NH+]2C=CC=C12"),
+        ("pyrrolizin", 4, 5, "C1C=C[N+]=2CC=CC12"),
+        ("pyrrolizin", 4, 6, "C1C=C[N+]2=CCC=C12"),
+        ("pyrrolizin", 4, 7, "C1C=C[N+]=2C=CCC12"),
+    ] {
+        for name in [
+            format!("{indicated}H-{root}-{junction}-ium"),
+            format!("{indicated}H-{root}ium"),
+        ] {
+            let parsed = crate::test_support::parse_strict(&name).unwrap();
+            crate::test_support::verify_identity(expected, &parsed)
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
+        }
+    }
+    let parsed = crate::test_support::parse_strict("2,3-dihydro-1H-indolizin-4-ium").unwrap();
+    crate::test_support::verify_identity("C1CC[N+]2=CC=CC=C12", &parsed).unwrap();
 }

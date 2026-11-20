@@ -128,7 +128,7 @@ fn plan_uncached(
         })
         .collect();
     // An ion whose ring also carries a suffix group cites it as a prefix
-    // (P-73.1.2.1, '2,2-dimethyl-1,3-dioxo-...-2-ium'); that is not composed here.
+    // (P-73.1.2.1). A cation with oxo groups uses the neutral projection below.
     let ring_suffix = atoms.iter().any(|&a| {
         mol.get_neighbors(a)
             .iter()
@@ -199,26 +199,47 @@ fn plan_uncached(
     // plan its indicated and hydro hydrogen on the unsubstituted neutral
     // parent (ring N substituents become H). A quaternary ring N is the same
     // cation with its hydrogen substituted; one with four ring bonds has no
-    // neutral parent. Ring atoms with exocyclic multiple bonds (suffix
-    // composition) stay on the charged path below.
+    // neutral parent. Exocyclic oxo groups replace two hydrogens of
+    // the cationic parent (P-73.1.2.1).
     let protonated: Vec<_> = atoms
         .iter()
         .copied()
         .filter(|&id| is_ium_nitrogen(mol, id) && parent_degree(mol, atoms, id) < 4)
         .collect();
+    let oxo = |a: usize, n: usize| {
+        mol.atoms[&a].symbol == "C"
+            && mol.atoms[&n].symbol == "O"
+            && super::exocyclic::is_neutral_external_pi_ligand(mol, a, n)
+    };
     if !protonated.is_empty()
         && !spiro_component
         && atoms.iter().all(|&a| {
             mol.get_neighbors(a)
                 .iter()
-                .all(|n| atoms.contains(n) || mol.bond_order(a, *n) == 1)
+                .all(|n| atoms.contains(n) || mol.bond_order(a, *n) == 1 || oxo(a, *n))
         })
     {
         let mut kept: AtomSet = mol.atoms.keys().copied().collect();
         for &id in &protonated {
             kept.retain(|a| atoms.contains(a) || !mol.get_neighbors(id).contains(a));
         }
+        let mut carbonyls = Vec::new();
+        for &a in atoms {
+            for &n in mol.get_neighbors(a) {
+                if !atoms.contains(&n) && oxo(a, n) {
+                    kept.remove(&n);
+                    carbonyls.push(a);
+                }
+            }
+        }
+        let has_carbonyl = !carbonyls.is_empty();
         let mut neutral = mol.subgraph(&kept);
+        for a in carbonyls {
+            if let Some(atom) = neutral.atoms.get_mut(&a) {
+                atom.total_h_count += 2;
+                atom.explicit_h_count = atom.total_h_count;
+            }
+        }
         for &id in &protonated {
             let h = 3 - neutral.degree(id);
             if let Some(atom) = neutral.atoms.get_mut(&id) {
@@ -236,7 +257,7 @@ fn plan_uncached(
                 .collect();
             let lowest_saturated = atoms
                 .iter()
-                .filter(|&&a| all_single(mol, a))
+                .filter(|&&a| all_single(&neutral, a))
                 .map(|a| locant_key(&locants[a]))
                 .min();
             // P-31.2.2: indicated hydrogen takes lower locants than hydro
@@ -263,7 +284,38 @@ fn plan_uncached(
                             .map_or(retained.name.as_str(), |(_, name)| name),
                     )
                 });
-            if lowest_indicated
+            // In a pheno...ine, the intrinsic N-H sites of both components
+            // are retained as hydro positions of the combined parent.
+            let intrinsic_h = has_carbonyl
+                && plan.ast.component_occurrences.iter().any(|m| {
+                    fusion_component_registry()
+                        .spec_for_match(m)
+                        .is_ok_and(|s| s.parent_hydride_only)
+                })
+                && plan.indicated_hydrogens.iter().all(|l| {
+                    locants
+                        .iter()
+                        .any(|(a, loc)| loc == l && neutral.atoms[a].symbol == "N")
+                });
+            // A saturated carbon between two ether oxygens cannot participate
+            // in a double bond of the neutral mancude parent.
+            let acetal_h = plan.indicated_hydrogens.len() == 1
+                && locants.iter().any(|(&a, l)| {
+                    plan.indicated_hydrogens.contains(l)
+                        && neutral.atoms[&a].is_carbon()
+                        && neutral
+                            .get_neighbors(a)
+                            .iter()
+                            .filter(|n| atoms.contains(n))
+                            .count()
+                            == 2
+                        && neutral
+                            .get_neighbors(a)
+                            .iter()
+                            .filter(|n| atoms.contains(n))
+                            .all(|n| neutral.atoms[n].symbol == "O" && neutral.atoms[n].charge == 0)
+                });
+            if (lowest_indicated || intrinsic_h || acetal_h)
                 && retained_parent
                 && let Ok(operations) =
                     fusion_charge_operations(mol, &plan.abstract_parent_graph, &plan.numbering)
@@ -1597,32 +1649,54 @@ mod tests {
         ] {
             let name = crate::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected);
-            assert_ne!(
-                name.status,
-                nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::FusionNitrogenHydron)
-            );
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
         }
-        // #96: this cation's hydro prefixes do not yet match its neutral
-        // parent hydride (1-oxodecahydroisoquinolin-2-ium, P-73.1.2.1), so
-        // the name keeps its locants and stays unverified.
-        let name = crate::name_smiles("O=C1[NH2+]CCC2CCCCC12", &Default::default()).unwrap();
-        assert_eq!(
-            name.status,
-            nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::HydroPrefixLocants)
-        );
-        // #96, P-73.1.1.2: a hydron at a fusion N is cited as -ium, but the
-        // parser reads that spelling as the λ5-ylium cation (P-73.3.1), so
-        // the name stays unverified.
         for (smiles, expected) in [
-            ("C1CC2CCC[NH+]2C1", "hexahydro-1H-pyrrolizin-4-ium"),
-            ("C1=CC=C2C=CC=C[NH+]2C1", "4H-quinolizin-5-ium"),
+            ("c1ccc2c(c1)CC[NH2+]2", "2,3-dihydro-1H-indol-1-ium"),
+            ("C1=Nc2ccccc2[NH2+]1", "1H-1,3-benzimidazol-1-ium"),
+            ("C1CC2CC[NH2+]C2C1", "octahydrocyclopenta[b]pyrrol-1-ium"),
+            (
+                "C[N+]1(C)CCc2cc3OCOc3cc2C1",
+                "6,6-dimethyl-5,6,7,8-tetrahydro-2H-[1,3]dioxolo[4,5-g]isoquinolin-6-ium",
+            ),
+            ("O=C1[NH2+]CCC2CCCCC12", "1-oxodecahydroisoquinolin-2-ium"),
+            (
+                "C[N+]1(C)C(=O)c2ccccc2C1=O",
+                "2,2-dimethyl-1,3-dioxo-2,3-dihydro-1H-isoindol-2-ium",
+            ),
         ] {
             let name = crate::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected);
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred);
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        // P-73.1.1.2: a hydron leaves the neutral fusion N single-bonded.
+        for (smiles, expected) in [
+            ("C1CC2CCC[NH+]2C1", "octahydropyrrolizin-4-ium"),
+            ("C1=CC=C2C=CC=C[NH+]2C1", "4,5-dihydroquinolizin-5-ium"),
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected);
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
             assert_eq!(
                 name.status,
-                nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::FusionNitrogenHydron)
+                nazuchem_ir::NameStatus::NotPreferred(
+                    nazuchem_ir::NameReason::FusionNitrogenHydron
+                )
             );
+        }
+        // P-73.3.1: the lambda-5-ylium parent carries an additional
+        // skeletal bond at N, with no added hydron.
+        for name in [
+            "quinolizinium",
+            "quinolizin-5-ium",
+            "5lambda^5-quinolizin-5-ylium",
+        ] {
+            let parsed = crate::test_support::parse_strict(name).unwrap();
+            crate::test_support::verify_identity("c1ccc2cccc[n+]2c1", &parsed).unwrap();
         }
     }
 

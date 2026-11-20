@@ -706,6 +706,7 @@ fn component_pipeline(
         None,
     )?;
     let mut retained_metadata = None;
+    let mut donor_hydrogens = Vec::new();
     if let Some(retained) = retained_fused {
         retained_name = Some(retained.name);
         maps = retained.locant_maps;
@@ -715,16 +716,14 @@ fn component_pipeline(
             !metadata.fusion_locants.is_empty()
                 && metadata.indicated_hydrogen_count > 0
                 && super::additive::name_indicated_hydrogen_locants(Some(name)).is_empty()
-                && parent.iter().any(|id| {
-                    let atom = &mol.atoms[id];
-                    atom.charge > 0 && atom.total_h_count > 1
-                })
         }) {
-            // Upstream divergence: the neutral retained match is not a charge
-            // proof. With an implicit donor H, the ium renderer suppresses its
-            // citation and can redistribute H between heteroatoms. A rejected
-            // production match must not restore that uncertified fallback.
-            return Err("openclatura: charged retained donor hydrogen state not supported".into());
+            // P-73.1.1.2: the hydron is added to the neutral donor N-H.
+            // Require its indicated-H citation in the numbered parent below.
+            donor_hydrogens = parent
+                .iter()
+                .copied()
+                .filter(|id| mol.atoms[id].charge > 0 && mol.atoms[id].total_h_count > 1)
+                .collect();
         }
         let context = if mapping.is_empty() && key.is_none() {
             "unsubstituted_parent"
@@ -924,6 +923,17 @@ fn component_pipeline(
         }
     }
     add_indicated_hydrogens(mol, parts, numbered, locants)?;
+    if !donor_hydrogens.is_empty() {
+        let mut cited =
+            super::additive::retained_indicated_hydrogen_locants(parts.retained_name.as_deref());
+        cited.extend(parts.indicated_hydrogens.iter().cloned());
+        if donor_hydrogens.iter().any(|id| {
+            !super::retained_fused_templates::is_ium_nitrogen(mol, *id)
+                || !cited.contains(&locants[id])
+        }) {
+            return Err("openclatura: charged retained donor hydrogen state not supported".into());
+        }
+    }
     if projection.is_some() {
         parts.omit_redundant_locants = false;
     }
@@ -1193,8 +1203,8 @@ mod tests {
     // Test provenance: upstream inputs/expected names with local assertions and extensions;
     // exact matches are conservatively adapted; independent ancestry is not established.
     fn charged_retained_fallback_requires_citable_donor_hydrogen() {
-        assert!(super::super::name_smiles("C1=Nc2ccccc2[NH2+]1", &Default::default()).is_err());
         for (smiles, name) in [
+            ("C1=Nc2ccccc2[NH2+]1", "1H-1,3-benzimidazol-1-ium"),
             // P-73.1.1.2: a hydron added to the N-H of 1H-indazole.
             ("C1=N[NH2+]c2ccccc21", "1H-indazol-1-ium"),
             ("c1ccc2[nH+]cccc2c1", "quinolin-1-ium"),
