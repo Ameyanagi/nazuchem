@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/radical_ions.rs | amide nitrogen charge follow-up
 // Source: Nazuchem | crates/nazuchem-s2n/src/radical_ions.rs | Phase B step 8b
 // Source: ReShiki | src/naming/openclatura/radical_ions.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Copyright (c) 2026 lamalab-org
@@ -334,6 +335,8 @@ mod tests {
     }
 
     #[test]
+    // Provenance: fn tests::isothiocyanate_radical_anion_uses_descriptive_neutral_parent_verification | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/radical_ions.rs::tests::isothiocyanate_radical_anion_uses_descriptive_neutral_parent_verification
     fn isothiocyanate_radical_anion_uses_descriptive_neutral_parent_verification() {
         let budget = Default::default();
         let smiles = "CCN=C=[S-]";

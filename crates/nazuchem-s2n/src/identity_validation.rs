@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | amide nitrogen charge follow-up
 // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | issue #186
 // Source: ReShiki | src/naming/openclatura/identity_validation.rs | 327d32fed63a5b3df15b7b8dc5ab84a7c36e0865
 // Copyright (c) 2026 lamalab-org
@@ -280,6 +281,8 @@ mod tests {
     }
 
     #[test]
+    // Provenance: fn tests::amidium_names_preserve_charge_in_both_public_naming_paths | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::amidium_names_preserve_charge_in_both_public_naming_paths
     fn amidium_names_preserve_charge_in_both_public_naming_paths() {
         use crate::test_support::{canonical_smiles, parse_strict};
 
@@ -343,6 +346,8 @@ mod tests {
     }
 
     #[test]
+    // Provenance: fn tests::charged_amidium_variants_preserve_protons_and_charge_pairs | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::charged_amidium_variants_preserve_protons_and_charge_pairs
     fn charged_amidium_variants_preserve_protons_and_charge_pairs() {
         use crate::test_support::{canonical_smiles, parse_strict};
         use nazuchem_ir::{NameReason, NameStatus};
@@ -402,6 +407,8 @@ mod tests {
     }
 
     #[test]
+    // Provenance: fn tests::amide_nitrogen_chalcogenides_keep_the_neutral_amide_suffix | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::amide_nitrogen_chalcogenides_keep_the_neutral_amide_suffix
     fn amide_nitrogen_chalcogenides_keep_the_neutral_amide_suffix() {
         use crate::test_support::{canonical_smiles, parse_strict};
         use nazuchem_ir::{NameReason, NameStatus};
@@ -439,6 +446,8 @@ mod tests {
     }
 
     #[test]
+    // Provenance: fn tests::multiplied_amidium_n_locants_are_independent_of_atom_order | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::multiplied_amidium_n_locants_are_independent_of_atom_order
     fn multiplied_amidium_n_locants_are_independent_of_atom_order() {
         use crate::test_support::{canonical_smiles, parse_strict};
 
@@ -479,6 +488,8 @@ mod tests {
     }
 
     #[test]
+    // Provenance: fn tests::shared_nitrogen_amidium_parent_is_independent_of_atom_order | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::shared_nitrogen_amidium_parent_is_independent_of_atom_order
     fn shared_nitrogen_amidium_parent_is_independent_of_atom_order() {
         use crate::test_support::{canonical_smiles, parse_strict};
 
@@ -515,6 +526,8 @@ mod tests {
     }
 
     #[test]
+    // Provenance: fn tests::amidium_substituent_prefixes_without_a_charge_citation_are_declined | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::amidium_substituent_prefixes_without_a_charge_citation_are_declined
     fn amidium_substituent_prefixes_without_a_charge_citation_are_declined() {
         let budget = Default::default();
         let smiles = "C[NH+](C)C(=S)c1ccc(C(=O)[O-])cc1";
