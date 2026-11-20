@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "c077dc0286920c6e8b3fd5bbac1fca2e1c6d7e8b12e4b92b4be038d3b0c9eaa5"
+sha256 = "5a6355f9fbc230e272b8c7bb1ec3485fadfd52fbee55a5b184040e6286b00921"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "5afecbffef8fa2d00a79294abf73809c9ae1d758e1a63d0ca2832ab5ff0f4177"
+sha256 = "35a13006c55dc6504b628a7683ed7efd3c6b965aa846c8c1f99cfeb00ff99b12"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"

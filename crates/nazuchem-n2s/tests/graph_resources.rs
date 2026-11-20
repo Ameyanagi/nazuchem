@@ -69,7 +69,7 @@ fn build_every_literal_group_resource() {
             }
         }
     }
-    assert_eq!(examples, 3_266, "Frozen literal resource coverage changed");
+    assert_eq!(examples, 3_267, "Frozen literal resource coverage changed");
     assert!(
         failures.is_empty(),
         "{} failures out of {examples} frozen resource groups:\n{}",

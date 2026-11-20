@@ -235,8 +235,8 @@ all XML/DTD files and the neutral DFA table. The exported crate constant is
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph
-snapshots and constructs all 3,266 literal groups. These include 3,181 pinned
-occurrences, 16 acid-anion prefixes and cyanohydrazide. The 34 native
+snapshots and constructs all 3,267 literal groups. These include 3,181 pinned
+occurrences, 17 acid-anion prefixes and cyanohydrazide. The 34 native
 heteranthrene and pheno...ine ring triples contribute 68 parent and fusion
 groups. Each must build and kekulize exactly like its pinned sibling. `phanes.txt` contributes
 174 integration names (348 strict/radical structure records); the 21 phane

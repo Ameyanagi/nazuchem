@@ -704,7 +704,7 @@ fn stereo_free_corpus_ordinary_hydrogen_variants_retain_complete_name_results() 
             counts.names.identical,
             counts.names.both_rejected
         ),
-        (1376, 1371, 5)
+        (1376, 1370, 6)
     );
     counts.names.assert_routes(&[("salt", 9)], 1366);
     assert_eq!(
@@ -1128,7 +1128,7 @@ fn every_n2s_golden_structure_retains_complete_name_results() {
     finish("n2s generated-name golden", &counts, differences, started);
     assert_eq!(records, 1650);
     // One generated name cites impossible hydro/indicated hydrogen (P-14.7.1, P-31.2.2; #34).
-    // Two are lambda radicals (P-71.2.1.2; #27), which strict parsing refuses.
+    // Two are lambda radicals (P-71.2.1.2; #27) and one is the standalone methyl substituent.
     assert_n2s_coverage(&counts, (1682, 1678, 0, 4));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),

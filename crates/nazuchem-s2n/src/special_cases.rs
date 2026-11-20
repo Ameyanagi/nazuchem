@@ -2912,8 +2912,8 @@ fn homonuclear_chain_parent_name(
     // A ligand may leave its unique heteroatom to a whole-name letter
     // locant, e.g. (S-2H1)-1-sulfanylhydrazine. Keep that descriptor at
     // the front when neither the chain nor its named prefix cites a label.
-    let has_local_label = !prefix_isotopes.is_empty()
-        || sites.iter().any(|site| chain_set.contains(&site.anchor));
+    let has_local_label =
+        !prefix_isotopes.is_empty() || sites.iter().any(|site| chain_set.contains(&site.anchor));
     let isotope_parts = (hydrazine && has_local_label).then(|| ShortcutIsotopeParts {
         locants: oriented
             .iter()
