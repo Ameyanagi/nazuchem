@@ -7814,8 +7814,9 @@ license = "MIT OR Apache-2.0"
 sources = [
   { project = "Nazuchem", path = "crates/nazuchem/tests/hydrazine_names.rs", ref = "issue #168", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem", path = "crates/nazuchem/tests/hydrazine_names.rs", ref = "issue #113", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem/tests/hydrazine_names.rs", ref = "issue #141", license = "MIT OR Apache-2.0" },
 ]
-notes = "Original facade regression for issue #168: generated names of nitramido and nitroamino prefixes beside a chain acid, ester or nitrile, of N'-ylidene hydrazides and of hydrazinylidene prefixes, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure."
+notes = "Original facade regression for issue #168: generated names of nitramido and nitroamino prefixes beside a chain acid, ester or nitrile, of N'-ylidene hydrazides and of hydrazinylidene prefixes, each checked against the IUPAC 2013 rule cited beside it and parsed back to the input structure. Issue #141 covers O- and N-linked hydrazinecarbonyl prefixes and enclosing marks for simple hydrazinyl in a substituent chain."
 
 [[file]]
 path = "crates/nazuchem/tests/polyanhydrides.rs"

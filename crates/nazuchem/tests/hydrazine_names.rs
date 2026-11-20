@@ -2,6 +2,7 @@
 // Origin: original
 // Source: Nazuchem | crates/nazuchem/tests/hydrazine_names.rs | issue #168
 // Source: Nazuchem | crates/nazuchem/tests/hydrazine_names.rs | issue #113
+// Source: Nazuchem | crates/nazuchem/tests/hydrazine_names.rs | issue #141
 
 #![cfg(all(feature = "n2s", feature = "s2n"))]
 
@@ -24,6 +25,63 @@ fn check(smiles: &str, expected: &str, status: NameStatus) {
         canonical_smiles(&parsed, &budget).unwrap(),
         canonical_smiles(smiles, &budget).unwrap(),
         "{expected}"
+    );
+}
+
+#[test]
+fn linked_hydrazinecarbonyl_prefixes_keep_their_enclosing_marks() {
+    // P-66.3.5.2 cites (hydrazinecarbonyl)oxy and (hydrazinecarbonyl)amino.
+    // P-16.5.1.4, P-16.5.2.4 and P-16.5.3.1 govern the enclosing marks.
+    for (smiles, expected) in [
+        (
+            "OC(=O)CCOC(=O)NN",
+            "3-[(hydrazinecarbonyl)oxy]propanoic acid",
+        ),
+        (
+            "OC(=O)CCNC(=O)NN",
+            "3-[(hydrazinecarbonyl)amino]propanoic acid",
+        ),
+        (
+            "OC(=O)c1ccc(OC(=O)NN)cc1",
+            "4-[(hydrazinecarbonyl)oxy]benzoic acid",
+        ),
+        (
+            "OC(=O)c1ccc(NC(=O)NN)cc1",
+            "4-[(hydrazinecarbonyl)amino]benzoic acid",
+        ),
+        (
+            "OC(=O)c1ccc(CCOC(=O)NN)cc1",
+            "4-{2-[(hydrazinecarbonyl)oxy]ethyl}benzoic acid",
+        ),
+        (
+            "OC(=O)c1ccc(CCNC(=O)NN)cc1",
+            "4-{2-[(hydrazinecarbonyl)amino]ethyl}benzoic acid",
+        ),
+    ] {
+        check(smiles, expected, NameStatus::Preferred);
+    }
+
+    for (name, structure) in [
+        ("[(hydrazinecarbonyl)oxy]formohydrazide", "NNC(=O)OC(=O)NN"),
+        (
+            "[(hydrazinecarbonyl)amino]formohydrazide",
+            "NNC(=O)NC(=O)NN",
+        ),
+    ] {
+        let parsed = name_to_smiles(name).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        nazuchem::s2n::verify_identity(structure, &parsed, &Budget::default())
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+    }
+}
+
+#[test]
+fn simple_hydrazinyl_in_a_substituted_chain_needs_no_inner_enclosure() {
+    // Hydrazinyl is a simple prefix (P-68.3.1.2.1). The compound ethyl prefix
+    // takes parentheses under P-16.5.1.1.
+    check(
+        "NNCCc1ccc(cc1)C(O)=O",
+        "4-(2-hydrazinylethyl)benzoic acid",
+        NameStatus::Preferred,
     );
 }
 
