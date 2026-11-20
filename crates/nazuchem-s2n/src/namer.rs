@@ -505,6 +505,18 @@ fn name_subgraph_rendered_except_stereo(
             };
             if component.len() == 1 {
                 cite_start(&mut rendered);
+            } else if atom.symbol == "N"
+                && atom.charge == 0
+                && let Some((descriptor, cited)) = &labelled
+                && let Some(alkyl) = strip_outer_parentheses(&rendered.text)
+                    .strip_suffix("amino")
+                    .map(str::to_owned)
+            {
+                // P-82.2.1: the modified nitrogen in a substituted amino
+                // prefix is cited immediately before amino.
+                rendered.text = format!("({alkyl}{descriptor}amino)");
+                rendered.isotope_atoms.extend(cited);
+                rendered.isotope_descriptors.push(descriptor.clone());
             }
             // P-82.2.1: the groups on the heteroatom cite their own labels, as
             // in (2H3)methoxy. A label counts as cited only when the prefix

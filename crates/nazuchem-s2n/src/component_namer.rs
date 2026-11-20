@@ -522,19 +522,16 @@ fn component_pipeline(
             let chains = find_all_carbon_paths(mol, &exclude)?;
             let rings = find_ring_systems(mol, &exclude)?;
             let mut tied = tied_principal_parents(mol, &chains, &rings, &principal, &groups);
-            // P-44.4.1.10, P-44.4.1.12, P-45.2.2, P-45.2.3, P-45.5 and
-            // P-45.6.3 compare the assembled names of the tied parents.
-            // Isotopes (P-44.4.1.11, P-45.4) and nonstandard bonding numbers
-            // (P-45.3) are not modelled, and a difference in the parent with
-            // its suffix, other than in the ene, yne and hydro locants, is an
-            // earlier P-44.4.1 criterion; the earlier choice stands in those
-            // cases.
+            // Numbered parents provide the ene, hydro and isotope locants
+            // (P-44.4.1.10-.11); their assembled prefixes supply P-45.
+            // Compare like parent hydrides with the same suffix.
             let mut best = 0;
             if tied.len() > 1
                 && principal_atom.is_none()
-                && !mol.isotope_labels_stripped
+                && (!mol.isotope_labels_stripped || isotope_source.is_some())
                 && mol.atoms.values().all(|a| a.isotope.is_none())
             {
+                let sites = mol.isotope_sites();
                 let mut names = Vec::new();
                 for (i, parent) in tied.iter().enumerate() {
                     // Discard the status marks of every trial name.
@@ -590,21 +587,72 @@ fn component_pipeline(
                                 .iter()
                                 .map(|h| (h.key.clone(), h.locants.len()))
                                 .collect();
-                            let mut hydro: Vec<_> = plan
+                            let mut hydro_text: Vec<_> = plan
                                 .parts
                                 .hydro_operations
                                 .iter()
-                                .flat_map(|h| h.locants.iter().map(|l| parse_locant(l)))
+                                .filter(|h| h.operation_kind == "additive_hydrogen")
+                                .flat_map(|h| h.locants.iter().cloned())
                                 .collect();
-                            hydro.sort();
-                            if !name.contains("lambda") {
+                            hydro_text.sort_by_key(|l| parse_locant(l));
+                            hydro_text.dedup();
+                            let mut hydro = Vec::new();
+                            if !hydro_text.is_empty() {
+                                let term = super::formatting::format_multiplier(
+                                    "hydro",
+                                    hydro_text.len(),
+                                    false,
+                                );
+                                let prefix = format!("{}-{term}", hydro_text.join(","));
+                                if let Some(core) = parent.strip_prefix(&prefix) {
+                                    parent = format!("{term}{core}");
+                                    hydro = hydro_text.iter().map(|l| parse_locant(l)).collect();
+                                }
+                            }
+                            let parent_labels = super::isotope_naming::modified_locants(
+                                sites.iter().filter_map(|site| {
+                                    let locant = plan.locant_map.get(&site.anchor)?;
+                                    Some((parse_locant(locant), vec![site.priority()]))
+                                }),
+                            );
+                            // P-45.3.1: compare the bonding numbers of
+                            // directly attached lambda hydrides. A lambda atom
+                            // within an alkyl side chain is one level further away.
+                            let lambda = name.contains("lambda");
+                            if !lambda
+                                || super::identity_validation::terminal_hydrides_on_alkanoic_acid(
+                                    mol,
+                                )
+                            {
+                                let mut bonding_numbers = Vec::new();
+                                if lambda {
+                                    for id in plan
+                                        .numbered_path
+                                        .iter()
+                                        .flat_map(|a| mol.get_neighbors(*a))
+                                    {
+                                        let atom = &mol.atoms[id];
+                                        if matches!(
+                                            (atom.symbol.as_str(), atom.total_h_count),
+                                            ("P", 4) | ("S", 3 | 5)
+                                        ) {
+                                            bonding_numbers.push(atom.total_h_count + 1);
+                                        }
+                                    }
+                                    bonding_numbers.sort_by(|a, b| b.cmp(a));
+                                }
                                 names.push((
                                     i,
                                     (parent, operations),
                                     (endings, enes),
-                                    hydro,
+                                    (hydro, parent_labels),
                                     plan.parts.stereo_features,
-                                    assembled_name_preference(&prefixes, &name),
+                                    assembled_name_preference(
+                                        &prefixes,
+                                        &name,
+                                        &sites,
+                                        bonding_numbers,
+                                    ),
                                 ));
                             }
                         }
@@ -612,11 +660,15 @@ fn component_pipeline(
                     })
                     .ok();
                 }
-                // Ending and hydro locants that both differ are not compared.
+                // P-44.4.1.10.1 and .2: when both series differ, a
+                // candidate lowest in each wins independently of their order.
+                let lowest_endings = names.iter().map(|n| &n.2).min();
+                let lowest_hydro = names.iter().map(|n| &n.3.0).min();
                 if names.len() == tied.len()
                     && names.iter().all(|n| n.1 == names[0].1)
-                    && (names.iter().all(|n| n.2 == names[0].2)
-                        || names.iter().all(|n| n.3 == names[0].3))
+                    && names
+                        .iter()
+                        .any(|n| Some(&n.2) == lowest_endings && Some(&n.3.0) == lowest_hydro)
                 {
                     let lowest = names.iter().map(|n| (n.2.clone(), n.3.clone())).min();
                     names.retain(|n| Some((n.2.clone(), n.3.clone())) == lowest);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
 // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | amide nitrogen charge follow-up
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | issue #121
 // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | issue #186
 // Source: ReShiki | src/naming/openclatura/identity_validation.rs | 327d32fed63a5b3df15b7b8dc5ab84a7c36e0865
 // Copyright (c) 2026 lamalab-org
@@ -77,9 +78,51 @@ pub fn validate_principal_charge_roles(
     Ok(())
 }
 
+/// A terminal lambda hydride may be a substituent on an alkanoic acid.
+/// Restrict admission to the proved prefix route: all P/S atoms terminate
+/// saturated carbon branches, and both oxygens belong to the same acid.
+// Provenance: fn terminal_hydrides_on_alkanoic_acid | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::terminal_hydrides_on_alkanoic_acid
+pub(super) fn terminal_hydrides_on_alkanoic_acid(mol: &Molecule) -> bool {
+    if mol.bonds.len() + 1 != mol.atoms.len() {
+        return false;
+    }
+    let mut oxygens = Vec::new();
+    for atom in mol.atoms.values() {
+        let adj = mol.get_neighbors(atom.idx);
+        if atom.charge != 0 {
+            return false;
+        }
+        match atom.symbol.as_str() {
+            "O" if adj.len() == 1 && mol.atoms[&adj[0]].is_carbon() => {
+                oxygens.push((adj[0], mol.bond_order(atom.idx, adj[0]), atom.total_h_count));
+            }
+            "P" | "S"
+                if adj.len() == 1
+                    && mol.atoms[&adj[0]].is_carbon()
+                    && mol.bond_order(atom.idx, adj[0]) == 1
+                    && mol
+                        .get_neighbors(adj[0])
+                        .iter()
+                        .all(|&n| mol.bond_order(adj[0], n) == 1)
+                    && matches!(
+                        (atom.symbol.as_str(), atom.total_h_count),
+                        ("P", 2 | 4) | ("S", 1 | 3 | 5)
+                    ) => {}
+            "C" if adj
+                .iter()
+                .all(|&n| mol.atoms[&n].symbol == "O" || mol.bond_order(atom.idx, n) == 1) => {}
+            _ => return false,
+        }
+    }
+    oxygens.sort();
+    matches!(oxygens.as_slice(), [(a, 1, 1), (b, 2, 0)] if a == b)
+}
+
 // Provenance: fn validate_input | original
 // Source: ReShiki | src/naming/openclatura/identity_validation.rs::validate_input
 pub fn validate_input(mol: &Molecule) -> Result<(), String> {
+    let admitted_hydrides = std::cell::LazyCell::new(|| terminal_hydrides_on_alkanoic_acid(mol));
     for (&idx, atom) in &mol.atoms {
         // Upstream divergence: elemental ion shortcuts require their exact charge and hydrogen state.
         if mol.atoms.len() == 1
@@ -139,6 +182,7 @@ pub fn validate_input(mol: &Molecule) -> Result<(), String> {
         // Upstream divergence: ordinary terminal hydride/group names require their exact bonding number and H count.
         if (bond.order == 1 || mol.atoms[&neighbor].is_carbon())
             && bond.order + atom.total_h_count != expected
+            && !*admitted_hydrides
         {
             return Err(format!(
                 "openclatura: terminal {} atom {idx} with {} hydrogens and bonding number {} is not supported",

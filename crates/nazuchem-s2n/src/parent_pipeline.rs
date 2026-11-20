@@ -512,7 +512,10 @@ pub fn build_parent_assembly_plan_with_parent(
         .map(|(&idx, items)| {
             // P-82.5.1: nuclides are considered last in numbering.
             let names = items.iter().map(|item| {
-                super::isotope_naming::citation_name(&item.name, &item.isotope_descriptors)
+                super::isotope_naming::numbering_citation_name(
+                    &item.name,
+                    &item.isotope_descriptors,
+                )
             });
             (idx, names.collect())
         })

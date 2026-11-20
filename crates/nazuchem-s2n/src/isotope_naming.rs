@@ -32,6 +32,45 @@ impl Site {
     }
 }
 
+/// P-44.4.1.11.4-.6 and P-45.4. Compare the complete locant set, then
+/// the sets for each element, then those for each nuclide. One modified
+/// substituent counts once at its attachment even if it carries several labels.
+pub(super) fn modified_locants<L: Ord + Clone>(
+    positions: impl IntoIterator<Item = (L, Vec<(usize, u16)>)>,
+) -> (Vec<L>, Vec<Vec<L>>, Vec<Vec<L>>) {
+    let mut all = Vec::new();
+    let mut elements = BTreeMap::new();
+    let mut nuclides = BTreeMap::new();
+    for (locant, labels) in positions {
+        if labels.is_empty() {
+            continue;
+        }
+        all.push(locant.clone());
+        for z in labels.iter().map(|(z, _)| *z).collect::<BTreeSet<_>>() {
+            elements
+                .entry(z)
+                .or_insert_with(Vec::new)
+                .push(locant.clone());
+        }
+        for label in labels.into_iter().collect::<BTreeSet<_>>() {
+            nuclides
+                .entry(label)
+                .or_insert_with(Vec::new)
+                .push(locant.clone());
+        }
+    }
+    all.sort();
+    let sorted = |mut locants: Vec<L>| {
+        locants.sort();
+        locants
+    };
+    (
+        all,
+        elements.into_values().rev().map(sorted).collect(),
+        nuclides.into_values().rev().map(sorted).collect(),
+    )
+}
+
 /// The descriptor that a prefix name starts with, as in (2H3)methyl.
 pub(super) fn leading_descriptor<'a>(name: &str, descriptors: &'a [String]) -> &'a str {
     descriptors
@@ -49,6 +88,22 @@ pub(super) fn citation_name(name: &str, descriptors: &[String]) -> String {
             name.replace(&format!("{descriptor}-"), "")
                 .replace(descriptor.as_str(), "")
         })
+}
+
+pub(super) fn numbering_citation_name(name: &str, descriptors: &[String]) -> String {
+    let unmodified = citation_name(name, descriptors);
+    // Isotopic locants require the systematic form of a retained tert-butyl
+    // prefix. Number its parent using the ordinary substituent citation.
+    if !descriptors.is_empty()
+        && matches!(
+            unmodified.as_str(),
+            "2-methylpropan-2-yl" | "(2-methylpropan-2-yl)"
+        )
+    {
+        "tert-butyl".into()
+    } else {
+        unmodified
+    }
 }
 
 /// Keep CIP labels calculated with the isotopes present. Recalculating them
@@ -444,14 +499,22 @@ pub(super) fn prefix_descriptor(
 
 /// P-82.2.1: a characteristic group cited as a prefix takes its descriptor in
 /// front, as in (131I)iodo and (13C)carboxy. Only nuclides that need no locant
-/// are cited (P-82.6.1.2, P-82.6.1.3), and no isotopic hydrogen.
+/// are cited (P-82.6.1.2, P-82.6.1.3). A terminal hydroxy has a single H site.
 pub(super) fn group_descriptor(mol: &Molecule, atoms: &AtomSet) -> Option<(String, AtomSet)> {
     let sites: Vec<_> = mol
         .isotope_sites()
         .into_iter()
         .filter(|site| atoms.contains(&site.anchor))
         .collect();
-    if sites.is_empty() || sites.iter().any(|site| site.symbol == "H") {
+    let hydroxy = atoms.len() == 1
+        && atoms.iter().all(|id| {
+            let atom = &mol.atoms[id];
+            atom.symbol == "O"
+                && atom.charge == 0
+                && atom.total_h_count == 1
+                && mol.degree(*id) == 1
+        });
+    if sites.is_empty() || !hydroxy && sites.iter().any(|site| site.symbol == "H") {
         return None;
     }
     let unit = Unit {
@@ -851,6 +914,14 @@ mod tests {
     fn labelled_prefixes_take_the_lower_parent_locant() {
         // P-82.5.2: lowest locants to the modified groups, in either atom order.
         for (smiles, expected) in [
+            (
+                "CC(C)([13CH3])c1ccccc1C(C)(C)C",
+                "2-(tert-butyl)-1-[2-methyl(1-13C)propan-2-yl]benzene",
+            ),
+            (
+                "CC(C)(C)c1ccccc1C(C)(C)[13CH3]",
+                "2-(tert-butyl)-1-[2-methyl(1-13C)propan-2-yl]benzene",
+            ),
             ("[13CH3]c1ccccc1C", "1-(13C)methyl-2-methylbenzene"),
             ("Cc1ccccc1[13CH3]", "1-(13C)methyl-2-methylbenzene"),
             ("[13CH3]c1cccc(C)c1", "1-(13C)methyl-3-methylbenzene"),
@@ -899,6 +970,38 @@ mod tests {
                 "[2-methyl(1-13C)propan-2-yl]benzene",
             ),
             ("CCC(CC)(CC[2H])O", "3-ethyl(1-2H1)pentan-3-ol"),
+            (
+                "OC(=O)CC(CC[13CH3])C[13CH2]C",
+                "3-(3-13C)propyl(5-13C)hexanoic acid",
+            ),
+            (
+                "OC(=O)CC(C[13CH2]C)CC[13CH3]",
+                "3-(3-13C)propyl(5-13C)hexanoic acid",
+            ),
+            // P-44.4.1.11.5 and .6: the same parent locant set, first the
+            // lower carbon locant, then the lower carbon-14 locant.
+            (
+                "OC(=O)CC(C[13CH2]C[2H])CC([2H])[13CH3]",
+                "3-(3-13C,2-2H1)propyl(5-13C,6-2H1)hexanoic acid",
+            ),
+            (
+                "OC(=O)CC(CC([2H])[13CH3])C[13CH2]C[2H]",
+                "3-(3-13C,2-2H1)propyl(5-13C,6-2H1)hexanoic acid",
+            ),
+            (
+                "OC(=O)CC(C[13CH2][14CH3])C[14CH2][13CH3]",
+                "3-(2-13C,3-14C)propyl(6-13C,5-14C)hexanoic acid",
+            ),
+            (
+                "OC(=O)CC(C[14CH2][13CH3])C[13CH2][14CH3]",
+                "3-(2-13C,3-14C)propyl(6-13C,5-14C)hexanoic acid",
+            ),
+            // P-44.4.1.11.4 precedes the greater prefix count on the
+            // competing 4-methylhexanoic acid parent.
+            (
+                "OC(=O)CC(C[13CH2]C)C(C)C[13CH3]",
+                "3-[(4-13C)butan-2-yl](5-13C)hexanoic acid",
+            ),
             // It precedes the number of prefixes (P-45.2.1).
             (
                 "[13CH3]CCC(CC[13CH3])C(C)CC",
@@ -1017,7 +1120,10 @@ mod tests {
             ("N#[13C]c1ccccc1C(=O)O", "2-(13C)cyanobenzoic acid"),
             // P-82.3.1: nuclides at one place in alphabetical order.
             ("[15N]#[13C]c1ccccc1C(=O)O", "2-(13C,15N)cyanobenzoic acid"),
+            ("[2H]Oc1ccccc1C(=O)O", "2-(2H1)hydroxybenzoic acid"),
+            ("[2H][18O]c1ccccc1C(=O)O", "2-(2H1,18O)hydroxybenzoic acid"),
             ("[18OH]c1ccccc1C(=O)O", "2-(18O)hydroxybenzoic acid"),
+            ("C[15NH]c1ccccc1C(=O)O", "2-[methyl(15N)amino]benzoic acid"),
             ("[15NH2]c1ccccc1C(=O)O", "2-(15N)aminobenzoic acid"),
             ("[15NH2]CCO", "2-(15N)aminoethan-1-ol"),
             ("CC(=[18O])CC(=O)O", "3-(18O)oxobutanoic acid"),
@@ -1028,12 +1134,31 @@ mod tests {
                 "2-(18O2)nitrobenzoic acid",
             ),
             // P-45.4.2 example: 2-(18O)methoxyethyl, a contracted alkoxy
-            // prefix cites its oxygen in front. The parent choice of P-45.4
-            // itself is not applied: the other atom order names the other
-            // chain as parent.
+            // prefix cites its oxygen in front. N precedes the numerical locant.
             (
                 "[13CH3]OCCNCC[18O]C",
                 "2-(13C)methoxy-N-[2-(18O)methoxyethyl]ethan-1-amine",
+            ),
+            (
+                "C[18O]CCNCCO[13CH3]",
+                "2-(13C)methoxy-N-[2-(18O)methoxyethyl]ethan-1-amine",
+            ),
+            (
+                "CCCC([81Br])COCC(Br)CCC",
+                "2-bromo-1-{[2-(81Br)bromopentyl]oxy}pentane",
+            ),
+            (
+                "CCCC(Br)COCC([81Br])CCC",
+                "2-bromo-1-{[2-(81Br)bromopentyl]oxy}pentane",
+            ),
+            // P-45.4.3: the 14C ethyl group is in the prefix at 2.
+            (
+                "C([13CH3])C(CC(CO)CC(CCC)C[14CH3])CCC",
+                "4-(2-13C)ethyl-2-[2-(2-14C)ethylpentyl]heptan-1-ol",
+            ),
+            (
+                "C([14CH3])C(CC(CO)CC(CCC)C[13CH3])CCC",
+                "4-(2-13C)ethyl-2-[2-(2-14C)ethylpentyl]heptan-1-ol",
             ),
             ("C[18O]c1ccccc1C(=O)O", "2-(18O)methoxybenzoic acid"),
             ("c1ccccc1[18O]CCC(=O)O", "3-(18O)phenoxypropanoic acid"),
@@ -1198,8 +1323,6 @@ mod tests {
         for smiles in [
             "[13CH3][18O]c1ccccc1",
             "[13CH3][18O][13CH3]",
-            "C[15NH]c1ccccc1C(=O)O",
-            "[2H]Oc1ccccc1C(=O)O",
             "[18O-][N+](=O)c1ccccc1C(=O)O",
             "Cl[13C](=O)c1ccccc1C(=O)O",
             "OC(=O)C1(CCCCC1)[13C](=O)O",

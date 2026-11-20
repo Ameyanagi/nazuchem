@@ -268,31 +268,33 @@ fn score(
     }
     // P-45.2.1: a substituent on the nitrogen of a suffix is cited as a
     // prefix with the locant N; the alkyl group of an ester is not a prefix.
-    // Of two group classes on one atom, one is itself a prefix; which one is
-    // not known here, so the molecule is left alone.
-    let suffixes: Vec<_> = groups
-        .anionic
-        .unwrap_or_default()
+    // Only the senior class on a shared attachment contributes suffix
+    // N-substituents. A substituted amino prefix is already counted once.
+    let perceived = groups.anionic.unwrap_or_default();
+    let suffixes: Vec<_> = perceived
         .iter()
         .filter(|g| g.is_principal_candidate && groups.principal.contains(&g.attachment_carbon))
         .collect();
-    if suffixes.iter().all(|g| {
+    let shared = suffixes.iter().any(|g| {
         suffixes
             .iter()
-            .all(|other| other.attachment_carbon != g.attachment_carbon || other.key == g.key)
+            .any(|other| other.attachment_carbon == g.attachment_carbon && other.key != g.key)
+    });
+    let principal_key = shared
+        .then(|| super::principal_groups::principal_key_on_parent(mol, perceived, false, &atoms));
+    for group in suffixes.iter().filter(|g| {
+        atoms.contains(&g.attachment_carbon)
+            && principal_key
+                .as_ref()
+                .is_none_or(|key| key.as_deref() == Some(&g.key))
     }) {
-        for group in suffixes
-            .iter()
-            .filter(|g| atoms.contains(&g.attachment_carbon))
-        {
-            for atom in group.atoms_involved.difference(&atoms) {
-                if !matches!(mol.atoms[atom].symbol.as_str(), "O" | "S" | "Se" | "Te") {
-                    attached += mol
-                        .get_neighbors(*atom)
-                        .iter()
-                        .filter(|n| !atoms.contains(n) && !group.atoms_involved.contains(n))
-                        .count() as i64;
-                }
+        for atom in group.atoms_involved.difference(&atoms) {
+            if !matches!(mol.atoms[atom].symbol.as_str(), "O" | "S" | "Se" | "Te") {
+                attached += mol
+                    .get_neighbors(*atom)
+                    .iter()
+                    .filter(|n| !atoms.contains(n) && !group.atoms_involved.contains(n))
+                    .count() as i64;
             }
         }
     }
@@ -429,16 +431,28 @@ pub(super) fn tied_principal_parents(
     prefer_suffix_and_unsaturation_locants(mol, &mut candidates, principal_carbons);
     prefer_chain_prefix_locants(mol, &mut candidates, principal_carbons, groups);
     prefer_exchanged_arm_descriptors(mol, &mut candidates, principal_carbons);
-    prefer_isotopically_modified(mol, &mut candidates);
-    let Some(best) = candidates.iter().map(|(s, _)| earlier_score(s)).min() else {
+    let labelled_parent = prefer_isotopically_modified(mol, &mut candidates);
+    // P-44.4.1.11.4-.6 require the final numbering of a labelled parent.
+    // Keep its P-45 competitors until each locant map is available. Preserve
+    // the score itself for the fallback when trial names cannot be compared.
+    let isotope_sites = mol.isotope_sites();
+    let before_trial = |s: &ParentScore| {
+        let mut score = earlier_score(s);
+        if labelled_parent {
+            score.attached_prefixes = 0;
+            score.assembly_substituent_locants = None;
+            score.assembly_substituent_citation = None;
+        }
+        score
+    };
+    let Some(best) = candidates.iter().map(|(s, _)| before_trial(s)).min() else {
         return Vec::new();
     };
-    candidates.retain(|(s, _)| earlier_score(s) == best);
-    // The canonical ranks ignore configuration. They are refined with the CIP
-    // descriptors, so that parents with the same ranks and different
-    // configurations stay apart, in an order that does not follow the input
-    // atom order. Configured atoms come first, R before S.
-    let ranks = (mol.atoms.values().any(|a| a.stereo.is_some())
+    candidates.retain(|(s, _)| before_trial(s) == best);
+    // Refine constitutional ranks by stereo and nuclides so distinct
+    // labelled candidate parents survive canonical deduplication.
+    let ranks = (!isotope_sites.is_empty()
+        || mol.atoms.values().any(|a| a.stereo.is_some())
         || mol.bonds.values().any(|b| b.stereo.is_some()))
     .then(|| {
         let ranks = canonical_ranks(mol, None);
@@ -452,7 +466,19 @@ pub(super) fn tied_principal_parents(
                         .filter_map(|&n| mol.get_bond(a.idx, n)?.stereo.clone())
                         .collect();
                     bonds.sort();
-                    let seed = (ranks[&a.idx], a.stereo.is_none(), a.stereo.clone(), bonds);
+                    let mut nuclides: Vec<_> = isotope_sites
+                        .iter()
+                        .filter(|s| s.anchor == a.idx)
+                        .map(|s| s.priority())
+                        .collect();
+                    nuclides.sort();
+                    let seed = (
+                        ranks[&a.idx],
+                        a.stereo.is_none(),
+                        a.stereo.clone(),
+                        bonds,
+                        nuclides,
+                    );
                     (a.idx, seed)
                 })
                 .collect(),
@@ -504,20 +530,44 @@ pub(super) fn tied_principal_parents(
 pub(super) fn assembled_name_preference(
     prefixes: &[SubstituentItem],
     name: &str,
+    sites: &[super::isotope_naming::Site],
+    bonding_numbers: Vec<usize>,
 ) -> impl Ord + use<> {
     let mut cited: Vec<_> = prefixes
         .iter()
         .flat_map(|prefix| {
+            let plain = super::isotope_naming::numbering_citation_name(
+                &prefix.name,
+                &prefix.isotope_descriptors,
+            );
             prefix
                 .locants
                 .iter()
-                .map(|locant| (substituent_sort_key(&prefix.name), parse_locant(locant)))
+                .map(move |locant| (substituent_sort_key(&plain), parse_locant(locant)))
         })
         .collect();
     cited.sort();
     let cited: Vec<_> = cited.into_iter().map(|(_, locant)| locant).collect();
     let mut locants = cited.clone();
     locants.sort();
+    // P-45.4.1-.3: each modified prefix counts once at its attachment,
+    // including N-substituents whose locants precede numerical ones.
+    let modified = super::isotope_naming::modified_locants(
+        prefixes
+            .iter()
+            .filter(|p| !p.isotope_atoms.is_empty())
+            .flat_map(|prefix| {
+                let labels: Vec<_> = sites
+                    .iter()
+                    .filter(|s| prefix.isotope_atoms.contains(&s.anchor))
+                    .map(|s| s.priority())
+                    .collect();
+                prefix
+                    .locants
+                    .iter()
+                    .map(move |l| (parse_locant(l), labels.clone()))
+            }),
+    );
     let (roman, italic, _, numbers, _) = alphanumerical_order_key(name);
     // P-45.6.3: R precedes S in the descriptors, in order of appearance.
     let descriptors = rs_descriptors(name);
@@ -525,6 +575,8 @@ pub(super) fn assembled_name_preference(
         std::cmp::Reverse(cited.len()),
         locants,
         cited,
+        std::cmp::Reverse(bonding_numbers),
+        modified,
         roman,
         italic,
         numbers,
@@ -1002,10 +1054,10 @@ fn prefer_chain_prefix_locants(
 fn prefer_isotopically_modified(
     mol: &Molecule,
     candidates: &mut Vec<(ParentScore, ParentSelection)>,
-) {
+) -> bool {
     let sites = mol.isotope_sites();
     if sites.is_empty() {
-        return;
+        return false;
     }
     // The prefix criteria of P-45 and the stereo criteria come later.
     let earlier = |score: &ParentScore| {
@@ -1018,7 +1070,7 @@ fn prefer_isotopically_modified(
         score
     };
     let Some(best) = candidates.iter().map(|(s, _)| earlier(s)).min() else {
-        return;
+        return false;
     };
     let modified = |selection: &ParentSelection| {
         let atoms = selection.atom_set();
@@ -1028,7 +1080,8 @@ fn prefer_isotopically_modified(
             .map(|site| site.priority())
             .collect();
         nuclides.sort_by(|a, b| b.cmp(a));
-        (nuclides.len(), nuclides)
+        let elements: Vec<_> = nuclides.iter().map(|(element, _)| *element).collect();
+        (nuclides.len(), elements, nuclides)
     };
     let most = candidates
         .iter()
@@ -1036,6 +1089,7 @@ fn prefer_isotopically_modified(
         .map(|(_, selection)| modified(selection))
         .max();
     candidates.retain(|(s, selection)| earlier(s) != best || Some(modified(selection)) == most);
+    most.is_some_and(|(count, _, _)| count > 0)
 }
 
 /// The score through the last structural criterion, without the atom-order key.
@@ -2067,6 +2121,23 @@ mod tests {
                     "CC1CC(OC2CCC(O)(N(C)C)CC2)CCC1(N)O",
                 ][..],
             ),
+            (
+                "3-(lambda^5-phosphanyl)-2-(phosphanylmethyl)propanoic acid",
+                &["PCC(C[PH4])C(=O)O", "[PH4]CC(CP)C(=O)O"][..],
+            ),
+            (
+                "3-(lambda^6-sulfanyl)-2-(lambda^4-sulfanylmethyl)propanoic acid",
+                &["[SH3]CC(C[SH5])C(=O)O", "[SH5]CC(C[SH3])C(=O)O"][..],
+            ),
+            // P-45.2.2 example (5): the carbonyl carbon is part of the
+            // substituted propyl chain, giving amino and oxo prefixes.
+            (
+                "3-[5-(3-amino-2-methyl-3-oxopropyl)-2-methylphenyl]-N-methylpropanamide",
+                &[
+                    "CNC(=O)CCc1c(C)ccc(CC(C)C(N)=O)c1",
+                    "NC(=O)C(C)Cc1ccc(C)c(CCC(=O)NC)c1",
+                ][..],
+            ),
             // P-45.2.2: N,N is lower than N,2.
             (
                 "N-methyl-N-[2-(2-methylbutanamido)ethyl]butanamide",
@@ -2099,6 +2170,8 @@ mod tests {
         ] {
             for smiles in inputs {
                 assert_eq!(name(smiles), expected, "{smiles}");
+                let parsed = crate::test_support::parse_strict(expected).unwrap();
+                crate::test_support::verify_identity(smiles, &parsed).unwrap();
             }
         }
     }
@@ -2465,7 +2538,7 @@ mod tests {
                 .iter()
                 .map(|(name, locant)| SubstituentItem::new(*name, vec![(*locant).into()]))
                 .collect();
-            assembled_name_preference(&prefixes, name)
+            assembled_name_preference(&prefixes, name, &[], vec![])
         };
         // P-45.2.1: an N-substituent is a prefix like any other.
         assert!(key(&[("methyl", "5"), ("phenyl", "N")], "z") < key(&[("methyl", "1")], "a"));

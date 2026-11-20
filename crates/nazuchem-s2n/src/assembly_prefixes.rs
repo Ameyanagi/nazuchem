@@ -28,6 +28,14 @@ fn ignored_prefix_len(text: &str) -> usize {
         return 0;
     };
     let prefix = &text[..end];
+    // A lambda descriptor represents Greek λ (P-14.5). Neither the
+    // letter nor its superscript bonding number is an alphabetizing term.
+    if prefix
+        .strip_prefix("lambda^")
+        .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+    {
+        return end + 1;
+    }
     let words = [
         "sec", "tert", "t", "s", "d", "l", "m", "o", "p", "alpha", "beta", "gamma",
     ];
@@ -82,7 +90,7 @@ pub fn substituent_sort_key(name: &str) -> (String, String) {
         if n == 0 {
             return (text.to_owned(), initial);
         }
-        if !text[..n].contains(')') {
+        if !text[..n].contains(')') && !text.starts_with("lambda^") {
             initial.push_str(&text[..n]);
         }
         text = &text[n..];
@@ -365,6 +373,20 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
             // P-16.5.1.3.1 and .2: a later unlocanted prefix stays enclosed.
             let enclose = loc.is_empty() && i > 0 && !optional;
             used = multiply_prefix(&used, plain, count, kind, enclose);
+        }
+        // P-45.3.1: a single lambda hydride attached to methyl forms one
+        // complex prefix, e.g. (lambda^4-sulfanylmethyl).
+        if parts.is_substituent
+            && parts.parent_length == 1
+            && count == 1
+            && grouped.len() == 1
+            && loc.is_empty()
+            && matches!(
+                used.as_str(),
+                "(lambda^4-sulfanyl)" | "(lambda^6-sulfanyl)" | "(lambda^5-phosphanyl)"
+            )
+        {
+            used = used[1..used.len() - 1].to_owned();
         }
         let piece = if loc.is_empty() {
             used

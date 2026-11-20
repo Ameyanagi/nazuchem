@@ -1889,6 +1889,18 @@ pub fn name_heteroatom_subgraph(
 ) -> Result<Option<String>, String> {
     let symbol = mol.atoms[&start].symbol.as_str();
     let order = upstream_bond_order(mol, start, upstream);
+    // P-45.3.1: the hydrogen count on a terminal ligand is part of its name.
+    if mol.degree(start) == 1 && order == 1 && mol.atoms[&start].charge == 0 {
+        let h = mol.atoms[&start].total_h_count;
+        let ligand = match (symbol, h) {
+            ("P", 4) => Some("phosphanyl"),
+            ("S", 3 | 5) => Some("sulfanyl"),
+            _ => None,
+        };
+        if let Some(ligand) = ligand {
+            return Ok(Some(format!("(lambda^{}-{ligand})", h + 1)));
+        }
+    }
     let name = match symbol {
         "O" => name_oxygen(mol, start, exclude, upstream)?,
         "N" => name_nitrogen(mol, start, exclude, upstream)?,
