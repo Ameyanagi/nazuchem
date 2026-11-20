@@ -959,6 +959,7 @@ fn name_nitrogen(
     }
     let mut names = Vec::new();
     let mut unmodified_ligands = BTreeMap::new();
+    let mut ligand_roots = Vec::new();
     for &n in &roots {
         let oxygen = double_bonded_neighbors(mol, n, "O");
         let sulfur = double_bonded_neighbors(mol, n, "S");
@@ -1010,20 +1011,11 @@ fn name_nitrogen(
                     && order == 1
                     && atom.charge == 0
                 {
-                    // P-82.2.2.1: the unmodified ligand can have a different
-                    // retained name or combine equivalent substituents, e.g.
-                    // 2,2-difluoroethyl. Render the same rooted graph without
-                    // its isotope sites. The trial shares the work budget and
-                    // discards its provisional naming status.
-                    let sites = mol.isotope_sites();
-                    mol.set_isotope_sites(Vec::new());
-                    let trial = mol.candidate::<()>(|| {
-                        let plain = name_subgraph_with_upstream(mol, n, &blocked, Some(start))?;
-                        unmodified_ligands.insert(branch.text.clone(), plain);
-                        Ok(None)
-                    });
-                    mol.set_isotope_sites(sites);
-                    trial?;
+                    let plain = super::isotope_naming::numbering_citation_name(
+                        &branch.text,
+                        &branch.isotope_descriptors,
+                    );
+                    unmodified_ligands.insert(branch.text.clone(), plain);
                 }
                 branch.text
             }
@@ -1049,7 +1041,43 @@ fn name_nitrogen(
                 // fallback; the preferred prefix is acid-derived amido.
                 mol.mark_name(NameStatus::NotPreferred(NameReason::AminoPrefix));
             }
+            ligand_roots.push(n);
             names.push(b);
+        }
+    }
+    // P-82.2.2.1: a labelled twin may use a systematic spelling while the
+    // ordinary ligand uses a retained or multiplied name. Compare the rooted
+    // ligands on the isotope-stripped graph and reuse the ordinary spelling.
+    // This bounded symmetry check does not recursively name either ligand.
+    if !unmodified_ligands.is_empty() {
+        let blocked = with_atoms(exclude, [start]);
+        let ligands: Vec<_> = ligand_roots
+            .iter()
+            .map(|&root| subgraph_component(mol, root, &blocked))
+            .collect();
+        for (i, name) in names.iter().enumerate() {
+            if !unmodified_ligands.contains_key(name) {
+                continue;
+            }
+            for (j, twin) in names.iter().enumerate() {
+                if unmodified_ligands.contains_key(twin)
+                    || ligands[i].len() != ligands[j].len()
+                    || !ligands[i].is_disjoint(&ligands[j])
+                {
+                    continue;
+                }
+                let mut atoms: AtomSet = ligands[i].union(&ligands[j]).copied().collect();
+                atoms.insert(start);
+                if super::locant_elision::site_maps_onto(
+                    mol,
+                    &atoms,
+                    ligand_roots[i],
+                    ligand_roots[j],
+                ) {
+                    unmodified_ligands.insert(name.clone(), twin.clone());
+                    break;
+                }
+            }
         }
     }
     // The uncharged multiple-imino fallback does not cite its branch names.

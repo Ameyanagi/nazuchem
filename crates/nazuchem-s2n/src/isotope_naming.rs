@@ -1096,6 +1096,21 @@ mod tests {
     }
 
     #[test]
+    fn nested_amino_citation_preserves_the_naming_budget() {
+        let input =
+            "O=C(O)c1cc(N(CCCCCCCCCCCCCCCCCCCCCC)CCN(C)CCN(C)CCN(C)CCN(C)CCN(C)CCN(C)C[13CH3])ccc1";
+        let name = crate::name_smiles(input, &Default::default()).unwrap();
+        assert_eq!(
+            name.status,
+            nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::UnauditedParent)
+        );
+        crate::test_support::verify_identity(
+            input,
+            &crate::test_support::parse_strict(&name.text).unwrap(),
+        )
+        .unwrap();
+    }
+    #[test]
     fn characteristic_group_prefixes_cite_their_own_labels() {
         // Issue #27. P-82.2.1: the descriptor precedes the part of the name
         // that is isotopically substituted, here a characteristic group
