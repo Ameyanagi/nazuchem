@@ -7141,7 +7141,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/namer.py", license = "MIT" },
 ]
 notes = "Locally generated name/status/reason snapshot over fixture and generated SMILES; derived output, not an upstream snapshot."
-sha256 = "2dfe18f15f918961df7fbcbe3f23b1594c89dbfb9a2508be1b42dabeb59c9583"
+sha256 = "86c1fb9727a0d13c0c78e2009ece45356e6c89afd892a6bff3025f1615e828d0"
 
 [[file]]
 path = "tests/fixtures/s2n/worker_snapshot.jsonl"

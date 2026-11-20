@@ -251,7 +251,7 @@ C(CCN1C(=C(C2=NC3=NON=C3N=C21)C#N)N)CC(=O)O	5-(6-amino-7-cyano[1,2,5]oxadiazolo[
 CC1=CC=C(C=C1)N2C(=C(C(=N2)C)C3=CC=CC=C3)NC(=O)CCC(=O)O	3-{[3-methyl-1-(4-methylphenyl)-4-phenyl-1H-pyrazol-5-yl]carbamoyl}propanoic acid	preferred	
 CCOC1=CC=C(C=C1)NC(=O)C2=CC=C(C=C2)NC(=O)C[NH+](C)CC(=O)NC3=CC=C(C=C3)Cl	N-{2-[(4-chlorophenyl)amino]-2-oxoethyl}-1-({4-[(4-ethoxyphenyl)carbamoyl]phenyl}carbamoyl)-N-methylmethanaminium	preferred	
 CCOC(=O)C1=CN=C(N=C1N)SCC(=O)NC2=NC(=CS2)C	ethyl 4-amino-2-({2-[(4-methyl-1,3-thiazol-2-yl)amino]-2-oxoethyl}sulfanyl)pyrimidine-5-carboxylate	preferred	
-CCC1=CC=C(C=C1)C2=NC3=CC=CC=C3N4C(C2)C5=C(C4=O)C(=C(C=C5)OC)OC	6-(4-ethylphenyl)-10,11-dimethoxy-7,7a-dihydroisoindolo[2,1-a][1,5]benzodiazepin-12-one	unverified	opsin_fusion_layout
+CCC1=CC=C(C=C1)C2=NC3=CC=CC=C3N4C(C2)C5=C(C4=O)C(=C(C=C5)OC)OC	6-(4-ethylphenyl)-10,11-dimethoxy-7,7a-dihydro-12H-isoindolo[2,1-a][1,5]benzodiazepin-12-one	unverified	opsin_fusion_layout
 c1ccc2c(c1)CCOc1ccccc1-2	6,7-dihydrodibenzo[b,d]oxepine	preferred	
 c1ccc2cc3ncccc3cc2c1	benzo[g]quinoline	preferred	
 c1[nH]c2ncccc2n1	3H-imidazo[4,5-b]pyridine	preferred	

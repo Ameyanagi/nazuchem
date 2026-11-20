@@ -4175,6 +4175,30 @@ mod tests {
     fn fused_parents_place_indicated_hydrogen_before_hydro_prefixes_and_on_ketones() {
         use nazuchem_ir::NameStatus;
         for (smiles, expected) in [
+            // P-58.2.3.1.1: a single free valence at a saturated ring N,
+            // and a carboxyl suffix at the indicated-H fusion atom.
+            (
+                "C1N(CCCC2=C1C=CC=C2)CCO",
+                "2-(1,3,4,5-tetrahydro-2H-2-benzazepin-2-yl)ethan-1-ol",
+            ),
+            (
+                "N1=C2C(=CC=C1)CN(C2)C(C)=O",
+                "1-(5,7-dihydro-6H-pyrrolo[3,4-b]pyridin-6-yl)ethan-1-one",
+            ),
+            (
+                "C1N(CC2=CC=CC=C12)C(C)=O",
+                "1-(1,3-dihydro-2H-isoindol-2-yl)ethan-1-one",
+            ),
+            (
+                "C1C=CC2(CC=CC=C12)C(=O)O",
+                "1,4-dihydro-3aH-indene-3a-carboxylic acid",
+            ),
+            // The fusion nitrogen uses three single ring bonds in the lambda
+            // parent. Only the two added hydrogens are required.
+            (
+                "O=C1CS(=O)(=O)C2=NC=CCN12",
+                "1lambda^6-[1,3]thiazolo[3,2-a]pyrimidine-1,1,3(2H,5H)-trione",
+            ),
             // #95. P-31.2.2, P-58.2.1.2: indicated hydrogen takes lower locants
             // than hydro prefixes ('2,3-dihydro-1H-indene', not
             // '1,3-dihydro-2H-indene'; '3,4-dihydro-2H-1-benzopyran').
@@ -4442,6 +4466,19 @@ mod tests {
             assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
             let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        // P-58.2.3.1.1, .2 and .4 give these complete multiparent PINs.
+        for expected in [
+            "2,3,7,8-tetrahydro-4H,6H-benzo[1,2-b:5,4-b']dipyran-4,6-dione",
+            "4,4a-dihydro-2H,5H-benzo[1,2-b:4,3-c']dipyran-5,6(6aH)-dione",
+            "7,8-dihydro-2H,6H-benzo[1,2-b:5,4-b']dipyran-6-one",
+        ] {
+            let smiles = crate::test_support::parse_strict(expected).unwrap();
+            let name = name_smiles(&smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred);
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(&smiles, &parsed).unwrap();
         }
         // A bridged fused parent replays the plan, so the relocated hydrogen
         // must carry its own bond proof; otherwise the plan is left as it was.

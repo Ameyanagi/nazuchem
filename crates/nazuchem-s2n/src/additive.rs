@@ -395,13 +395,32 @@ fn lower_retained_indicated_hydrogen(
     else {
         return;
     };
+    // P-32.4 and P-58.2.3.1.1 place indicated H on the free nitrogen
+    // valence of isoindolin-2-yl and on the ring site bearing a carboxyl
+    // suffix. Carbon-attached prefixes in P-32.4 retain the lower H locant.
+    let accommodated = if parts.is_substituent && parts.attachment_order == 1 {
+        by_loc
+            .get(&parts.attachment_locant)
+            .filter(|id| mol.atoms[id].symbol == "N")
+            .map(|_| &parts.attachment_locant)
+    } else {
+        parts
+            .principal_group
+            .as_ref()
+            .filter(|g| g.key == "ring_carboxylic_acid" && g.locants.len() == 1)
+            .map(|g| &g.locants[0])
+    };
+    let priority = |l: &String| (Some(l) != accommodated, parse_locant(l));
     let mut lower: Vec<_> = hydro
         .locants
         .iter()
-        .filter(|l| !metadata.fusion_locants.contains(l) && parse_locant(l) < parse_locant(cited))
+        .filter(|l| {
+            (Some(*l) == accommodated || !metadata.fusion_locants.contains(l))
+                && priority(l) < priority(cited)
+        })
         .cloned()
         .collect();
-    lower.sort_by_key(|l| parse_locant(l));
+    lower.sort_by_key(&priority);
     let Some(lowest) = lower.into_iter().find(|l| {
         super::fusion::numbering::retained_template_parent_bond_model(
             template,
@@ -1538,7 +1557,15 @@ fn apply_lambda_parent_hydrogens(
     }
     // P-25.6 / P-25.7.1.1, Lm-3.1–3.2: complete the entire mancude
     // lambda parent before assigning indicated H, suffix H and hydro prefixes.
-    let graph = numbering::parent_bond_graph(mol, &parts.parent_atom_ids);
+    let mut graph = numbering::parent_bond_graph(mol, &parts.parent_atom_ids);
+    // P-25.7.1.1: a neutral fusion nitrogen with three ring neighbours
+    // cannot take a double bond in the lambda parent either.
+    let fixed = valence_saturated_atoms(&graph);
+    for atom in &mut graph.atoms {
+        if atom.symbol == "N" && fixed.contains(&atom.id) {
+            atom.forced_single = true;
+        }
+    }
     let mut suffix: AtomSet = parts
         .principal_group
         .as_ref()
@@ -1704,6 +1731,39 @@ fn apply_suffix_hydrogens(
     }
     if apply_lambda_parent_hydrogens(mol, parts, locants)? {
         return Ok(true);
+    }
+    // P-58.2.3.1.1: accommodate a free valence on a saturated peripheral
+    // N using the parent's one indicated H when its mancude capacity holds.
+    if parts.is_substituent
+        && parts.attachment_order == 1
+        && let Some(&site) = parts
+            .parent_atom_ids_by_locant
+            .get(&parts.attachment_locant)
+        && mol.atoms[&site].symbol == "N"
+        && ring_bonds(mol, site, &parts.parent_atom_ids).len() == 2
+        && let Some(plan) = parts
+            .parent_hydride
+            .as_ref()
+            .and_then(|p| p.fusion_plan.as_ref())
+        && plan.indicated_hydrogens.len() == 1
+        && plan.lambda_descriptors.is_empty()
+    {
+        let graph = &plan.abstract_parent_graph;
+        if let Some((indicated, model, state)) = graph_suffix_hydrogen_state(
+            mol,
+            graph,
+            &AtomSet::new(),
+            &AtomSet::from([site]),
+            locants,
+            None,
+        )? && indicated == [parts.attachment_locant.clone()]
+            && model.maximum_non_cumulative_double_bonds
+                == plan.bond_model.maximum_non_cumulative_double_bonds
+            && state.bond_delta.added_hydrogen_operations.is_empty()
+        {
+            apply_parent_hydrogen_state(parts, indicated, model, state);
+            return Ok(true);
+        }
     }
     let Some(group) = parts.principal_group.as_ref().filter(|g| g.key == "ketone") else {
         return Ok(false);
