@@ -406,12 +406,40 @@ pub fn is_known_potentially_stereogenic(graph: &Graph, atom: AtomId) -> bool {
     false
 }
 
+/// Four-coordinate neutral phosphane oxides and phosphorus oxoacids can
+/// carry R/S even with a P-H or P-OH ligand (Blue Book P-93.2.3–4).
+pub(crate) fn is_tetrahedral_phosphorus_oxide(graph: &Graph, atom: AtomId) -> bool {
+    let centre = graph.atom(atom);
+    if centre.element != Element::P || centre.charge != 0 || centre.bonds.len() != 4 {
+        return false;
+    }
+    if graph.incoming_valency(atom) != 5 {
+        return false;
+    }
+    let neighbours = graph.neighbours(atom);
+    let Some(oxo) = neighbours.iter().map(|&id| graph.atom(id)).find(|a| {
+        a.element == Element::O
+            && a.charge == 0
+            && a.bonds.len() == 1
+            && graph.bond(a.bonds[0]).order == 2
+    }) else {
+        return false;
+    };
+    // Resonance interchanges equivalent terminal oxido and oxo ligands.
+    !neighbours.iter().map(|&id| graph.atom(id)).any(|a| {
+        a.element == Element::O && a.charge == -1 && a.isotope == oxo.isotope && a.bonds.len() == 1
+    })
+}
+
 pub fn is_achiral_due_to_resonance_or_tautomerism(graph: &Graph, atom: AtomId) -> bool {
     let a = graph.atom(atom);
     if !matches!(
         a.element,
         Element::N | Element::P | Element::As | Element::S | Element::Se
     ) {
+        return false;
+    }
+    if is_tetrahedral_phosphorus_oxide(graph, atom) {
         return false;
     }
     let mut resonant_elements = HashSet::new();

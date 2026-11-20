@@ -263,7 +263,7 @@ pub struct StereochemistryHandler<'a> {
     pub not_explicitly_defined_stereo_bond_map: BTreeMap<BondId, StereoBond>,
     pseudo_stereo_centres: Vec<(AtomId, String)>,
     preassigned_pseudo_stereo_centres: Vec<(AtomId, String)>,
-    deferred_full_cip_centres: Vec<(AtomId, String)>,
+    deferred_full_cip_centres: Vec<(AtomId, String, StereoGroupType)>,
     replaced_parities: Vec<(AtomId, Option<AtomParity>)>,
     cage_stereo_groups: BTreeMap<AtomId, CageStereochemistry>,
     unknown_stereo_centres: Vec<UnknownStereoCentre>,
@@ -573,8 +573,8 @@ impl<'a> StereochemistryHandler<'a> {
         // Enantiomorphic ligand priorities depend on the true R/S centres and,
         // for achiral ring pairs, on the other lowercase descriptor. Seed all
         // lowercase centres before resolving any of them with full CIP.
-        for (atom, value) in std::mem::take(&mut self.deferred_full_cip_centres) {
-            let result = self.seed_full_cip_centre(atom, &value).map(drop);
+        for (atom, value, kind) in std::mem::take(&mut self.deferred_full_cip_centres) {
+            let result = self.seed_full_cip_centre(atom, &value, kind).map(drop);
             self.warning_or_error(result)?
         }
         for id in pseudo {
@@ -1204,9 +1204,14 @@ impl<'a> StereochemistryHandler<'a> {
         };
         if let Some(atom) = atom {
             if pseudo {
-                if !self.seed_full_cip_centre(atom, value)? {
+                if !self.seed_full_cip_centre(atom, value, kind)? {
                     return Ok(true);
                 }
+            } else if crate::stereo_analyser::is_tetrahedral_phosphorus_oxide(self.graph(), atom) {
+                // P-93.2.3–4: rank the four ligands with the kernel CIP
+                // digraph, which omits duplicate nodes on bonds to the root.
+                self.deferred_full_cip_centres
+                    .push((atom, value.into(), kind));
             } else if let Err(e) = apply_stereo_chemistry_to_stereo_centre(
                 self.state.graph_mut(),
                 self.atom_stereo_centre_map[&atom],
@@ -1220,9 +1225,11 @@ impl<'a> StereochemistryHandler<'a> {
                 if e != CipOrderingError::UnresolvedTie.into() {
                     return Err(e);
                 }
-                self.deferred_full_cip_centres.push((atom, value.into()));
+                self.deferred_full_cip_centres
+                    .push((atom, value.into(), kind));
+            } else {
+                self.set_stereo_group(atom, kind, 1);
             }
-            self.set_stereo_group(atom, kind, 1);
             self.not_explicitly_defined_stereo_centre_map.remove(&atom);
             self.unknown_stereo_reservations.remove(&atom);
             Ok(true)
@@ -1232,7 +1239,12 @@ impl<'a> StereochemistryHandler<'a> {
     }
     /// Seed a provisional parity for full-CIP resolution. Returns false when
     /// a cage descriptor already fixed the centre, so only its label is checked.
-    fn seed_full_cip_centre(&mut self, atom: AtomId, value: &str) -> Result<bool> {
+    fn seed_full_cip_centre(
+        &mut self,
+        atom: AtomId,
+        value: &str,
+        kind: StereoGroupType,
+    ) -> Result<bool> {
         // Cage descriptors may already have fixed this centre. Check its
         // label after all lowercase centres are seeded, preserving the
         // existing parity even if the descriptor contradicts it.
@@ -1254,12 +1266,11 @@ impl<'a> StereochemistryHandler<'a> {
                 "Only tetrahedral chirality is currently supported".into(),
             )
         })?;
-        let replaced = self
-            .state
-            .graph_mut()
-            .atom_mut(atom)
-            .parity
-            .replace(AtomParity::new(atom_references(references), 1));
+        let parity = AtomParity {
+            stereo_group: StereoGroup { kind, number: 1 },
+            ..AtomParity::new(atom_references(references), 1)
+        };
+        let replaced = self.state.graph_mut().atom_mut(atom).parity.replace(parity);
         self.replaced_parities.push((atom, replaced));
         self.atom_stereo_centre_map
             .entry(atom)

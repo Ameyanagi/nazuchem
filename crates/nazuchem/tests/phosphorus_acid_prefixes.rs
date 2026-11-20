@@ -20,8 +20,8 @@ fn assert_round_trip(cases: &[(&str, &str, NameStatus)]) {
         assert_eq!(name.status, status, "{smiles}");
         let parsed = name_to_smiles(&name.text).unwrap_or_else(|e| panic!("{expected}: {e:?}"));
         assert_eq!(
-            canonical_smiles(&parsed, &budget),
-            canonical_smiles(smiles, &budget),
+            canonical_smiles(&parsed, &budget).unwrap(),
+            canonical_smiles(smiles, &budget).unwrap(),
             "{smiles} -> {expected} -> {parsed}"
         );
     }
@@ -285,9 +285,124 @@ fn blue_book_prefix_names_are_read() {
     ] {
         let parsed = name_to_smiles(name).unwrap_or_else(|e| panic!("{name}: {e:?}"));
         assert_eq!(
-            canonical_smiles(&parsed, &budget),
-            canonical_smiles(smiles, &budget),
+            canonical_smiles(&parsed, &budget).unwrap(),
+            canonical_smiles(smiles, &budget).unwrap(),
             "{name} -> {parsed}"
+        );
+    }
+}
+
+#[test]
+fn tetrahedral_phosphorus_configurations() {
+    let acyl = NameStatus::NotPreferred(NameReason::AcylPrefix);
+    // P-93.2.3–4: four distinct ligands about phosphorus, including H or OH.
+    assert_round_trip(&[
+        ("C[P@H](CC)=O", "[(R)-methylphosphinoyl]ethane", acyl),
+        ("C[P@@H](CC)=O", "[(S)-methylphosphinoyl]ethane", acyl),
+        (
+            "OC(=O)C[P@](=O)(O)C",
+            "[(R)-hydroxy(methyl)phosphoryl]acetic acid",
+            acyl,
+        ),
+        (
+            "OC(=O)C[P@@](=O)(O)C",
+            "[(S)-hydroxy(methyl)phosphoryl]acetic acid",
+            acyl,
+        ),
+        (
+            "C[P@H]([13CH3])=O",
+            "[(R)-methylphosphinoyl](1-13C)methane",
+            acyl,
+        ),
+        (
+            "C[P@@H]([13CH3])=O",
+            "[(S)-methylphosphinoyl](1-13C)methane",
+            acyl,
+        ),
+    ]);
+    for smiles in [
+        "C[P@H](C)=O",
+        "OC(=O)C[P@](=O)([O-])C",
+        "C[P@H+](CC)[O-]",
+        "[18O]=[P@H](C)CC",
+        "[2H][P@](C)(CC)=O",
+    ] {
+        assert!(smiles_to_name(smiles).is_err(), "{smiles}");
+    }
+    for name in [
+        "[(R)-methylphosphinoyl]methane",
+        "carboxy[(R)-methyloxido(oxo)phosphanyl]methane",
+    ] {
+        assert!(name_to_smiles(name).is_err(), "{name}");
+    }
+}
+
+#[test]
+fn phosphorus_stereo_groups() {
+    use nazuchem::{
+        StereoGroup,
+        StereoGroupKind::{And, Or},
+        name_to_molecule,
+    };
+    for (name, cxsmiles, kind) in [
+        (
+            "[(RS)-amino(sulfanyl)oxophosphanyl]methane",
+            "N[P@](=O)(S)C |r|",
+            And(1),
+        ),
+        (
+            "[(S*)-amino(sulfanyl)oxophosphanyl]methane",
+            "N[P@@](=O)(S)C |o1:1|",
+            Or(1),
+        ),
+        (
+            "[(RS)-methylphosphinoyl]ethane",
+            "C[P@@H](=O)CC |r|",
+            And(1),
+        ),
+        ("[(SR)-methylphosphinoyl]ethane", "C[P@H](=O)CC |r|", And(1)),
+        (
+            "[(R*)-methylphosphinoyl]ethane",
+            "C[P@@H](=O)CC |o1:1|",
+            Or(1),
+        ),
+        (
+            "[(S*)-methylphosphinoyl]ethane",
+            "C[P@H](=O)CC |o1:1|",
+            Or(1),
+        ),
+        (
+            "rac-[(R)-methylphosphinoyl]ethane",
+            "C[P@@H](=O)CC |r|",
+            And(1),
+        ),
+        (
+            "rel-[(S)-methylphosphinoyl]ethane",
+            "C[P@H](=O)CC |o1:1|",
+            Or(1),
+        ),
+    ] {
+        assert_eq!(name_to_smiles(name).unwrap(), cxsmiles, "{name}");
+        assert_eq!(
+            name_to_molecule(name).unwrap().stereo_groups,
+            [StereoGroup {
+                kind,
+                stereo: vec![0]
+            }],
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn isotope_differentiated_phosphinate_oxygens_require_isotope_placement() {
+    for smiles in ["OC(=O)C[P@](=[18O])([O-])C", "OC(=O)C[P@](=O)([18O-])C"] {
+        let error = smiles_to_name(smiles).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("an isotope label on a characteristic group"),
+            "{smiles}: {error}"
         );
     }
 }

@@ -394,6 +394,7 @@ fn name_radical_ion(
 // Provenance: fn name_graph | adapted
 // Source: openclatura | src/openclatura/namer.py::name_component
 fn name_graph(mol: molecule::Molecule, style: nazuchem_ir::IsotopeStyle) -> Result<Name, String> {
+    ionic_naming::validate_phosphorus_stereo(&mol)?;
     if mol.atoms.values().any(|atom| atom.isotope.is_some()) {
         return isotope_naming::name_molecule(&mol, style);
     }

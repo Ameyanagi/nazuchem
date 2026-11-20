@@ -67,5 +67,13 @@ fn mixed_lambda_phosphine_oxide_keeps_its_stereochemical_fallback() {
             name.status,
             NameStatus::NotPreferred(NameReason::VonBaeyerFusionFallback)
         );
+        let parsed = name_to_smiles(&name.text).unwrap();
+        let budget = Budget::default();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget).unwrap(),
+            canonical_smiles(smiles, &budget).unwrap(),
+            "{}",
+            name.text
+        );
     }
 }

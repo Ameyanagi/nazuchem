@@ -4,6 +4,7 @@
 // Source: ReShiki | src/naming/openclatura/ionic_naming.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/unit/test_audit_reconstruction.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/ionic_naming.rs | issue #160
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura ionic spelling logic reworked as structured anion preparation with local identity guards.
@@ -27,6 +28,39 @@ struct ChargeSite {
 }
 
 /// Admit oxo protonation only where the naming grammar preserves its charge.
+/// Check formal P=O and P-O(-) ligands while their isotope labels are intact.
+// Provenance: fn validate_phosphorus_stereo | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/ionic_naming.rs::validate_phosphorus_stereo
+pub(super) fn validate_phosphorus_stereo(mol: &Molecule) -> Result<(), String> {
+    for (&id, atom) in &mol.atoms {
+        // P-93.2.4: P=O and P-O(-) of the same isotope are equivalent
+        // terminal ligands, so the formal bond orders cannot support R/S.
+        if atom.symbol == "P" && atom.has_stereo() && atom.charge == 0 {
+            let neighbours = mol.get_neighbors(id);
+            if neighbours.iter().any(|&oxo| {
+                let oxygen = &mol.atoms[&oxo];
+                oxygen.symbol == "O"
+                    && oxygen.charge == 0
+                    && oxygen.total_h_count == 0
+                    && mol.degree(oxo) == 1
+                    && mol.bond_order(id, oxo) == 2
+                    && neighbours.iter().any(|&oxido| {
+                        let anion = &mol.atoms[&oxido];
+                        anion.symbol == "O"
+                            && anion.charge == -1
+                            && anion.isotope == oxygen.isotope
+                            && anion.total_h_count == 0
+                            && mol.degree(oxido) == 1
+                            && mol.bond_order(id, oxido) == 1
+                    })
+            }) {
+                return Err("openclatura: equivalent oxygens at stereospecified phosphorus".into());
+            }
+        }
+    }
+    Ok(())
+}
+
 // Provenance: fn validate_heteroatom_oxo_charge_states | original
 // Source: ReShiki | src/naming/openclatura/ionic_naming.rs::validate_heteroatom_oxo_charge_states
 pub(super) fn validate_heteroatom_oxo_charge_states(mol: &Molecule) -> Result<(), String> {
