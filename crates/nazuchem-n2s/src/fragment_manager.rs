@@ -9,7 +9,7 @@ use crate::{
     graph::{Atom, AtomId, BondId, Element, FragmentId, Graph, GraphError, StereoReference},
     parse_tree::{Arena, NodeId},
     smiles, valence,
-    xml_declarations::RING_TYPE_VAL,
+    xml_declarations::{LABELS_ATR, NONE_LABELS_VAL, RING_TYPE_VAL, TYPE_ATR, VALUE_ATR},
 };
 use std::collections::BTreeMap;
 
@@ -54,13 +54,36 @@ impl FragmentManager {
         token: NodeId,
         labels: &str,
     ) -> Result<FragmentId, GraphError> {
-        let fragment_type = arena[token].attribute("type").unwrap_or("");
+        self.build_smiles_for_token(smiles, arena, token, labels, false)
+    }
+    /// Builds the full dictionary group value with the ring resource dialect.
+    pub(crate) fn build_group_smiles(
+        &mut self,
+        arena: &Arena,
+        group: NodeId,
+    ) -> Result<FragmentId, GraphError> {
+        let smiles = arena[group].attribute(VALUE_ATR).unwrap_or("");
+        let labels = arena[group]
+            .attribute(LABELS_ATR)
+            .unwrap_or(NONE_LABELS_VAL);
+        let ring = arena[group].attribute(TYPE_ATR) == Some(RING_TYPE_VAL);
+        self.build_smiles_for_token(smiles, arena, group, labels, ring)
+    }
+    fn build_smiles_for_token(
+        &mut self,
+        smiles: &str,
+        arena: &Arena,
+        token: NodeId,
+        labels: &str,
+        ring_resource: bool,
+    ) -> Result<FragmentId, GraphError> {
+        let fragment_type = arena[token].attribute(TYPE_ATR).unwrap_or("");
         let fragment = smiles::build_fragment_with_token_dialect(
             &mut self.graph,
             smiles,
             fragment_type,
             labels,
-            fragment_type == RING_TYPE_VAL,
+            ring_resource,
         )?;
         self.register_fragment(fragment);
         self.graph.fragment_mut(fragment).sub_type =

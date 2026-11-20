@@ -7,7 +7,10 @@
 //! Exercise the pinned resource dialect, rather than a hand-picked subset of
 //! generic SMILES. This is frozen OPSIN main XML in the crate, never a runtime
 //! upstream checkout or network resource.
-use nazuchem_n2s::{graph::Graph, smiles::build_fragment};
+use nazuchem_n2s::{
+    ParseOptions, build_state::BuildState, component_processor::ComponentProcessor,
+    parse_tree::Arena, suffix_rules::SuffixRules,
+};
 
 #[test]
 fn build_every_literal_group_resource() {
@@ -20,6 +23,7 @@ fn build_every_literal_group_resource() {
     files.sort();
     let mut examples = 0;
     let mut failures = Vec::new();
+    let rules = SuffixRules::new().unwrap();
     for file in files {
         let xml = std::fs::read_to_string(&file).unwrap();
         let document = roxmltree::Document::parse_with_options(
@@ -46,8 +50,15 @@ fn build_every_literal_group_resource() {
                     .attribute("type")
                     .or_else(|| list.attribute("type"))
                     .unwrap_or("");
-                let mut graph = Graph::default();
-                if let Err(error) = build_fragment(&mut graph, smiles, fragment_type, labels) {
+                let mut state = BuildState::new(ParseOptions::default());
+                let mut arena = Arena::default();
+                let group = arena.token("group", token.text().unwrap_or(""));
+                arena[group].set_attribute("type", fragment_type);
+                arena[group].set_attribute("value", smiles);
+                arena[group].set_attribute("labels", labels);
+                let result =
+                    ComponentProcessor::new(&mut state, &rules).resolve_group(&mut arena, group);
+                if let Err(error) = result {
                     failures.push(format!(
                         "{}: {:?}, {smiles}: {error}",
                         file.file_name().unwrap().to_string_lossy(),
@@ -58,11 +69,10 @@ fn build_every_literal_group_resource() {
             }
         }
     }
-    // 3,183 pinned OPSIN groups plus 16 native acid-anion prefixes (issue #83,
-    // P-72.6.1; issue #145, P-65.6.2.3.1), cyanohydrazide (issue #113,
-    // P-66.3.1.2.1) and 22 native pheno...ine ring and fusion-prefix groups
-    // (issue #15, P-25.2.2.3).
-    assert_eq!(examples, 3_222, "Frozen literal resource coverage changed");
+    // The previous 3,222 entries include the boranthrene and phenoxasiline
+    // entries that were updated in place. Issue #15 added five mixed-pair
+    // parent groups and five corresponding fusion-prefix groups.
+    assert_eq!(examples, 3_232, "Frozen literal resource coverage changed");
     assert!(
         failures.is_empty(),
         "{} failures out of {examples} frozen resource groups:\n{}",

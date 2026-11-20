@@ -133,15 +133,10 @@ impl<'a> ComponentProcessor<'a> {
 
     /// Resolves a group using its upstream SMILES and all token metadata.
     pub fn resolve_group(&mut self, arena: &mut Arena, group: NodeId) -> Result<FragmentId> {
-        let smiles = attr(arena, group, VALUE_ATR);
-        let labels = arena[group]
-            .attribute(LABELS_ATR)
-            .unwrap_or(NONE_LABELS_VAL)
-            .to_owned();
         let fragment = self
             .state
             .fragment_manager
-            .build_token_smiles(&smiles, arena, group, &labels)
+            .build_group_smiles(arena, group)
             .map_err(|e| error(e.to_string()))?;
         arena[group].fragment = Some(fragment);
         self.process_xylene_like_nomenclature(arena, group, fragment)?;

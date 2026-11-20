@@ -13,11 +13,14 @@
 //! Captured with package-local SMILESFragmentBuilder.build(value,type,labels),
 //! then FragmentTools.convertSpareValenciesToDoubleBonds. Tests invoke no Java.
 use nazuchem_n2s::{
-    fragment_manager::FragmentManager,
+    ParseOptions,
+    build_state::BuildState,
+    component_processor::ComponentProcessor,
     fragment_tools,
     graph::{FragmentId, Graph},
     parse_tree::Arena,
     smiles::build_fragment,
+    suffix_rules::SuffixRules,
 };
 use std::collections::BTreeSet;
 fn snapshot(graph: &Graph, fragment: FragmentId) -> String {
@@ -178,19 +181,21 @@ fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulizatio
         assert_eq!(snapshot(&graph, fragment), before, "{value}");
     }
     assert_eq!(native_fused, NATIVE_FUSED.map(String::from).into());
+    let rules = SuffixRules::new().unwrap();
     let snapshots = |value: &str| {
-        let mut manager = FragmentManager::new();
+        let mut state = BuildState::new(ParseOptions::default());
         let mut arena = Arena::default();
         let group = arena.token("group", "");
         arena[group].set_attribute("type", "ring");
-        let labels = "1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a";
-        let fragment = manager
-            .build_token_smiles(value, &mut arena, group, labels)
+        arena[group].set_attribute("value", value);
+        arena[group].set_attribute("labels", "1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a");
+        let fragment = ComponentProcessor::new(&mut state, &rules)
+            .resolve_group(&mut arena, group)
             .unwrap();
-        let before = snapshot(&manager.graph, fragment);
-        fragment_tools::convert_spare_valencies_to_double_bonds(&mut manager.graph, fragment)
-            .unwrap();
-        (before, snapshot(&manager.graph, fragment))
+        let graph = &mut state.fragment_manager.graph;
+        let before = snapshot(graph, fragment);
+        fragment_tools::convert_spare_valencies_to_double_bonds(graph, fragment).unwrap();
+        (before, snapshot(graph, fragment))
     };
     for value in NATIVE_FUSED {
         let sibling = if value.contains("[b]") || value.contains("[as]") {
