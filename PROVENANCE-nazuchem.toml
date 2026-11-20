@@ -5091,6 +5091,7 @@ path = "crates/nazuchem-s2n/src/fusion/planner.rs"
 origin = "mixed"
 license = "MIT AND (MIT OR Apache-2.0)"
 sources = [
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/fusion/planner.rs", ref = "issue #100", license = "MIT OR Apache-2.0" },
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/planner.py", license = "MIT" },
   { project = "ReShiki", path = "src/naming/openclatura/fusion/planner.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0" },
   { project = "openclatura", path = "tests/roundtrip/test_bridges.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
@@ -5099,6 +5100,7 @@ sources = [
 ]
 notes = "Openclatura audited fusion planner with separate local benzo-parent planning, spiro entry and localized-pi refusal proof."
 parts = [
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/fusion/planner.rs", ref = "issue #100", license = "MIT OR Apache-2.0", symbol = "fallback_descriptors" }], items = ["fn fallback_descriptors"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/planner.py", license = "MIT", symbol = "plan_fusion_parent" }], items = ["fn plan_fusion_parent"] },
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/fusion/planner.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "plan_fusion_parent_for_spiro" }], items = ["fn plan_fusion_parent_for_spiro"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/planner.py", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn rejected"], notes = "Previously unlisted helper in the upstream adaptation; conservatively attributed at module scope where no individual upstream boundary is established." },
@@ -7656,7 +7658,7 @@ sources = [
   { project = "ReShiki regression corpus", path = "tests/fixtures/s2n/rules_cases.tsv", ref = "sha256:b3d2b745285f9afa984d229546f437c5061679937f5e81d006c3cde80ca61b40", license = "MIT AND (MIT OR Apache-2.0)" },
 ]
 notes = "1,650 locally generated s2n Name/error and strict n2s observation records, using first-occurrence SMILES order from the three pinned source corpora. This fixture freezes derived library outputs, not the corpora's reference-name columns. Corpus ancestry and terms remain in their own ledger entries, including the owner decision 2026-11-10 to retain bakeoff_corpus.tsv as a repository-only test fixture with PubChem (NCBI) attribution, excluded from all published packages. The original harness alone is MIT OR Apache-2.0; this derived fixture retains NOASSERTION and does not claim a new grant for the source corpora. Test-only and outside crate packages."
-sha256 = "0cea6d0b6712263925a611032fa3c6357f58167c9240b306449d20a7b1c8c712"
+sha256 = "0b667a07576225c0b6056ec051e40cd6395f2b44d2ba3f1b51dfeb458e84d552"
 
 [[file]]
 path = "crates/nazuchem-ir/docs/cxsmiles.md"

@@ -276,7 +276,21 @@ pub fn resolve_parent_hydride_plan(
     {
         return Ok(Some(plan.parent));
     }
-    super::fusion::wrappers::plan_bridged_fusion_wrapper(mol, &atoms)?
+    // A speculative bridge cut can expose a localized pi state on its smaller
+    // core. The already numbered complete block can still cite all its bonds.
+    super::fusion::wrappers::plan_bridged_fusion_wrapper(mol, &atoms)
+        .or_else(|error| {
+            if super::fusion::planner::fallback_descriptors(&error).is_some_and(|descriptors| {
+                selection
+                    .polycycle_descriptor
+                    .as_deref()
+                    .is_some_and(|d| descriptors.contains(&d))
+            }) {
+                Ok(None)
+            } else {
+                Err(error)
+            }
+        })?
         .map(RingParent::from_fusion_wrapper)
         .transpose()
 }

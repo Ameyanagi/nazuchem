@@ -5,6 +5,7 @@
 // Source: openclatura | tests/roundtrip/test_bridges.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/integration/test_systematic_fusion.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: Nazuchem | crates/nazuchem-s2n/src/fusion/planner.rs | issue #95
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/planner.rs | issue #100
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura audited fusion planner with separate local benzo-parent planning, spiro entry and localized-pi refusal proof.
@@ -63,7 +64,21 @@ pub fn plan_fusion_parent(mol: &Molecule, atoms: &AtomSet) -> PlanResult {
     if let Some(cached) = mol.fusion_plan_cache.borrow().get(atoms) {
         return cached.clone();
     }
-    let result = plan_uncached(mol, atoms, false, true);
+    let result = plan_uncached(mol, atoms, false, true).or_else(|error| {
+        if fallback_descriptors(&error).is_some_and(|descriptors| {
+            let edges = edges_within_atoms(mol, atoms);
+            let candidate = crate::chains::polyspiro_or_von_baeyer_candidate(mol, atoms, &edges);
+            candidate.descriptor_allowed()
+                && candidate
+                    .descriptor
+                    .as_deref()
+                    .is_some_and(|d| descriptors.contains(&d))
+        }) {
+            Ok(None)
+        } else {
+            Err(error)
+        }
+    });
     mol.fusion_plan_cache
         .borrow_mut()
         .insert(atoms.clone(), result.clone());
@@ -1404,6 +1419,23 @@ fn standard_valence_parent(mol: &Molecule, atoms: &AtomSet) -> bool {
                 <= e.standard_valence
         })
     })
+}
+
+// P-23 replacement parents cite individual double bonds by locant. Restrict
+// this fallback to audited numberings of the reviewed parent skeletons.
+// Provenance: fn fallback_descriptors | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/planner.rs::fallback_descriptors
+pub(crate) fn fallback_descriptors(error: &str) -> Option<&'static [&'static str]> {
+    match error {
+        "openclatura: localized nonaromatic fused pi state not ported" => {
+            Some(&["tricyclo[5.2.1.0^{4,10}]"])
+        }
+        "openclatura: nonhexagonal fusion parser numbering not ported" => Some(&[
+            "tricyclo[8.6.0.0^{2,8}]",
+            "tetracyclo[11.4.0.0^{2,6}.0^{8,12}]",
+        ]),
+        _ => None,
+    }
 }
 
 // Upstream divergence: maximum matching proves that the observed pi state
