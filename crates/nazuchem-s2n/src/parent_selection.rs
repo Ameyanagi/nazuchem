@@ -2049,6 +2049,77 @@ mod tests {
     // written from other atoms.
     #[test]
     fn tied_parents_compare_prefix_locants_and_names() {
+        // The same carbon can bear a standard and a lambda phosphorus ligand.
+        // Preserve the constitutional citation and graph for both input orders.
+        let phosphorus = ["PC([PH4])C(=O)O", "[PH4]C(P)C(=O)O"];
+        let phosphorus_name = name(phosphorus[0]);
+        assert_eq!(
+            phosphorus_name,
+            "(lambda^5-phosphanyl)(phosphanyl)acetic acid"
+        );
+        for input in phosphorus {
+            assert_eq!(name(input), phosphorus_name);
+            let parsed = crate::test_support::parse_strict(&phosphorus_name).unwrap();
+            crate::test_support::verify_identity(input, &parsed).unwrap();
+        }
+        for (expected, inputs) in [
+            (
+                "(lambda^6-sulfanyl)(lambda^4-sulfanyl)acetic acid",
+                ["[SH3]C([SH5])C(=O)O", "[SH5]C([SH3])C(=O)O"],
+            ),
+            (
+                "3-(lambda^6-sulfanyl)-2-(lambda^4-sulfanyl)propanoic acid",
+                ["[SH3]C(C[SH5])C(=O)O", "[SH5]CC([SH3])C(=O)O"],
+            ),
+            (
+                "[(34S)lambda^6-sulfanyl][(34S)lambda^4-sulfanyl]acetic acid",
+                ["[34SH3]C([34SH5])C(=O)O", "[34SH5]C([34SH3])C(=O)O"],
+            ),
+            (
+                "[(36S)lambda^6-sulfanyl][(33S)lambda^4-sulfanyl][(34S)lambda^4-sulfanyl]acetic acid",
+                [
+                    "[33SH3]C([34SH3])([36SH5])C(=O)O",
+                    "[34SH3]C([33SH3])([36SH5])C(=O)O",
+                ],
+            ),
+        ] {
+            for input in inputs {
+                let named = crate::name_smiles(input, &Default::default()).unwrap();
+                assert_eq!(named.text, expected, "{input}");
+                assert_eq!(
+                    named.status,
+                    nazuchem_ir::NameStatus::Unverified(if input.contains("34S") {
+                        nazuchem_ir::NameReason::IsotopePlacement
+                    } else {
+                        nazuchem_ir::NameReason::LambdaPrefixOrder
+                    })
+                );
+                crate::test_support::verify_identity(
+                    input,
+                    &crate::test_support::parse_strict(expected).unwrap(),
+                )
+                .unwrap();
+            }
+        }
+        for (second_stereo, expected_status) in [
+            (
+                "@",
+                nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::LambdaPrefixOrder),
+            ),
+            ("@@", nazuchem_ir::NameStatus::Preferred),
+        ] {
+            let left = format!("CCCCC([C@H](C)[SH3])([C{second_stereo}H](C)[SH5])C(=O)O");
+            let right = format!("CCCCC([C{second_stereo}H](C)[SH5])([C@H](C)[SH3])C(=O)O");
+            let first = crate::name_smiles(&left, &Default::default()).unwrap();
+            let second = crate::name_smiles(&right, &Default::default()).unwrap();
+            assert_eq!(first.text, second.text);
+            assert_eq!(first.status, expected_status);
+            assert_eq!(second.status, expected_status);
+            let parsed = crate::test_support::parse_strict(&first.text).unwrap();
+            for input in [&left, &right] {
+                crate::test_support::verify_identity(input, &parsed).unwrap();
+            }
+        }
         for (expected, inputs) in [
             // P-45.2.3 example (2): 2,N,4 is lower than 4,N,2.
             (

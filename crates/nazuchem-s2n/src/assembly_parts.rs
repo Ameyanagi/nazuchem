@@ -221,6 +221,7 @@ pub struct AssemblyParts {
     pub is_spiro_side_projection: bool,
     pub spiro_prefix_composition: bool,
     pub spiro_same_size_components: bool,
+    pub lambda_prefix_order_tie: bool,
     /// The renderer cited locants on hydro prefixes of a fully hydrogenated parent.
     pub locanted_total_hydrogenation: bool,
 }
@@ -309,6 +310,7 @@ impl AssemblyParts {
             is_spiro_side_projection: false,
             spiro_prefix_composition: false,
             spiro_same_size_components: false,
+            lambda_prefix_order_tie: false,
             locanted_total_hydrogenation: false,
         }
     }

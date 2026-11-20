@@ -8142,7 +8142,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/wasm/src/index.d.ts", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "89e0899b86a7ccca0ca9f9bb15af34b5bc41c8110a6092da77614fbe019730ec"
+sha256 = "dc668c0a81ac749087ad1cd3989a0111e080b9791a3e64de2ee1d826fa36237c"
 
 [[file]]
 path = "bindings/wasm/src/lib.rs"

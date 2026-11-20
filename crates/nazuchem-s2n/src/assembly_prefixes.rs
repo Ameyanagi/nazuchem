@@ -260,7 +260,7 @@ fn outer_parentheses_are_redundant(name: &str) -> bool {
 // Source: openclatura | src/openclatura/assembly_prefixes.py::format_substituent_prefixes
 pub(super) fn cited_substituent_groups(
     substituents: &[SubstituentItem],
-) -> Vec<(&str, Vec<&SubstituentItem>)> {
+) -> (Vec<(&str, Vec<&SubstituentItem>)>, bool) {
     let mut grouped: BTreeMap<&str, Vec<_>> = BTreeMap::new();
     let mut names = Vec::new();
     for sub in substituents {
@@ -274,26 +274,63 @@ pub(super) fn cited_substituent_groups(
     // P-82.5.1: isotope descriptors take no part in the order. P-82.2.2.1:
     // the isotopically modified prefix precedes its unmodified twin.
     // P-45.6.3: then R precedes S.
-    names.sort_by_key(|s| {
-        let item = grouped[s][0];
-        let (name, initial) = substituent_sort_key(&citation_name(s, &item.isotope_descriptors));
-        (
-            name,
-            item.isotope_atoms.is_empty(),
-            initial,
-            rs_descriptors(s),
-        )
-    });
-    names
+    let mut ranked: Vec<_> = names
         .into_iter()
-        .filter_map(|name| grouped.remove(name).map(|items| (name, items)))
-        .collect()
+        .map(|s| {
+            let item = grouped[s][0];
+            let plain = citation_name(s, &item.isotope_descriptors);
+            // The protective wrapper around a simple lambda prefix is not
+            // part of the group name (P-14.4(h), lambda^5-phosphanyl).
+            let citation = plain
+                .strip_prefix('(')
+                .and_then(|inner| inner.strip_suffix(')'))
+                .filter(|inner| inner.starts_with("lambda^") && !inner.contains(['(', ')']))
+                .unwrap_or(&plain);
+            let (name, initial) = substituent_sort_key(citation);
+            let key = (
+                name,
+                item.isotope_atoms.is_empty(),
+                initial,
+                rs_descriptors(s),
+            );
+            let lambda = plain
+                .split_once("lambda^")
+                .map(|(_, stem)| stem)
+                .and_then(|stem| stem.split_once('-')?.0.parse::<usize>().ok());
+            (key, lambda, s)
+        })
+        .collect();
+    ranked.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut lambda_tie = false;
+    for tied in ranked.chunk_by_mut(|a, b| a.0 == b.0) {
+        let mut numbers = tied.iter().filter_map(|entry| entry.1);
+        if let Some(first) = numbers.next()
+            && numbers.any(|n| n != first)
+        {
+            // P-14.5.4 compares internal locants. A lambda superscript is a
+            // bonding number, and P-45.3 ranks parents. For this unresolved
+            // citation only, present higher bonding numbers first and use the
+            // full prefix spelling to stabilize equal-number isotope variants.
+            tied.sort_by_key(|(_, number, text)| (std::cmp::Reverse(*number), *text));
+            lambda_tie = true;
+        } else if tied.iter().any(|entry| entry.1.is_some())
+            && tied.iter().any(|entry| entry.1.is_none())
+        {
+            // P-14.4(h) cites lambda^5-phosphanyl before phosphanyl.
+            tied.sort_by_key(|entry| entry.1.is_none());
+        }
+    }
+    let groups = ranked
+        .into_iter()
+        .filter_map(|(_, _, name)| grouped.remove(name).map(|items| (name, items)))
+        .collect();
+    (groups, lambda_tie)
 }
 
 // Provenance: fn format_substituent_prefixes | adapted
 // Source: openclatura | src/openclatura/assembly_prefixes.py::format_substituent_prefixes
-pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
-    let groups = cited_substituent_groups(&parts.substituents);
+pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool, bool) {
+    let (groups, lambda_tie) = cited_substituent_groups(&parts.substituents);
     let group_count = groups.len();
     let groups: Vec<_> = groups
         .into_iter()
@@ -406,7 +443,7 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
         }
         rendered.push_str(&piece);
     }
-    (rendered, cites_numeric_locants)
+    (rendered, cites_numeric_locants, lambda_tie)
 }
 // Provenance: fn format_replacement_prefixes | adapted
 // Source: openclatura | src/openclatura/assembly_prefixes.py::format_replacement_prefixes

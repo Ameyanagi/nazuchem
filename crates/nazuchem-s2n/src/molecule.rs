@@ -290,7 +290,13 @@ impl Molecule {
     // Provenance: fn Molecule::mark_name | original
     // Source: ReShiki | src/naming/openclatura/molecule.rs::Molecule::mark_name
     pub(super) fn mark_name(&self, status: NameStatus) {
-        if status.severity() > self.name_status().severity() {
+        let previous = self.name_status();
+        // A fallback presentation order supplies a reason only in the
+        // absence of another unverified chemical assignment.
+        if status.severity() > previous.severity()
+            || previous == NameStatus::Unverified(NameReason::LambdaPrefixOrder)
+                && matches!(status, NameStatus::Unverified(reason) if reason != NameReason::UnauditedPath)
+        {
             self.set_name_status(status);
         }
     }

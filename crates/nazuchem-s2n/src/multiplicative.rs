@@ -405,7 +405,7 @@ fn render_substituents(
     // P-46.1.12 and P-46.1.13: first compare all locants as a set, then
     // compare numeric locants in the order their prefixes are cited.
     let mut citation_locants = Vec::new();
-    for (_, group) in cited_substituent_groups(&items) {
+    for (_, group) in cited_substituent_groups(&items).0 {
         let mut group_locants: Vec<_> = group
             .iter()
             .flat_map(|item| &item.locants)
@@ -416,7 +416,7 @@ fn render_substituents(
     }
     let mut locants = citation_locants.clone();
     locants.sort();
-    let (text, _) = format_substituent_prefixes(&AssemblyParts {
+    let (text, _, _) = format_substituent_prefixes(&AssemblyParts {
         is_substituent: true,
         substituents: items,
         ..Default::default()

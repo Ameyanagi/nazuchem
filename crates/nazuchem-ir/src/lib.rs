@@ -114,6 +114,7 @@ pub enum NameReason {
     UnknownConfiguration,
     AxialAlternative,
     ParentConfiguration,
+    LambdaPrefixOrder,
 }
 
 /// All naming reason values, serialized by binding declaration checks.
@@ -162,6 +163,7 @@ pub const NAME_REASONS: &[NameReason] = &[
     NameReason::UnknownConfiguration,
     NameReason::AxialAlternative,
     NameReason::ParentConfiguration,
+    NameReason::LambdaPrefixOrder,
 ];
 
 impl NameReason {
@@ -259,6 +261,9 @@ impl NameReason {
             }
             Self::UnknownConfiguration => {
                 "Omits a descriptor for unknown configuration; preferred IUPAC names indicate unknown configuration with Ξ or ξ (P-91.2.1.2.1)."
+            }
+            Self::LambdaPrefixOrder => {
+                "Equally ranked substituent prefixes have different lambda bonding numbers. Their preferred order of citation has not been verified (P-14.5, P-45.3)."
             }
             Self::ParentConfiguration => {
                 "Equally senior parents differ in configuration that needs CIP sequence rules 4 and 5; the senior parent (P-44.4.1.12) has not been verified."

@@ -44,6 +44,9 @@ use std::collections::{BTreeMap, BTreeSet};
 // Provenance: fn mark_assembled_name | original
 // Source: ReShiki | src/naming/openclatura/assembler.rs::mark_assembled_name
 pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &AssemblyParts) {
+    if parts.lambda_prefix_order_tie {
+        mol.mark_name(NameStatus::Unverified(NameReason::LambdaPrefixOrder));
+    }
     if parts.spiro_same_size_components {
         mol.mark_name(NameStatus::Unverified(NameReason::UnauditedParent));
     }
@@ -948,7 +951,8 @@ fn finish_name_with_parent(
     if cites_locants {
         parts.elided_substituent_locants.clear();
     }
-    let (prefix, prefix_cites_locants) = format_substituent_prefixes(parts);
+    let (prefix, prefix_cites_locants, lambda_tie) = format_substituent_prefixes(parts);
+    parts.lambda_prefix_order_tie = lambda_tie;
     cites_locants |= prefix_cites_locants;
     if prefix_cites_locants {
         parts.elided_substituent_locants.clear();
