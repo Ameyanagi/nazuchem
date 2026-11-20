@@ -2909,7 +2909,12 @@ fn homonuclear_chain_parent_name(
     // The same orientation that placed the ligand determines the 1 and 2
     // locants for the nitrogens (P-82.5.1). A bare hydrazine has equivalent
     // ends, which the isotope adapter numbers by P-82.5.2.
-    let isotope_parts = hydrazine.then(|| ShortcutIsotopeParts {
+    // A ligand may leave its unique heteroatom to a whole-name letter
+    // locant, e.g. (S-2H1)-1-sulfanylhydrazine. Keep that descriptor at
+    // the front when neither the chain nor its named prefix cites a label.
+    let has_local_label = !prefix_isotopes.is_empty()
+        || sites.iter().any(|site| chain_set.contains(&site.anchor));
+    let isotope_parts = (hydrazine && has_local_label).then(|| ShortcutIsotopeParts {
         locants: oriented
             .iter()
             .enumerate()

@@ -913,6 +913,9 @@ mod tests {
     #[test]
     fn hydrazine_keeps_backbone_and_ligand_labels_in_their_own_units() {
         for (smiles, expected) in [
+            ("NNS[2H]", "(S-2H1)-1-sulfanylhydrazine"),
+            ("NN(S[2H])", "(S-2H1)-1-sulfanylhydrazine"),
+            ("[2H]SNN", "(S-2H1)-1-sulfanylhydrazine"),
             ("C[15NH]N", "1-methyl(1-15N)hydrazine"),
             ("N[15NH]C", "1-methyl(1-15N)hydrazine"),
             ("CN[15NH2]", "1-methyl(2-15N)hydrazine"),
