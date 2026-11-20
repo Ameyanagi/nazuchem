@@ -4633,6 +4633,7 @@ struct AnhydrideAcid {
     complete: bool,
     parent_size: usize,
     locants: Vec<Option<String>>,
+    cited_centers: AtomSet,
 }
 
 // Provenance: fn anhydride_half_name | adapted
@@ -4683,6 +4684,11 @@ fn name_anhydride_acid(
     let status = fragment.name_status();
     mol.set_name_status(prior_status);
     let name = name?;
+    let cited_centers: AtomSet = hydroxy
+        .iter()
+        .zip(starts)
+        .filter_map(|(oh, &center)| name.principal_group_atoms.contains(oh).then_some(center))
+        .collect();
     let cited = hydroxy
         .iter()
         .all(|oh| name.principal_group_atoms.contains(oh));
@@ -4737,6 +4743,7 @@ fn name_anhydride_acid(
         complete,
         parent_size,
         locants,
+        cited_centers,
     })
 }
 
@@ -4974,6 +4981,7 @@ impl AnhydrideEnd {
 #[derive(Clone, Copy)]
 struct AnhydrideArm {
     bridge: usize,
+    other_bridge: usize,
     center: usize,
     outer: usize,
 }
@@ -4986,13 +4994,26 @@ impl AnhydrideArm {
         // bridge. An ordinary carboxylic acid leaves carbon or H on the end.
         mol.atoms[&self.outer].is_carbon()
             && mol.get_neighbors(self.outer).iter().all(|&neighbor| {
-                neighbor == self.bridge
+                neighbor == self.other_bridge
                     || match mol.bond_order(self.outer, neighbor) {
                         1 => mol.atoms[&neighbor].is_carbon(),
                         2 => mol.atoms[&neighbor].symbol == "O",
                         _ => false,
                     }
             })
+    }
+
+    // Provenance: fn AnhydrideArm::split_edges | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::AnhydrideArm::split_edges
+    fn split_edges(&self) -> impl Iterator<Item = Edge> {
+        [
+            Some(normalize_edge(self.center, self.bridge)),
+            (self.bridge != self.other_bridge)
+                .then(|| normalize_edge(self.bridge, self.other_bridge)),
+            Some(normalize_edge(self.other_bridge, self.outer)),
+        ]
+        .into_iter()
+        .flatten()
     }
 }
 
@@ -5026,6 +5047,7 @@ fn name_polyanhydride(
     let mut bridges = AtomSet::new();
     let mut arms = Vec::new();
     let mut bridge_classes = BTreeSet::new();
+    let mut peroxy_bridges = false;
     for link in links {
         let Some(path) = link
             .descriptor
@@ -5034,28 +5056,45 @@ fn name_polyanhydride(
         else {
             return Ok(None);
         };
-        let &[a, bridge, b] = path.as_slice() else {
-            return Ok(None);
+        let (a, bridge, other_bridge, b) = match *path.as_slice() {
+            [a, bridge, b] => (a, bridge, bridge, b),
+            [a, bridge, other_bridge, b]
+                if mol.atoms[&bridge].symbol == mol.atoms[&other_bridge].symbol
+                    && [bridge, other_bridge]
+                        .iter()
+                        .all(|i| mol.atoms[i].isotope.is_none()) =>
+            {
+                peroxy_bridges = true;
+                (a, bridge, other_bridge, b)
+            }
+            _ => return Ok(None),
         };
         let Some(class) = anhydride_class_name(mol, path) else {
             return Ok(None);
         };
-        if !bridges.insert(bridge) {
+        if !bridges.insert(bridge) || (other_bridge != bridge && !bridges.insert(other_bridge)) {
             return Ok(None);
         }
         bridge_classes.insert(class);
         arms.extend([
             AnhydrideArm {
                 bridge,
+                other_bridge,
                 center: a,
                 outer: b,
             },
             AnhydrideArm {
-                bridge,
+                bridge: other_bridge,
+                other_bridge: bridge,
                 center: b,
                 outer: a,
             },
         ]);
+    }
+    // P-65.7.6.4.1 permits a multiplier on identical bridges. Mixed
+    // two-atom bridges would require locating the attachment at each end.
+    if peroxy_bridges && bridge_classes.len() != 1 {
+        return Ok(None);
     }
     // For mixed linkages, choose oxygen when present (P-65.7.6.4.2).
     // Further mixed chalcogen classes require choosing their senior bridge.
@@ -5098,6 +5137,24 @@ fn name_polyanhydride(
     };
     let mut candidates = Vec::new();
     for (central_atoms, central_arms) in central_residues {
+        let mut central_arms = central_arms.clone();
+        // A side chain on the polybasic acid can carry a separate anhydride.
+        // P-65.7.6.3 cites that chain as a substituent on the acid parent.
+        if central_arms.len() > 3
+            && central_arms
+                .iter()
+                .all(|arm| mol.atoms[&arm.center].is_carbon())
+        {
+            let blocked = central_arms
+                .iter()
+                .flat_map(|arm| [arm.bridge, arm.other_bridge])
+                .collect();
+            let centers: Vec<_> = central_arms.iter().map(|arm| arm.center).collect();
+            let principal = name_anhydride_acid(mol, &centers, &blocked, true, &[])?;
+            if principal.cited_centers.len() >= 3 {
+                central_arms.retain(|arm| principal.cited_centers.contains(&arm.center));
+            }
+        }
         if oxygen_bridges
             && central_arms
                 .iter()
@@ -5107,15 +5164,13 @@ fn name_polyanhydride(
         }
         // Methods (1) and (3) name the uncut portion of each arm
         // substitutively, retaining all but the bridges on the chosen acid.
-        let blocked = central_arms.iter().map(|arm| arm.bridge).collect();
-        let component_splits: BTreeSet<_> = central_arms
+        let blocked = central_arms
             .iter()
-            .flat_map(|arm| {
-                [
-                    normalize_edge(arm.center, arm.bridge),
-                    normalize_edge(arm.bridge, arm.outer),
-                ]
-            })
+            .flat_map(|arm| [arm.bridge, arm.other_bridge])
+            .collect();
+        let component_splits = central_arms
+            .iter()
+            .flat_map(AnhydrideArm::split_edges)
             .collect();
         let centers: Vec<_> = central_arms.iter().map(|arm| arm.center).collect();
         if centers
@@ -5125,7 +5180,7 @@ fn name_polyanhydride(
             continue;
         }
         let mut ends = Vec::new();
-        for arm in central_arms {
+        for arm in &central_arms {
             let acid = name_anhydride_acid(mol, &[arm.outer], &blocked, false, &[])?;
             if !acid.cited || !acid.complete || !is_anhydride_acid_word(&acid.text) {
                 break;
@@ -5208,7 +5263,7 @@ fn name_polyanhydride(
                 .map(|end| end.acid.status)
                 .chain(std::iter::once(central.status)),
         );
-        let certified = certified && acid_status == NameStatus::Preferred;
+        let certified = certified && acid_status == NameStatus::Preferred && !peroxy_bridges;
         let class = if oxygen_bridges {
             format!(
                 "{}anhydride",
@@ -5258,38 +5313,15 @@ fn name_polyanhydride(
             ));
         } else {
             // P-65.7.6.3: collect like ends and put the polybasic acid last.
-            let mut words = Vec::new();
-            for group in ends.chunk_by(|a, b| a.acid.text == b.acid.text) {
-                let end = &group[0];
-                let word = if group.len() == 1 {
-                    end.citation(needs_locants)
-                } else {
-                    let term = multiply_anhydride_acid(
-                        &end.acid.text,
-                        group.len(),
-                        end.acid.unsubstituted,
-                    );
-                    if needs_locants {
-                        let Some(locants) = group
-                            .iter()
-                            .map(|end| end.locant.as_deref())
-                            .collect::<Option<Vec<_>>>()
-                        else {
-                            return Ok(None);
-                        };
-                        format!("{}-{term}", locants.join(","))
-                    } else {
-                        term
-                    }
-                };
-                words.push(word);
-            }
-            words.extend([central.text, class]);
+            let Some(name) = polybasic_anhydride_name(&ends, needs_locants, central.text, class)
+            else {
+                return Ok(None);
+            };
             mol.mark_name(acid_status);
             return Ok(Some(StructuralParentName {
                 certified,
                 component_splits,
-                ..StructuralParentName::ordinary(words.join(" "))
+                ..StructuralParentName::ordinary(name)
             }));
         }
     }
@@ -5306,6 +5338,192 @@ fn name_polyanhydride(
                 }
             },
         ))
+}
+
+// Provenance: fn polybasic_anhydride_name | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::polybasic_anhydride_name
+/// Render the ends in their established citation order, collecting like acids.
+fn polybasic_anhydride_name(
+    ends: &[AnhydrideEnd],
+    needs_locants: bool,
+    parent: String,
+    class: String,
+) -> Option<String> {
+    let mut words = Vec::new();
+    for group in ends.chunk_by(|a, b| a.acid.text == b.acid.text) {
+        let end = &group[0];
+        let word = if group.len() == 1 {
+            end.citation(needs_locants)
+        } else {
+            let term = multiply_anhydride_acid(&end.acid.text, group.len(), end.acid.unsubstituted);
+            if needs_locants {
+                let locants = group
+                    .iter()
+                    .map(|end| end.locant.as_deref())
+                    .collect::<Option<Vec<_>>>()?;
+                format!("{}-{term}", locants.join(","))
+            } else {
+                term
+            }
+        };
+        words.push(word);
+    }
+    words.extend([parent, class]);
+    Some(words.join(" "))
+}
+
+// P-65.7.6.3: fully condensed phosphoric acid, or two phosphonic acid
+// residues connected through an unbranched alkanediyl linker.
+// Provenance: fn phosphorus_polyanhydride_name | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::phosphorus_polyanhydride_name
+fn phosphorus_polyanhydride_name(
+    mol: &Molecule,
+    atoms: &AtomSet,
+) -> Result<Option<StructuralParentName>, String> {
+    let centers: Vec<_> = atoms
+        .iter()
+        .copied()
+        .filter(|i| mol.atoms[i].symbol == "P")
+        .collect();
+    if !(1..=2).contains(&centers.len()) {
+        return Ok(None);
+    }
+    let plain = |i: usize| {
+        let atom = &mol.atoms[&i];
+        atom.charge == 0
+            && atom.isotope.is_none()
+            && atom.radical_electrons == 0
+            && !atom.is_aromatic
+    };
+    let mut bridges = AtomSet::new();
+    let mut arms = Vec::new();
+    let mut linker_roots = Vec::new();
+    for &center in &centers {
+        if !plain(center) || mol.degree(center) != 4 || mol.atoms[&center].total_h_count != 0 {
+            return Ok(None);
+        }
+        let mut oxo = 0;
+        for &i in mol.get_neighbors(center) {
+            let atom = &mol.atoms[&i];
+            match (
+                atom.symbol.as_str(),
+                mol.bond_order(center, i),
+                mol.get_neighbors(i),
+            ) {
+                ("O", 2, [_]) if plain(i) => oxo += 1,
+                ("O", 1, [a, b]) if plain(i) => {
+                    let outer = if *a == center { *b } else { *a };
+                    if !mol.atoms[&outer].is_carbon()
+                        || super::perception::anhydride_end(mol, outer, i, &AtomSet::new())
+                            .is_none()
+                        || !bridges.insert(i)
+                    {
+                        return Ok(None);
+                    }
+                    arms.push(AnhydrideArm {
+                        bridge: i,
+                        other_bridge: i,
+                        center,
+                        outer,
+                    });
+                }
+                ("C", 1, _) if centers.len() == 2 => linker_roots.push(i),
+                _ => return Ok(None),
+            }
+        }
+        if oxo != 1 {
+            return Ok(None);
+        }
+    }
+    let core = subgraph_component(mol, centers[0], &bridges);
+    let parent = match (centers.as_slice(), linker_roots.as_slice(), arms.len()) {
+        ([_], [], 3) => "phosphoric".into(),
+        ([p, q], [a, b], 4)
+            if a != b
+                && core.contains(q)
+                && arms.iter().filter(|arm| arm.center == *p).count() == 2 =>
+        {
+            let linker: Vec<_> = core
+                .iter()
+                .copied()
+                .filter(|i| mol.atoms[i].is_carbon())
+                .collect();
+            if core.len() != linker.len() + 4
+                || linker.iter().any(|&i| {
+                    !plain(i)
+                        || mol.degree(i) != 2
+                        || mol.atoms[&i].total_h_count != 2
+                        || mol
+                            .get_neighbors(i)
+                            .iter()
+                            .any(|&n| mol.bond_order(i, n) != 1)
+                })
+            {
+                return Ok(None);
+            }
+            let n = linker.len();
+            format!("({}ane-1,{n}-diyl)bis(phosphonic)", stems::stem_for(n))
+        }
+        _ => return Ok(None),
+    };
+    require_stereo_free_core(mol, &core.union(&bridges).copied().collect())?;
+    let mut visited = core;
+    let mut ends = Vec::new();
+    for arm in &arms {
+        let residue = subgraph_component(mol, arm.outer, &bridges);
+        if !visited.is_disjoint(&residue) {
+            return Ok(None);
+        }
+        visited.extend(residue);
+        let acid = name_anhydride_acid(mol, &[arm.outer], &bridges, false, &[])?;
+        if !acid.cited || !acid.complete || !is_anhydride_acid_word(&acid.text) {
+            return Ok(None);
+        }
+        ends.push((
+            arm.center,
+            AnhydrideEnd {
+                acid,
+                terminal: true,
+                locant: None,
+            },
+        ));
+    }
+    ends.sort_by_cached_key(|(_, end)| end.citation_order());
+    let needs_locants = centers.len() == 2
+        && ends
+            .iter()
+            .any(|(_, end)| end.acid.text != ends[0].1.acid.text);
+    if needs_locants {
+        // Number the symmetric linker by comparing the full set of acid
+        // citations at each end. The first citations alone may tie.
+        let citations = |center| {
+            ends.iter()
+                .filter(|(p, _)| *p == center)
+                .map(|(_, end)| end.citation_order())
+                .collect::<Vec<_>>()
+        };
+        let first = if citations(centers[0]) <= citations(centers[1]) {
+            centers[0]
+        } else {
+            centers[1]
+        };
+        for (center, end) in &mut ends {
+            end.locant = Some(if *center == first { "P" } else { "P'" }.into());
+        }
+        ends.sort_by_cached_key(|(_, end)| (end.citation_order(), end.locant.clone()));
+    }
+    let ends: Vec<_> = ends.into_iter().map(|(_, end)| end).collect();
+    let class = format!("{}anhydride", multipliers::basic(arms.len()));
+    let Some(name) = polybasic_anhydride_name(&ends, needs_locants, parent, class) else {
+        return Ok(None);
+    };
+    let acid_status = strongest_anhydride_acid_status(ends.iter().map(|end| end.acid.status));
+    mol.mark_name(acid_status);
+    Ok(Some(StructuralParentName {
+        certified: acid_status == NameStatus::Preferred,
+        component_splits: arms.iter().flat_map(AnhydrideArm::split_edges).collect(),
+        ..StructuralParentName::ordinary(name)
+    }))
 }
 
 // Provenance: fn try_name_anhydride_component | adapted
@@ -5896,6 +6114,9 @@ pub(super) fn structural_replacement_parent_result(
     }
     if let Some(name) = mol.candidate(|| azinic_acid_name(mol, atoms))? {
         return Ok(Some(StructuralParentName::ordinary(name)));
+    }
+    if let Some(name) = mol.candidate(|| phosphorus_polyanhydride_name(mol, atoms))? {
+        return Ok(Some(name));
     }
     if let Some(name) = mol.candidate(|| oxoacid_ester_name(mol, atoms))? {
         return Ok(Some(name));

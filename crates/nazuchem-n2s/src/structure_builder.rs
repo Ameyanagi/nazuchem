@@ -1324,6 +1324,51 @@ impl Builder<'_> {
         Ok(true)
     }
 
+    fn anhydride_site_index(
+        &self,
+        word: NodeId,
+        acid: &BuildResults,
+        locant: &str,
+    ) -> Result<usize> {
+        let graph = self.assembly.graph();
+        let matches: Vec<_> = acid
+            .functional_atoms
+            .iter()
+            .copied()
+            .enumerate()
+            .filter(|&(_, site)| {
+                if ft::is_numeric_locant(locant) {
+                    self.search_non_suffix_locant(site, locant).is_some()
+                } else {
+                    graph.neighbours(site).iter().any(|&center| {
+                        graph.atom(center).element == Element::P
+                            && graph
+                                .atom(center)
+                                .locants
+                                .iter()
+                                .any(|value| value == locant)
+                    })
+                }
+            })
+            .collect();
+        let Some(&(index, first)) = matches.first() else {
+            return Err(error("Unable to find anhydride linkage locant"));
+        };
+        if matches.len() > 1
+            && (ft::is_numeric_locant(locant)
+                || matches
+                    .iter()
+                    .any(|&(_, site)| graph.neighbours(site) != graph.neighbours(first))
+                || !self.equivalent_anhydride_sites(
+                    word,
+                    &matches.iter().map(|&(_, site)| site).collect::<Vec<_>>(),
+                )?)
+        {
+            return Err(error("Anhydride linkage locant is ambiguous"));
+        }
+        Ok(index)
+    }
+
     fn build_polyanhydride(
         &mut self,
         smiles: &str,
@@ -1344,6 +1389,38 @@ impl Builder<'_> {
             .iter()
             .map(|&word| self.assembly.attr(word, "value"))
             .collect();
+        if let [_, inner_word, central_word, _] = acid_words
+            && let Some(link) = self.assembly.attr(*inner_word, "anhydrideNeighbourLocant")
+        {
+            let [outer, inner, central, other] = acids.as_mut_slice() else {
+                return Err(error("Invalid grouped anhydride end"));
+            };
+            if count != 3
+                || [
+                    outer.functional_atoms.len(),
+                    inner.functional_atoms.len(),
+                    central.functional_atoms.len(),
+                    other.functional_atoms.len(),
+                ] != [1, 2, 2, 1]
+                || locants[..3].iter().any(Option::is_some)
+                || !self.equivalent_anhydride_sites(*inner_word, &inner.functional_atoms)?
+            {
+                return Err(error("Invalid grouped anhydride end"));
+            }
+            let first = self.anhydride_site_index(*central_word, central, &link)?;
+            let Some(other_locant) = locants[3].as_deref() else {
+                return Err(error("Missing anhydride end locant"));
+            };
+            let second = self.anhydride_site_index(*central_word, central, other_locant)?;
+            if first == second {
+                return Err(error("Anhydride end locants repeat a site"));
+            }
+            let first = central.remove_functional_atom(self.assembly.graph_mut(), first)?;
+            self.link_anhydride_results(smiles, outer, inner)?;
+            let inner = inner.remove_functional_atom(self.assembly.graph_mut(), 0)?;
+            self.form_anhydride_link(smiles, inner, first)?;
+            return self.link_anhydride_results(smiles, other, central);
+        }
         let polybasic: Vec<_> = acids
             .iter()
             .enumerate()
@@ -1386,9 +1463,17 @@ impl Builder<'_> {
             {
                 return Err(error("Missing anhydride end locant"));
             }
+            let graph = self.assembly.graph();
+            let shared_center = parent.functional_atoms.first().is_some_and(|&first| {
+                let neighbors = graph.neighbours(first);
+                parent
+                    .functional_atoms
+                    .iter()
+                    .all(|&site| graph.neighbours(site) == neighbors)
+            });
             if !any_located
                 && !equal_ends
-                && (count > 2
+                && ((count > 2 && !shared_center)
                     || !self.equivalent_anhydride_sites(
                         acid_words[central],
                         &parent.functional_atoms,
@@ -1401,18 +1486,7 @@ impl Builder<'_> {
             let parent_atoms = if any_located {
                 let mut chosen = Vec::with_capacity(count);
                 for locant in end_locants.iter().flatten() {
-                    // Each locant must identify one unused acid group.
-                    let mut matches =
-                        parent.functional_atoms.iter().enumerate().filter(|(_, a)| {
-                            ft::is_numeric_locant(locant)
-                                && self.search_non_suffix_locant(**a, locant).is_some()
-                        });
-                    let Some((index, _)) = matches.next() else {
-                        return Err(error("Unable to find anhydride linkage locant"));
-                    };
-                    if matches.next().is_some() {
-                        return Err(error("Anhydride linkage locant is ambiguous"));
-                    }
+                    let index = self.anhydride_site_index(acid_words[central], &parent, locant)?;
                     chosen.push(parent.remove_functional_atom(self.assembly.graph_mut(), index)?);
                 }
                 chosen

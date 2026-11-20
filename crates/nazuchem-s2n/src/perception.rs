@@ -1759,7 +1759,7 @@ pub(super) fn is_anionic_group_key(key: &str) -> bool {
 // Returns the atom the group attaches to and the doubly bonded ligands.
 // Provenance: fn anhydride_end | adapted
 // Source: openclatura | src/openclatura/perception.py::_chalcogen_anhydride_groups
-fn anhydride_end(
+pub(super) fn anhydride_end(
     m: &Molecule,
     x: usize,
     link: usize,

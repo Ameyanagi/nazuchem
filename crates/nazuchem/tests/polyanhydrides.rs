@@ -219,6 +219,17 @@ fn linear_polyanhydrides_use_substitutive_end_acids() {
         "acetic butanedioic propanedioic acetic trianhydride",
         examples[1].0,
     );
+    same_structure(
+        "4-(acetic butanedioic) 2-methylbutanedioic 1-propanoic trianhydride",
+        examples[2].0,
+    );
+    for invalid in [
+        "4-(acetic butanedioic) 2-methylbutanedioic 4-propanoic trianhydride",
+        "2-(acetic butanedioic) 2-methylbutanedioic 1-propanoic trianhydride",
+        "4-(acetic butanedioic) 2-methylbutanedioic propanoic trianhydride",
+    ] {
+        assert!(name_to_smiles(invalid).is_err(), "{invalid}");
+    }
 }
 
 #[test]
@@ -270,6 +281,72 @@ fn polybasic_acid_names_use_locants_and_multipliers() {
         name_to_smiles("2,3-diacetic 2-propanoic naphthalene-2,3,6-tricarboxylic trianhydride")
             .is_err()
     );
+}
+
+#[test]
+fn substituted_polybasic_anhydrides_follow_blue_book_p65763() {
+    for (name, smiles, status) in [
+        (
+            "P,P'-diacetic P,P'-dipropanoic (ethane-1,2-diyl)bis(phosphonic) tetraanhydride",
+            "CCC(=O)OP(=O)(OC(C)=O)CCP(=O)(OC(CC)=O)OC(C)=O",
+            NameStatus::Unverified(NameReason::UnauditedParent),
+        ),
+        (
+            "3,6-diacetic 2-propanoic 8-[2-(acetyloxy)-2-oxoethyl]naphthalene-2,3,6-tricarboxylic trianhydride",
+            "CCC(=O)OC(=O)c1cc2c(CC(=O)OC(C)=O)cc(C(=O)OC(C)=O)cc2cc1C(=O)OC(C)=O",
+            NameStatus::Preferred,
+        ),
+        (
+            "5-(acetyloxy)-5-oxopentanoic 6-(butanoyloxy)-6-oxohexanoic 4-oxo-4-(propanoyloxy)butanoic phosphoric trianhydride",
+            "CCC(=O)OC(=O)CCC(=O)OP(=O)(OC(=O)CCCC(=O)OC(C)=O)OC(=O)CCCCC(=O)OC(=O)CCC",
+            NameStatus::Unverified(NameReason::UnauditedParent),
+        ),
+    ] {
+        same_structure(name, smiles);
+        let result = smiles_to_name(smiles).unwrap();
+        assert_eq!(result.text, name, "{smiles}");
+        assert_eq!(result.status, status, "{smiles}");
+        same_structure(&result.text, smiles);
+    }
+}
+
+#[test]
+fn phosphorus_locants_select_all_and_only_the_requested_sites() {
+    let parent = "(ethane-1,2-diyl)bis(phosphonic) tetraanhydride";
+    let expected = format!("P,P-diacetic P',P'-dipropanoic {parent}");
+    for smiles in [
+        "CCC(=O)OP(=O)(OC(=O)CC)CCP(=O)(OC(C)=O)OC(C)=O",
+        "CC(=O)OP(OC(C)=O)(=O)CCP(OC(CC)=O)(=O)OC(CC)=O",
+    ] {
+        assert_eq!(smiles_to_name(smiles).unwrap().text, expected);
+        same_structure(&expected, smiles);
+    }
+    for acid_words in [
+        "P,P-diacetic P,P'-dipropanoic",
+        "P,P''-diacetic P,P'-dipropanoic",
+        "diacetic dipropanoic",
+    ] {
+        assert!(name_to_smiles(&format!("{acid_words} {parent}")).is_err());
+    }
+}
+
+#[test]
+fn identical_peroxy_bridges_take_the_same_functional_class_multiplier() {
+    for (name, smiles) in [
+        (
+            "acetic butanedioic propanoic bis(peroxyanhydride)",
+            "CCC(=O)OOC(=O)CCC(=O)OOC(C)=O",
+        ),
+        (
+            "triacetic benzene-1,3,5-tricarboxylic tris(peroxyanhydride)",
+            "CC(=O)OOC(=O)c1cc(C(=O)OOC(C)=O)cc(C(=O)OOC(C)=O)c1",
+        ),
+    ] {
+        let result = smiles_to_name(smiles).unwrap();
+        assert_eq!(result.text, name, "{smiles}");
+        assert!(matches!(result.status, NameStatus::Unverified(_)));
+        same_structure(&result.text, smiles);
+    }
 }
 
 #[test]

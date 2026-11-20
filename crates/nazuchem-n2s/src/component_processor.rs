@@ -3797,9 +3797,9 @@ impl ComponentProcessor<'_> {
                     arena.detach(locant);
                 }
             }
-            // P-65.7.6.2–.3: a leading numeral on a simple or fully
-            // enclosed acid word identifies its connection to the polybasic
-            // acid. Move it before the component's locants are interpreted.
+            // P-65.7.6.2–.3: a leading numeral or phosphorus locant on a
+            // simple or fully enclosed acid word identifies its connection
+            // to the polybasic acid.
             if self.state.current_word_rule.as_deref() == Some("anhydride")
                 && rule_words.len() >= 3
                 && let Some(&class) = rule_words.last()
@@ -3813,10 +3813,10 @@ impl ComponentProcessor<'_> {
                         .all(|&unsaturator| arena[unsaturator].attribute(VALUE_ATR) == Some("1")))
                 && let Some(&locant) = arena[*element].children.first()
                 && arena[locant].name == LOCANT_EL
-                && arena
-                    .value(locant)
-                    .split(',')
-                    .all(crate::fragment_tools::is_numeric_locant)
+                && arena.value(locant).split(',').all(|locant| {
+                    crate::fragment_tools::is_numeric_locant(locant)
+                        || locant.trim_end_matches('\'') == "P"
+                })
                 && (!arena.value(locant).contains(',')
                     || arena
                         .next_sibling(locant)
