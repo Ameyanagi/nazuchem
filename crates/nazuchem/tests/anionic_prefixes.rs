@@ -8,7 +8,10 @@
 //! oxygen on a chalcogen chain keep their charge, are named after the IUPAC
 //! 2013 recommendations and read back as the structure they came from.
 
-use nazuchem::{Budget, NameStatus, name_to_smiles, s2n::canonical_smiles, smiles_to_name};
+use nazuchem::{
+    Budget, NameReason, NameStatus, name_to_molecule, name_to_smiles, s2n::canonical_smiles,
+    smiles_to_name,
+};
 
 #[test]
 fn anionic_prefix_names_follow_the_blue_book_and_round_trip() {
@@ -317,6 +320,89 @@ fn anionic_parent_has_the_most_anionic_centres() {
 }
 
 #[test]
+fn anionic_parent_counts_centres_on_one_ring_system_or_chain() {
+    let long_chain = format!("[O-]C1CC([O-])CC1{}C(=O)[O-]", "C".repeat(400));
+    for (smiles, expected, charge) in [
+        // The single bond between the rings is not part of either ring.
+        // The carboxylate wins the one-centre tie under P-72.7(e).
+        (
+            "[O-]c1ccc(C2CC([O-])CC2)cc1CC(=O)[O-]",
+            "[2-oxido-5-(3-oxidocyclopentyl)phenyl]acetate",
+            -3,
+        ),
+        // The chain has three centres including its skeletal charges, so
+        // it wins under P-72.7(a). P-72.5.3 gives -ide the lowest locants.
+        (
+            "[O-]C1CC([O-])CC1[CH-][CH-]C(=O)[O-]",
+            "1-(2,4-dioxidocyclopentyl)propane-1,2-diid-3-oate",
+            -5,
+        ),
+        // At two centres each, the chain's skeletal -ide decides P-72.7(b).
+        (
+            "[O-]C1CC([O-])CC1[CH-]CC(=O)[O-]",
+            "1-(2,4-dioxidocyclopentyl)propan-1-id-3-oate",
+            -4,
+        ),
+        // Without a skeletal charge, the two olates win under P-72.7(a).
+        (
+            "[O-]C1CC([O-])CC1CCC(=O)[O-]",
+            "4-(2-carboxylatoethyl)cyclopentane-1,3-bis(olate)",
+            -3,
+        ),
+        // The longest carbon path with the carboxylate has only one
+        // skeletal anion. A path through both skeletal anions places the
+        // carboxylate outside the parent and cites it as carboxylato.
+        (
+            "[CH2-]CC([O-])C([CH2-])C(=O)[O-]",
+            "2-carboxylatopentane-1,5-diid-3-olate",
+            -4,
+        ),
+        (
+            "[CH2-]CC([S-])C([CH2-])C(=O)[O-]",
+            "2-carboxylatopentane-1,5-diide-3-thiolate",
+            -4,
+        ),
+        (
+            "[CH2-]CC(O[O-])C([CH2-])C(=O)[O-]",
+            "2-carboxylatopentane-1,5-diide-3-peroxolate",
+            -4,
+        ),
+        // The same budget must cover parent choice and naming of branches.
+        (
+            "[O-]C(C(C(C(C(C)C)C(C)C)C(C(C)C)C(C)C)C(C(C(C)C)C(C)C)C(C(C)C)C(C)C)C(=O)[O-]",
+            "3-[2,6-dimethyl-3,5-di(propan-2-yl)heptan-4-yl]-4-(2,4-dimethylpentan-3-yl)-6-methyl-2-oxido-5-(propan-2-yl)heptanoate",
+            -2,
+        ),
+        (
+            &long_chain,
+            "4-(400-carboxylatotetractyl)cyclopentane-1,3-bis(olate)",
+            -3,
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+        let parsed = name_to_smiles(&name.text).unwrap();
+        let budget = Budget::default();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget).unwrap(),
+            canonical_smiles(smiles, &budget).unwrap(),
+            "{smiles} -> {expected} -> {parsed}"
+        );
+        let molecule = name_to_molecule(&name.text).unwrap();
+        assert_eq!(
+            molecule
+                .atoms
+                .iter()
+                .map(|a| i32::from(a.charge))
+                .sum::<i32>(),
+            charge,
+            "{smiles}"
+        );
+    }
+}
+
+#[test]
 fn amide_nitrogen_anions_are_azanides() {
     // Issue #180. P-72.2.2.2.4: an anionic centre on an amide nitrogen is
     // named from the anionic parent hydride, acetylazanide; `amidide` and
@@ -382,7 +468,11 @@ fn peroxy_acid_anion_prefix_reads_back() {
     ] {
         let name = smiles_to_name(smiles).unwrap();
         assert_eq!(name.text, expected, "{smiles}");
-        assert_ne!(name.status, NameStatus::Preferred, "{smiles}");
+        assert_eq!(
+            name.status,
+            NameStatus::Unverified(NameReason::AnionParent),
+            "{smiles}"
+        );
         let parsed = name_to_smiles(&name.text).unwrap_or_else(|e| panic!("{expected}: {e:?}"));
         let budget = Budget::default();
         assert_eq!(

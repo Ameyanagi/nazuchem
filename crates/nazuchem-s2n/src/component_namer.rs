@@ -38,7 +38,7 @@ use super::{
     principal_groups::{
         add_component_principal_group, candidate_principal_attachments, component_groups,
         component_principal_key, demote_neutral_suffixes_for_skeletal_anion,
-        partition_principal_and_prefix_groups,
+        partition_principal_and_prefix_groups, principal_key_on_parent,
     },
     special_cases::{
         StructuralParentName, blocking_suffix_defers_to_chain_parent, single_atom_component_name,
@@ -442,6 +442,7 @@ fn component_pipeline(
         }
     }
     let mut key = component_principal_key(mol, &groups, as_prefix);
+    mol.spend_naming_work(0)?;
     if principal_atom.is_none()
         && let Some(result) = structural_parent(mol, component_atoms, &groups, key.as_deref())?
     {
@@ -652,7 +653,8 @@ fn component_pipeline(
     groups.retain(|g| parent.contains(&g.attachment_carbon));
     prefix_only_groups.retain(|g| parent.contains(&g.attachment_carbon));
     let provisional = key;
-    key = component_principal_key(mol, &groups, as_prefix);
+    key = principal_key_on_parent(mol, &groups, as_prefix, &parent);
+    mol.spend_naming_work(0)?;
     // P-72.7(a): the carboxylate carbons left the parent as carboxylato
     // prefixes of another anionic suffix, which the selected parent lacks.
     if key.as_deref() == Some("carboxylate")

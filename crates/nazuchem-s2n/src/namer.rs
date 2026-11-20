@@ -536,6 +536,7 @@ fn name_subgraph_rendered_except_stereo(
         .collect();
     let perceived = perceive_groups(mol);
     let principal_key = super::principal_groups::component_principal_key(mol, &perceived, false);
+    mol.spend_naming_work(0)?;
     let anionic_parent = principal_key.as_deref().map_or_else(
         || mol.atoms.values().map(|atom| atom.charge).sum::<i32>() < 0,
         |key| {

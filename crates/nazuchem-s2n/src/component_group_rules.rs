@@ -438,6 +438,9 @@ pub fn retarget_external_carbonyl_groups(
             }
             g.attachment_carbon = adj[0];
             g.atoms_involved.insert(c);
+            if prefix_carboxylate {
+                g.is_principal_candidate = false;
+            }
             exclude.insert(c);
         }
     }

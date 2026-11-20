@@ -19,6 +19,7 @@ use super::{
     molecule::{AtomSet, Molecule, bond_ids_within},
     nomenclature::RULES,
     perception::{PerceivedGroup, is_anionic_group_key, perceive_groups},
+    ring_assembly::cyclic_units,
 };
 use std::collections::BTreeMap;
 
@@ -217,67 +218,185 @@ pub fn candidate_principal_attachments(
         .collect()
 }
 
-/// P-72.7(a): the most anionic centres that the suffixes of one class put on
-/// a single parent: a ring system, or the chain between two of the suffixes.
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+struct AnionicScore {
+    centres: usize,
+    ide_or_uide: usize,
+}
+
+impl AnionicScore {
+    // Provenance: fn AnionicScore::plus | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::AnionicScore::plus
+    fn plus(self, other: Self) -> Self {
+        Self {
+            centres: self.centres + other.centres,
+            ide_or_uide: self.ide_or_uide + other.ide_or_uide,
+        }
+    }
+}
+
+// Provenance: fn score_suffix | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::score_suffix
+fn score_suffix(
+    mol: &Molecule,
+    parent: &AtomSet,
+    groups: &[&PerceivedGroup],
+    key: &str,
+) -> AnionicScore {
+    let skeletal = parent.iter().filter(|i| mol.atoms[i].charge < 0).count();
+    let suffix: AtomSet = groups
+        .iter()
+        .filter(|g| g.key == key && parent.contains(&g.attachment_carbon))
+        .flat_map(|g| g.atoms_involved.iter().copied())
+        .filter(|i| mol.atoms[i].charge < 0 && !parent.contains(i))
+        .collect();
+    AnionicScore {
+        centres: skeletal + suffix.len(),
+        ide_or_uide: skeletal
+            + if matches!(key, "aminide" | "iminide") {
+                suffix.len()
+            } else {
+                0
+            },
+    }
+}
+
+/// P-72.7(a), (b): find the most anionic centres, then the most 'ide' and
+/// 'uide' centres, on one parent with the given suffix class.
 // Provenance: fn parent_anionic_centres | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::parent_anionic_centres
-fn parent_anionic_centres(mol: &Molecule, groups: &[PerceivedGroup], key: &str) -> usize {
-    let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
-    let class: Vec<_> = groups
+fn parent_anionic_centres<'a>(
+    mol: &Molecule,
+    groups: &[&'a PerceivedGroup],
+) -> Result<BTreeMap<&'a str, AnionicScore>, String> {
+    // Fused and spiro rings can share a parent. A bond joining two ring
+    // units does not belong to either unit.
+    let rings = cyclic_units(mol);
+    let cyclic: AtomSet = rings.iter().flatten().copied().collect();
+    let mut classes: BTreeMap<&str, Vec<&PerceivedGroup>> = BTreeMap::new();
+    for &group in groups
         .iter()
-        .filter(|g| {
-            g.is_principal_candidate && g.key == key && mol.atoms[&g.attachment_carbon].is_carbon()
+        .filter(|g| mol.atoms[&g.attachment_carbon].is_carbon())
+    {
+        classes.entry(&group.key).or_default().push(group);
+    }
+
+    // Removing cyclic and non-carbon atoms leaves a forest. Number the
+    // vertices so every child comes after its parent.
+    let mut forest = Vec::new();
+    let mut seen = AtomSet::new();
+    if classes
+        .values()
+        .flatten()
+        .any(|g| !cyclic.contains(&g.attachment_carbon))
+    {
+        for (&root, atom) in &mol.atoms {
+            if !atom.is_carbon() || cyclic.contains(&root) || seen.contains(&root) {
+                continue;
+            }
+            let mut pending = vec![(root, None)];
+            while let Some((atom, parent)) = pending.pop() {
+                seen.insert(atom);
+                let index = forest.len();
+                forest.push((atom, parent));
+                pending.extend(mol.get_neighbors(atom).iter().filter_map(|&n| {
+                    (mol.atoms[&n].is_carbon() && !cyclic.contains(&n) && !seen.contains(&n))
+                        .then_some((n, Some(index)))
+                }));
+            }
+        }
+    }
+
+    let mut scores = BTreeMap::new();
+    for (key, groups) in classes {
+        mol.spend_naming_work(forest.len() + cyclic.len())?;
+        let ring_score = rings
+            .iter()
+            .filter(|ring| groups.iter().any(|g| ring.contains(&g.attachment_carbon)))
+            .map(|ring| score_suffix(mol, ring, &groups, key))
+            .max()
+            .unwrap_or_default();
+        let chain_score = score_anionic_chains(mol, &forest, &groups, key);
+        scores.insert(key, ring_score.max(chain_score));
+    }
+    Ok(scores)
+}
+
+/// Each arm runs from a vertex down to one of its descendants. Keep the
+/// highest-scoring arm and the highest containing a suffix of this class,
+/// then join arms from distinct children to score paths through the vertex.
+// Provenance: fn score_anionic_chains | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::score_anionic_chains
+fn score_anionic_chains(
+    mol: &Molecule,
+    forest: &[(usize, Option<usize>)],
+    groups: &[&PerceivedGroup],
+    key: &str,
+) -> AnionicScore {
+    let mut suffix_atoms: BTreeMap<usize, AtomSet> = BTreeMap::new();
+    for g in groups {
+        suffix_atoms.entry(g.attachment_carbon).or_default().extend(
+            g.atoms_involved
+                .iter()
+                .copied()
+                .filter(|i| mol.atoms[i].charge < 0 && !mol.atoms[i].is_carbon()),
+        );
+    }
+    // The same off-chain atom can be perceived at multiple attachments,
+    // such as an aminide nitrogen. Its attachments are in distinct carbon
+    // trees: a carbon path joining them would put that atom on a cycle.
+    let weights: Vec<_> = forest
+        .iter()
+        .map(|(atom, _)| {
+            let skeletal = usize::from(mol.atoms[atom].charge < 0);
+            let suffix = suffix_atoms.get(atom);
+            let count = suffix.map_or(0, AtomSet::len);
+            let ide = if matches!(key, "aminide" | "iminide") {
+                count
+            } else {
+                0
+            };
+            (
+                AnionicScore {
+                    centres: skeletal + count,
+                    ide_or_uide: skeletal + ide,
+                },
+                suffix.is_some(),
+            )
         })
         .collect();
-    let centres = |parent: &AtomSet| {
-        class
-            .iter()
-            .filter(|g| parent.contains(&g.attachment_carbon))
-            .flat_map(|g| &g.atoms_involved)
-            .copied()
-            .filter(|i| mol.atoms[i].charge < 0)
-            .collect::<AtomSet>()
-            .len()
-    };
-    class
+    let mut arms: Vec<_> = weights
         .iter()
-        .map(|first| {
-            let ring = cyclic.contains(&first.attachment_carbon);
-            // Each reached atom with the atom it was reached from.
-            let mut from = BTreeMap::from([(first.attachment_carbon, first.attachment_carbon)]);
-            let mut stack = vec![first.attachment_carbon];
-            while let Some(atom) = stack.pop() {
-                for &n in mol.get_neighbors(atom) {
-                    if cyclic.contains(&n) == ring
-                        && (ring || mol.atoms[&n].is_carbon())
-                        && !from.contains_key(&n)
-                    {
-                        from.insert(n, atom);
-                        stack.push(n);
-                    }
-                }
-            }
-            if ring {
-                return centres(&from.keys().copied().collect());
-            }
-            // Acyclic carbons form a tree, so the chain to each suffix is unique.
-            class
-                .iter()
-                .filter(|last| from.contains_key(&last.attachment_carbon))
-                .map(|last| {
-                    let mut chain = AtomSet::from([last.attachment_carbon]);
-                    let mut atom = last.attachment_carbon;
-                    while from[&atom] != atom {
-                        atom = from[&atom];
-                        chain.insert(atom);
-                    }
-                    centres(&chain)
-                })
-                .max()
-                .unwrap_or(0)
-        })
-        .max()
-        .unwrap_or(0)
+        .map(|&(weight, has_suffix)| (weight, has_suffix.then_some(weight)))
+        .collect();
+    let mut best = AnionicScore::default();
+    for (index, &(_, parent)) in forest.iter().enumerate().rev() {
+        let (arm, with_suffix) = arms[index];
+        best = best.max(with_suffix.unwrap_or_default());
+        let Some(parent) = parent else {
+            continue;
+        };
+
+        let (weight, has_suffix) = weights[parent];
+        let (old_arm, old_with_suffix) = arms[parent];
+        // The previously visited arms include the parent weight. The new
+        // child arm does not include it, so it can be added directly.
+        if let Some(previous) = old_with_suffix {
+            best = best.max(previous.plus(arm));
+        }
+        if let Some(child) = with_suffix {
+            best = best.max(old_arm.plus(child));
+        }
+
+        let extended = weight.plus(arm);
+        let suffix_arm = if has_suffix {
+            Some(extended)
+        } else {
+            with_suffix.map(|child| weight.plus(child))
+        };
+        arms[parent] = (old_arm.max(extended), old_with_suffix.max(suffix_arm));
+    }
+    best
 }
 
 // Provenance: fn component_principal_key | adapted
@@ -286,6 +405,30 @@ pub fn component_principal_key(
     mol: &Molecule,
     groups: &[PerceivedGroup],
     is_substituent: bool,
+) -> Option<String> {
+    principal_key(mol, groups, is_substituent, None)
+}
+
+/// The characteristic suffix is chosen from the groups still available on
+/// the selected parent. Skeletal anions contribute equally to all of them.
+// Provenance: fn principal_key_on_parent | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::principal_key_on_parent
+pub(super) fn principal_key_on_parent(
+    mol: &Molecule,
+    groups: &[PerceivedGroup],
+    is_substituent: bool,
+    parent: &AtomSet,
+) -> Option<String> {
+    principal_key(mol, groups, is_substituent, Some(parent))
+}
+
+// Provenance: fn principal_key | adapted
+// Source: openclatura | src/openclatura/principal_groups.py::component_principal_key
+fn principal_key(
+    mol: &Molecule,
+    groups: &[PerceivedGroup],
+    is_substituent: bool,
+    parent: Option<&AtomSet>,
 ) -> Option<String> {
     if is_substituent {
         return None;
@@ -299,12 +442,27 @@ pub fn component_principal_key(
                     .is_some_and(|r| r.has_capability("promotes_member_groups"))
         })
         .collect();
-    let anionic_classes = groups
+    let anionic_groups: Vec<_> = groups
         .iter()
         .filter(|g| g.is_principal_candidate && is_anionic_group_key(&g.key))
-        .map(|g| g.key.as_str())
-        .collect::<std::collections::BTreeSet<_>>()
-        .len();
+        .collect();
+    let competing_anionic_classes = anionic_groups
+        .first()
+        .is_some_and(|first| anionic_groups.iter().any(|g| g.key != first.key));
+    let anionic_scores = if !competing_anionic_classes {
+        BTreeMap::new()
+    } else if let Some(parent) = parent {
+        anionic_groups
+            .iter()
+            .map(|g| g.key.as_str())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .map(|key| (key, score_suffix(mol, parent, &anionic_groups, key)))
+            .collect()
+    } else {
+        // The callers check the shared naming budget before using the key.
+        parent_anionic_centres(mol, &anionic_groups).ok()?
+    };
     let effective = |group: &PerceivedGroup, seniority: &[i64]| {
         let mut best = seniority.to_vec();
         if let Some(descriptor) = &group.descriptor {
@@ -327,16 +485,10 @@ pub fn component_principal_key(
         // centres, as in 1-(borinan-1-uid-4-yl)ethane-1,2-bis(olate).
         // P-72.7(b): then `ide` centres, so aminide precedes an acid anion
         // (diide is senior to idoate).
-        let centres = if anionic_classes > 1 && is_anionic_group_key(&group.key) {
-            parent_anionic_centres(mol, groups, &group.key)
-        } else {
-            0
-        };
-        let ide = if matches!(group.key.as_str(), "aminide" | "iminide") {
-            centres
-        } else {
-            0
-        };
+        let centres = anionic_scores
+            .get(group.key.as_str())
+            .copied()
+            .unwrap_or_default();
         // P-72.7(e): anionic suffixes rank as their neutral counterparts, so
         // carboxylate precedes olate.
         if matches!(
@@ -352,7 +504,7 @@ pub fn component_principal_key(
         // to the group key, so the choice does not follow the atom order.
         (
             charge == 0,
-            std::cmp::Reverse((centres, ide)),
+            std::cmp::Reverse(centres),
             best,
             seniority.to_vec(),
             group.key.clone(),
