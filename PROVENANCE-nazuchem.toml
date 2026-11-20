@@ -5416,7 +5416,8 @@ sources = [
 ]
 notes = "Local admission guards for charge, hydride state and ambiguous mancude CIP duplicates. Test inputs and expected chemical names include conservatively adapted upstream cases; exact matches do not establish independent ancestry. Production helpers and local test extensions retain their individual ledger decisions."
 parts = [
-  { items = ["fn terminal_hydrides_on_alkanoic_acid"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "issue #121", license = "MIT OR Apache-2.0", symbol = "terminal_hydrides_on_alkanoic_acid" }] },
+  { items = ["fn diphosphanyl_hydrogens"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "issue #121", license = "MIT OR Apache-2.0", symbol = "diphosphanyl_hydrogens" }] },
+  { items = ["fn supported_hydride_prefix_context"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "issue #121", license = "MIT OR Apache-2.0", symbol = "supported_hydride_prefix_context" }] },
   { items = ["fn validate_principal_charge_roles"], origin = "original", sources = [
     { project = "ReShiki", path = "src/naming/openclatura/identity_validation.rs", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0", symbol = "validate_principal_charge_roles" },
   ] },
