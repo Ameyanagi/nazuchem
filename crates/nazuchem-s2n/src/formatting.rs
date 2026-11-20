@@ -20,7 +20,7 @@ use super::{
     rules::{multipliers, stems},
 };
 use std::cell::Cell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::LazyLock;
 
 /// The phenylamino spelling of the retained anilino prefixes (P-62.2.1.1.1), for
@@ -238,6 +238,39 @@ fn retained_italic_prefix(name: &str) -> bool {
     matches!(name, "tert-butyl" | "tert-butoxy")
 }
 
+/// Single-element Hantzsch-Widman replacement terms can lose their final
+/// 'a', as in oxolane and tetrazole (P-22.2.2.1.2). Use the same spelling
+/// rules as the ring renderer to recognize their parent stems.
+// Provenance: fn has_single_element_hw_stem | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::has_single_element_hw_stem
+fn has_single_element_hw_stem(name: &str) -> bool {
+    static PARENTS: LazyLock<BTreeSet<String>> = LazyLock::new(|| {
+        let mut parents = BTreeSet::new();
+        for element in super::rules::elements::ELEMENTS
+            .values()
+            .filter(|element| element.hw_stem.is_some())
+        {
+            for size in 3..=10 {
+                for count in 1..=size {
+                    let hetero: Vec<_> = (1..=count).map(|i| (i, element.symbol.clone())).collect();
+                    for saturated in [true, false] {
+                        if let Some(parent) =
+                            super::rules::retained::hw_name(size, saturated, &hetero)
+                        {
+                            let parent = parent.rsplit('-').next().unwrap_or(&parent);
+                            parents.insert(parent.trim_end_matches('e').to_owned());
+                        }
+                    }
+                }
+            }
+        }
+        parents
+    });
+    let stem = name.split('-').next().unwrap_or(name);
+    let stem = acyl_prefix_stem(stem).unwrap_or(stem);
+    PARENTS.contains(stem.trim_end_matches('e'))
+}
+
 /// P-16.3.6 requires a derived multiplier for several simple prefixes whose
 /// multiplication could be read as part of a chain, replacement or fusion.
 // Provenance: fn ambiguous_basic_multiplier | original
@@ -281,7 +314,7 @@ fn ambiguous_basic_multiplier(name: &str) -> bool {
             | "ditellanyl"
     ) || {
         let stem = name.trim_start_matches(|c: char| c.is_ascii_digit() || "[,]-".contains(c));
-        super::nomenclature::RULES
+        let replacement = super::nomenclature::RULES
             .assembly
             .replacement_prefix_order
             .keys()
@@ -291,7 +324,8 @@ fn ambiguous_basic_multiplier(name: &str) -> bool {
                         stem.strip_prefix(multiplier)
                             .is_some_and(|base| base.starts_with(element.as_str()))
                     })
-            })
+            });
+        replacement || has_single_element_hw_stem(stem)
     } || name.split_once('[').is_some_and(|(stem, tail)| {
         // A fusion descriptor ends with a letter inside the square brackets.
         // The brackets of von Baeyer and spiro parents have other meanings.

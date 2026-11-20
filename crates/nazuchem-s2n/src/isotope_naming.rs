@@ -1120,6 +1120,15 @@ mod tests {
                 "O=C(O)c1cc(N([34SH])[34SH])ccc1",
                 "3-{bis[(34S)sulfanyl]amino}benzoic acid",
             ),
+            // P-16.3.6(c): elision does not hide a replacement term.
+            (
+                "O=C(O)c1cc(N([13c]2nnn[nH]2)[13c]2nnn[nH]2)ccc1",
+                "3-{bis[(13C)-1H-tetrazol-5-yl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13CH]2CCCO2)[13CH]2CCCO2)ccc1",
+                "3-{bis[(2-13C)oxolan-2-yl]amino}benzoic acid",
+            ),
         ] {
             let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default())
                 .unwrap_or_else(|e| panic!("{smiles}: {e}"));
