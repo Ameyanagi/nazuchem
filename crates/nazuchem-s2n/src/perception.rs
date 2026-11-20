@@ -2557,7 +2557,6 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                 });
             consumed.extend(
                 g.atoms_without_attachment()
-                    .into_iter()
                     .filter(|&atom| Some(atom) != shared),
             );
             amide_nitrogens.extend(shared);

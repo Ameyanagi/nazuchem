@@ -270,7 +270,7 @@ pub(super) fn cited_substituent_groups(
     });
     names
         .into_iter()
-        .map(|name| (name, grouped.remove(name).unwrap()))
+        .filter_map(|name| grouped.remove(name).map(|items| (name, items)))
         .collect()
 }
 
