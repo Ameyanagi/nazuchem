@@ -1152,6 +1152,48 @@ mod tests {
             ("[15NH2]CCO", "2-(15N)aminoethan-1-ol"),
             ("CC(=[18O])CC(=O)O", "3-(18O)oxobutanoic acid"),
             ("[34SH]CC(=O)O", "(34S)sulfanylacetic acid"),
+            // P-82.2.2.1: a labelled alkyl ligand is alphabetized by its
+            // ordinary name and cited first when the ligands otherwise tie.
+            (
+                "O=C(O)c1cc(N(C)CCC[2H])ccc1",
+                "3-{methyl[(3-2H1)propyl]amino}benzoic acid",
+            ),
+            (
+                "[2H]CCCN(C)c1cccc(C(=O)O)c1",
+                "3-{methyl[(3-2H1)propyl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(CC)C[13CH3])ccc1",
+                "3-{[(2-13C)ethyl](ethyl)amino}benzoic acid",
+            ),
+            (
+                "[13CH3]CN(CC)c1cccc(C(=O)O)c1",
+                "3-{[(2-13C)ethyl](ethyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(Cc2ccccc2)[13CH2]c2ccccc2)ccc1",
+                "3-{[phenyl(13C)methyl](benzyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13CH2]c2ccccc2)Cc2ccccc2)ccc1",
+                "3-{[phenyl(13C)methyl](benzyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(C(C)(C)C)C([13CH3])(C)C)ccc1",
+                "3-{[2-methyl(1-13C)propan-2-yl](tert-butyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(C([13CH3])(C)C)C(C)(C)C)ccc1",
+                "3-{[2-methyl(1-13C)propan-2-yl](tert-butyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(CC(F)F)CC([18F])F)ccc1",
+                "3-{[2-(18F)fluoro-2-fluoroethyl](2,2-difluoroethyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(CC(F)[18F])CC(F)F)ccc1",
+                "3-{[2-(18F)fluoro-2-fluoroethyl](2,2-difluoroethyl)amino}benzoic acid",
+            ),
             // P-82.6.1.3: a group completely modified in the same way.
             (
                 "[18O-][N+](=[18O])c1ccccc1C(=O)O",

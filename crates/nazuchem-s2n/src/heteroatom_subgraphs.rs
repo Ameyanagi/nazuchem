@@ -236,6 +236,7 @@ pub fn format_amino_from_branches(
     double: bool,
     cation: bool,
     anion: bool,
+    unmodified_ligands: &BTreeMap<String, String>,
 ) -> String {
     if cation {
         // Substituted cationic nitrogen keeps the accepted ammonio/iminio alternative.
@@ -345,7 +346,20 @@ pub fn format_amino_from_branches(
                 }
             })
             .collect();
-        center(&names)
+        // P-82.2.2.1: isotope descriptors are ignored for alphabetical
+        // order; a labelled group precedes its otherwise identical twin.
+        if unmodified_ligands.is_empty() {
+            center(&names)
+        } else {
+            format_center_ligands_by(&names, |name| {
+                let unmodified = unmodified_ligands.get(name);
+                let plain = unmodified.map(String::as_str).unwrap_or(name);
+                (
+                    substituent_sort_key(&strip_outer_parentheses(plain)),
+                    unmodified.is_none(),
+                )
+            })
+        }
     };
     format!("({modifier}amino)")
 }
@@ -944,6 +958,7 @@ fn name_nitrogen(
         return Ok(prefix);
     }
     let mut names = Vec::new();
+    let mut unmodified_ligands = BTreeMap::new();
     for &n in &roots {
         let oxygen = double_bonded_neighbors(mol, n, "O");
         let sulfur = double_bonded_neighbors(mol, n, "S");
@@ -988,7 +1003,29 @@ fn name_nitrogen(
             {
                 name
             } else {
-                name_subgraph_with_upstream(mol, n, &with_atoms(exclude, [start]), Some(start))?
+                let blocked = with_atoms(exclude, [start]);
+                let branch = name_subgraph_rendered(mol, n, &blocked, Some(start), false)?;
+                if !branch.isotope_atoms.is_empty()
+                    && roots.len() > 1
+                    && order == 1
+                    && atom.charge == 0
+                {
+                    // P-82.2.2.1: the unmodified ligand can have a different
+                    // retained name or combine equivalent substituents, e.g.
+                    // 2,2-difluoroethyl. Render the same rooted graph without
+                    // its isotope sites. The trial shares the work budget and
+                    // discards its provisional naming status.
+                    let sites = mol.isotope_sites();
+                    mol.set_isotope_sites(Vec::new());
+                    let trial = mol.candidate::<()>(|| {
+                        let plain = name_subgraph_with_upstream(mol, n, &blocked, Some(start))?;
+                        unmodified_ligands.insert(branch.text.clone(), plain);
+                        Ok(None)
+                    });
+                    mol.set_isotope_sites(sites);
+                    trial?;
+                }
+                branch.text
             }
         };
         if !b.is_empty() {
@@ -1033,6 +1070,7 @@ fn name_nitrogen(
         order == 2,
         atom.charge > 0,
         atom.charge < 0,
+        &unmodified_ligands,
     ))
 }
 
@@ -1681,7 +1719,14 @@ fn name_sulfur(
             if ns.len() > 1 {
                 mol.set_name_status(status);
             }
-            imino.push(format_amino_from_branches(mol, &ns, true, false, false));
+            imino.push(format_amino_from_branches(
+                mol,
+                &ns,
+                true,
+                false,
+                false,
+                &BTreeMap::new(),
+            ));
         }
         if roots.is_empty() {
             return Ok(format!("{sp}{}{sulfanyl_suffix}", center(&imino)));
@@ -2467,7 +2512,12 @@ fn guanidino_prefix(
         let mut ligands: Vec<_> = names.into_keys().collect();
         ligands.push("carbamimidoyl".into());
         return Ok(Some(format_amino_from_branches(
-            mol, &ligands, false, false, false,
+            mol,
+            &ligands,
+            false,
+            false,
+            false,
+            &BTreeMap::new(),
         )));
     }
     let mut ordered: Vec<_> = names.into_iter().collect();
