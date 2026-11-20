@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs | issue 100
 // Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs | Phase B step 8b
 // Source: openclatura | src/openclatura/namer.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/engine.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -4049,6 +4050,25 @@ mod tests {
                 crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{expected}"
             );
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::lazy_retained_series_preserve_hydrogenation | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs::tests::lazy_retained_series_preserve_hydrogenation
+    fn lazy_retained_series_preserve_hydrogenation() {
+        for parent in ["decacene", "undecaphene"] {
+            for prefix in ["", "1,2-dihydro"] {
+                let expected = format!("{prefix}{parent}");
+                let smiles = crate::test_support::parse_strict(&expected).unwrap();
+                let name = name_smiles(&smiles, &Default::default()).unwrap();
+                assert_eq!(name.text, expected, "{smiles}");
+                let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+                assert_eq!(
+                    crate::test_support::canonical_smiles(&smiles).unwrap(),
+                    crate::test_support::canonical_smiles(&parsed).unwrap()
+                );
+            }
         }
     }
 

@@ -1584,6 +1584,14 @@ mod tests {
                 "OC[C@@H]1C=C2C[C@H](Cl)[C@H]1CC[C@@H]1CCCCCC[C@@H]2CCCCC1",
                 "[(1R,4R,5S,8R,20S)-20-chlorotricyclo[6.6.5.2^{2,5}]henicos-2-en-4-yl]methanol",
             ),
+            (
+                "C12C3CCCCCCC(C(CCCCCC1)CCCCCC2)C2CCC(C3)C2",
+                "tetracyclo[8.6.6.5^{2,9}.1^{23,26}]octacosane",
+            ),
+            (
+                "C12CC3CCCCC4CCCCC(CC(CCC5CC5CC1)CCCC2)CC(C4)C3",
+                "pentacyclo[13.7.4.3^{3,8}.0^{18,20}.1^{13,28}]triacontane",
+            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap().text;
             assert_eq!(name, expected, "{smiles}");
@@ -1592,19 +1600,6 @@ mod tests {
                 crate::test_support::canonical_smiles(smiles).unwrap(),
                 crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{name}",
-            );
-        }
-        // P-23.2.1 and P-23.2.4: the preferred descriptors, tetracyclo[8.6.6.5^{2,9}.1^{23,26}]
-        // and pentacyclo[13.7.4.3^{3,8}.0^{18,20}.1^{13,28}], need a dependent bridge with
-        // atoms; a smaller main bridge or main ring is not offered instead.
-        for smiles in [
-            "C12C3CCCCCCC(C(CCCCCC1)CCCCCC2)C2CCC(C3)C2",
-            "C12CC3CCCCC4CCCCC(CC(CCC5CC5CC1)CCCC2)CC(C4)C3",
-        ] {
-            assert_eq!(
-                name_smiles(smiles, &Default::default()).unwrap_err(),
-                "openclatura: polycyclic parent has no audited descriptor",
-                "{smiles}",
             );
         }
         assert_eq!(
