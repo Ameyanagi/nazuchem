@@ -2120,6 +2120,39 @@ mod tests {
                 crate::test_support::verify_identity(input, &parsed).unwrap();
             }
         }
+        let nested_lambda = "2-[1-(lambda^5-phosphanyl)-1-(lambda^6-sulfanyl)ethyl]-2-[1-(lambda^5-phosphanyl)-1-(lambda^4-sulfanyl)ethyl]heptanoic acid";
+        let parsed = crate::test_support::parse_strict(nested_lambda).unwrap();
+        for input in [
+            "CCCCCC(C([PH4])([SH3])C)(C([PH4])([SH5])C)C(=O)O",
+            "CCCCCC(C([SH5])([PH4])C)(C([SH3])([PH4])C)C(=O)O",
+        ] {
+            let named = crate::name_smiles(input, &Default::default()).unwrap();
+            assert_eq!(named.text, nested_lambda, "{input}");
+            assert_eq!(
+                named.status,
+                nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::LambdaPrefixOrder)
+            );
+            crate::test_support::verify_identity(input, &parsed).unwrap();
+        }
+        let mixed_lambda =
+            "[(33S)lambda^4-sulfanyl][(34S)lambda^4-sulfanyl](lambda^6-sulfanyl)acetic acid";
+        let parsed = crate::test_support::parse_strict(mixed_lambda).unwrap();
+        for input in [
+            "[33SH3]C([34SH3])([SH5])C(=O)O",
+            "[33SH3]C([SH5])([34SH3])C(=O)O",
+            "[34SH3]C([33SH3])([SH5])C(=O)O",
+            "[34SH3]C([SH5])([33SH3])C(=O)O",
+            "[SH5]C([33SH3])([34SH3])C(=O)O",
+            "[SH5]C([34SH3])([33SH3])C(=O)O",
+        ] {
+            let named = crate::name_smiles(input, &Default::default()).unwrap();
+            assert_eq!(named.text, mixed_lambda, "{input}");
+            assert_eq!(
+                named.status,
+                nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::IsotopePlacement)
+            );
+            crate::test_support::verify_identity(input, &parsed).unwrap();
+        }
         for (expected, inputs) in [
             // P-45.2.3 example (2): 2,N,4 is lower than 4,N,2.
             (

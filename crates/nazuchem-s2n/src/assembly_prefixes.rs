@@ -286,38 +286,72 @@ pub(super) fn cited_substituent_groups(
                 .and_then(|inner| inner.strip_suffix(')'))
                 .filter(|inner| inner.starts_with("lambda^") && !inner.contains(['(', ')']))
                 .unwrap_or(&plain);
-            let (name, initial) = substituent_sort_key(citation);
+            let mut segments = citation.split("lambda^");
+            let mut normalized = segments.next().unwrap_or_default().to_owned();
+            let mut lambda = Vec::new();
+            for segment in segments {
+                normalized.push_str("lambda^");
+                if let Some((number, rest)) = segment.split_once('-')
+                    && let Ok(number) = number.parse::<usize>()
+                {
+                    lambda.push(number);
+                    normalized.push_str("0-");
+                    normalized.push_str(rest);
+                } else {
+                    normalized.push_str(segment);
+                }
+            }
+            let (name, initial) = substituent_sort_key(&normalized);
             let key = (
-                name,
+                (name, initial, rs_descriptors(&plain)),
                 item.isotope_atoms.is_empty(),
-                initial,
-                rs_descriptors(s),
             );
-            let lambda = plain
-                .split_once("lambda^")
-                .map(|(_, stem)| stem)
-                .and_then(|stem| stem.split_once('-')?.0.parse::<usize>().ok());
             (key, lambda, s)
         })
         .collect();
-    ranked.sort_by(|a, b| a.0.cmp(&b.0));
+    // Keep the ordinary isotope and stereo ranking. Also detect mixed lambda
+    // numbers across isotope flags so equally bonded isotope siblings in this
+    // same constitutional comparison have a stable spelling order.
+    ranked.sort_by(|a, b| {
+        let ((a_name, a_initial, a_stereo), a_unmodified) = &a.0;
+        let ((b_name, b_initial, b_stereo), b_unmodified) = &b.0;
+        (a_name, a_unmodified, a_initial, a_stereo).cmp(&(
+            b_name,
+            b_unmodified,
+            b_initial,
+            b_stereo,
+        ))
+    });
+    let mut lambda_by_citation = BTreeMap::new();
+    for ((citation, _), numbers, _) in &ranked {
+        if !numbers.is_empty() {
+            let (first, mixed) = lambda_by_citation
+                .entry(citation.clone())
+                .or_insert_with(|| (numbers.clone(), false));
+            *mixed |= first != numbers;
+        }
+    }
     let mut lambda_tie = false;
     for tied in ranked.chunk_by_mut(|a, b| a.0 == b.0) {
-        let mut numbers = tied.iter().filter_map(|entry| entry.1);
-        if let Some(first) = numbers.next()
-            && numbers.any(|n| n != first)
+        let ((citation, _), _, _) = &tied[0];
+        if lambda_by_citation
+            .get(citation)
+            .is_some_and(|(_, mixed)| *mixed)
         {
+            let mut numbers = tied.iter().map(|entry| &entry.1).filter(|n| !n.is_empty());
+            if let Some(first) = numbers.next() {
+                lambda_tie |= numbers.any(|n| n != first);
+            }
             // P-14.5.4 compares internal locants. A lambda superscript is a
             // bonding number, and P-45.3 ranks parents. For this unresolved
             // citation only, present higher bonding numbers first and use the
             // full prefix spelling to stabilize equal-number isotope variants.
-            tied.sort_by_key(|(_, number, text)| (std::cmp::Reverse(*number), *text));
-            lambda_tie = true;
-        } else if tied.iter().any(|entry| entry.1.is_some())
-            && tied.iter().any(|entry| entry.1.is_none())
+            tied.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.2.cmp(b.2)));
+        } else if tied.iter().any(|entry| !entry.1.is_empty())
+            && tied.iter().any(|entry| entry.1.is_empty())
         {
             // P-14.4(h) cites lambda^5-phosphanyl before phosphanyl.
-            tied.sort_by_key(|entry| entry.1.is_none());
+            tied.sort_by_key(|entry| entry.1.is_empty());
         }
     }
     let groups = ranked
