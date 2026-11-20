@@ -9,7 +9,8 @@
 //! including the connection of unlike ends to specific acid groups.
 
 use nazuchem::{
-    Budget, NameReason, NameStatus, name_to_smiles, s2n::canonical_smiles, smiles_to_name,
+    Budget, NameReason, NameStatus, Stereo, StereoGroupKind, n2s, name_to_molecule, name_to_smiles,
+    s2n::canonical_smiles, smiles_to_name,
 };
 
 fn same_structure(name: &str, smiles: &str) {
@@ -508,5 +509,114 @@ fn unlocanted_dianhydrides_can_have_free_acid_groups_on_the_ends() {
         "acetic 2-methylbutanedioic butanedioic dianhydride",
     ] {
         assert!(name_to_smiles(invalid).is_err(), "{invalid}");
+    }
+}
+
+#[test]
+fn unlocanted_dianhydrides_distinguish_enantiotopic_and_homotopic_sites() {
+    let meso = "(2R,3S)-2,3-dihydroxybutanedioic";
+    for name in [
+        format!("acetic {meso} butanedioic dianhydride"),
+        format!("acetic butanedioic {meso} dianhydride"),
+        format!("acetic {meso} propanoic dianhydride"),
+        format!("acetic {meso} butanedioic propanoic trianhydride"),
+    ] {
+        let error = name_to_smiles(&name).unwrap_err();
+        assert!(error.to_string().contains("locants"), "{name}: {error}");
+    }
+
+    let locanted = [
+        format!("1-acetic {meso} 4-propanoic dianhydride"),
+        format!("4-acetic {meso} 1-propanoic dianhydride"),
+    ];
+    let expected = [
+        "CC(=O)OC(=O)[C@H](O)[C@H](O)C(=O)OC(=O)CC",
+        "CC(=O)OC(=O)[C@@H](O)[C@@H](O)C(=O)OC(=O)CC",
+    ];
+    for (name, smiles) in locanted.iter().zip(expected) {
+        same_structure(name, smiles);
+    }
+
+    let chiral = "(2R,3R)-2,3-dihydroxybutanedioic";
+    for (name, smiles) in [
+        (
+            format!("acetic {chiral} butanedioic dianhydride"),
+            "CC(=O)OC(=O)[C@H](O)[C@@H](O)C(=O)OC(=O)CCC(=O)O",
+        ),
+        (
+            format!("acetic butanedioic {chiral} dianhydride"),
+            "CC(=O)OC(=O)CCC(=O)OC(=O)[C@H](O)[C@@H](O)C(=O)O",
+        ),
+        (
+            format!("acetic {chiral} propanoic dianhydride"),
+            "CC(=O)OC(=O)[C@H](O)[C@@H](O)C(=O)OC(=O)CC",
+        ),
+        (
+            format!("diacetic {meso} dianhydride"),
+            "CC(=O)OC(=O)[C@H](O)[C@H](O)C(=O)OC(C)=O",
+        ),
+    ] {
+        same_structure(&name, smiles);
+    }
+}
+
+#[test]
+fn linear_polyanhydride_linkage_sites_include_double_bond_geometry() {
+    let error =
+        name_to_smiles("acetic (2E,6Z)-octa-2,6-dienedioic butanedioic dianhydride").unwrap_err();
+    assert!(error.to_string().contains("locants"), "{error}");
+    same_structure(
+        "acetic (2E,6E)-octa-2,6-dienedioic butanedioic propanoic trianhydride",
+        "CC(=O)OC(=O)/C=C/CC/C=C/C(=O)OC(=O)CCC(=O)OC(=O)CC",
+    );
+}
+
+#[test]
+fn equivalent_anhydride_sites_preserve_enhanced_stereo() {
+    for (descriptor, kind) in [
+        ("2R*,3R*", StereoGroupKind::Or(1)),
+        ("2R*,3S*", StereoGroupKind::Or(1)),
+        ("2RS,3RS", StereoGroupKind::And(1)),
+        ("2RS,3SR", StereoGroupKind::And(1)),
+    ] {
+        let acid = format!("({descriptor})-2,3-dihydroxybutanedioic");
+        for name in [
+            format!("acetic {acid} butanedioic dianhydride"),
+            format!("acetic butanedioic {acid} dianhydride"),
+        ] {
+            let molecule =
+                name_to_molecule(&name).unwrap_or_else(|error| panic!("{name}: {error}"));
+            assert_eq!(molecule.stereo_groups.len(), 1, "{name}");
+            assert_eq!(molecule.stereo_groups[0].kind, kind, "{name}");
+            assert_eq!(molecule.stereo_groups[0].stereo.len(), 2, "{name}");
+        }
+    }
+}
+
+#[test]
+fn equivalent_anhydride_sites_preserve_an_axis() {
+    let acid = "(1M)-[1,1'-binaphthalene]-2,2'-dicarboxylic";
+    let parser = n2s::Parser::new().unwrap();
+    for name in [
+        format!("acetic {acid} butanedioic dianhydride"),
+        format!("acetic butanedioic {acid} dianhydride"),
+    ] {
+        let result = parser.parse(&name, &n2s::ParseOptions::strict());
+        assert_eq!(
+            result.status,
+            n2s::Status::Success,
+            "{name}: {}",
+            result.message
+        );
+        let structure = result.structure.unwrap();
+        let (_, _, axes) = structure.semantic_cxsmiles_with_locants_and_axes().unwrap();
+        assert_eq!(axes.len(), 1, "{name}");
+        assert_eq!(axes[0].descriptor, "M", "{name}");
+        let molecule = name_to_molecule(&name).unwrap();
+        assert_eq!(molecule, structure.to_ir().unwrap(), "{name}");
+        assert!(
+            matches!(&molecule.stereo[..], [Stereo::Atropisomer { .. }]),
+            "{name}"
+        );
     }
 }

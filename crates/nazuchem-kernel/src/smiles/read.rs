@@ -335,7 +335,7 @@ fn int_property(
     value
 }
 
-fn relative_stereo(state: &mut State) -> Result<()> {
+fn relative_stereo(state: &mut State, retain_group: bool) -> Result<()> {
     let metadata = &state.metadata;
     // Explicit enhanced stereo labels take precedence over molecule-level r.
     let grouped: HashSet<_> = metadata
@@ -355,10 +355,11 @@ fn relative_stereo(state: &mut State) -> Result<()> {
         return Ok(());
     }
     // Equivalence of the drawn member need not survive independent group inversions.
-    if !metadata
-        .groups
-        .iter()
-        .any(|group| matches!(group.kind, 1 | 2))
+    if !retain_group
+        && !metadata
+            .groups
+            .iter()
+            .any(|group| matches!(group.kind, 1 | 2))
     {
         // Atom maps are not molecular identity.
         let mut unmapped = state.clone();
@@ -493,7 +494,7 @@ pub fn reaction_part(
         name: None,
     };
     if annotations.relative {
-        relative_stereo(&mut imported.prepared.state)?;
+        relative_stereo(&mut imported.prepared.state, false)?;
     }
     if !imported.prepared.state.metadata.groups.is_empty() {
         return Err(Error::Unsupported(
@@ -506,6 +507,16 @@ pub fn reaction_part(
 /// Read default SMILES/CXSMILES chemistry, retaining input conformers and name.
 /// Drawing layout and the application's editable-chemistry checks follow this.
 pub fn read(text: &str, budget: &Budget) -> Result<Imported> {
+    read_impl(text, budget, false)
+}
+
+/// Import a marked graph without discarding its `r` group on the basis of the
+/// unmarked graph's symmetry. Temporary marks may distinguish enantiotopic sites.
+pub fn read_preserving_stereo_groups(text: &str, budget: &Budget) -> Result<Imported> {
+    read_impl(text, budget, true)
+}
+
+fn read_impl(text: &str, budget: &Budget, retain_group: bool) -> Result<Imported> {
     if text.len() > 1024 * 1024 {
         return Err(Error::Limit);
     }
@@ -615,7 +626,7 @@ pub fn read(text: &str, budget: &Budget) -> Result<Imported> {
     // After cumulene detection: an `r` group would make enantiomorphic ligands
     // rank equal and hide the dropped E/Z.
     if annotations.relative {
-        relative_stereo(&mut prepared.state)?;
+        relative_stereo(&mut prepared.state, retain_group)?;
     }
     // Native RemoveHs preserves properties on retained atoms. Keep the raw
     // values for the later depiction stage, which converts rank properties

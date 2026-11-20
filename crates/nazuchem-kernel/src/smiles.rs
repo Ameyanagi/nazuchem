@@ -26,7 +26,7 @@ pub mod write;
 pub use prepare::{Prepared, prepare};
 mod read;
 pub use read::reaction_part;
-pub use read::{Imported, read};
+pub use read::{Imported, read, read_preserving_stereo_groups};
 
 #[cfg(test)]
 mod tests;
@@ -76,34 +76,176 @@ type Result<T> = std::result::Result<T, Error>;
 /// OR and AND groups expand alike.
 pub fn stereoisomers(text: &str, budget: &Budget) -> Result<BTreeSet<String>> {
     let mut state = read(text, budget)?.prepared.state;
-    let atoms = &state.metadata.atoms;
-    let tetrahedral = |atom: &usize| {
-        atoms
-            .get(*atom)
-            .is_some_and(|m| matches!(m.chiral_tag, 1 | 2))
-    };
-    let mut units: Vec<Vec<usize>> = state
+    let units = tetrahedral_inversion_units(&state);
+    state.metadata.groups.clear();
+    let count = configuration_count(&units).ok_or(Error::Limit)?;
+    (0..count)
+        .map(|mask| canonical_smiles(&inverted_stereo_groups(&state, &units, mask)))
+        .collect()
+}
+
+fn tetrahedral_inversion_units(state: &State) -> Vec<Vec<usize>> {
+    state
         .metadata
         .groups
         .iter()
         .filter(|group| matches!(group.kind, 1 | 2))
-        .map(|group| group.atoms.iter().copied().filter(tetrahedral).collect())
-        .collect();
-    units.retain(|unit| !unit.is_empty());
-    state.metadata.groups.clear();
-    (0..1usize << units.len())
-        .map(|mask| {
-            let flipped: HashSet<usize> = units
+        .map(|group| {
+            group
+                .atoms
                 .iter()
-                .enumerate()
-                .filter(|(index, _)| mask & (1 << index) != 0)
-                .flat_map(|(_, unit)| unit.iter().copied())
-                .collect();
-            let mut member = state.clone();
-            invert_tetrahedral(&mut member, &flipped);
-            canonical_smiles(&member)
+                .copied()
+                .filter(|&atom| tetrahedral_center(state, atom))
+                .collect::<Vec<_>>()
         })
+        .filter(|unit| !unit.is_empty())
         .collect()
+}
+
+fn tetrahedral_center(state: &State, atom: usize) -> bool {
+    state
+        .metadata
+        .atoms
+        .get(atom)
+        .is_some_and(|m| matches!(m.chiral_tag, 1 | 2))
+}
+
+fn configuration_count(units: &[Vec<usize>]) -> Option<usize> {
+    1usize.checked_shl(u32::try_from(units.len()).ok()?)
+}
+
+fn inverted_stereo_groups(state: &State, units: &[Vec<usize>], mask: usize) -> State {
+    let flipped = units
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| mask & (1 << index) != 0)
+        .flat_map(|(_, unit)| unit.iter().copied())
+        .collect();
+    let mut member = state.clone();
+    invert_tetrahedral(&mut member, &flipped);
+    member
+}
+
+/// Test for a common marked stereochemical representative, including matching
+/// group kind and membership. Matching one representative with these groups
+/// also matches every allowed full-group inversion. Return false if a match
+/// cannot be established within the bounded search.
+pub fn equivalent_marked_stereo(left: &State, right: &State, budget: &Budget) -> Result<bool> {
+    let left_signature = marked_stereo_signature(left, budget)?;
+    let right_signature = marked_stereo_signature(right, budget)?;
+    if left_signature == right_signature {
+        return Ok(true);
+    }
+
+    // Each inversion must cover an entire group. The shared tetrahedral
+    // inverter cannot change bond stereo or overlapping group membership.
+    for state in [left, right] {
+        let mut grouped = HashSet::new();
+        if state.metadata.groups.iter().any(|group| {
+            group.atoms.iter().any(|&atom| !grouped.insert(atom))
+                || group.kind != 0
+                    && (!group.bonds.is_empty()
+                        || !group
+                            .atoms
+                            .iter()
+                            .all(|&atom| tetrahedral_center(state, atom)))
+        }) {
+            return Ok(false);
+        }
+    }
+    let left_units = tetrahedral_inversion_units(left);
+    let right_units = tetrahedral_inversion_units(right);
+    let (Some(left_count), Some(right_count)) = (
+        configuration_count(&left_units),
+        configuration_count(&right_units),
+    ) else {
+        return Ok(false);
+    };
+    // The direct comparison above is cheap even for many groups. Cap the
+    // exponential fallback in the default configuration as well as under a
+    // caller's work budget.
+    const MAX_CONFIGURATIONS: usize = 256;
+    const MAX_COMPARISON_WORK: usize = 2_000_000;
+    let work = |state: &State, count: usize| {
+        (state.graph.atoms.len() + state.graph.bonds.len()).saturating_mul(count)
+    };
+    if left_count.saturating_add(right_count) > MAX_CONFIGURATIONS
+        || work(left, left_count).saturating_add(work(right, right_count))
+            > budget.work_units().min(MAX_COMPARISON_WORK)
+    {
+        return Ok(false);
+    }
+    let mut left_signatures = BTreeSet::from([left_signature]);
+    for mask in 1..left_count {
+        let member = inverted_stereo_groups(left, &left_units, mask);
+        left_signatures.insert(marked_stereo_signature(&member, budget)?);
+    }
+    if left_signatures.contains(&right_signature) {
+        return Ok(true);
+    }
+    for mask in 1..right_count {
+        let member = inverted_stereo_groups(right, &right_units, mask);
+        if left_signatures.contains(&marked_stereo_signature(&member, budget)?) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+struct MarkedStereoSignature {
+    smiles: String,
+    groups: Vec<(u8, Vec<usize>, Vec<usize>)>,
+}
+
+fn marked_stereo_signature(state: &State, budget: &Budget) -> Result<MarkedStereoSignature> {
+    let mut encoded;
+    let state = if state
+        .metadata
+        .bonds
+        .iter()
+        .any(|bond| matches!(bond.stereo, 6 | 7))
+    {
+        encoded = crate::identity::encode_axis_markers(state, budget)
+            .map_err(|_| Error::Unsupported("marked axial stereochemistry"))?;
+        // Recompute M/P after each inversion since the altered tetrahedral
+        // centres may rank the axis ligands. Keep the original site atom map.
+        for (target, source) in encoded.metadata.atoms.iter_mut().zip(&state.metadata.atoms) {
+            if !target.map_present {
+                target.map_number = source.map_number;
+                target.map_present = source.map_present;
+            }
+        }
+        &encoded
+    } else {
+        state
+    };
+    let written =
+        write::write(state, Default::default()).map_err(|error| Error::Write(Box::new(error)))?;
+    let positions = |order: &[usize], members: &[usize]| {
+        order
+            .iter()
+            .enumerate()
+            .filter_map(|(i, item)| members.contains(item).then_some(i))
+            .collect::<Vec<_>>()
+    };
+    let mut groups: Vec<_> = state
+        .metadata
+        .groups
+        .iter()
+        .map(|group| {
+            (
+                group.kind,
+                positions(&written.atom_order, &group.atoms),
+                positions(&written.bond_order, &group.bonds),
+            )
+        })
+        .collect();
+    groups.sort_unstable();
+    Ok(MarkedStereoSignature {
+        smiles: written.text,
+        groups,
+    })
 }
 
 fn invert_tetrahedral(state: &mut State, flipped: &HashSet<usize>) {

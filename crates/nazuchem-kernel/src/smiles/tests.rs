@@ -1068,3 +1068,34 @@ fn terminal_hydride_is_no_stereo_ligand() -> anyhow::Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn marked_stereo_comparison_preserves_group_kind_and_membership() -> anyhow::Result<()> {
+    let budget = crate::budget::Budget::default();
+    let left = "O=C([OH:1])[C@H](O)[C@H](O)C(=O)O";
+    let right = "OC(=O)[C@H](O)[C@H](O)C(=O)[OH:1]";
+    let read = |smiles: &str, group: &str| {
+        super::read_preserving_stereo_groups(&format!("{smiles}{group}"), &budget)
+            .map(|imported| imported.prepared.state)
+    };
+    for group in [" |o1:3,5|", " |r|"] {
+        let left = read(left, group)?;
+        let right = read(right, group)?;
+        assert!(super::equivalent_marked_stereo(&left, &right, &budget)?);
+        assert!(super::equivalent_marked_stereo(&right, &left, &budget)?);
+    }
+    let relative = read(left, " |o1:3,5|")?;
+    for group in ["", " |r|", " |o1:3,o2:5|"] {
+        assert!(!super::equivalent_marked_stereo(
+            &relative,
+            &read(right, group)?,
+            &budget
+        )?);
+    }
+    assert!(!super::equivalent_marked_stereo(
+        &read(left, "")?,
+        &read(right, "")?,
+        &budget
+    )?);
+    Ok(())
+}

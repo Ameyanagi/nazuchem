@@ -25,6 +25,7 @@ use crate::{
     structure_building_methods::{Assembly, Result, bond_order, error},
     valence,
 };
+use nazuchem_kernel::{identity, smiles as kernel_smiles};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub fn build_fragment(
@@ -105,7 +106,8 @@ impl Builder<'_> {
                 "A mixed chalcogen peroxy group needs an element locant such as SO or OS",
             ));
         }
-        self.process_stereochemistry(molecule, fragment)?;
+        let stereo = self.stereo_processing_order(molecule);
+        Self::process_stereochemistry(self.assembly.state, self.assembly.arena, &stereo, fragment)?;
         if !self
             .assembly
             .graph()
@@ -1189,6 +1191,139 @@ impl Builder<'_> {
         })
     }
 
+    fn equivalent_anhydride_sites(&self, word: NodeId, sites: &[AtomId]) -> Result<bool> {
+        if sites.len() < 2 {
+            return Ok(true);
+        }
+        if !crate::ambiguity::all_atoms_equivalent(self.assembly.graph(), sites)? {
+            return Ok(false);
+        }
+
+        let graph = self.assembly.graph();
+        let mut atoms = BTreeSet::new();
+        let mut pending = sites.to_vec();
+        while let Some(atom) = pending.pop() {
+            if atoms.insert(atom) {
+                pending.extend(graph.neighbours(atom));
+            }
+        }
+        let stereo = self.stereo_processing_order(word);
+        if stereo.is_empty()
+            && !atoms.iter().any(|&atom| {
+                graph.atom(atom).parity.is_some()
+                    || graph.atom(atom).bonds.iter().any(|&bond| {
+                        graph.bond(bond).stereo.is_some() || graph.bond(bond).axial_stereo.is_some()
+                    })
+            })
+        {
+            return Ok(true);
+        }
+
+        // Assign the cited acid's configuration before marking either site.
+        // Equivalent sites give the same canonical isomeric SMILES with the
+        // marker in either position. This distinguishes enantiotopic sites
+        // on a meso acid from homotopic sites on a symmetric chiral acid.
+        let mut state = self.assembly.state.clone();
+        let mut arena = self.assembly.arena.clone();
+        state
+            .fragment_manager
+            .convert_spare_valencies_to_double_bonds()?;
+        state.fragment_manager.make_hydrogens_explicit()?;
+        let graph = state.graph_mut();
+        // Include hydrogens added above and bonds between the acid's fragments.
+        let bonds: BTreeSet<_> = atoms
+            .iter()
+            .flat_map(|&atom| graph.atom(atom).bonds.iter().copied())
+            .collect();
+        for &bond in &bonds {
+            let bond = graph.bond(bond);
+            atoms.extend([bond.from, bond.to]);
+        }
+        let fragment = graph.add_fragment("");
+        for &atom in &atoms {
+            graph.atom_mut(atom).fragment = fragment;
+        }
+        graph.fragment_mut(fragment).atoms = atoms.into_iter().collect();
+        graph.fragment_mut(fragment).bonds = bonds.into_iter().collect();
+
+        Self::process_stereochemistry(&mut state, &mut arena, &stereo, fragment)?;
+        if state.warnings.len() != self.assembly.state.warnings.len() {
+            return Ok(false);
+        }
+
+        let graph = state.graph_mut();
+        // Use the kernel's axis markers for the M/P configuration. They rank
+        // the original axis as part of the marked molecular identity.
+        let axes: Vec<_> = graph
+            .fragment(fragment)
+            .bonds
+            .iter()
+            .filter_map(|&id| {
+                let bond = graph.bond(id);
+                let stereo = bond.axial_stereo.as_ref()?;
+                Some(([bond.from, bond.to], stereo.descriptor.clone()))
+            })
+            .collect();
+        for (ends, descriptor) in &axes {
+            let class = match descriptor.as_str() {
+                "M" => identity::AXIS_M,
+                "P" => identity::AXIS_P,
+                _ => return Ok(false),
+            } as u32;
+            for &end in ends {
+                if graph
+                    .atom_mut(end)
+                    .properties
+                    .atom_class
+                    .replace(class)
+                    .is_some()
+                {
+                    return Ok(false);
+                }
+            }
+        }
+        let used_classes: BTreeSet<_> = graph
+            .fragment(fragment)
+            .atoms
+            .iter()
+            .filter_map(|&atom| graph.atom(atom).properties.atom_class)
+            .collect();
+        let marker = (1..=i32::MAX as u32)
+            .find(|class| !used_classes.contains(class))
+            .ok_or_else(|| error("No atom map available for anhydride site comparison"))?;
+        let budget = &self.assembly.state.budget;
+        let mut first = None;
+        for &site in sites {
+            let previous = graph.atom_mut(site).properties.atom_class.replace(marker);
+            let (smiles, _, _) =
+                crate::smiles::write_semantic_cxsmiles_with_locants_and_axes(graph, fragment, &[])
+                    .map_err(|e| error(e.to_string()))?;
+            graph.atom_mut(site).properties.atom_class = previous;
+            let imported = kernel_smiles::read_preserving_stereo_groups(&smiles, budget)
+                .map_err(|e| error(e.to_string()))?;
+            if imported.dropped_cumulene_ez {
+                return Ok(false);
+            }
+            let mut state = imported.prepared.state;
+            if !axes.is_empty() {
+                let Ok(decoded) = identity::apply_axis_markers(&state, budget) else {
+                    return Ok(false);
+                };
+                state = decoded;
+            }
+            if let Some(first) = &first {
+                if !kernel_smiles::equivalent_marked_stereo(first, &state, budget)
+                    .map_err(|e| error(e.to_string()))?
+                {
+                    return Ok(false);
+                }
+            } else {
+                first = Some(state);
+            }
+        }
+        Ok(true)
+    }
+
     fn build_polyanhydride(
         &mut self,
         smiles: &str,
@@ -1251,21 +1386,15 @@ impl Builder<'_> {
             {
                 return Err(error("Missing anhydride end locant"));
             }
-            if !any_located && !equal_ends {
-                let stereo = !self
-                    .assembly
-                    .arena
-                    .descendants_named(acid_words[central], "stereochemistry")
-                    .is_empty();
-                if count > 2
-                    || stereo
-                    || !crate::ambiguity::all_atoms_equivalent(
-                        self.assembly.graph(),
+            if !any_located
+                && !equal_ends
+                && (count > 2
+                    || !self.equivalent_anhydride_sites(
+                        acid_words[central],
                         &parent.functional_atoms,
-                    )?
-                {
-                    return Err(error("Polyanhydride needs locants for its end acids"));
-                }
+                    )?)
+            {
+                return Err(error("Polyanhydride needs locants for its end acids"));
             }
             let mut end_locants = locants;
             end_locants.remove(central);
@@ -1305,10 +1434,10 @@ impl Builder<'_> {
             && !any_located
             && let [left, middle, right] = acids.as_mut_slice()
         {
-            let (central, right, right_value) = if values[0] == values[1] {
-                (right, middle, &values[1])
+            let (central, right, central_index, right_index) = if values[0] == values[1] {
+                (right, middle, 2, 1)
             } else {
-                (middle, right, &values[2])
+                (middle, right, 1, 2)
             };
             if left.functional_atoms.is_empty()
                 || right.functional_atoms.is_empty()
@@ -1316,11 +1445,14 @@ impl Builder<'_> {
             {
                 return Err(error("Invalid dianhydride description"));
             }
-            if &values[0] != right_value
-                && !crate::ambiguity::all_atoms_equivalent(
-                    self.assembly.graph(),
+            if (values[0] != values[right_index]
+                && !self.equivalent_anhydride_sites(
+                    acid_words[central_index],
                     &central.functional_atoms,
-                )?
+                )?)
+                || !self.equivalent_anhydride_sites(acid_words[0], &left.functional_atoms)?
+                || !self
+                    .equivalent_anhydride_sites(acid_words[right_index], &right.functional_atoms)?
             {
                 return Err(error("Dianhydride needs locants for its end acids"));
             }
@@ -1338,15 +1470,7 @@ impl Builder<'_> {
                 return Err(error("Invalid acid functionality in linear polyanhydride"));
             }
             if !terminal
-                && (!self
-                    .assembly
-                    .arena
-                    .descendants_named(acid_words[i], "stereochemistry")
-                    .is_empty()
-                    || !crate::ambiguity::all_atoms_equivalent(
-                        self.assembly.graph(),
-                        &acid.functional_atoms,
-                    )?)
+                && !self.equivalent_anhydride_sites(acid_words[i], &acid.functional_atoms)?
             {
                 return Err(error("Linear polyanhydride needs linkage locants"));
             }
@@ -3157,38 +3281,39 @@ impl Builder<'_> {
         descendants.extend(this_level);
         descendants
     }
-    fn process_stereochemistry(&mut self, molecule: NodeId, fragment: FragmentId) -> Result<()> {
-        let elements = self.stereo_processing_order(molecule);
-        let f = self.assembly.graph().fragment(fragment);
+    fn process_stereochemistry(
+        state: &mut BuildState,
+        arena: &mut Arena,
+        elements: &[NodeId],
+        fragment: FragmentId,
+    ) -> Result<()> {
+        let graph = state.graph();
+        let f = graph.fragment(fragment);
         let atoms = f
             .atoms
             .iter()
             .copied()
-            .filter(|&a| self.assembly.graph().atom(a).parity.is_some())
+            .filter(|&a| graph.atom(a).parity.is_some())
             .collect::<Vec<_>>();
         let bonds = f
             .bonds
             .iter()
             .copied()
-            .filter(|&b| self.assembly.graph().bond(b).stereo.is_some())
+            .filter(|&b| graph.bond(b).stereo.is_some())
             .collect::<Vec<_>>();
         if elements.is_empty() && atoms.is_empty() && bonds.is_empty() {
             return Ok(());
         }
-        let analysis = stereo_analyser::analyse(self.assembly.graph(), fragment)?;
+        let analysis = stereo_analyser::analyse(graph, fragment)?;
         let stereo_bonds = analysis
             .bonds
             .into_iter()
-            .filter(|b| ft::not_in_six_member_or_smaller_ring(self.assembly.graph(), b.bond))
+            .filter(|b| ft::not_in_six_member_or_smaller_ring(graph, b.bond))
             .collect::<Vec<_>>();
-        let mut handler = StereochemistryHandler::new(
-            self.assembly.state,
-            self.assembly.arena,
-            &analysis.centres,
-            &stereo_bonds,
-        );
+        let mut handler =
+            StereochemistryHandler::new(state, arena, &analysis.centres, &stereo_bonds);
         handler
-            .apply_stereochemical_elements(&elements)
+            .apply_stereochemical_elements(elements)
             .map_err(|e| error(e.to_string()))?;
         handler.remove_redundant_stereo_centres(&atoms, &bonds);
         Ok(())
