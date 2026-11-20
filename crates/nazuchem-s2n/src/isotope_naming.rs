@@ -498,7 +498,11 @@ fn verify(smiles: &str, name: &str) -> Result<(), String> {
 }
 
 /// Name the already admitted graph without serializing its atom identities.
-pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Name, String> {
+pub(super) fn name_molecule(
+    source: &Molecule,
+    style: IsotopeStyle,
+    rendered: Option<&mut super::NameRenderMetadata>,
+) -> Result<Name, String> {
     let (parent, sites) = stripped_parent(source)?;
     if sites.is_empty() {
         return Err("openclatura: isotope naming requires an isotope".into());
@@ -540,7 +544,11 @@ pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Na
     {
         return Err(uncited());
     }
-    let text = if sites.is_empty() || super::formatting::descriptors_omitted() {
+    let text = if super::formatting::descriptors_omitted() {
+        // Keep the labelled derivation through assembly so omitting descriptors
+        // cannot change prefix multiplication or retained prefix spelling.
+        citation_name(&base.text, &base.prefix_isotope_descriptors)
+    } else if sites.is_empty() {
         base.text
     } else {
         let symmetry = lowest_equivalent_map(&parent, &sites, locants, &base.prefix_isotopes)?;
@@ -554,6 +562,10 @@ pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Na
     };
     if style == IsotopeStyle::Boughton && !base.prefix_isotopes.is_empty() {
         return Err("openclatura: Boughton notation cannot place a label on a substituent prefix; use IUPAC isotope style".into());
+    }
+    if let Some(rendered) = rendered {
+        rendered.parent = Some(base.rendered_parent);
+        rendered.has_isotope_prefixes = !base.prefix_isotopes.is_empty();
     }
     let text = super::nest_enclosing_marks(&text);
     let status = if style == IsotopeStyle::Boughton {

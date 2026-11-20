@@ -210,7 +210,7 @@ pub fn name_smiles_with_style(
     style: nazuchem_ir::IsotopeStyle,
     budget: &nazuchem_kernel::budget::Budget,
 ) -> Result<Name, String> {
-    finish_name(name_routes(smiles, style, budget)?)
+    finish_name(name_routes(smiles, style, budget, None)?)
 }
 
 // Provenance: fn finish_name | original
@@ -293,7 +293,11 @@ pub fn name_molecule(
         ir_proof_tests::record_fallback("radical ion");
         name_radical_ion(neutral, suffix, style, budget)?
     } else {
-        name_graph(graph_io::read_state(state, Some(molecule), &[])?, style)?
+        name_graph(
+            graph_io::read_state(state, Some(molecule), &[])?,
+            style,
+            None,
+        )?
     };
     finish_name(name)
 }
@@ -344,6 +348,12 @@ fn general_axial_name(text: &str) -> Option<String> {
     (out != text).then_some(out)
 }
 
+#[derive(Default)]
+struct NameRenderMetadata {
+    parent: Option<String>,
+    has_isotope_prefixes: bool,
+}
+
 // Provenance: fn name_routes | adapted
 // Source: openclatura | src/openclatura/namer.py::name_smiles
 // Source: openclatura | src/openclatura/namer.py::name_component
@@ -351,6 +361,7 @@ fn name_routes(
     smiles: &str,
     style: nazuchem_ir::IsotopeStyle,
     budget: &nazuchem_kernel::budget::Budget,
+    rendered: Option<&mut NameRenderMetadata>,
 ) -> Result<Name, String> {
     if let Some(name) = unknown_stereo::name_smiles(smiles, style, budget)? {
         return Ok(name);
@@ -366,7 +377,7 @@ fn name_routes(
         return name_radical_ion(neutral, suffix, style, budget);
     }
     let mol = graph_io::read_smiles(smiles, budget)?;
-    name_graph(mol, style)
+    name_graph(mol, style, rendered)
 }
 
 // Provenance: fn name_radical_ion | original
@@ -394,10 +405,14 @@ fn name_radical_ion(
 
 // Provenance: fn name_graph | adapted
 // Source: openclatura | src/openclatura/namer.py::name_component
-fn name_graph(mol: molecule::Molecule, style: nazuchem_ir::IsotopeStyle) -> Result<Name, String> {
+fn name_graph(
+    mol: molecule::Molecule,
+    style: nazuchem_ir::IsotopeStyle,
+    rendered: Option<&mut NameRenderMetadata>,
+) -> Result<Name, String> {
     ionic_naming::validate_phosphorus_stereo(&mol)?;
     if mol.atoms.values().any(|atom| atom.isotope.is_some()) {
-        return isotope_naming::name_molecule(&mol, style);
+        return isotope_naming::name_molecule(&mol, style, rendered);
     }
     // Match upstream require_validated_chalcogens before any shortcut can consume Po.
     if mol.atoms.values().any(|atom| atom.symbol == "Po") {
@@ -470,6 +485,9 @@ fn name_graph(mol: molecule::Molecule, style: nazuchem_ir::IsotopeStyle) -> Resu
             omitted_units: 0,
             verification: None,
         });
+    }
+    if let Some(rendered) = rendered {
+        rendered.parent = component.rendered_parent;
     }
     let text = component.text;
     if phane.as_ref().is_some_and(|p| !p.1) {

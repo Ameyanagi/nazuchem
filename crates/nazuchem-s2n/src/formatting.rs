@@ -48,8 +48,8 @@ thread_local! {
 }
 
 /// Whether names are being rendered without their stereo and isotope
-/// descriptors. Every descriptor writer checks this; nothing else does, so the
-/// parent, prefixes, locants and numbering are those of the cited name.
+/// descriptors. Omission affects the rendered text while preserving the
+/// parent and numbering selected for the cited name.
 // Provenance: fn descriptors_omitted | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/formatting.rs::descriptors_omitted
 pub(super) fn descriptors_omitted() -> bool {

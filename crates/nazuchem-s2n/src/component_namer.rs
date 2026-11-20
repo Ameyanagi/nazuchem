@@ -88,6 +88,7 @@ impl Derivation {
 
 pub(super) struct ComponentName {
     pub text: String,
+    pub rendered_parent: Option<String>,
     pub principal_group_atoms: AtomSet,
     pub derivation: Derivation,
 }
@@ -143,6 +144,7 @@ fn name_component_with_locant_policy(
     )? {
         ComponentResult::Shortcut(name) => Ok(ComponentName {
             text: name.name,
+            rendered_parent: None,
             principal_group_atoms: AtomSet::new(),
             derivation: Derivation::Shortcut {
                 component_splits: name.component_splits,
@@ -155,7 +157,7 @@ fn name_component_with_locant_policy(
                 plan.parts.omit_redundant_locants = false;
                 plan.parts.elided_substituent_locants.clear();
             }
-            let text = render_component_parent(
+            let (text, rendered_parent) = render_component_and_parent(
                 mol,
                 &mut plan.parts,
                 &plan.numbered_path,
@@ -164,6 +166,7 @@ fn name_component_with_locant_policy(
             let principal_group = plan.parts.principal_group.map(|g| (g.key, g.atom_ids));
             Ok(ComponentName {
                 text,
+                rendered_parent: Some(rendered_parent),
                 principal_group_atoms: principal_group
                     .as_ref()
                     .map_or_else(AtomSet::new, |(_, atoms)| atoms.clone()),
@@ -188,6 +191,8 @@ pub(super) struct IsotopeParentName {
     pub rendered_parent: String,
     /// Labelled atoms that the substituent prefixes cite themselves (P-82.2.1).
     pub prefix_isotopes: AtomSet,
+    /// Isotope descriptors emitted by the substituent prefixes and front modifiers.
+    pub prefix_isotope_descriptors: Vec<String>,
     /// Every atom of a substituent prefix.
     pub prefix_atoms: AtomSet,
     pub derivation: Derivation,
@@ -217,6 +222,7 @@ pub(super) fn name_component_with_atom_locants(
             text: name.name,
             locants: BTreeMap::new(),
             prefix_isotopes: AtomSet::new(),
+            prefix_isotope_descriptors: vec![],
             prefix_atoms: AtomSet::new(),
             derivation: Derivation::Shortcut {
                 component_splits: name.component_splits,
@@ -231,6 +237,13 @@ pub(super) fn name_component_with_atom_locants(
                 .iter()
                 .flat_map(|item| item.isotope_atoms.iter().copied())
                 .chain(plan.parts.front_modifier_isotopes.iter().copied())
+                .collect();
+            let prefix_isotope_descriptors = plan
+                .parts
+                .substituents
+                .iter()
+                .flat_map(|item| item.isotope_descriptors.iter().cloned())
+                .chain(plan.parts.front_modifier_descriptors.iter().cloned())
                 .collect();
             // P-82.6.1.1: when isotopic modification requires a locant, the
             // constitutional locants must be explicit as well. A prefix that
@@ -258,6 +271,7 @@ pub(super) fn name_component_with_atom_locants(
                 locants: plan.locant_map.clone(),
                 rendered_parent,
                 prefix_isotopes,
+                prefix_isotope_descriptors,
                 prefix_atoms: plan
                     .parts
                     .substituents
