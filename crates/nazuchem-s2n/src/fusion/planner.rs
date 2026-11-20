@@ -633,6 +633,26 @@ pub(super) fn plan_numbered_candidate(
         return Ok(None);
     }
     let mut suffix_composition_proved = false;
+    let (suffix_key, suffix_carbon_h) =
+        if suffix_carbon_h.is_empty() && graph.atoms.iter().all(|a| a.symbol == "C") {
+            let junctions = atoms
+                .iter()
+                .copied()
+                .filter(|&id| {
+                    parent_degree(mol, atoms, id) == 3
+                        && mol.get_neighbors(id).iter().any(|&n| {
+                            let oxygen = &mol.atoms[&n];
+                            oxygen.symbol == "O"
+                                && oxygen.charge == 0
+                                && oxygen.total_h_count > 0
+                                && mol.bond_order(id, n) == 1
+                        })
+                })
+                .collect();
+            ("alcohol", junctions)
+        } else {
+            ("ketone", suffix_carbon_h)
+        };
     if !suffix_carbon_h.is_empty() {
         for plan in &alternatives {
             let Some(locants) = plan.numbering.string_input_locant_maps().into_iter().next() else {
@@ -648,6 +668,7 @@ pub(super) fn plan_numbered_candidate(
                     super::super::additive::systematic_suffix_hydrogen_state(
                         mol,
                         plan,
+                        suffix_key,
                         &suffix_carbon_h,
                         &locants,
                     )?
@@ -658,7 +679,7 @@ pub(super) fn plan_numbered_candidate(
             }
         }
     }
-    // A ketone suffix can consume intrinsic carbon H at a different site.
+    // A ketone or junction alcohol can consume intrinsic carbon H at a different site.
     // Keep tied skeletal numberings for suffix composition in the assembly
     // pipeline before comparing indicated-H and suffix locants (P-14.4).
     if prove_carbon_h && !suffix_composition_proved && !spiro_component {

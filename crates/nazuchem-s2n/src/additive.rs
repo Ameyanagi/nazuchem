@@ -1383,6 +1383,7 @@ type SuffixHydrogenState = (
 pub(super) fn systematic_suffix_hydrogen_state(
     mol: &Molecule,
     plan: &super::fusion::model::FusionParentPlan,
+    group_key: &str,
     suffix: &AtomSet,
     locants: &BTreeMap<usize, String>,
 ) -> Result<Option<SuffixHydrogenState>, String> {
@@ -1394,6 +1395,45 @@ pub(super) fn systematic_suffix_hydrogen_state(
         || !spiro_carbon_sites(mol, &atoms).is_empty()
     {
         return Ok(None);
+    }
+    // P-58.2.3.1.1: at a fusion carbon the three endocyclic single
+    // bonds and the alcohol bond consume its entire valence. A peripheral
+    // alcohol can substitute a hydrogen on a doubly bonded carbon. Only
+    // the junction alcohols therefore require free parent valences.
+    if group_key == "alcohol" {
+        if !plan
+            .abstract_parent_graph
+            .atoms
+            .iter()
+            .all(|a| a.symbol == "C")
+        {
+            return Ok(None);
+        }
+        let junctions: AtomSet = suffix
+            .iter()
+            .copied()
+            .filter(|&id| {
+                ring_bonds(mol, id, &atoms).len() == 3 && saturated_ring_site(mol, id, &atoms)
+            })
+            .collect();
+        if junctions.is_empty() || junctions.len() != plan.indicated_hydrogens.len() {
+            return Ok(None);
+        }
+        let state = graph_suffix_hydrogen_state(
+            mol,
+            &plan.abstract_parent_graph,
+            &AtomSet::new(),
+            &junctions,
+            locants,
+            None,
+        )?;
+        return Ok(state.filter(|(indicated, model, state)| {
+            indicated.len() == junctions.len()
+                && junctions.iter().all(|id| indicated.contains(&locants[id]))
+                && model.maximum_non_cumulative_double_bonds
+                    == plan.bond_model.maximum_non_cumulative_double_bonds
+                && state.bond_delta.added_hydrogen_operations.is_empty()
+        }));
     }
     // P-25.7.1.1: the double bonds are those 'consistent with the appropriate
     // bonding number of the skeletal atoms', so a fusion N takes none and is
@@ -1872,7 +1912,11 @@ fn apply_suffix_hydrogens(
             return Ok(true);
         }
     }
-    let Some(group) = parts.principal_group.as_ref().filter(|g| g.key == "ketone") else {
+    let Some(group) = parts
+        .principal_group
+        .as_ref()
+        .filter(|g| matches!(g.key.as_str(), "ketone" | "alcohol"))
+    else {
         return Ok(false);
     };
     let atoms = &parts.parent_atom_ids;
@@ -1888,12 +1932,15 @@ fn apply_suffix_hydrogens(
         .and_then(|p| p.fusion_plan.as_ref())
     {
         let Some((indicated, model, state)) =
-            systematic_suffix_hydrogen_state(mol, plan, &suffix, locants)?
+            systematic_suffix_hydrogen_state(mol, plan, &group.key, &suffix, locants)?
         else {
             return Ok(false);
         };
         apply_parent_hydrogen_state(parts, indicated, model, state);
         return Ok(true);
+    }
+    if group.key == "alcohol" {
+        return Ok(false);
     }
     if parts
         .retained_parent_metadata

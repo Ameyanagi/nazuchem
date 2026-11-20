@@ -4544,8 +4544,9 @@ mod tests {
             let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
         }
-        // P-58.2.3.1.1, .2 and .4 give these complete multiparent PINs.
+        // P-58.2.3.1.1, .2 and .4 give these complete fused-system PINs.
         for expected in [
+            "1,3b,4,5,6,6a,7,7a-octahydro-3aH-cyclopenta[a]pentalene-3a,4-diol",
             "2,3,7,8-tetrahydro-4H,6H-benzo[1,2-b:5,4-b']dipyran-4,6-dione",
             "9,10-dihydro-2H,4H-benzo[1,2-b:4,3-c']dipyran-2,6(8H)-dione",
             "4,4a-dihydro-2H,5H-benzo[1,2-b:4,3-c']dipyran-5,6(6aH)-dione",

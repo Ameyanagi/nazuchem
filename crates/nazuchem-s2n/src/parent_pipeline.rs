@@ -464,20 +464,24 @@ pub fn build_parent_assembly_plan_with_parent(
             .is_some_and(RingParent::is_systematic_fusion)
         && !variants.is_empty()
     {
-        let ketones: AtomSet = super::perception::perceive_groups(mol)
-            .into_iter()
-            .filter(|group| group.key == "ketone")
-            .map(|group| group.attachment_carbon)
-            .collect();
+        let groups = super::perception::perceive_groups(mol);
         let suffix: AtomSet = principal_carbons.iter().copied().collect();
-        if suffix.is_subset(&ketones) {
+        if let Some(key) = ["ketone", "alcohol"].into_iter().find(|key| {
+            suffix.iter().all(|id| {
+                groups
+                    .iter()
+                    .any(|group| group.key == *key && group.attachment_carbon == *id)
+            })
+        }) {
             for plan in &variants {
                 for map in plan.numbering.string_input_locant_maps() {
                     if !suffix.iter().all(|atom| map.contains_key(atom)) {
                         continue;
                     }
                     if let Some((indicated, _, state)) =
-                        super::additive::systematic_suffix_hydrogen_state(mol, plan, &suffix, &map)?
+                        super::additive::systematic_suffix_hydrogen_state(
+                            mol, plan, key, &suffix, &map,
+                        )?
                     {
                         let hydro = state
                             .hydro_operations
