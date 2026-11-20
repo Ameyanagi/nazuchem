@@ -911,6 +911,27 @@ mod tests {
     }
 
     #[test]
+    fn hydrazine_keeps_backbone_and_ligand_labels_in_their_own_units() {
+        for (smiles, expected) in [
+            ("C[15NH]N", "1-methyl(1-15N)hydrazine"),
+            ("N[15NH]C", "1-methyl(1-15N)hydrazine"),
+            ("CN[15NH2]", "1-methyl(2-15N)hydrazine"),
+            ("[15NH2]N", "(1-15N)hydrazine"),
+            ("c1ccccc1[13CH2]NN", "1-[phenyl(13C)methyl]hydrazine"),
+            ("NN[13CH2]c1ccccc1", "1-[phenyl(13C)methyl]hydrazine"),
+            ("[13CH3][15NH]N", "1-(13C)methyl(1-15N)hydrazine"),
+            (
+                "c1ccccc1[13CH2]N[15NH2]",
+                "1-[phenyl(13C)methyl](2-15N)hydrazine",
+            ),
+        ] {
+            let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            verify(smiles, &name.text).unwrap();
+        }
+    }
+
+    #[test]
     fn labelled_prefixes_take_the_lower_parent_locant() {
         // P-82.5.2: lowest locants to the modified groups, in either atom order.
         for (smiles, expected) in [
@@ -1327,7 +1348,6 @@ mod tests {
             "Cl[13C](=O)c1ccccc1C(=O)O",
             "OC(=O)C1(CCCCC1)[13C](=O)O",
             "[18OH]CCO",
-            "c1ccccc1[13CH2]NN",
             "[13CH3]OC(=O)Oc1ccccc1",
         ] {
             let error = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap_err();

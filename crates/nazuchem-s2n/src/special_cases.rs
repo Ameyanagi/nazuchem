@@ -2655,7 +2655,7 @@ fn locanted_ligand_prefix(items: &[(usize, String)]) -> String {
 fn homonuclear_chain_parent_name(
     mol: &Molecule,
     atoms: &AtomSet,
-) -> Result<Option<String>, String> {
+) -> Result<Option<StructuralParentName>, String> {
     let Some((symbol, chain)) = homonuclear_backbone(mol, atoms) else {
         return Ok(None);
     };
@@ -2695,14 +2695,27 @@ fn homonuclear_chain_parent_name(
             return Err(SHORTCUT_STEREO_ERROR.into());
         }
         let prefix = branch_name(mol, atoms, center, &set([o]), o)?;
-        return Ok(Some(format!(
-            "({})oxidanide",
-            strip_outer_parentheses(&prefix)
-        )));
+        return Ok(Some(StructuralParentName {
+            is_chain: true,
+            ..StructuralParentName::ordinary(format!(
+                "({})oxidanide",
+                strip_outer_parentheses(&prefix)
+            ))
+        }));
     }
+    let branches = connected_branches(mol, &ligand_atoms.difference(&chain_set).copied().collect());
+    let sites = mol.isotope_sites();
+    let hydrazine = !sites.is_empty()
+        && symbol == "N"
+        && chain.len() == 2
+        && mol.bond_order(chain[0], chain[1]) == 1
+        && oxide.is_empty()
+        && branches.len() <= 1;
+    let mut prefix_isotopes = AtomSet::new();
+    let mut simple_modified_ligand = false;
     let mut ligands = Vec::new();
     let mut covered = chain_set.clone();
-    for branch in connected_branches(mol, &ligand_atoms.difference(&chain_set).copied().collect()) {
+    for branch in branches {
         let mut links = Vec::new();
         for &i in &branch {
             for &n in mol.get_neighbors(i) {
@@ -2725,7 +2738,27 @@ fn homonuclear_chain_parent_name(
         } else {
             terminal_ligand_name(mol, root)
         };
-        if name.is_empty() {
+        if hydrazine && sites.iter().any(|s| branch.contains(&s.anchor)) {
+            // P-82.2.1: benzyl with an isotopic methylene is rendered as
+            // phenyl(13C)methyl, with the isotope belonging to that prefix.
+            let mut excluded = outside(mol, &ligand_atoms);
+            excluded.extend(&chain_set);
+            let rendered = super::namer::name_subgraph_rendered(
+                mol,
+                root,
+                &excluded,
+                Some(attachment),
+                false,
+            )?;
+            let descriptor = super::isotope_naming::leading_descriptor(
+                &rendered.text,
+                &rendered.isotope_descriptors,
+            );
+            simple_modified_ligand = !descriptor.is_empty()
+                && !super::formatting::is_complex_prefix(&rendered.text[descriptor.len()..]);
+            name = rendered.text;
+            prefix_isotopes.extend(rendered.isotope_atoms);
+        } else if name.is_empty() {
             name = branch_name(mol, &ligand_atoms, root, &chain_set, attachment)?;
         }
         if name.is_empty() || bond == 2 && !strip_outer_parentheses(&name).ends_with("ylidene") {
@@ -2804,7 +2837,13 @@ fn homonuclear_chain_parent_name(
     {
         return Err(SHORTCUT_STEREO_ERROR.into());
     }
-    let prefix = locanted_ligand_prefix(&placed);
+    let prefix = if let [(locant, ligand)] = placed.as_slice()
+        && simple_modified_ligand
+    {
+        format!("{locant}-{ligand}")
+    } else {
+        locanted_ligand_prefix(&placed)
+    };
     let mut name = format!("{prefix}{parent}");
     if !oxide.is_empty() {
         let locants: BTreeMap<_, _> = oriented
@@ -2865,7 +2904,24 @@ fn homonuclear_chain_parent_name(
         // P-63.3.1 prefers a peroxy prefix for organyl-substituted dioxidanes.
         mol.mark_name(NameStatus::NotPreferred(NameReason::HydrideParent));
     }
-    Ok(Some(name))
+    // The same orientation that placed the ligand determines the 1 and 2
+    // locants for the nitrogens (P-82.5.1). A bare hydrazine has equivalent
+    // ends, which the isotope adapter numbers by P-82.5.2.
+    let isotope_parts = hydrazine.then(|| ShortcutIsotopeParts {
+        locants: oriented
+            .iter()
+            .enumerate()
+            .map(|(i, &n)| (n, (i + 1).to_string()))
+            .collect(),
+        rendered_parent: parent,
+        prefix_isotopes,
+        prefix_atoms: atoms.difference(&chain_set).copied().collect(),
+    });
+    Ok(Some(StructuralParentName {
+        is_chain: true,
+        isotope_parts,
+        ..StructuralParentName::ordinary(name)
+    }))
 }
 
 /// Hydrazine as the parent hydride of an acid, ester, acid halide, amide or
@@ -5777,6 +5833,14 @@ pub(super) fn try_name_anhydride_component(
 }
 
 #[derive(Clone, Debug)]
+pub(super) struct ShortcutIsotopeParts {
+    pub(super) locants: BTreeMap<usize, String>,
+    pub(super) rendered_parent: String,
+    pub(super) prefix_isotopes: AtomSet,
+    pub(super) prefix_atoms: AtomSet,
+}
+
+#[derive(Clone, Debug)]
 pub(super) struct StructuralParentName {
     pub(super) name: String,
     pub(super) certified: bool,
@@ -5787,6 +5851,7 @@ pub(super) struct StructuralParentName {
     /// Only the homonuclear-chain route supplies the chain audit plan used by
     /// the upstream component-level suffix preference exception.
     pub(super) is_chain: bool,
+    pub(super) isotope_parts: Option<ShortcutIsotopeParts>,
 }
 
 impl StructuralParentName {
@@ -5800,6 +5865,7 @@ impl StructuralParentName {
             principal_group_atoms: AtomSet::new(),
             component_splits: BTreeSet::new(),
             is_chain: false,
+            isotope_parts: None,
         }
     }
 }
@@ -6138,10 +6204,7 @@ pub(super) fn structural_replacement_parent_result(
         return Ok(Some(StructuralParentName::ordinary(name)));
     }
     if let Some(name) = mol.candidate(|| homonuclear_chain_parent_name(mol, atoms))? {
-        return Ok(Some(StructuralParentName {
-            is_chain: true,
-            ..StructuralParentName::ordinary(name)
-        }));
+        return Ok(Some(name));
     }
     mol.candidate(|| simple_central_parent_hydride_name(mol, atoms))
 }
@@ -7014,6 +7077,7 @@ mod tests {
             assert_eq!(
                 homonuclear_chain_parent_name(&mol, &all_atoms(&mol))
                     .unwrap()
+                    .map(|n| n.name)
                     .as_deref(),
                 Some(expected)
             );

@@ -217,19 +217,29 @@ pub(super) fn name_component_with_atom_locants(
             ..Default::default()
         },
     )? {
-        ComponentResult::Shortcut(name) => Ok(IsotopeParentName {
-            rendered_parent: name.name.clone(),
-            text: name.name,
-            locants: BTreeMap::new(),
-            prefix_isotopes: AtomSet::new(),
-            prefix_isotope_descriptors: vec![],
-            prefix_atoms: AtomSet::new(),
-            derivation: Derivation::Shortcut {
-                component_splits: name.component_splits,
-                certified: name.certified,
-                principal_group_atoms: name.principal_group_atoms,
-            },
-        }),
+        ComponentResult::Shortcut(name) => {
+            let parts =
+                name.isotope_parts
+                    .unwrap_or_else(|| super::special_cases::ShortcutIsotopeParts {
+                        rendered_parent: name.name.clone(),
+                        locants: BTreeMap::new(),
+                        prefix_isotopes: AtomSet::new(),
+                        prefix_atoms: AtomSet::new(),
+                    });
+            Ok(IsotopeParentName {
+                text: name.name,
+                locants: parts.locants,
+                rendered_parent: parts.rendered_parent,
+                prefix_isotopes: parts.prefix_isotopes,
+                prefix_isotope_descriptors: vec![],
+                prefix_atoms: parts.prefix_atoms,
+                derivation: Derivation::Shortcut {
+                    component_splits: name.component_splits,
+                    certified: name.certified,
+                    principal_group_atoms: name.principal_group_atoms,
+                },
+            })
+        }
         ComponentResult::Plan(mut plan, parent_atoms, component_splits) => {
             let prefix_isotopes: AtomSet = plan
                 .parts
