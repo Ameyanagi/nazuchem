@@ -29,7 +29,7 @@ use super::{
     indicated_hydrogen::{
         component_carbon_h_relocation_scope, component_h_locants, component_parent_atoms,
         component_parent_graph, intrinsic_carbon_candidate_atoms, intrinsic_carbon_parent_model,
-        intrinsic_parent_lone_pair_sites, parent_hydrogen_candidates,
+        intrinsic_parent_lone_pair_sites, is_benzodipyran, parent_hydrogen_candidates,
     },
     layout::{
         can_use_component_entry_layout, component_entry_layouts, preferred_intrinsic_layouts,
@@ -827,6 +827,7 @@ fn complete_fusion_plan(
         &carbon_candidates,
         &intrinsic_n_h,
         &cited_n_h,
+        is_benzodipyran(ast, specs),
     )?;
     if ast.plan_kind == "benzoheterocycle" && !cited_n_h.is_subset(&intrinsic_n_h) {
         // P-31.1.4.2.4 / P-58.2: indicated hydrogen precedes hydro locants,
@@ -840,6 +841,7 @@ fn complete_fusion_plan(
             &carbon_candidates,
             &intrinsic_n_h,
             &AtomSet::new(),
+            false,
         )?;
         let hydrogen_key = |sites: AtomSet| {
             let mut locants: Vec<_> = sites

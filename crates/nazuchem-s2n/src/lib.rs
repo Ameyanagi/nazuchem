@@ -4547,6 +4547,7 @@ mod tests {
         // P-58.2.3.1.1, .2 and .4 give these complete multiparent PINs.
         for expected in [
             "2,3,7,8-tetrahydro-4H,6H-benzo[1,2-b:5,4-b']dipyran-4,6-dione",
+            "9,10-dihydro-2H,4H-benzo[1,2-b:4,3-c']dipyran-2,6(8H)-dione",
             "4,4a-dihydro-2H,5H-benzo[1,2-b:4,3-c']dipyran-5,6(6aH)-dione",
             "7,8-dihydro-2H,6H-benzo[1,2-b:5,4-b']dipyran-6-one",
         ] {

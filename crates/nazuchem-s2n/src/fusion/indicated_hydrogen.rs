@@ -564,7 +564,23 @@ fn aromatic_nitrogen_lone_pair_sites(mol: &Molecule, graph: &FusionGraph) -> Ato
         .map(|a| a.id)
         .collect()
 }
+pub(super) fn is_benzodipyran(
+    ast: &FusionNameAst,
+    specs: &BTreeMap<usize, FusionComponentSpec>,
+) -> bool {
+    ast.parent_occurrences.len() == 2
+        && specs.len() == 3
+        && specs.iter().all(|(id, spec)| {
+            if ast.parent_occurrences.contains(id) {
+                spec.parent_name == "pyran" && spec.template.default_indicated_h.len() == 1
+            } else {
+                spec.parent_name == "benzene" && spec.template.default_indicated_h.is_empty()
+            }
+        })
+}
+
 /// Choose intrinsic carbon hydrogen sites against one completed maximum matching.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn intrinsic_carbon_parent_model(
     mol: &Molecule,
     graph: &FusionGraph,
@@ -573,6 +589,7 @@ pub(super) fn intrinsic_carbon_parent_model(
     candidates: &AtomSet,
     intrinsic_h: &AtomSet,
     cited_n_h: &AtomSet,
+    benzodipyran: bool,
 ) -> Result<(ParentBondModel, AtomSet), String> {
     let released = released_fusion_carbon_sites(mol, graph, candidates);
     let mut graph = graph.clone();
@@ -770,11 +787,37 @@ pub(super) fn intrinsic_carbon_parent_model(
             },
         ));
     }
-    Ok(choices
-        .into_iter()
-        .min_by(|a, b| a.0.cmp(&b.0))
-        .map(|(_, m, s)| (m, s))
-        .unwrap_or((no_carbon_model, AtomSet::new())))
+    if let Some((_, chosen, sites)) = choices.into_iter().min_by(|a, b| a.0.cmp(&b.0)) {
+        return Ok((chosen, sites));
+    }
+    // P-58.2.3.1.4: a pair of oxo suffixes may require both indicated
+    // hydrogens on the same ring. Compose them against the completed
+    // parent while its full set of maximum matchings is still available.
+    if benzodipyran
+        && oxo.len() == 2
+        && oxo.iter().all(|&id| {
+            mol.get_neighbors(id).iter().any(|&n| {
+                !atoms.contains(&n) && mol.atoms[&n].symbol == "O" && mol.bond_order(id, n) == 2
+            })
+        })
+        && let Some((indicated, constrained, _)) =
+            super::super::additive::graph_suffix_hydrogen_state(
+                mol, &graph, &oxo, &oxo, locants, None,
+            )?
+        && indicated.len() == 2
+    {
+        let sites: AtomSet = locants
+            .iter()
+            .filter_map(|(&id, l)| indicated.contains(l).then_some(id))
+            .collect();
+        if sites.is_subset(&eligible)
+            && constrained.maximum_non_cumulative_double_bonds
+                == model.maximum_non_cumulative_double_bonds
+        {
+            return Ok((constrained, sites));
+        }
+    }
+    Ok((no_carbon_model, AtomSet::new()))
 }
 
 #[cfg(test)]
@@ -975,6 +1018,7 @@ mod tests {
             &AtomSet::from([0, 5]),
             &AtomSet::new(),
             &AtomSet::new(),
+            false,
         )
         .unwrap();
         assert_eq!(sites, AtomSet::from([0, 5]));
@@ -993,6 +1037,7 @@ mod tests {
             &AtomSet::from([0]),
             &AtomSet::new(),
             &AtomSet::new(),
+            false,
         )
         .unwrap();
         assert!(sites.is_empty());
@@ -1014,6 +1059,7 @@ mod tests {
             &AtomSet::from([0, 5]),
             &AtomSet::new(),
             &AtomSet::new(),
+            false,
         )
         .unwrap();
         assert!(sites.is_empty());
