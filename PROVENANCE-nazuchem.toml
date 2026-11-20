@@ -5097,10 +5097,12 @@ sources = [
   { project = "openclatura", path = "tests/roundtrip/test_bridges.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/integration/test_systematic_fusion.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/fusion/planner.rs", ref = "issue #95", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/fusion/planner.rs", ref = "issue #24", license = "MIT OR Apache-2.0" },
 ]
 notes = "Openclatura audited fusion planner with separate local benzo-parent planning, spiro entry and localized-pi refusal proof."
 parts = [
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/fusion/planner.rs", ref = "issue #100", license = "MIT OR Apache-2.0", symbol = "fallback_descriptors" }], items = ["fn fallback_descriptors"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/fusion/planner.rs", ref = "issue #24", license = "MIT OR Apache-2.0", symbol = "acid_prefix_hydride" }], items = ["fn acid_prefix_hydride"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/planner.py", license = "MIT", symbol = "plan_fusion_parent" }], items = ["fn plan_fusion_parent"] },
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/fusion/planner.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "plan_fusion_parent_for_spiro" }], items = ["fn plan_fusion_parent_for_spiro"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/planner.py", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn rejected"], notes = "Previously unlisted helper in the upstream adaptation; conservatively attributed at module scope where no individual upstream boundary is established." },
@@ -5145,9 +5147,11 @@ sources = [
   { project = "openclatura", path = "tests/unit/test_retained_parent_precedence_and_order.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/roundtrip/test_fused_parents.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "openclatura", path = "tests/unit/test_fusion_candidate_budget.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/fusion/registry.rs", ref = "issue #24", license = "MIT OR Apache-2.0" },
 ]
 notes = "Openclatura retained/generated registry and HW-component machinery, substantially extended with generated benzoheterocycles, retained-component status and Table 2.8 registration."
 parts = [
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/fusion/registry.rs", ref = "issue #24", license = "MIT OR Apache-2.0", symbol = "has_parent_hydride_component" }], items = ["fn has_parent_hydride_component"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/registry.py", license = "MIT", symbol = "FusionComponentRegistry._register_retained_families" }], items = ["fn Table28Row::parent_name"], notes = "Adapts the component indicated-H removal policy in fusion/registry.py::FusionComponentRegistry._register_retained_families (169-184): remove the hydrogen prefix before using a parent component name. Rust applies it to the new local Table 2.8 pin_name using split_once(\"H-\") instead of a template-derived exact prefix." },
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/fusion/registry.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "Table28Row::template" }], items = ["fn Table28Row::template"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/fusion/registry.py", license = "MIT", symbol = "RegisteredFusionComponent.spec_for_template" }, { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/hantzsch_widman.py", license = "MIT", symbol = "module scope (mapping uncertain)" }], items = ["fn RegisteredFusionComponent::spec_for_template"], notes = "Previously unlisted helper in the upstream adaptation; conservatively attributed at module scope where no individual upstream boundary is established." },

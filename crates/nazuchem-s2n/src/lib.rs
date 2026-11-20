@@ -3425,6 +3425,33 @@ mod tests {
                 "O=C1CC=C2Oc3cc4[N+](C)(C)c5ccccc5Sc4cc3NC2=C1",
                 "7,7-dimethyl-2-oxo-2,3,7,14-tetrahydro[1,4]benzothiazino[2,3-b]phenoxazin-7-ium",
             ),
+            // P-58.2.4: the prefix replaces both H on C-5 of the parent
+            // hydride; the carboxylic acid at C-9 supplies the suffix.
+            (
+                "OC(=O)c1ccc2nc3c(cc(=O)c4ccccc34)oc2c1",
+                "5-oxo-5H-benzo[a]phenoxazine-9-carboxylic acid",
+            ),
+            (
+                "OC(=O)c1ccc2nc3c(cc(=S)c4ccccc34)oc2c1",
+                "5-sulfanylidene-5H-benzo[a]phenoxazine-9-carboxylic acid",
+            ),
+            (
+                "OC(=O)c1ccc2nc3c(cc(=N)c4ccccc34)oc2c1",
+                "5-imino-5H-benzo[a]phenoxazine-9-carboxylic acid",
+            ),
+            (
+                "N=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1",
+                "7,14-dihydro[1,4]benzothiazino[2,3-b]phenoxazin-2(3H)-imine",
+            ),
+            // P-72.2.2.1.1: the anion is derived from a dihydro parent.
+            (
+                "c1ccc2c(c1)Nc1cc3Sc4ccccc4[N-]c3cc1O2",
+                "[1,4]benzothiazino[2,3-b]phenoxazin-7(14H)-ide",
+            ),
+            (
+                "c1ccc2c(c1)[N-]c1cc3Sc4ccccc4Nc3cc1O2",
+                "[1,4]benzothiazino[2,3-b]phenoxazin-14(7H)-ide",
+            ),
             // P-58.2.3.1.1: the ketone takes the indicated hydrogen
             // ('7H-1-benzopyran-7-one').
             (
@@ -3530,12 +3557,10 @@ mod tests {
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
         }
         // Not composed yet, so these keep main's names labelled not preferred:
-        // an 'oxo' prefix needs its own indicated hydrogen, and an ion at a
-        // hydro N takes added hydrogen (P-72.2.2.1.1).
         let fallback = NameStatus::NotPreferred(NameReason::VonBaeyerFusionFallback);
         let unregistered = NameStatus::NotPreferred(NameReason::UnregisteredRetainedComponent);
         for (smiles, status) in [
-            ("OC(=O)c1ccc2nc3c(cc(=O)c4ccccc34)oc2c1", &unregistered),
+            ("S=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", &fallback),
             ("C[N+]1(C)c2ccccc2Sc2cc3Oc4ccccc4N(C)c3cc21", &fallback),
             // #15: the pheno...ine family includes this unregistered N/Si
             // component (P-25.2.2.3) even inside a larger fused ring system.

@@ -22,6 +22,7 @@
 // Source: openclatura | tests/unit/test_retained_parent_precedence_and_order.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_fused_parents.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_fusion_candidate_budget.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/registry.rs | issue #24
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura retained/generated registry and HW-component machinery, substantially extended with generated benzoheterocycles, retained-component status and Table 2.8 registration.
@@ -1329,20 +1330,42 @@ impl FusionComponentRegistry {
             .collect())
     }
 }
+// Provenance: fn has_parent_hydride_component | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/registry.rs::has_parent_hydride_component
+pub(crate) fn has_parent_hydride_component(plan: &FusionParentPlan) -> bool {
+    plan.ast.component_occurrences.iter().any(|m| {
+        fusion_component_registry()
+            .spec_for_match(m)
+            .is_ok_and(|s| s.parent_hydride_only)
+    })
+}
+
 // Provenance: fn is_fused_ring_derivative | adapted
 fn is_fused_ring_derivative(mol: &Molecule, faces: &[&Face]) -> bool {
     let atoms: AtomSet = faces
         .iter()
         .flat_map(|f| f.atom_cycle.iter().copied())
         .collect();
-    // A ring ketone cited by the '-one' suffix keeps a pheno...ine parent: the
-    // suffix composes its indicated and added hydrogen (P-58.2.2, P-58.2.3.1).
-    let ketone_suffix = std::cell::OnceCell::new();
-    let ketone_suffix = || {
-        *ketone_suffix.get_or_init(|| {
-            let groups = crate::perception::perceive_groups(mol);
-            crate::principal_groups::ketone_is_principal(mol, &groups)
-        })
+    // A ketone or terminal imine suffix on a pheno...ine parent can
+    // accommodate indicated or added hydrogen (P-58.2.2, P-58.2.3.1).
+    let suffix = std::cell::OnceCell::new();
+    let admitted = |ligand: usize| {
+        let atom = &mol.atoms[&ligand];
+        let groups = || crate::perception::perceive_groups(mol);
+        match atom.symbol.as_str() {
+            "O" => crate::principal_groups::ketone_is_principal(mol, suffix.get_or_init(groups)),
+            "N" if atom.total_h_count == 1 && mol.degree(ligand) == 1 => {
+                crate::principal_groups::principal_key_on_parent(
+                    mol,
+                    suffix.get_or_init(groups),
+                    false,
+                    &atoms,
+                )
+                .as_deref()
+                    == Some("imine")
+            }
+            _ => false,
+        }
     };
     atoms.iter().any(|&a| {
         let atom = &mol.atoms[&a];
@@ -1350,10 +1373,7 @@ fn is_fused_ring_derivative(mol: &Molecule, faces: &[&Face]) -> bool {
             || mol.get_neighbors(a).iter().any(|&n| {
                 !atoms.contains(&n)
                     && (mol.get_bond(a, n).is_some_and(|b| b.order == 2)
-                        && !(atom.symbol == "C"
-                            && mol.atoms[&n].symbol == "O"
-                            && mol.atoms[&n].charge == 0
-                            && ketone_suffix())
+                        && !(atom.symbol == "C" && mol.atoms[&n].charge == 0 && admitted(n))
                         || atom.symbol == "N" && mol.atoms[&n].symbol != "H")
             })
     })
@@ -2159,7 +2179,7 @@ mod tests {
             ("c1ccc2c(c1)Nc1cc3c[nH+]c4ccccc4c3cc1O2", true),
             // #24: a neutral ketone keeps the pheno...ine parent (P-58.2.3.1).
             ("O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", false),
-            ("N=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", true),
+            ("N=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", false),
         ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
             let plan = junior_parent_plan(&mol, "phenanthridine");

@@ -6,6 +6,7 @@
 // Source: openclatura | tests/integration/test_systematic_fusion.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: Nazuchem | crates/nazuchem-s2n/src/fusion/planner.rs | issue #95
 // Source: Nazuchem | crates/nazuchem-s2n/src/fusion/planner.rs | issue #100
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/planner.rs | issue #24
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura audited fusion planner with separate local benzo-parent planning, spiro entry and localized-pi refusal proof.
@@ -105,6 +106,71 @@ fn rejected(error: String) -> PlanResult {
     }
 }
 
+/// P-58.2.4: an oxo, sulfanylidene or imino prefix replaces two H
+/// atoms of the parent hydride. The carboxylic acid retains its senior
+/// suffix and attachment throughout numbering.
+// Provenance: fn acid_prefix_hydride | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/planner.rs::acid_prefix_hydride
+fn acid_prefix_hydride(mol: &Molecule, atoms: &AtomSet) -> PlanResult {
+    let mut external = atoms.iter().flat_map(|&a| {
+        mol.get_neighbors(a)
+            .iter()
+            .copied()
+            .filter(move |n| !atoms.contains(n) && mol.bond_order(a, *n) > 1)
+            .map(move |n| (a, n))
+    });
+    let Some((site, ligand)) = external.next() else {
+        return Ok(None);
+    };
+    let atom = &mol.atoms[&ligand];
+    if external.next().is_some()
+        || !mol.atoms[&site].is_carbon()
+        || atoms.iter().any(|id| mol.atoms[id].charge != 0)
+        || !matches!(atom.symbol.as_str(), "O" | "S" | "N")
+        || atom.charge != 0
+        || atom.radical_electrons != 0
+        || mol.degree(ligand) != 1
+        || atom.total_h_count != usize::from(atom.symbol == "N")
+        || mol.bond_order(site, ligand) != 2
+    {
+        return Ok(None);
+    }
+    let groups = crate::perception::perceive_groups(mol);
+    if !groups
+        .iter()
+        .any(|g| g.key == "ring_carboxylic_acid" && atoms.contains(&g.attachment_carbon))
+        || !matches!(
+            crate::principal_groups::principal_key_on_parent(mol, &groups, false, atoms).as_deref(),
+            Some("ring_carboxylic_acid" | "carboxylic_acid")
+        )
+    {
+        return Ok(None);
+    }
+    let kept = mol.atoms.keys().copied().filter(|&a| a != ligand).collect();
+    let mut hydride = mol.subgraph(&kept);
+    if let Some(carbon) = hydride.atoms.get_mut(&site) {
+        carbon.total_h_count += 2;
+        carbon.explicit_h_count = carbon.total_h_count;
+        carbon.is_aromatic = false;
+    }
+    let Ok(Some(plan)) = plan_uncached(&hydride, atoms, false, true) else {
+        return Ok(None);
+    };
+    // Require a pheno...ine component and a numbered indicated H on
+    // the actual prefix site before admitting this hydride to assembly.
+    let pheno = super::registry::has_parent_hydride_component(&plan);
+    let indicated = std::iter::once(&plan)
+        .chain(&plan.numbering_variants)
+        .all(|variant| {
+            variant
+                .numbering
+                .abstract_atom_to_locant
+                .iter()
+                .any(|(id, l)| *id == site && variant.indicated_hydrogens.contains(l))
+        });
+    Ok((pheno && indicated).then_some(plan))
+}
+
 // Provenance: fn plan_uncached | adapted
 // Source: openclatura | src/openclatura/fusion/planner.py::_plan_uncached
 fn plan_uncached(
@@ -117,6 +183,12 @@ fn plan_uncached(
     let support = &config.rules.support;
     if atoms.len() < 6 || atoms.iter().any(|a| !mol.atoms.contains_key(a)) {
         return Ok(None);
+    }
+    if neutral_parent
+        && !spiro_component
+        && let Some(plan) = acid_prefix_hydride(mol, atoms)?
+    {
+        return Ok(Some(plan));
     }
     // P-58.2.4, P-72.2.2.1, P-73.1.1.2: substituents, '-ide' and '-ium' are
     // added to the neutral parent hydride, so an N-substituted, anionic or
@@ -165,22 +237,30 @@ fn plan_uncached(
                 atom.explicit_h_count = 1;
             }
         }
-        // An ion at a hydro N is named with added hydrogen instead
-        // ('pyridin-1(2H)-ide', P-72.2.2.1.1), which is not composed here: an
-        // ionic N must carry the parent's only indicated hydrogen.
+        // P-72.2.2.1.1: loss of one hydron from two N-H hydro sites
+        // cites the other N as added indicated hydrogen with the -ide suffix.
         let charged: Vec<_> = n_h_sites
             .iter()
             .filter(|id| mol.atoms[id].charge != 0)
             .collect();
         if let Ok(Some(mut plan)) = plan_uncached(&parent, atoms, spiro_component, true)
-            && (!bridged(mol, atoms)
-                || plan.ast.component_occurrences.iter().any(|m| {
-                    fusion_component_registry()
-                        .spec_for_match(m)
-                        .is_ok_and(|s| s.parent_hydride_only)
-                }))
+            && (!bridged(mol, atoms) || super::registry::has_parent_hydride_component(&plan))
             && (charged.is_empty()
-                || plan.indicated_hydrogens.len() == 1
+                || (plan.indicated_hydrogens.len() == 1
+                    || plan.indicated_hydrogens.len() == 2
+                        && charged.len() == 1
+                        && mol.atoms[charged[0]].charge == -1
+                        && plan.indicated_hydrogens.iter().all(|locant| {
+                            plan.numbering
+                                .abstract_atom_to_locant
+                                .iter()
+                                .any(|(id, l)| {
+                                    l == locant
+                                        && mol.atoms[id].symbol == "N"
+                                        && (id == charged[0] || mol.atoms[id].total_h_count == 1)
+                                })
+                        })
+                        && super::registry::has_parent_hydride_component(&plan))
                     && charged.iter().all(|id| {
                         plan.numbering
                             .abstract_atom_to_locant
@@ -302,11 +382,7 @@ fn plan_uncached(
             // In a pheno...ine, the intrinsic N-H sites of both components
             // are retained as hydro positions of the combined parent.
             let intrinsic_h = has_carbonyl
-                && plan.ast.component_occurrences.iter().any(|m| {
-                    fusion_component_registry()
-                        .spec_for_match(m)
-                        .is_ok_and(|s| s.parent_hydride_only)
-                })
+                && super::registry::has_parent_hydride_component(&plan)
                 && plan.indicated_hydrogens.iter().all(|l| {
                     locants
                         .iter()

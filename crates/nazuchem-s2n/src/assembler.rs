@@ -532,6 +532,34 @@ fn add_indicated_hydrogen_prefix(parts: &mut AssemblyParts, core: &str) -> (Stri
     indicated.dedup();
     additive.sort_by_key(|l| parse_locant(l));
     additive.dedup();
+    // P-72.2.2.1.1: a hydron removed from one of the two N-H
+    // sites of the dihydro parent leaves the other as added hydrogen.
+    if let [charge] = parts.parent_charges.as_slice()
+        && charge.symbol == "N"
+        && charge.charge == -1
+        && let Some(plan) = parts.fusion_plan.as_ref().or_else(|| {
+            parts
+                .parent_hydride
+                .as_ref()
+                .and_then(|p| p.fusion_plan.as_ref())
+        })
+        && let [a, b] = plan.indicated_hydrogens.as_slice()
+        && super::fusion::registry::has_parent_hydride_component(plan)
+        && [a, b].iter().all(|l| {
+            additive.contains(l)
+                && parts
+                    .parent_atom_symbols_by_locant
+                    .get(*l)
+                    .is_some_and(|s| s == "N")
+        })
+        && (a == &charge.locant || b == &charge.locant)
+        && let Some(parent) = core.strip_suffix(&format!("-{}-ide", charge.locant))
+    {
+        let added = if a == &charge.locant { b } else { a };
+        core = format!("{parent}-{}({added}H)-ide", charge.locant);
+        additive.retain(|l| l != a && l != b);
+        cites_locants = true;
+    }
     if !indicated.is_empty() {
         cites_locants = true;
         let added: BTreeSet<_> = parts

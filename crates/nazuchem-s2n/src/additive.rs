@@ -1458,11 +1458,7 @@ pub(super) fn systematic_suffix_hydrogen_state(
     // indicated hydrogen is placed for the suffixes as for any parent
     // (P-58.2.3.1.1, '1,2-dihydro-3H-indol-3-one' in P-64.3.1; P-58.2.3.1.3);
     // an N-H not used by them stays as hydro hydrogen ('7,14-dihydro').
-    let pheno = plan.ast.component_occurrences.iter().any(|m| {
-        super::fusion::registry::fusion_component_registry()
-            .spec_for_match(m)
-            .is_ok_and(|s| s.parent_hydride_only)
-    });
+    let pheno = super::fusion::registry::has_parent_hydride_component(plan);
     // Other parents take the same placement when it covers exactly the
     // saturated positions.
     let composed = quota > carbon_h && !pheno;
@@ -1912,11 +1908,16 @@ fn apply_suffix_hydrogens(
             return Ok(true);
         }
     }
-    let Some(group) = parts
-        .principal_group
+    let systematic = parts
+        .parent_hydride
         .as_ref()
-        .filter(|g| matches!(g.key.as_str(), "ketone" | "alcohol"))
-    else {
+        .filter(|p| p.is_systematic_fusion())
+        .and_then(|p| p.fusion_plan.as_ref());
+    let Some(group) = parts.principal_group.as_ref().filter(|g| {
+        matches!(g.key.as_str(), "ketone" | "alcohol")
+            || g.key == "imine"
+                && systematic.is_some_and(super::fusion::registry::has_parent_hydride_component)
+    }) else {
         return Ok(false);
     };
     let atoms = &parts.parent_atom_ids;
@@ -1925,12 +1926,7 @@ fn apply_suffix_hydrogens(
         return Ok(false);
     }
     let suffix_locants: BTreeSet<_> = suffix.iter().map(|a| locants[a].clone()).collect();
-    if let Some(plan) = parts
-        .parent_hydride
-        .as_ref()
-        .filter(|p| p.is_systematic_fusion())
-        .and_then(|p| p.fusion_plan.as_ref())
-    {
+    if let Some(plan) = systematic {
         let Some((indicated, model, state)) =
             systematic_suffix_hydrogen_state(mol, plan, &group.key, &suffix, locants)?
         else {
