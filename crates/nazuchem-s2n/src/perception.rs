@@ -3526,7 +3526,8 @@ mod tests {
             ("CC(=O)OS(=O)(=O)C", "anhydride"),
             ("CS(=O)(=O)OS(C)=O", "anhydride"),
             ("COO", "peroxol_O_O"),
-            ("Cc1ccc(C(=O)SC(=S)SCC#N)cc1", "anhydride_O_S_S"),
+            // The S-organyl nitrile leaves the acyl ester linkage intact.
+            ("Cc1ccc(C(=O)SC(=S)SCC#N)cc1", "acyl_ester_O_S_external"),
             ("C1CCCCC1C(=O)O", "ring_carboxylic_acid"),
             ("C1CCCCC1C#N", "ring_nitrile"),
             ("C1CCCCC1C=O", "ring_aldehyde"),

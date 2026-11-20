@@ -207,9 +207,10 @@ mod tests {
                 "O=C1CC2=CC3=C(CCC3)C=C2C1",
                 "3,5,6,7-tetrahydro-s-indacen-2(1H)-one",
             ),
+            // P-58.2.2.2: added hydrogen takes the lowest permissible locant.
             (
                 "O=C1CCC2=CC=C3CCCC3=C12",
-                "2,3,7,8-tetrahydro-as-indacen-1(6H)-one",
+                "3,6,7,8-tetrahydro-as-indacen-1(2H)-one",
             ),
         ] {
             assert_eq!(
