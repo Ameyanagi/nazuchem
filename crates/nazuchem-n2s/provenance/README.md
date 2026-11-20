@@ -34,8 +34,17 @@ such as `phenothiaselenine` and `10H-phenoselenarsinine`, and the PIN spellings
 `phenazaphosphinine` and `phenazarsinine`. The same token lists read
 `boranthrene` (P-25.2.2.2) and `boranthreno` (P-25.3.2.2.2), using
 spare valence at boron to represent the mancude component. The mixed-ring
-tokens also cover oxygen paired with silicon, germanium, tin, bismuth or
-boron, and phosphorus paired with arsenic (P-22.2.2.1.6, P-25.2.2.3). A native `wordRules.xml` rule reads a
+tokens also cover O, S, Se or Te paired with Si, Ge, Sn, Bi or B,
+and the P/As, P/Sb and As/Sb pairs. These names are derived by applying
+[P-25.2.2.3](https://iupac.qmul.ac.uk/BlueBook/P2.html#25020203).
+[Table 2.4](https://iupac.qmul.ac.uk/BlueBook/P2.html#t204) supplies the
+prefix order and standard bonding numbers. The least senior atom selects
+the six-membered ring stem from [Table 2.5](https://iupac.qmul.ac.uk/BlueBook/P2.html#t205)
+under P-22.2.2.1.6. Thus P/Sb and As/Sb use the stem `inine`. Their
+mancude components have a double bond at both heteroatoms, and the
+5,10-dihydro forms add one hydrogen to each.
+
+A native `wordRules.xml` rule reads a
 dianhydride of three acid words (P-65.7.6.1). A native `simpleGroups.xml` token reads
 `cyanohydrazide` with the locants N and N′ (P-66.3.1.2.1, P-66.3.3.1). A native terminal
 `carboxamidium` entry in `suffixes.xml`, `suffixApplicability.xml`, and
@@ -221,16 +230,14 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`53e6783996fdc0b72e2cc4eb450ff370c35eaacec6015a4e12fe161f7e5da67f`.
+`34b2ae6ddc64f23c3c91952cad09795b27bd63ab5212b76cb57944482544266d`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph
-snapshots and constructs all 3,221 literal groups: the 3,183 pinned ones and
-the 16 native `simpleSubstituents.xml` acid-anion prefixes, which postdate the
-oracle and are checked natively as acyclic, kekulization-stable fragments. The
-11 native pheno...ine ring triples (the other 22 literal groups, in `arylGroups.xml` and
-`fusionComponents.xml`) also postdate the oracle; each must build and kekulize
-exactly like its pinned sibling. `phanes.txt` contributes
+snapshots and constructs all 3,266 literal groups. These include 3,181 pinned
+occurrences, 16 acid-anion prefixes and cyanohydrazide. The 34 native
+heteranthrene and pheno...ine ring triples contribute 68 parent and fusion
+groups. Each must build and kekulize exactly like its pinned sibling. `phanes.txt` contributes
 174 integration names (348 strict/radical structure records); the 21 phane
 rows in `uninterpretable.txt` are also checked natively. No goldens are edited
 by hand. Regeneration uses the checked exporter sources and the pinned jar.

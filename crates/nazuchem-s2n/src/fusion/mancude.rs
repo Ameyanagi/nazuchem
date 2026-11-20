@@ -133,7 +133,7 @@ pub(super) fn all_single(mol: &Molecule, id: usize) -> bool {
 // Source: Nazuchem | crates/nazuchem-s2n/src/fusion/mancude.rs::neutral_hydro_heteroatom
 pub(super) fn neutral_hydro_heteroatom(mol: &Molecule, id: usize) -> bool {
     let atom = &mol.atoms[&id];
-    matches!(atom.symbol.as_str(), "N" | "P" | "As" | "Si" | "B")
+    matches!(atom.symbol.as_str(), "N" | "P" | "As" | "Sb" | "Si" | "B")
         && atom.charge == 0
         && !atom.is_aromatic
         && all_single(mol, id)

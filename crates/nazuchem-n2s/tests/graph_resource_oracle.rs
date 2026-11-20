@@ -91,7 +91,24 @@ fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulizatio
     // Native fused ring tokens (P-25.2.2.2 and P-25.2.2.3) postdate the
     // oracle. Their graph construction and Kekulé patterns match a pinned
     // counterpart with the same arrangement of single and double bonds.
-    const NATIVE_FUSED: [&str; 17] = [
+    const NATIVE_FUSED: [&str; 34] = [
+        "c1cccc2sc3ccccc3[siH2]c12",
+        "c1cccc2sc3ccccc3[geH2]c12",
+        "c1cccc2sc3ccccc3[snH2]c12",
+        "c1cccc2sc3ccccc3[biH]c12",
+        "c1cccc2sc3ccccc3[bH]c12",
+        "c1cccc2[se]c3ccccc3[siH2]c12",
+        "c1cccc2[se]c3ccccc3[geH2]c12",
+        "c1cccc2[se]c3ccccc3[snH2]c12",
+        "c1cccc2[se]c3ccccc3[biH]c12",
+        "c1cccc2[se]c3ccccc3[bH]c12",
+        "c1cccc2[te]c3ccccc3[siH2]c12",
+        "c1cccc2[te]c3ccccc3[geH2]c12",
+        "c1cccc2[te]c3ccccc3[snH2]c12",
+        "c1cccc2[te]c3ccccc3[biH]c12",
+        "c1cccc2[te]c3ccccc3[bH]c12",
+        "c1cccc2pc3ccccc3[sb]c12",
+        "c1cccc2[as]c3ccccc3[sb]c12",
         "c1cccc2oc3ccccc3[geH2]c12",
         "c1cccc2oc3ccccc3[snH2]c12",
         "c1cccc2oc3ccccc3[biH]c12",
@@ -198,7 +215,7 @@ fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulizatio
         (before, snapshot(graph, fragment))
     };
     for value in NATIVE_FUSED {
-        let sibling = if value.contains("[b]") || value.contains("[as]") {
+        let sibling = if value.contains("[b]") || value.contains("[as]") || value.contains("[sb]") {
             "c1cccc2pc3ccccc3pc12"
         } else if value.contains("H]") || value.contains("H2]") {
             "c1cccc2sc3ccccc3[asH]c12"

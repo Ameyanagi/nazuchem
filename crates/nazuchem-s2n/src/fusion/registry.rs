@@ -2010,7 +2010,7 @@ mod tests {
                 .iter()
                 .filter(|c| c.spec.parent_hydride_only)
                 .count(),
-            38
+            55
         );
         // P-25.2.2.2 and P-25.2.2.3 PINs; P-25.3.2.2.2 turns the final 'e'
         // into 'o' for the fusion prefix.

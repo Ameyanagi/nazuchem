@@ -3234,6 +3234,27 @@ mod tests {
             ),
             // P-25.2.2.2 (P, As, Si) and P-25.2.2.3 (N with P or As): the PIN is the
             // mancude ring; P-31.2.1 hydro prefixes give the usual 5,10-dihydro forms.
+            ("c1ccc2c(c1)Sc1ccccc1[SiH2]2", "10H-phenothiasiline"),
+            ("c1ccc2c(c1)Sc1ccccc1[GeH2]2", "10H-phenothiagermine"),
+            ("c1ccc2c(c1)Sc1ccccc1[SnH2]2", "10H-phenothiastannine"),
+            ("c1ccc2c(c1)Sc1ccccc1[BiH]2", "10H-phenothiabismine"),
+            ("c1ccc2c(c1)Sc1ccccc1B2", "10H-phenothiaborinine"),
+            ("c1ccc2c(c1)[Se]c1ccccc1[SiH2]2", "10H-phenoselenasiline"),
+            ("c1ccc2c(c1)[Se]c1ccccc1[GeH2]2", "10H-phenoselenagermine"),
+            ("c1ccc2c(c1)[Se]c1ccccc1[SnH2]2", "10H-phenoselenastannine"),
+            ("c1ccc2c(c1)[Se]c1ccccc1[BiH]2", "10H-phenoselenabismine"),
+            ("c1ccc2c(c1)[Se]c1ccccc1B2", "10H-phenoselenaborinine"),
+            ("c1ccc2c(c1)[Te]c1ccccc1[SiH2]2", "10H-phenotellurasiline"),
+            ("c1ccc2c(c1)[Te]c1ccccc1[GeH2]2", "10H-phenotelluragermine"),
+            ("c1ccc2c(c1)[Te]c1ccccc1[SnH2]2", "10H-phenotellurastannine"),
+            ("c1ccc2c(c1)[Te]c1ccccc1[BiH]2", "10H-phenotellurabismine"),
+            ("c1ccc2c(c1)[Te]c1ccccc1B2", "10H-phenotelluraborinine"),
+            ("c1ccc2c(c1)P=C1C=CC=CC1=[Sb]2", "phenophosphastibinine"),
+            ("c1ccc2c(c1)[As]=C1C=CC=CC1=[Sb]2", "phenarsastibinine"),
+            (
+                "c1ccc2c(c1)Sc1ccc3ccccc3c1[SiH2]2",
+                "12H-benzo[a]phenothiasiline",
+            ),
             ("c1ccc2c(c1)Oc1ccccc1[SiH2]2", "10H-phenoxasiline"),
             (
                 "c1ccc2c(c1)Oc1ccc3ccccc3c1[SiH2]2",
@@ -3243,6 +3264,14 @@ mod tests {
             ("c1ccc2c(c1)Oc1ccccc1[SnH2]2", "10H-phenoxastannine"),
             ("c1ccc2c(c1)Oc1ccccc1[BiH]2", "10H-phenoxabismine"),
             ("c1ccc2c(c1)Oc1ccccc1B2", "10H-phenoxaborinine"),
+            (
+                "c1ccc2c(c1)Pc1ccccc1[SbH]2",
+                "5,10-dihydrophenophosphastibinine",
+            ),
+            (
+                "c1ccc2c(c1)[AsH]c1ccccc1[SbH]2",
+                "5,10-dihydrophenarsastibinine",
+            ),
             ("c1ccc2c(c1)P=C1C=CC=CC1=[As]2", "phenophospharsinine"),
             (
                 "c1ccc2c(c1)Pc1ccccc1[AsH]2",
@@ -3490,9 +3519,9 @@ mod tests {
         for (smiles, status) in [
             ("OC(=O)c1ccc2nc3c(cc(=O)c4ccccc34)oc2c1", &unregistered),
             ("C[N+]1(C)c2ccccc2Sc2cc3Oc4ccccc4N(C)c3cc21", &fallback),
-            // #15: the pheno...ine family includes this unregistered S/Si
+            // #15: the pheno...ine family includes this unregistered N/Si
             // component (P-25.2.2.3) even inside a larger fused ring system.
-            ("c1ccc2c(c1)Sc1ccc3ccccc3c1[SiH2]2", &unregistered),
+            ("c1ccc2c(c1)Nc1ccc3ccccc3c1[SiH2]2", &unregistered),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(&name.status, status, "{smiles}: {}", name.text);

@@ -69,10 +69,7 @@ fn build_every_literal_group_resource() {
             }
         }
     }
-    // The previous 3,222 entries include the boranthrene and phenoxasiline
-    // entries that were updated in place. Issue #15 added five mixed-pair
-    // parent groups and five corresponding fusion-prefix groups.
-    assert_eq!(examples, 3_232, "Frozen literal resource coverage changed");
+    assert_eq!(examples, 3_266, "Frozen literal resource coverage changed");
     assert!(
         failures.is_empty(),
         "{} failures out of {examples} frozen resource groups:\n{}",

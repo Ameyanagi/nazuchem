@@ -1246,7 +1246,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/README.md", license = "MIT" },
 ]
 notes = "Project-authored usage and provenance documentation. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here. Standalone packaging updates local path and scope wording; source pins and upstream attribution are retained."
-sha256 = "3b3c8c9541d3b28266aeba3e31cd359795b2a0732c80473e2895d0d9a4507f19"
+sha256 = "37ea476f8f17d0f92e838d922066a9a83f1666636dc7d9858e5561985caa96a5"
 
 [[file]]
 path = "crates/nazuchem-n2s/provenance/manifest.json"
@@ -1256,7 +1256,7 @@ sources = [
   { project = "ReShiki", ref = "0e6e9009ca2e8bfebe149c260fc5a2f484f7dfb9", path = "crates/opsin/provenance/manifest.json", license = "MIT" },
 ]
 notes = "Project-authored provenance metadata with source pins, hashes, oracle lineage and native grammar extension records. Original classification is a repository-history inference, not a clean-room certification. Current crate metadata licenses this file MIT; the plan proposes dual licensing original extraction code, which has not been applied here."
-sha256 = "513135c9ed37db97770d4a418d9d43dbb8d6be130e8ad0eb1fb6c0c1a7ee191d"
+sha256 = "7cf54ac19706be6e3cd2fa10d08b5da8a195a47b79bae22a3a4e03377c4c564e"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/automata.bin"
@@ -1295,13 +1295,13 @@ sha256 = "2829fc6ba1562f090f38c2f89488255fc6d0a709251a502005759121462880fd"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/arylGroups.xml"
-origin = "copy"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/arylGroups.xml", license = "MIT" },
 ]
-notes = "Byte-preserved upstream data."
-sha256 = "64a235a2713840811c2ba18b86fed30eff4637e7c76c7a8f5bccc7a9ea3c9865"
+notes = "OPSIN resource with native heteranthrene and pheno...ine ring tokens (issue #15, IUPAC 2013 P-25.2.2.2 and P-25.2.2.3)."
+sha256 = "5812a3d2d0a2470e66b1890e5d5eef4a075c9cae2dfa7c82fb39e373544fd01a"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/arylSubstituents.xml"
@@ -1395,13 +1395,13 @@ sha256 = "3d857b636dafc5fc25599baba90f239378740de0784f38ab9e52578fa49d3fc3"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/fusionComponents.xml"
-origin = "copy"
+origin = "adapted"
 license = "MIT"
 sources = [
   { project = "OPSIN", ref = "42e87ac6efb1bd9f578986f5ea7ee1faa8e93c91", path = "opsin-core/src/main/resources/uk/ac/cam/ch/wwmm/opsin/resources/fusionComponents.xml", license = "MIT" },
 ]
-notes = "Byte-preserved upstream data."
-sha256 = "3fc1e1f3f19da407ad3c01af5dc3a04bb4812c34d7aa824c3cd9b4edf2d98b5f"
+notes = "OPSIN resource with native heteranthrene and pheno...ine ring tokens (issue #15, IUPAC 2013 P-25.2.2.2 and P-25.2.2.3)."
+sha256 = "630d50fe58acae0ed39a5e3bda9453bf914c6229a6688a59b87bb988453d888a"
 
 [[file]]
 path = "crates/nazuchem-n2s/resources/xml/germanTokens.xml"
@@ -4415,7 +4415,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/data/fusion_components.json", license = "MIT" },
 ]
 notes = "openclatura registry extended with retained-component status and additional senior components; not byte-identical."
-sha256 = "7f93f62883a440be66445457af51e86a607cb03b276f70732035747bc99c0af5"
+sha256 = "90ddfa82c2f658acec0313784b00bcf49e78677b0fcff5d564e6874cc997571f"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/fusion_composite_bridges.json"
@@ -4478,7 +4478,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "tests/data/parser_xml_resources/hwHeteroAtoms.json", license = "MIT" },
 ]
 notes = "openclatura runtime snapshot derived from six OPSIN XML resources; retained tokens/gates changed; not byte-identical. Unresolved: Underlying OPSIN XML revision is unrecorded in the inherited snapshot; direct XML-to-JSON tree comparison with 2.9.0 differs (normalized tokens, attributes and structure), so no exact OPSIN pin is asserted."
-sha256 = "67b484d2da111bdde21d094169b366373445260f1236e7fbd96016b151cc570d"
+sha256 = "8a8c9a0f8c856e1d7ef24a45f77acb873b962d472c40a3aa01cec915c85ca40a"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/retained_fused_graph_templates.json"
@@ -4489,7 +4489,7 @@ sources = [
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "tests/roundtrip/test_retained_fused_production.py", license = "MIT" },
 ]
 notes = "openclatura locanted graph templates expanded from base_templates with local parent/numbering additions; not byte-identical."
-sha256 = "1ad78e4c099950ee7aa26b4639fdb2f1aba7b5a1d097cf57a3577dae8dcdb0a4"
+sha256 = "164ed51d326990dd5aa8902263f973c150ac0c1e8c7d4c5067eaa114d40fbc97"
 
 [[file]]
 path = "crates/nazuchem-s2n/src/data/retained_fused_hydrocarbon_templates.json"

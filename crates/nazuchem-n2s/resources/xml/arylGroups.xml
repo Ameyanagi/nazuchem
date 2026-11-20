@@ -231,6 +231,23 @@
 		<token value="c1cccc2oc3ccccc3sc12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoxathiin</token>
 		<token value="c1cccc2oc3ccccc3[se]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoxaselenin</token>
 		<token value="c1cccc2oc3ccccc3[siH2]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoxasilin</token>
+		<token value="c1cccc2sc3ccccc3[siH2]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiasilin</token>
+		<token value="c1cccc2sc3ccccc3[geH2]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiagermin</token>
+		<token value="c1cccc2sc3ccccc3[snH2]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiastannin</token>
+		<token value="c1cccc2sc3ccccc3[biH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiabismin</token>
+		<token value="c1cccc2sc3ccccc3[bH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenothiaborinin</token>
+		<token value="c1cccc2[se]c3ccccc3[siH2]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenasilin</token>
+		<token value="c1cccc2[se]c3ccccc3[geH2]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenagermin</token>
+		<token value="c1cccc2[se]c3ccccc3[snH2]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenastannin</token>
+		<token value="c1cccc2[se]c3ccccc3[biH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenabismin</token>
+		<token value="c1cccc2[se]c3ccccc3[bH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoselenaborinin</token>
+		<token value="c1cccc2[te]c3ccccc3[siH2]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenotellurasilin</token>
+		<token value="c1cccc2[te]c3ccccc3[geH2]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenotelluragermin</token>
+		<token value="c1cccc2[te]c3ccccc3[snH2]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenotellurastannin</token>
+		<token value="c1cccc2[te]c3ccccc3[biH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenotellurabismin</token>
+		<token value="c1cccc2[te]c3ccccc3[bH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenotelluraborinin</token>
+		<token value="c1cccc2pc3ccccc3[sb]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenophosphastibinin</token>
+		<token value="c1cccc2[as]c3ccccc3[sb]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenarsastibinin</token>
 		<token value="c1cccc2oc3ccccc3[geH2]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoxagermin</token>
 		<token value="c1cccc2oc3ccccc3[snH2]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoxastannin</token>
 		<token value="c1cccc2oc3ccccc3[biH]c12" labels="1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a">phenoxabismin</token>
