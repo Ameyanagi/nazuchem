@@ -226,6 +226,11 @@ pub(crate) fn read_state(
                     .zip(ring.iter().cycle().skip(1))
                     .any(|(&u, &v)| (u == bond.a && v == bond.b) || (u == bond.b && v == bond.a))
         });
+        let alkene_geometry = if bond.order == 2 && !cumulene_stereo.contains_key(&idx) {
+            alkene_geometry(&legacy, idx)
+        } else {
+            None
+        };
         mol.add_bond(Bond {
             idx: idx + 1,
             u: bond.a,
@@ -233,6 +238,7 @@ pub(crate) fn read_state(
             order: usize::from(bond.order),
             is_aromatic: aromatic_bonds[idx],
             stereo,
+            alkene_geometry,
             in_small_ring,
         })?;
     }
@@ -367,6 +373,16 @@ fn assign_naming_kekule(
     Ok(result)
 }
 
+fn alkene_geometry(state: &perception::State, bond: usize) -> Option<([usize; 2], bool)> {
+    let metadata = state.metadata.bonds.get(bond)?;
+    let same_side = match metadata.stereo {
+        2 => true,
+        3 => false,
+        _ => return None,
+    };
+    Some((metadata.stereo_atoms.as_slice().try_into().ok()?, same_side))
+}
+
 /// Detached default-H removal shared by localization and naming projection.
 // Provenance: fn ordinary_hydrogen_projection | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs::ordinary_hydrogen_projection
@@ -423,8 +439,19 @@ fn fold_ordinary_hydrogens(
         };
         projected.add_atom(atom)?;
     }
-    for &original in &removed.kept_bonds {
-        projected.add_bond(source.bonds[&(original + 1)].clone())?;
+    for (index, &original) in removed.kept_bonds.iter().enumerate() {
+        let mut bond = source.bonds[&(original + 1)].clone();
+        if bond.alkene_geometry.is_some() {
+            let metadata = &removed.metadata.bonds[index];
+            bond.alkene_geometry = match (metadata.stereo, metadata.stereo_atoms.as_slice()) {
+                (2 | 3, &[u, v]) => Some((
+                    [removed.kept_atoms[u], removed.kept_atoms[v]],
+                    metadata.stereo == 2,
+                )),
+                _ => None,
+            };
+        }
+        projected.add_bond(bond)?;
     }
     projected.legacy_cip = source
         .legacy_cip

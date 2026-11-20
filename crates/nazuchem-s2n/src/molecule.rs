@@ -148,6 +148,8 @@ pub struct Bond {
     pub order: usize,
     pub is_aromatic: bool,
     pub stereo: Option<String>,
+    // One carrier at each end and whether they are on the same side.
+    pub alkene_geometry: Option<([usize; 2], bool)>,
     pub in_small_ring: bool,
 }
 
@@ -162,6 +164,7 @@ impl Bond {
             order,
             is_aromatic: false,
             stereo: None,
+            alkene_geometry: None,
             in_small_ring: false,
         }
     }

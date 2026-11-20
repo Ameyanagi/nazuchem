@@ -139,7 +139,6 @@ fn substituent_locant_string(
     }
     let imino_beside = grouped_count > 1 && parts.substituents.iter().any(|s| s.name == "imino");
     if parts.parent_length == 1
-        && parts.retained_name.as_deref() != Some("guanidine")
         && !imino_beside
         && locs.iter().all(|l| l.chars().all(|c| c.is_ascii_digit()))
         && parts.a_prefixes.is_empty()

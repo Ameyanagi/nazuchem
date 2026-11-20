@@ -1013,7 +1013,10 @@ mod tests {
                 "OC(=O)c1ccc(cc1)CCC(=O)NN",
                 "4-(3-hydrazinyl-3-oxopropyl)benzoic acid",
             ),
-            ("NC(N)=NCCC(=O)NN", "2-(3-hydrazinyl-3-oxopropyl)guanidine"),
+            (
+                "NC(N)=NCCC(=O)NN",
+                "N''-(3-hydrazinyl-3-oxopropyl)guanidine",
+            ),
             (
                 "OC(=O)CC(CC(=O)NN)CC(=O)NN",
                 "5-hydrazinyl-3-(2-hydrazinyl-2-oxoethyl)-5-oxopentanoic acid",

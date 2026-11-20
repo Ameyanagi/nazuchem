@@ -768,10 +768,31 @@ fn is_nitro_n(m: &Molecule, n: usize, parent: usize) -> bool {
             .iter()
             .all(|&x| m.atoms[&x].symbol == "O" && m.degree(x) == 1)
 }
+/// A neutral organosulfonyl group linked to the shared amide nitrogen.
+fn is_organosulfonyl(m: &Molecule, s: usize, n: usize) -> bool {
+    if m.atoms[&s].symbol != "S" || m.atoms[&s].charge != 0 || m.degree(s) != 4 {
+        return false;
+    }
+    let neighbors = m.get_neighbors(s).iter().copied().filter(|&a| a != n);
+    neighbors
+        .clone()
+        .filter(|&a| m.atoms[&a].is_carbon() && m.bond_order(s, a) == 1)
+        .count()
+        == 1
+        && neighbors
+            .filter(|&a| {
+                m.atoms[&a].symbol == "O"
+                    && classify_chalcogen_ligand(m, s, a)
+                        .is_some_and(|l| l.role == LigandRole::DoubleBonded)
+            })
+            .count()
+            == 2
+}
+
 // Provenance: fn urea_ns | adapted
 // Source: openclatura | src/openclatura/perception.py::_urea_nitrogens
 fn urea_ns(m: &Molecule, c: usize, ns: &[usize], cyclic: &AtomSet) -> Option<Vec<usize>> {
-    if cyclic.contains(&c) || ns.len() != 2 || m.degree(c) != 3 {
+    if cyclic.contains(&c) || m.atoms[&c].charge != 0 || ns.len() != 2 || m.degree(c) != 3 {
         return None;
     }
     if ns.iter().any(|&n| {
@@ -779,9 +800,13 @@ fn urea_ns(m: &Molecule, c: usize, ns: &[usize], cyclic: &AtomSet) -> Option<Vec
             || m.atoms[&n].charge != 0
             || m.get_neighbors(n).iter().any(|&x| {
                 x != c
-                    && ((matches!(m.atoms[&x].symbol.as_str(), "N" | "O" | "S")
-                        && !is_nitro_n(m, x, n))
-                        || m.bond_order(n, x) != 1)
+                    && (m.bond_order(n, x) != 1
+                        || match m.atoms[&x].symbol.as_str() {
+                            "N" => !is_nitro_n(m, x, n),
+                            "O" => true,
+                            "S" => !is_organosulfonyl(m, x, n),
+                            _ => false,
+                        })
             })
     }) {
         return None;
@@ -2456,9 +2481,40 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
     }
     groups.extend(hydrazides);
     consumed.extend(claimed);
+    // P-66.1.2 and P-73.1.2.1: each acyl centre on a shared nitrogen stays
+    // a suffix candidate until the senior amide or amidium parent is selected.
+    let mut amide_nitrogens = AtomSet::new();
     for &c in m.atoms.keys() {
         if let Some(g) = central_group(m, c, &consumed, &cyclic) {
-            consumed.extend(g.atoms_without_attachment());
+            // Leave a shared nitrogen available to recognize both acyl
+            // centers before the senior amide takes ownership of it.
+            let shared = g
+                .descriptor
+                .as_ref()
+                .filter(|d| d.derivative == "amide")
+                .and_then(|_| {
+                    g.atoms_involved.iter().copied().find(|&n| {
+                        m.atoms[&n].symbol == "N"
+                            && m.get_neighbors(n).iter().any(|&other| {
+                                m.atoms[&other].is_carbon()
+                                    && acyl_group(m, other, &consumed, &cyclic).is_some_and(
+                                        |groups| {
+                                            groups.iter().any(|g| {
+                                                g.resolved_rule
+                                                    .as_ref()
+                                                    .is_some_and(|r| r.has_capability("urea"))
+                                            })
+                                        },
+                                    )
+                            })
+                    })
+                });
+            consumed.extend(
+                g.atoms_without_attachment()
+                    .into_iter()
+                    .filter(|&atom| Some(atom) != shared),
+            );
+            amide_nitrogens.extend(shared);
             groups.push(g);
         }
     }
@@ -2827,13 +2883,9 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
             consumed.insert(n);
         }
     }
-    // P-66.1.6.1.1.5: a carboxylic amide is senior to urea, so a nitrogen
-    // shared with another acyl centre belongs to that centre, whatever the
-    // atom order: N-carbamoylacetamide, not N-acetylurea.
+    // An amide of a carboxylic, thiocarboxylic or sulfonic acid is senior
+    // to urea (P-66.1.6.1.1.3 and P-66.1.6.1.1.5).
     let mut ureas = Vec::new();
-    // P-66.1.2 and P-73.1.2.1: each acyl centre on a shared nitrogen stays
-    // a suffix candidate until the senior amide or amidium parent is selected.
-    let mut amide_nitrogens = AtomSet::new();
     for (&c, a) in &m.atoms {
         if a.is_carbon()
             && let Some(acyl_groups) = acyl_group(m, c, &consumed, &cyclic)
@@ -2843,7 +2895,7 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                     .as_ref()
                     .is_some_and(|r| r.has_capability("urea"))
             }) {
-                ureas.push(c);
+                ureas.extend(acyl_groups);
                 continue;
             }
             for g in acyl_groups {
@@ -2864,9 +2916,15 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
             }
         }
     }
-    consumed.extend(amide_nitrogens);
-    for c in ureas {
-        for g in acyl_group(m, c, &consumed, &cyclic).into_iter().flatten() {
+    consumed.extend(&amide_nitrogens);
+    for urea in ureas {
+        if !urea.atoms_involved.is_disjoint(&amide_nitrogens) {
+            continue;
+        }
+        for g in acyl_group(m, urea.attachment_carbon, &consumed, &cyclic)
+            .into_iter()
+            .flatten()
+        {
             if g.is_principal_candidate {
                 consumed.extend(g.atoms_without_attachment());
             }

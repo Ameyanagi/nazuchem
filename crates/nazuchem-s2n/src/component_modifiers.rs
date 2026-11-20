@@ -448,6 +448,56 @@ fn nitrogen_rank(
     })
 }
 
+type NitrogenSubstituentRank = ((String, String), Vec<usize>);
+
+fn nitrogen_substituent_ranks(
+    mol: &Molecule,
+    n: usize,
+    carbon: usize,
+    exclude: &AtomSet,
+) -> Result<Vec<NitrogenSubstituentRank>, String> {
+    let status = mol.name_status();
+    let names = (|| {
+        let mut names = Vec::new();
+        let mut blocked = exclude.clone();
+        blocked.insert(n);
+        for &r in mol.get_neighbors(n) {
+            if r != carbon && mol.atoms[&r].symbol != "H" {
+                let name = name_subgraph_rendered(mol, r, &blocked, Some(n), false)?;
+                let name =
+                    super::isotope_naming::citation_name(&name.text, &name.isotope_descriptors);
+                // P-14.5: stereodescriptors, nested ones too, take no
+                // part in alphanumerical order, so each is replaced by
+                // the first of its pair and ranked separately.
+                const PAIRS: &str = "ZERSMPrs";
+                let chars: Vec<_> = name.chars().collect();
+                let mut descriptors = Vec::new();
+                let constitution: String = chars
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &c)| match PAIRS.find(c) {
+                        Some(rank)
+                            if i > 0
+                                && (chars[i - 1] == '(' || chars[i - 1].is_ascii_digit())
+                                && matches!(chars.get(i + 1), Some(',' | ')')) =>
+                        {
+                            descriptors.push(rank);
+                            PAIRS.as_bytes()[rank & !1] as char
+                        }
+                        _ => c,
+                    })
+                    .collect();
+                names.push((substituent_sort_key(&constitution), descriptors));
+            }
+        }
+        names.sort();
+        Ok(names)
+    })();
+    // Provisional branch names rank the nitrogens without changing naming status.
+    mol.set_name_status(status);
+    names
+}
+
 // Provenance: fn n_substituent_locant | adapted
 // Source: openclatura | src/openclatura/component_modifiers.py::n_substituent_locant
 pub fn n_substituent_locant(
@@ -458,6 +508,9 @@ pub fn n_substituent_locant(
     global: usize,
     group_index: usize,
 ) -> String {
+    if key == "guanidine" {
+        return format!("N{}", "'".repeat(n_index));
+    }
     if key == "hydrazine" {
         return if n_index == 0 { "N" } else { "N'" }.into();
     }
@@ -510,42 +563,8 @@ pub fn add_component_n_substituents(
             let carbon = group.attachment_carbon;
             let mut names = Vec::new();
             for &n in &group.atoms_involved {
-                if mol.atoms[&n].symbol != "N" {
-                    continue;
-                }
-                let mut blocked = exclude.clone();
-                blocked.insert(n);
-                for &r in mol.get_neighbors(n) {
-                    if r != carbon && mol.atoms[&r].symbol != "H" {
-                        let name = name_subgraph_rendered(mol, r, &blocked, Some(n), false)?;
-                        let name = super::isotope_naming::citation_name(
-                            &name.text,
-                            &name.isotope_descriptors,
-                        );
-                        // P-14.5: stereodescriptors, nested ones too, take no
-                        // part in alphanumerical order, so each is replaced by
-                        // the first of its pair and ranked separately.
-                        const PAIRS: &str = "ZERSMPrs";
-                        let chars: Vec<_> = name.chars().collect();
-                        let mut descriptors = Vec::new();
-                        let constitution: String = chars
-                            .iter()
-                            .enumerate()
-                            .map(|(i, &c)| match PAIRS.find(c) {
-                                Some(rank)
-                                    if i > 0
-                                        && (chars[i - 1] == '('
-                                            || chars[i - 1].is_ascii_digit())
-                                        && matches!(chars.get(i + 1), Some(',' | ')')) =>
-                                {
-                                    descriptors.push(rank);
-                                    PAIRS.as_bytes()[rank & !1] as char
-                                }
-                                _ => c,
-                            })
-                            .collect();
-                        names.push((substituent_sort_key(&constitution), descriptors));
-                    }
+                if mol.atoms[&n].symbol == "N" {
+                    names.extend(nitrogen_substituent_ranks(mol, n, carbon, exclude)?);
                 }
             }
             names.sort();
@@ -601,7 +620,6 @@ pub fn add_component_n_substituents(
                 mol.atoms[c].is_carbon() && nitrogens.iter().any(|&n| mol.get_bond(*c, n).is_some())
             })
             .unwrap_or(carbon);
-        let mut guanidine = BTreeMap::new();
         if matches!(key, "amidine" | "ring_amidine") {
             nitrogens.sort_by_key(|&n| mol.bond_order(n, core));
         } else if rule.has_capability("hydrazide") {
@@ -612,25 +630,29 @@ pub fn add_component_n_substituents(
                 .unwrap_or(std::slice::from_ref(&core));
             nitrogens.sort_by_key(|&n| !centers.iter().any(|&c| mol.get_bond(n, c).is_some()));
         } else if key == "guanidine" {
-            let imino = nitrogens
-                .iter()
-                .copied()
-                .find(|&n| mol.get_bond(n, core).is_some_and(|b| b.order == 2))
-                .ok_or("openclatura: guanidine imino nitrogen missing")?;
-            let mut amines: Vec<_> = nitrogens.iter().copied().filter(|&n| n != imino).collect();
-            let ranks = amines
-                .iter()
-                .map(|&n| nitrogen_rank(mol, n, core, exclude).map(|r| (n, r)))
-                .collect::<Result<BTreeMap<_, _>, _>>()?;
-            amines.sort_by_key(|n| ranks[n].clone());
-            if amines.len() != 2 {
-                return Err("openclatura: guanidine topology not ported".into());
+            // P-66.4.1.2.1.1 fixes N'' at the imino nitrogen when the
+            // double bond is known. Choose between the two amino nitrogens
+            // by lowest prefix locants, then by citation order (P-14.4).
+            let mut ranked = Vec::with_capacity(3);
+            for n in nitrogens {
+                let order = mol.bond_order(n, core);
+                let ranks = if order == 1 {
+                    nitrogen_substituent_ranks(mol, n, core, exclude)?
+                } else {
+                    Vec::new()
+                };
+                let count = std::cmp::Reverse(ranks.len());
+                let (names, descriptors): (Vec<_>, Vec<_>) = ranks.into_iter().unzip();
+                ranked.push(((order, count, names, descriptors), n));
             }
-            guanidine.extend([
-                (amines[0], "1".into()),
-                (imino, "2".into()),
-                (amines[1], "3".into()),
-            ]);
+            ranked.sort_by(|a, b| a.0.cmp(&b.0));
+            if !matches!(
+                ranked.as_slice(),
+                [((1, ..), _), ((1, ..), _), ((2, ..), _)]
+            ) {
+                return Err("openclatura: invalid guanidine nitrogen topology".into());
+            }
+            nitrogens = ranked.into_iter().map(|(_, n)| n).collect();
         }
         let hydrazone = rule.families.contains("hydrazone");
         for (ni, &n) in nitrogens.iter().enumerate() {
@@ -656,9 +678,7 @@ pub fn add_component_n_substituents(
             } else if distinct_sites && rule.has_capability("hydrazide") && nitrogens.len() == 2 {
                 format!("N{}^{}", "'".repeat(ni), locants[&carbon])
             } else {
-                guanidine.get(&n).cloned().unwrap_or_else(|| {
-                    n_substituent_locant(key, selected.len(), nitrogens.len(), ni, global, gi)
-                })
+                n_substituent_locant(key, selected.len(), nitrogens.len(), ni, global, gi)
             };
             for root in roots {
                 let mut blocked = exclude.clone();

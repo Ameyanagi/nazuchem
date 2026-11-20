@@ -1427,6 +1427,60 @@ mod tests {
     }
 
     #[test]
+    fn issue_128_guanidine_locants_and_shared_urea_nitrogen_round_trip() {
+        use nazuchem_ir::NameStatus;
+
+        for (expected, inputs) in [
+            // P-66.4.1.2.1.1 fixes N'' on the imino nitrogen of a known tautomer.
+            ("N''-methylguanidine", &["CN=C(N)N", "NC(N)=NC"][..]),
+            ("N,N''-dimethylguanidine", &["CNC(=NC)N", "NC(NC)=NC"][..]),
+            ("N,N'-dimethylguanidine", &["CNC(=N)NC", "N=C(NC)NC"][..]),
+            (
+                "N'-ethyl-N,N-dimethylguanidine",
+                &["CCNC(=N)N(C)C", "CN(C)C(NCC)=N"][..],
+            ),
+            (
+                "N,N,N',N'-tetramethyl-N''-phenylguanidine",
+                &["CN(C)C(=Nc1ccccc1)N(C)C", "c1ccccc1N=C(N(C)C)N(C)C"][..],
+            ),
+            // P-66.1.6.1.1.3 and P-66.1.6.1.1.5: the shared nitrogen
+            // belongs to the senior amide and carries a carbamoyl substituent.
+            (
+                "N-carbamoylbenzenesulfonamide",
+                &["NC(=O)NS(=O)(=O)c1ccccc1", "c1ccccc1S(=O)(=O)NC(N)=O"][..],
+            ),
+            (
+                "N-carbamoylethanethioamide",
+                &["NC(=O)NC(=S)C", "CC(=S)NC(N)=O"][..],
+            ),
+            (
+                "N-carbamoylbenzenecarbothioamide",
+                &["NC(=O)NC(=S)c1ccccc1", "c1ccccc1C(=S)NC(N)=O"][..],
+            ),
+            (
+                "N-carbamoylacetamide",
+                &["NC(=O)NC(=O)C", "CC(=O)NC(N)=O"][..],
+            ),
+        ] {
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            let identity = crate::test_support::canonical_smiles(&parsed).unwrap();
+            for &smiles in inputs {
+                let actual = name_smiles(smiles, &Default::default()).unwrap();
+                assert_eq!(
+                    (actual.text.as_str(), actual.status),
+                    (expected, NameStatus::Preferred),
+                    "{smiles}"
+                );
+                assert_eq!(
+                    crate::test_support::canonical_smiles(smiles).unwrap(),
+                    identity,
+                    "{smiles}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn symmetric_azine_ylidene_spelling_keeps_unaudited_status() {
         use nazuchem_ir::{NameReason, NameStatus};
 
