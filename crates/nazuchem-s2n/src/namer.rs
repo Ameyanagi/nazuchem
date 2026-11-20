@@ -410,6 +410,10 @@ fn finalize_subgraph_name(mut name: String, parts: &AssemblyParts) -> String {
         && parts.substituents.is_empty()
         // Thioacyl prefixes name a parent hydride, so they are enclosed (P-16.5.1.4).
         && parts.acyl_infix.is_empty()
+        // A contracted carbamoyl prefix can still carry an N-substituent.
+        // Compound prefixes such as methylcarbamoyl are enclosed (P-16.5.1.1).
+        && !(parts.is_acyl_substituent
+            && name.strip_suffix("carbamoyl").is_some_and(|stem| !stem.is_empty()))
         && parts.attachment_locant == "1"
         && (parts.unsaturations.is_empty()
             || !(is_complex_prefix(&name) || is_composite_prefix(&name)))

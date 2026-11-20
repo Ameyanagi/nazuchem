@@ -1464,6 +1464,15 @@ mod tests {
                 "N-carbamoylacetamide",
                 &["NC(=O)NC(=O)C", "CC(=O)NC(N)=O"][..],
             ),
+            // P-16.5.1.1: carbamoyl with a substituent is a compound prefix.
+            (
+                "N-(methylcarbamoyl)acetamide",
+                &["CNC(=O)NC(=O)C", "CC(=O)NC(=O)NC"][..],
+            ),
+            (
+                "N-(cyclohexylcarbamoyl)acetamide",
+                &["O=C(NC1CCCCC1)NC(=O)C", "CC(=O)NC(=O)NC1CCCCC1"][..],
+            ),
         ] {
             let parsed = crate::test_support::parse_strict(expected).unwrap();
             let identity = crate::test_support::canonical_smiles(&parsed).unwrap();
