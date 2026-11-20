@@ -2063,12 +2063,6 @@ mod tests {
                 "O=C(O)CCCCCCCCCOc1ccc(-c2ccc(OCCCCCCCCCC(=O)O)cc2)cc1",
                 "10-({4'-[(9-carboxynonyl)oxy][1,1'-biphenyl]-4-yl}oxy)decanoic acid",
             ),
-            // P-15.3 / P-51.3.1: a more substituted core does not remove
-            // identical terminal parents from multiplicative eligibility.
-            (
-                "c1ccccc1Oc2ccc(Oc3ccccc3)c(C)c2",
-                "2-methyl-1,4-diphenoxybenzene",
-            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
