@@ -6,6 +6,7 @@
 // Copyright 2017 Daniel Lowe
 // Changes: Validate parsed integer ranges and relative atom offsets before construction.
 // Changes: Chalcogen locants on anhydride acids and peroxide substituents choose the bridge end (issue #26).
+// Changes: Grouped ester modifiers combine acid positions with enclosed chalcogen locants (issue #138).
 
 //! Structure-aware component processing from OPSIN 2.9.0.
 //! Source: `ComponentProcessor.java`, commit b91b610af5ab07560fedb20730d7aef46bb2bca0.
@@ -2047,6 +2048,61 @@ impl<'a> ComponentProcessor<'a> {
         }
         message
     }
+    fn combine_multiplied_ester_locants(arena: &mut Arena, word: NodeId) {
+        // In 1,2-bis(OS-methyl), OS belongs to each acid position. Keep
+        // the combined locants on the outer bracket for word multiplication.
+        let [bracket] = arena[word].children.as_slice() else {
+            return;
+        };
+        let [positions, multiplier, organyl] = arena[*bracket].children.as_slice() else {
+            return;
+        };
+        let (positions, multiplier, organyl) = (*positions, *multiplier, *organyl);
+        let Some(&element) = arena[organyl].children.first() else {
+            return;
+        };
+        if arena[*bracket].name != BRACKET_EL
+            || arena[positions].name != LOCANT_EL
+            || arena[multiplier].name != MULTIPLIER_EL
+            || arena[multiplier].attribute(TYPE_ATR) != Some(GROUP_TYPE_VAL)
+            || !matches!(arena[organyl].name.as_str(), SUBSTITUENT_EL | BRACKET_EL)
+            || arena[element].name != LOCANT_EL
+        {
+            return;
+        }
+        let positions_value = arena.value(positions);
+        let symbol = arena.value(element);
+        if !positions_value
+            .split(',')
+            .all(crate::fragment_tools::is_numeric_locant)
+        {
+            return;
+        }
+        const CHALCOGENS: [&str; 4] = ["O", "S", "Se", "Te"];
+        let single = CHALCOGENS.contains(&symbol.as_str());
+        if !single
+            && !CHALCOGENS.iter().any(|first| {
+                symbol
+                    .strip_prefix(first)
+                    .is_some_and(|second| CHALCOGENS.contains(&second))
+            })
+        {
+            return;
+        }
+        let combined = positions_value
+            .split(',')
+            .map(|position| {
+                if single {
+                    format!("{symbol}{position}")
+                } else {
+                    format!("{position}-{symbol}")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        arena[positions].set_value(combined);
+        arena.detach(element);
+    }
     fn word_level_locants_allowed(
         &self,
         arena: &Arena,
@@ -3693,6 +3749,13 @@ impl ComponentProcessor<'_> {
             self.state.current_word_rule = arena[rule].attribute(WORDRULE_ATR).map(str::to_owned);
             if arena[word].attribute(TYPE_ATR) == Some("functionalTerm") {
                 continue;
+            }
+            if matches!(
+                self.state.current_word_rule.as_deref(),
+                Some("ester" | "multiEster")
+            ) && arena[word].attribute(TYPE_ATR) == Some(SUBSTITUENT_EL)
+            {
+                Self::combine_multiplied_ester_locants(arena, word);
             }
             // P-65.7.4 and P-63.3.2: in "S-acetic O-propanoic thioperoxyanhydride"
             // and "Se-ethyl S-methyl selenothioperoxide" two different chalcogen

@@ -2750,9 +2750,12 @@ impl<'a> ComponentGenerator<'a> {
 pub fn standardize_locant_variants(text: &str) -> String {
     let mut text = text.to_string();
     if text.contains('-') {
-        let pattern = rx(&format!("^(\\d+'*)-({ELEMENT_SYMBOLS}'*)(.*)$"));
+        // The lexer allows a bracketed locant after the complete element
+        // symbol. An unrestricted tail would read "4-Se" as "4-S" plus "e".
+        let pattern = rx(&format!(r"^(\d+'*)-({ELEMENT_SYMBOLS}'*)(-?[\[({{].*)?$"));
         if let Some(c) = pattern.captures(&text) {
-            text = format!("{}{}{}", &c[2], &c[1], &c[3])
+            let tail = c.get(3).map_or("", |m| m.as_str());
+            text = format!("{}{}{tail}", &c[2], &c[1]);
         }
     }
     text = standardize_locant_prime_position(&text);
@@ -3011,6 +3014,21 @@ fn append_ring_locations(smiles: &mut String, locations: &HashMap<usize, Vec<usi
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn numbered_element_locants_consume_the_whole_symbol() {
+        for (input, expected) in [
+            ("4-Se", "Se4"),
+            ("4'-Se", "Se4'"),
+            ("4-Se'", "Se'4"),
+            ("4-Se[2]", "Se4[2]"),
+            ("4'-Te", "Te4'"),
+            ("4-N(2)", "N4(2)"),
+            ("4-S", "S4"),
+        ] {
+            assert_eq!(standardize_locant_variants(input), expected, "{input}");
+        }
+    }
 
     #[test]
     fn name_expansions_reject_extreme_counts_before_allocating() {

@@ -8,7 +8,11 @@
 //! chalcogen esters follow the IUPAC 2013 recommendations and read back as
 //! the structure they were generated from.
 
-use nazuchem::{Budget, name_to_smiles, s2n::canonical_smiles, smiles_to_name};
+use nazuchem::{
+    Budget, name_to_smiles,
+    s2n::{canonical_smiles, verify_identity},
+    smiles_to_name,
+};
 
 #[test]
 fn chalcogen_peroxy_names_follow_the_blue_book_and_round_trip() {
@@ -143,5 +147,45 @@ fn chalcogen_peroxy_names_follow_the_blue_book_and_round_trip() {
             canonical_smiles(smiles, &budget),
             "{smiles} -> {name} -> {parsed}"
         );
+    }
+}
+
+#[test]
+fn position_located_repeated_chalcogen_ester_modifiers_round_trip() {
+    for (smiles, expected) in [
+        (
+            "c1(C(=O)SC)c(C(=O)SC)cc(C(=O)SCC)cc1",
+            "4-S-ethyl 1,2-bis(S-methyl) benzene-1,2,4-tricarbothioate",
+        ),
+        (
+            "c1(C(=O)OSC)c(C(=O)OSC)cc(C(=O)OSCC)cc1",
+            "4-OS-ethyl 1,2-bis(OS-methyl) benzene-1,2,4-tricarbo(thioperoxoate)",
+        ),
+        (
+            "c1(C(=O)[Se]C)c(C(=O)[Se]C)cc(C(=O)[Se]CC)cc1",
+            "4-Se-ethyl 1,2-bis(Se-methyl) benzene-1,2,4-tricarboselenoate",
+        ),
+        (
+            "c1(-c2ccc(C(=O)[Se]CC)cc2)cc(C(=O)[Se]C)c(C(=O)[Se]C)cc1",
+            "4'-Se-ethyl 3,4-bis(Se-methyl) [1,1'-biphenyl]-3,4,4'-tricarboselenoate",
+        ),
+        (
+            "c1(C(=O)[Te]C)c(C(=O)[Te]C)cc(C(=O)[Te]CC)cc1",
+            "4-Te-ethyl 1,2-bis(Te-methyl) benzene-1,2,4-tricarbotelluroate",
+        ),
+        (
+            "c1(-c2ccc(C(=O)[Te]CC)cc2)cc(C(=O)[Te]C)c(C(=O)[Te]C)cc1",
+            "4'-Te-ethyl 3,4-bis(Te-methyl) [1,1'-biphenyl]-3,4,4'-tricarbotelluroate",
+        ),
+        (
+            "c1(-c2ccc(C(=O)SCC)cc2)cc(C(=O)SC)c(C(=O)SC)cc1",
+            "4'-S-ethyl 3,4-bis(S-methyl) [1,1'-biphenyl]-3,4,4'-tricarbothioate",
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap().text;
+        assert_eq!(name, expected, "{smiles}");
+        let parsed = name_to_smiles(&name).unwrap_or_else(|error| panic!("{name}: {error}"));
+        verify_identity(smiles, &parsed, &Budget::default())
+            .unwrap_or_else(|error| panic!("{smiles} -> {name} -> {parsed}: {error}"));
     }
 }

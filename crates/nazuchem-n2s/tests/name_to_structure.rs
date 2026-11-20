@@ -282,6 +282,12 @@ fn multiplied_and_numbered_chalcogen_locants_are_read() {
             "4'-SO-ethyl 4-SO-methyl [1,1'-biphenyl]-4,4'-dicarbo(thioperoxoate)",
             "C1(=CC=C(C=C1)C(=O)SOC)C1=CC=C(C=C1)C(=O)SOCC",
         ),
+        // The repeated modifier uses one pair locant at each position.
+        // The numeric locant inside the organyl group still places chlorine.
+        (
+            "4-OS-ethyl 1,2-bis[SO-(2-chloropropyl)] benzene-1,2,4-tricarbo(thioperoxoate)",
+            "C=1(C(=CC(=CC1)C(=O)OSCC)C(=O)SOCC(C)Cl)C(=O)SOCC(C)Cl",
+        ),
         // P-65.2.1.2 (carbonobis(thioperoxoic) OS,SO-acid): one pair locant
         // for each acid group.
         ("butanebis(thioperoxoic) SO,SO-acid", "C(CCC(=O)SO)(=O)SO"),
@@ -324,6 +330,11 @@ fn multiplied_and_numbered_chalcogen_locants_are_read() {
         "4-OO-ethyl 1-SO-methyl 2-chlorobutanebis(thioperoxoate)",
         "3-S-ethyl 1-S-methyl 2-chlorobutanebis(thioate)",
         "SO,SO-dimethyl butanedioate",
+        "4-S-ethyl 1,3-bis(S-methyl) benzene-1,2,4-tricarbothioate",
+        "4-OS-ethyl 1,1-bis(OS-methyl) benzene-1,2,4-tricarbo(thioperoxoate)",
+        "4-OS-ethyl 1,2-tris(OS-methyl) benzene-1,2,4-tricarbo(thioperoxoate)",
+        "4-OS-ethyl 1,2-bis(S-methyl) benzene-1,2,4-tricarbo(thioperoxoate)",
+        "4-OS-ethyl 1,2-bis(methyl) benzene-1,2,4-tricarbo(thioperoxoate)",
         // A list of acid locants has one for each group.
         "ethane(thioperoxoic) SO,SO-acid",
         "butanebis(thioperoxoic) SO,SO,SO-acid",
