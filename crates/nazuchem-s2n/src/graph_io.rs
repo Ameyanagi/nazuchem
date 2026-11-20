@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs | issue #128
 // Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs | Phase B step 8b
 // Source: openclatura | src/openclatura/graph_io.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/small_ring_stereo.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -227,7 +228,7 @@ pub(crate) fn read_state(
                     .any(|(&u, &v)| (u == bond.a && v == bond.b) || (u == bond.b && v == bond.a))
         });
         let alkene_geometry = if bond.order == 2 && !cumulene_stereo.contains_key(&idx) {
-            alkene_geometry(&legacy, idx)
+            alkene_geometry(&legacy.metadata.bonds[idx])
         } else {
             None
         };
@@ -373,11 +374,14 @@ fn assign_naming_kekule(
     Ok(result)
 }
 
-fn alkene_geometry(state: &perception::State, bond: usize) -> Option<([usize; 2], bool)> {
-    let metadata = state.metadata.bonds.get(bond)?;
+// Provenance: fn alkene_geometry | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs::alkene_geometry
+fn alkene_geometry(metadata: &ranking::BondMetadata) -> Option<([usize; 2], bool)> {
+    // SMILES perception uses Z/E (2/3). Typed IR supplies cis/trans (4/5)
+    // relative to its carrier pair, which need not be the highest CIP pair.
     let same_side = match metadata.stereo {
-        2 => true,
-        3 => false,
+        2 | 4 => true,
+        3 | 5 => false,
         _ => return None,
     };
     Some((metadata.stereo_atoms.as_slice().try_into().ok()?, same_side))
@@ -442,14 +446,10 @@ fn fold_ordinary_hydrogens(
     for (index, &original) in removed.kept_bonds.iter().enumerate() {
         let mut bond = source.bonds[&(original + 1)].clone();
         if bond.alkene_geometry.is_some() {
-            let metadata = &removed.metadata.bonds[index];
-            bond.alkene_geometry = match (metadata.stereo, metadata.stereo_atoms.as_slice()) {
-                (2 | 3, &[u, v]) => Some((
-                    [removed.kept_atoms[u], removed.kept_atoms[v]],
-                    metadata.stereo == 2,
-                )),
-                _ => None,
-            };
+            bond.alkene_geometry =
+                alkene_geometry(&removed.metadata.bonds[index]).map(|(carriers, same_side)| {
+                    (carriers.map(|id| removed.kept_atoms[id]), same_side)
+                });
         }
         projected.add_bond(bond)?;
     }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/amine_oxide_tests.rs | issue #128
 // Source: ReShiki | src/naming/openclatura/amine_oxide_tests.rs | 327d32fed63a5b3df15b7b8dc5ab84a7c36e0865
 // Copyright (c) 2026 lamalab-org
 // Source: openclatura | tests/unit/test_chalcogen_functional_groups.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -652,6 +653,8 @@ fn amine_oxide_nitrones_keep_opposite_double_bond_stereo() {
 }
 
 #[test]
+// Provenance: fn issue_128_equivalent_amine_oxide_sites_preserve_pseudoasymmetry_and_alkene_geometry | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/amine_oxide_tests.rs::issue_128_equivalent_amine_oxide_sites_preserve_pseudoasymmetry_and_alkene_geometry
 fn issue_128_equivalent_amine_oxide_sites_preserve_pseudoasymmetry_and_alkene_geometry() {
     use nazuchem_kernel::smiles;
 
@@ -704,6 +707,8 @@ fn issue_128_equivalent_amine_oxide_sites_preserve_pseudoasymmetry_and_alkene_ge
 }
 
 #[test]
+// Provenance: fn issue_128_distinct_amine_oxide_sites_preserve_pseudoasymmetry_and_alkene_geometry | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/amine_oxide_tests.rs::issue_128_distinct_amine_oxide_sites_preserve_pseudoasymmetry_and_alkene_geometry
 fn issue_128_distinct_amine_oxide_sites_preserve_pseudoasymmetry_and_alkene_geometry() {
     for inputs in [
         [

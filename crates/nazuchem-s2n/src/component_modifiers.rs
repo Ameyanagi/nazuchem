@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_modifiers.rs | eee8777651319d1f6ba243e01f96260140180138
 // Source: openclatura | src/openclatura/component_modifiers.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/component_modifiers.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Copyright (c) 2026 lamalab-org
@@ -455,6 +456,8 @@ fn nitrogen_rank(
 
 type NitrogenSubstituentRank = ((String, String), Vec<usize>);
 
+// Provenance: fn nitrogen_substituent_ranks | adapted
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_modifiers.rs::add_component_n_substituents
 fn nitrogen_substituent_ranks(
     mol: &Molecule,
     n: usize,

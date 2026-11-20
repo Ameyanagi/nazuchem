@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | issue #128
 // Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | amide nitrogen charge follow-up
 // Source: openclatura | src/openclatura/perception.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/chalcogen_roles.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -770,6 +771,8 @@ fn is_nitro_n(m: &Molecule, n: usize, parent: usize) -> bool {
             .all(|&x| m.atoms[&x].symbol == "O" && m.degree(x) == 1)
 }
 /// A neutral organosulfonyl group linked to the shared amide nitrogen.
+// Provenance: fn is_organosulfonyl | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs::is_organosulfonyl
 fn is_organosulfonyl(m: &Molecule, s: usize, n: usize) -> bool {
     if m.atoms[&s].symbol != "S" || m.atoms[&s].charge != 0 || m.degree(s) != 4 {
         return false;

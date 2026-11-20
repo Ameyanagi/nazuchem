@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/locant_elision.rs | issue #128
 // Source: openclatura | src/openclatura/locant_elision.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/locant_elision.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/exploratory/test_parenthesis_functions_direct.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -538,6 +539,8 @@ fn isomorphic<'a>(
     isomorphic_where(g, actual, candidate, budget, &|_| true)
 }
 
+// Provenance: fn isomorphic_where | adapted
+// Source: openclatura | src/openclatura/locant_elision.py::_isomorphic
 fn isomorphic_where<'a>(
     g: &Graph,
     actual: &'a Decoration,
@@ -605,7 +608,7 @@ fn isomorphic_where<'a>(
         &'a Decoration,
         &'a dyn Fn(&[Option<usize>]) -> bool,
     );
-    // Provenance: fn isomorphic::search | adapted
+    // Provenance: fn isomorphic_where::search | adapted
     // Source: openclatura | src/openclatura/locant_elision.py::_isomorphic.search
     fn search(
         graphs: SearchGraphs<'_>,
@@ -861,6 +864,8 @@ fn sites_correspond(
 
 // Compare actual winding and alkene geometry. Source CIP labels alone cannot
 // establish their preservation after removing the oxide used to assign them.
+// Provenance: fn same_stereo_under_mapping | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/locant_elision.rs::same_stereo_under_mapping
 fn same_stereo_under_mapping(
     mol: &super::molecule::Molecule,
     atoms: &super::molecule::AtomSet,
