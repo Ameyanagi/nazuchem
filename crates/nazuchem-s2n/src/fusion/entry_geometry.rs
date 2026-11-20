@@ -391,6 +391,7 @@ fn entry_direction_geometry_uncached(
     let linear = !allow_distorted
         && model.face_adjacency.len() + 1 == cycles.len()
         && linear_face_chain(&neighbors);
+    let adjacent = super::layout::adjacent(model);
     let mut budget = Budget::new(search_budget);
     for straight_only in if linear {
         vec![true, false]
@@ -550,7 +551,7 @@ fn entry_direction_geometry_uncached(
                         .map(|(&f, &(x, y))| (f, (sx * x, sy * y)))
                         .collect::<BTreeMap<_, _>>();
                     let mut score = vec![distortion, -(longest as i64)];
-                    score.extend(opsin_occupied_row_orientation(&oriented));
+                    score.extend(opsin_occupied_row_orientation(&oriented, &adjacent));
                     if best_score.as_ref().is_some_and(|b| &score > b) {
                         continue;
                     }

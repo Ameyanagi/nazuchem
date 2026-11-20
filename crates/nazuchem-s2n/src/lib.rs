@@ -4485,24 +4485,24 @@ mod tests {
         for (smiles, expected) in [
             (
                 "C1NCc2nc3cc(C3)c21",
-                "6,7-dihydro-2,4-methano-5H-pyrrolo[3,4-b]pyridine",
+                "6,7-dihydro-5H-2,4-methanopyrrolo[3,4-b]pyridine",
             ),
             (
                 "C1NCc2nc3cc(CC3)c21",
-                "6,7-dihydro-2,4-ethano-5H-pyrrolo[3,4-b]pyridine",
+                "6,7-dihydro-5H-2,4-ethanopyrrolo[3,4-b]pyridine",
             ),
             (
                 "C1CNCc2c1[nH]c1cc3cc(C3)c12",
-                "1,2,3,4-tetrahydro-7,9-methano-5H-pyrido[4,3-b]indole",
+                "1,2,3,4-tetrahydro-5H-7,9-methanopyrido[4,3-b]indole",
             ),
             (
                 "CN1CCC23C4C1CC5=C2C(=CC=C5)OC3CC=C4",
-                "3-methyl-2,3,4,4a,7,7a-hexahydro-4,12-methano-1H-[1]benzofuro[3,2-e]isoquinoline",
+                "3-methyl-2,3,4,4a,7,7a-hexahydro-1H-4,12-methano[1]benzofuro[3,2-e]isoquinoline",
             ),
             // A bridge on the ring N is not a substituent of the N-H parent.
             (
                 "C1CN3Cc2c1[nH]c1cc(CC3)ccc12",
-                "1,2,3,4-tetrahydro-2,7-ethano-5H-pyrido[4,3-b]indole",
+                "1,2,3,4-tetrahydro-5H-2,7-ethanopyrido[4,3-b]indole",
             ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
@@ -4512,6 +4512,26 @@ mod tests {
         }
     }
 
+    #[test]
+    fn multiplied_oxireno_numbering() {
+        // P-25.3.2.3.3(a): only successively fused rings form a horizontal row.
+        // Three rings in the upper row share an axis but only two are fused.
+        for (smiles, expected) in [
+            (
+                "CCCCCC(=O)O[C@@H]1[C@@]2(C(C)C)O[C@H]2[C@@H]2O[C@]23[C@]12O[C@H]2C[C@H]1C2=C(CC[C@@]13C)C(=O)OC2",
+                "(3bS,4aS,5aR,6R,6aS,7aS,7bS,8aS,8bS)-8b-methyl-1-oxo-6a-(propan-2-yl)-3b,4,4a,6,6a,7a,7b,8b,9,10-decahydro-3H-trisoxireno[2',3':4b,5;2'',3'':6,7;2''',3''':8a,9]phenanthro[1,2-c]furan-6-yl hexanoate",
+            ),
+            (
+                "CC(C)[C@]12O[C@H]1[C@@H]1O[C@]13[C@]1(O[C@H]1C[C@H]1C4=C(C(=O)c5ccccc5)OC(=O)C4CC[C@@]13C)[C@@H]2O",
+                "(3bR,4aS,5aS,6R,6aR,7aS,7bS,8aS,8bS)-3-benzoyl-6-hydroxy-8b-methyl-6a-(propan-2-yl)-4,4a,6,6a,7a,7b,8b,9,10,10a-decahydrotrisoxireno[2',3':4b,5;2'',3'':6,7;2''',3''':8a,9]phenanthro[1,2-c]furan-1(3bH)-one",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected);
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+    }
     #[test]
     fn angular_oxazole_thiazole_acetic_acid_round_trips() {
         let smiles = "O=C(O)Cc1nc2ccc3ocnc3c2s1";

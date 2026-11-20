@@ -1029,8 +1029,6 @@ fn retained_wrapper_parent(
         selected_locant_map: None,
         selected_bond_model: None,
         hydrogenation: retained_parent_name_policy(&first.template.name)
-            // Retained aliases keep their hydro expansion inside the parent citation.
-            .filter(|policy| policy.template_name == policy.preferred_name)
             .and_then(|policy| policy.hydrogenation.clone()),
     };
     parent.validate()?;
@@ -1434,10 +1432,13 @@ fn render_bridge_name(
         || parent.name().to_owned(),
         RetainedHydrogenationPolicy::parent_name,
     );
-    if bridged_indicated.is_some()
-        && !name_indicated_hydrogen_locants(Some(&parent_name)).is_empty()
-        && let Some((_, mancude)) = parent_name.split_once('-')
+    let mut parent_indicated = String::new();
+    if !name_indicated_hydrogen_locants(Some(&parent_name)).is_empty()
+        && let Some((prefix, mancude)) = parent_name.split_once('-')
     {
+        if bridged_indicated.is_none() {
+            parent_indicated = format!("{prefix}-");
+        }
         parent_name = mancude.to_owned();
     }
     // P-31.2.1: dehydro precedes hydro; both precede the bridge prefixes.
@@ -1453,7 +1454,23 @@ fn render_bridge_name(
             multipliers::basic(locants.len())
         );
     }
-    let mut name = String::new();
+    // P-25.7.1.3.3: indicated hydrogen of the bridged system is cited at the
+    // front of the complete name.
+    let mut name = bridged_indicated
+        .filter(|locants| !locants.is_empty())
+        .map_or_else(
+            || parent_indicated,
+            |locants| {
+                format!(
+                    "{}-",
+                    locants
+                        .iter()
+                        .map(|l| format!("{l}H"))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            },
+        );
     for (index, operation) in operations.iter().enumerate() {
         let prefix = if unsaturation.is_empty() {
             operation.prefix.clone()
@@ -1479,21 +1496,7 @@ fn render_bridge_name(
         .map_or(name.clone(), |hydrogenation| {
             hydrogenation.render_with_parent(&name)
         });
-    // P-25.7.1.3.3: indicated hydrogen of the bridged system is cited at the
-    // front of the complete name.
-    let indicated = bridged_indicated
-        .filter(|locants| !locants.is_empty())
-        .map_or_else(String::new, |locants| {
-            format!(
-                "{}-",
-                locants
-                    .iter()
-                    .map(|l| format!("{l}H"))
-                    .collect::<Vec<_>>()
-                    .join(",")
-            )
-        });
-    format!("{dehydro}{indicated}{name}")
+    format!("{dehydro}{name}")
 }
 
 fn perfectly_paired(graph: &FusionGraph) -> Result<bool, String> {
@@ -1542,20 +1545,34 @@ fn fusion_bridgehead_hydrogens(
         .flat_map(|o| [o.endpoint_atom_ids.0, o.endpoint_atom_ids.1])
         .filter(|&atom| parent_degree(mol, parent_atoms, atom) == 3)
         .collect();
-    if bridgeheads.is_empty() || parent.hydrogenation.is_some() {
+    if bridgeheads.is_empty() {
         return Ok(None);
     }
+    let expansion = parent.hydrogenation.as_ref();
     let named = name_indicated_hydrogen_locants(Some(parent.name()));
     let Some(metadata) = parent.hydride.hydride_metadata.as_mut() else {
         return Ok(None);
     };
     let declared: BTreeSet<String> = metadata.default_indicated_h.iter().cloned().collect();
     let mut graph = parent_bond_graph(mol, parent_atoms);
-    // The unbridged parent must be named as its mancude ring system (not as a
-    // hydro derivative such as indane) with exactly its own indicated hydrogen.
+    // A retained hydro derivative includes the intrinsic hydro sites among its
+    // saturated template locants. Check the mancude base's indicated-H quota
+    // while keeping all template sites in the graph coverage check below.
+    if let Some(policy) = expansion
+        && policy
+            .indicated_hydrogen_locants
+            .iter()
+            .chain(&policy.hydro_locants)
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            != declared
+    {
+        return Ok(None);
+    }
     if (!named.is_empty() && named != declared)
-        || metadata.indicated_hydrogen_count
-            + 2 * parent_bond_model(&graph)?.maximum_non_cumulative_double_bonds
+        || expansion.map_or(metadata.indicated_hydrogen_count, |policy| {
+            policy.indicated_hydrogen_locants.len()
+        }) + 2 * parent_bond_model(&graph)?.maximum_non_cumulative_double_bonds
             != parent_pi_capable_atom_ids(&graph)?.len()
     {
         return Ok(None);
@@ -1634,6 +1651,10 @@ fn fusion_bridgehead_hydrogens(
         .cloned()
         .chain(bridgeheads.iter().map(|a| locants[a].clone()))
         .collect();
+    if let Some(policy) = expansion {
+        parent.hydride.parent_name = Some(policy.parent_name());
+        parent.hydrogenation = None;
+    }
     Ok(Some(indicated))
 }
 
@@ -1907,11 +1928,11 @@ mod tests {
         for (smiles, expected) in [
             (
                 "O=C1C2CN1c1ccccc12",
-                "1,3-methano-2,3-dihydro-1H-indol-8-one",
+                "2,3-dihydro-1H-1,3-methanoindol-8-one",
             ),
             (
                 "N=C1C2CN1c1ccccc12",
-                "1,3-methano-2,3-dihydro-1H-indol-8-imine",
+                "2,3-dihydro-1H-1,3-methanoindol-8-imine",
             ),
             (
                 "C12CCC(c3ccccc31)CC=CC=C2",
@@ -1953,7 +1974,7 @@ mod tests {
                 super::super::super::name_smiles(smiles, &Default::default())
                     .unwrap()
                     .text,
-                format!("1,7-epoxy-4H-cyclohepta[c]thiophen-5(6H)-{suffix}")
+                format!("4H-1,7-epoxycyclohepta[c]thiophen-5(6H)-{suffix}")
             );
         }
         assert_eq!(
@@ -2169,7 +2190,7 @@ mod tests {
         );
     }
     #[test]
-    fn fusion_atom_bridgeheads_use_the_bridged_system_hydrogen_state() {
+    fn bridged_fused_parents_use_the_completed_system_hydrogen_state() {
         // #28. P-25.4.3.4.1: the maximum number of noncumulative double bonds
         // is assigned after the bridge is inserted, so a bridge at a fusion
         // atom changes the hydro count and the need for indicated hydrogen.
@@ -2183,6 +2204,15 @@ mod tests {
                 "O1CCCC23CCC(CC12)CC3",
                 "hexahydro-2H,5H-4a,7-ethano-1-benzopyran",
             ),
+            (
+                "O=C1C[C@H]2CC[C@@H]1[C@H]1C(=O)N(c3ccc([N+](=O)[O-])cc3)C(=O)[C@@H]21",
+                "(3aS,4R,7R,7aR)-2-(4-nitrophenyl)hexahydro-1H-4,7-ethanoisoindole-1,3,8(2H)-trione",
+            ),
+            (
+                "CN1CC[C@]23[C@@H]4[C@H]1CC5=C2C(=C(C=C5)O)O[C@H]3[C@H](C=C4)O",
+                "(4R,4aR,7S,7aR,12bS)-3-methyl-2,3,4,4a,7,7a-hexahydro-1H-4,12-methano[1]benzofuro[3,2-e]isoquinoline-7,9-diol",
+            ),
+            ("C1CC23CCC(CC2C1)CC3", "octahydro-3a,6-ethanoindene"),
             ("C1NCC23CCC(CC12)O3", "octahydro-3a,6-epoxyisoindole"),
             (
                 "N1C=CC23CCC(CC12)CC3",
