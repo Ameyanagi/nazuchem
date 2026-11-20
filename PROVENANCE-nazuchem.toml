@@ -5904,6 +5904,7 @@ sources = [
   { project = "ReShiki", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", path = "src/naming/openclatura/perception.rs", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/perception.rs", ref = "issue #94", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/perception.rs", ref = "issue #138", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/perception.rs", ref = "issue #27", license = "MIT OR Apache-2.0" },
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/chains.py", license = "MIT" },
   { project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/molecule.py", license = "MIT" },
   { project = "openclatura", path = "tests/roundtrip/test_polycyclic_descriptors.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },

@@ -8,6 +8,7 @@
 // Source: ReShiki | src/naming/openclatura/perception.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | issue #94
 // Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | issue #138
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | issue #27
 // Source: openclatura | src/openclatura/chains.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/molecule.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_polycyclic_descriptors.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -1705,11 +1706,20 @@ pub(super) fn is_organyl_carbonotrithioate_end(
     center: usize,
     linkage: usize,
 ) -> bool {
-    if !m.atoms[&center].is_carbon() || m.degree(center) != 3 || m.atoms[&linkage].symbol != "S" {
+    if !m.atoms[&center].is_carbon() || m.degree(center) != 3 {
         return false;
     }
-    let Some(double) = terminal_double(m, center, &AtomSet::new()).filter(|l| l.element == "S")
+    let Some(acyl) = classify_chalcogen_ligand(m, center, linkage)
+        .filter(|l| l.element == "S" && l.role == LigandRole::CarbonLink)
+        .and_then(|l| l.attachment_atom)
     else {
+        return false;
+    };
+    let empty = AtomSet::new();
+    if m.bond_order(linkage, acyl) != 1 || terminal_double(m, acyl, &empty).is_none() {
+        return false;
+    }
+    let Some(double) = terminal_double(m, center, &empty).filter(|l| l.element == "S") else {
         return false;
     };
     m.get_neighbors(center)
@@ -1720,8 +1730,7 @@ pub(super) fn is_organyl_carbonotrithioate_end(
         .filter(|l| l.element == "S" && l.role == LigandRole::CarbonLink)
         .is_some_and(|l| {
             l.attachment_atom.is_some_and(|root| {
-                m.bond_order(l.atom, root) == 1
-                    && terminal_double(m, root, &AtomSet::new()).is_none()
+                m.bond_order(l.atom, root) == 1 && terminal_double(m, root, &empty).is_none()
             })
         })
 }

@@ -36,6 +36,33 @@ fn acyl_carbonotrithioate_preserves_the_s_organyl_nitrile() {
 }
 
 #[test]
+fn sulfur_acid_carbonotrithioate_anhydrides_keep_their_acid_citations() {
+    let budget = Budget::default();
+    for (smiles, expected) in [
+        (
+            "CS(=O)(=O)SC(=S)SC#N",
+            "methanesulfonic thiocyanatomethanethioic thioanhydride",
+        ),
+        (
+            "CS(=O)SC(=S)SC#N",
+            "methanesulfinic thiocyanatomethanethioic thioanhydride",
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected);
+        assert_eq!(
+            name.status,
+            NameStatus::Unverified(NameReason::UnauditedParent)
+        );
+        let parsed = name_to_smiles(&name.text).unwrap();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget).unwrap(),
+            canonical_smiles(smiles, &budget).unwrap()
+        );
+    }
+}
+
+#[test]
 fn thio_acid_and_ester_names_follow_the_blue_book_and_round_trip() {
     for (smiles, expected) in [
         // P-16.3.5 (b), P-65.1.5.1 (butanebis(thioic acid)): bis encloses
