@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Origin: original
 // Source: Nazuchem | crates/nazuchem/tests/hydrazine_names.rs | issue #168
+// Source: Nazuchem | crates/nazuchem/tests/hydrazine_names.rs | issue #113
 
 #![cfg(all(feature = "n2s", feature = "s2n"))]
 
@@ -223,5 +224,52 @@ fn the_prefix_of_a_hydrazone_is_hydrazinylidene() {
         ),
     ] {
         check(smiles, expected, NameStatus::NotPreferred(reason));
+    }
+}
+
+#[test]
+fn hydrazine_suffixes_and_hydrazido_prefixes_read_back() {
+    for (smiles, expected) in [
+        // P-66.1.1.3.1.1, P-68.3.1.2.1: give each suffix nitrogen
+        // the locant of its attachment on the hydrazine parent.
+        (
+            "CNC(=O)NNC(=O)NC",
+            "N^1,N^2-dimethylhydrazine-1,2-dicarboxamide",
+        ),
+        ("NN(C(=O)O)C(=O)O", "hydrazine-1,1-dicarboxylic acid"),
+        ("NNC(=O)OOC", "methyl hydrazinecarboperoxoate"),
+        // P-66.3.2.3 and P-68.3.1.2.6 give these preferred prefixes.
+        ("O=C(O)c1ccc(NNC(C)=O)cc1", "4-acetohydrazidobenzoic acid"),
+        (
+            "O=C(O)c1ccc(NNC(=O)c2ccccc2Br)cc1",
+            "4-(2-bromobenzohydrazido)benzoic acid",
+        ),
+        (
+            "O=C(O)c1ccc(NNC(=O)C2CCCCC2)cc1",
+            "4-(cyclohexanecarbohydrazido)benzoic acid",
+        ),
+        (
+            "O=S(=O)(O)c1ccc(NN(CC)C(C)=O)cc1",
+            "4-(N-ethylacetohydrazido)benzene-1-sulfonic acid",
+        ),
+        (
+            "O=C(O)CCNNC(=O)NN",
+            "3-(hydrazinecarbohydrazido)propanoic acid",
+        ),
+        (
+            "NC(=O)CCNNC(=O)NN",
+            "3-(hydrazinecarbohydrazido)propanamide",
+        ),
+        // P-93.4.2.1.3 cites C=N stereo at the hydrazine nitrogen locant.
+        (
+            "c1ccccc1/C=N/NC(N)=O",
+            "(2E)-2-benzylidenehydrazine-1-carboxamide",
+        ),
+        (
+            "c1ccccc1/C=N\\NC(N)=O",
+            "(2Z)-2-benzylidenehydrazine-1-carboxamide",
+        ),
+    ] {
+        check(smiles, expected, NameStatus::Preferred);
     }
 }

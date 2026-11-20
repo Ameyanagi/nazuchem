@@ -40,8 +40,9 @@ dianhydride of three acid words (P-65.7.6.1). A native `simpleGroups.xml` token 
 `cyanohydrazide` with the locants N and N′ (P-66.3.1.2.1, P-66.3.3.1). A native terminal
 `carboxamidium` entry in `suffixes.xml`, `suffixApplicability.xml`, and
 `suffixRules.xml` supports bracketed suffix multipliers such as
-`bis(carboxamidium)` (P-73.1.2.1 and Table 7.4). These additions only add dictionary tokens or a word rule to
-existing token lists, so the DFA tables are unchanged. `native_extensions` in
+`bis(carboxamidium)` (P-73.1.2.1 and Table 7.4). The same suffix resources read `hydrazid-N-ium`
+and `hydrazid-N′-ium` with the charge on the cited nitrogen (P-73.1.2.1).
+These changes use existing token lists and word rules, so the DFA tables are unchanged. `native_extensions` in
 the manifest records these changes.
 
 The development oracle is the main build

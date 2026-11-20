@@ -702,7 +702,10 @@ fn requires_skeletal_replacement(
         component_namer::Derivation::Plan {
             principal_group, ..
         } => principal_group.as_ref().map(|(_, atoms)| atoms),
-        component_namer::Derivation::Shortcut { .. } => None,
+        component_namer::Derivation::Shortcut {
+            principal_group_atoms,
+            ..
+        } => Some(principal_group_atoms),
     };
     let cyclic = chains::get_cyclic_atoms(mol, &molecule::AtomSet::new());
     let skeletal: molecule::AtomSet = mol

@@ -127,12 +127,17 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
                     }) && around.iter().any(|&n| {
                         on_hydrazine(n)
                             && !carbamoyl(c, n)
+                            && !parts.substituents.iter().any(|item| {
+                                item.atom_ids.contains(&c)
+                                    && item.atom_ids.contains(&n)
+                                    && item.name.contains("hydrazinecarbohydrazido")
+                            })
                             && around.iter().any(|&y| {
                                 y != n
                                     && single(c, y)
                                     && !matches!(symbol(y), "C" | "H")
                                     && !(senior
-                                        && linked_hydrazinecarbonyl(mol, c, y).is_some()
+                                        && linked_hydrazinecarbonyl(mol, c, y, "C").is_some()
                                         && parts.substituents.iter().any(|item| {
                                             item.atom_ids.contains(&c)
                                                 && item.atom_ids.contains(&y)
@@ -1500,18 +1505,6 @@ mod tests {
         // it leaves to this assembler keeps its fallback name, which is not
         // preferred.
         for (smiles, expected) in [
-            // N^1,N^2-dimethylhydrazine-1,2-dicarboxamide (P-66.1.1.3.1.1)
-            (
-                "CNC(=O)NNC(=O)NC",
-                "N-methyl-1-[2-(methylcarbamoyl)hydrazin-1-yl]formamide",
-            ),
-            // hydrazine-1,1-dicarboxylic acid
-            (
-                "NN(C(=O)O)C(=O)O",
-                "1-hydroxy-N-(hydroxycarbonyl)formohydrazide",
-            ),
-            // methyl hydrazinecarboperoxoate (P-65.1.4.1)
-            ("NNC(=O)OOC", "1-(methylperoxy)formohydrazide"),
             // The parent is right and the hydrazinyl prefix is numbered
             // (P-68.3.1.2.1), but the Blue Book shows no acid or ester
             // prefix on it. The acyl prefix is enclosed (P-16.5.1.1).
@@ -1546,11 +1539,6 @@ mod tests {
                 "OS(=O)(=O)CCNNC(=O)O",
                 "2-[2-(hydroxycarbonyl)hydrazin-1-yl]ethane-1-sulfonic acid",
             ),
-            // 3-(hydrazinecarbohydrazido)propanamide (P-68.3.1.2.6)
-            (
-                "NC(=O)CCNNC(=O)NN",
-                "3-[2-(hydrazinylcarbonyl)hydrazin-1-yl]propanamide",
-            ),
             // P-68.3.1.2.5: carbamoylhydrazinylidene is the preferred prefix;
             // the label is not decided here.
             (
@@ -1566,17 +1554,6 @@ mod tests {
                 "{smiles}"
             );
         }
-        // A semicarbazone with a configured C=N bond (P-68.3.1.2.5): no Blue
-        // Book example places the descriptor, so the amino form is kept.
-        let name = super::super::name_smiles("c1ccccc1/C=N/NC(N)=O", &Default::default()).unwrap();
-        assert_eq!(
-            name.text,
-            "1-({[(E)-phenylmethylidene]amino}amino)formamide"
-        );
-        assert_eq!(
-            name.status,
-            NameStatus::NotPreferred(NameReason::AminoPrefix)
-        );
         // Ordinary acylhydrazides stay preferred, and a nitroso nitrogen is
         // not a hydrazine nitrogen (P-61.5.2). Under a class senior to amides
         // H2N-CO-NH-NH- is the preferred prefix 2-carbamoylhydrazin-1-yl

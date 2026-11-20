@@ -258,6 +258,7 @@ mod tests {
             ("CCN=C=S", "isothiocyanatoethane"),
             ("CNNC(C)=O", "N'-methylacetohydrazide"),
             ("[NH-]C(=O)C", "acetylazanide"),
+            ("CN[N-]C(C)=O", "1-acetyl-2-methylhydrazin-1-ide"),
         ] {
             let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
             let result = [
@@ -270,7 +271,7 @@ mod tests {
             let parsed = crate::test_support::parse_strict(expected).unwrap();
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
         }
-        for smiles in ["CN[N-]C(C)=O", "CCN=C=[SH+]", "C[NH+](C)N=C=[SH+]"] {
+        for smiles in ["CCN=C=[SH+]", "C[NH+](C)N=C=[SH+]"] {
             let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
             assert!(name_smiles(smiles, &budget).is_err(), "{smiles}");
             assert!(

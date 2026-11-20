@@ -173,6 +173,14 @@ sense of this -->
 		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
 		<addgroup SMILES="[*](=O)NN" labels="//1'/2'"/>
 	</rule>
+	<rule value="hydrazid_N_ium">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[NH2+]N" labels="//N/N'"/>
+	</rule>
+	<rule value="hydrazid_N_prime_ium">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)N[NH3+]" labels="//N/N'"/>
+	</rule>
 	<rule value="hydrazido">
 		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
 		<addgroup SMILES="[*](=O)NN" labels="//1'/2'" outIDs="4"/>

@@ -1083,6 +1083,75 @@ fn hydrazinyl_prefix(
     let mut cited: Vec<(String, &str)> = Vec::new();
     let mut ylidene = false;
     let beyond = subgraph_neighbors(mol, far, &blocked, None);
+    if !double
+        && !mol.is_isotope_parent()
+        && ![start, far].iter().any(|n| mol.atoms[n].has_stereo())
+    {
+        // P-68.3.1.2.6: the unsubstituted carbazide prefix, with the
+        // attachment on a terminal nitrogen of either hydrazine unit.
+        if let [carbon] = beyond[..]
+            && roots == [far]
+            && super::component_group_rules::linked_hydrazinecarbonyl(mol, carbon, far, "N")
+                .is_some()
+        {
+            return Ok(Some("(hydrazinecarbohydrazido)".into()));
+        }
+        // P-66.3.2.3: R-CO-NH-NH- is the hydrazido prefix. The group
+        // R-CO-N(NH2)- still takes the numbered hydrazinyl form.
+        let acyls: Vec<_> = beyond
+            .iter()
+            .copied()
+            .filter(|&root| {
+                mol.atoms[&root].is_carbon()
+                    && mol.bond_order(far, root) == 1
+                    && mol
+                        .get_neighbors(root)
+                        .iter()
+                        .any(|&x| mol.bond_order(root, x) == 2 && mol.atoms[&x].symbol == "O")
+                    && mol.get_neighbors(root).iter().all(|&x| {
+                        x == far
+                            || matches!(mol.atoms[&x].symbol.as_str(), "C" | "H")
+                            || mol.atoms[&x].symbol == "O" && mol.bond_order(root, x) == 2
+                    })
+            })
+            .collect();
+        if let [acyl] = acyls[..]
+            && let Some(stem) = super::special_cases::hydrazide_stem_from_acyl(mol, acyl, &blocked)?
+        {
+            let mut prefixes = Vec::new();
+            for (locant, n, neighbors) in [("N", far, &beyond[..]), ("N'", start, roots)] {
+                for &root in neighbors {
+                    if root == acyl || root == far {
+                        continue;
+                    }
+                    // Keep diacyl branches on the existing fallback until
+                    // the senior hydrazide can be selected.
+                    if mol.bond_order(n, root) != 1
+                        || !mol.atoms[&root].is_carbon()
+                        || mol
+                            .get_neighbors(root)
+                            .iter()
+                            .any(|&x| mol.bond_order(root, x) == 2 && mol.atoms[&x].symbol == "O")
+                    {
+                        return Ok(None);
+                    }
+                    let name = name_subgraph_with_upstream(mol, root, &blocked, Some(n))?;
+                    prefixes.push((name, locant));
+                }
+            }
+            let prefix = super::special_cases::format_locanted_ligands(prefixes, false);
+            let rendered = format!("{prefix}{stem}o");
+            // P-16.5.1.4: a carbohydrazido group includes a parent
+            // hydride name, as in cyclohexanecarbohydrazido.
+            return Ok(Some(
+                if prefix.is_empty() && !stem.contains('-') && !stem.ends_with("carbohydrazid") {
+                    rendered
+                } else {
+                    format!("({rendered})")
+                },
+            ));
+        }
+    }
     for (locant, n, around) in [("1", start, roots), ("2", far, &beyond[..])] {
         for &root in around.iter().filter(|&&root| root != far) {
             let bond = mol

@@ -287,6 +287,7 @@ pub(super) fn linked_hydrazinecarbonyl(
     mol: &Molecule,
     center: usize,
     linker: usize,
+    parent_element: &str,
 ) -> Option<[usize; 4]> {
     let linker_hydrogens = match mol.atoms[&linker].symbol.as_str() {
         "O" => 0,
@@ -299,7 +300,7 @@ pub(super) fn linked_hydrazinecarbonyl(
         || mol.degree(linker) != 2
         || !mol.get_neighbors(linker).iter().any(|&parent| {
             parent != center
-                && mol.atoms[&parent].is_carbon()
+                && mol.atoms[&parent].symbol == parent_element
                 && mol.bond_order(linker, parent) == 1
         })
     {

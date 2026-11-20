@@ -458,6 +458,8 @@ fn amide_nitrogen_anions_are_azanides() {
         ("[N-](C(=O)C)C(=O)C", "diacetylazanide", true),
         ("[NH-]C(=S)C", "(ethanethioyl)azanide", true),
         ("[Na+].[NH-]C(=O)C", "sodium acetylazanide", true),
+        // P-72.2.2.2.4: the N–N parent is retained in hydrazide anions.
+        ("[N-](N)C(=O)C", "1-acetylhydrazin-1-ide", true),
         // A ligand with its own characteristic group is not audited.
         ("[NH-]C(=O)CCO", "(3-hydroxypropanoyl)azanide", false),
         ("[NH-]C(=O)OC", "(methoxycarbonyl)azanide", false),
@@ -486,12 +488,8 @@ fn amide_nitrogen_anions_are_azanides() {
             "{smiles} -> {expected} -> {parsed}"
         );
     }
-    // A neutral amide suffix would drop the charge beside a nitro group,
-    // and a hydrazide keeps its hydrazine parent (P-72.2.2.2.4,
-    // acetylhydrazine-1,1-diide).
-    for smiles in ["[NH-]C(=O)c1ccc(cc1)[N+](=O)[O-]", "[N-](N)C(=O)C"] {
-        assert!(smiles_to_name(smiles).is_err(), "{smiles}");
-    }
+    // A neutral amide suffix would drop the charge beside a nitro group.
+    assert!(smiles_to_name("[NH-]C(=O)c1ccc(cc1)[N+](=O)[O-]").is_err());
 }
 
 #[test]

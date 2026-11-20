@@ -124,7 +124,7 @@ fn direct_subgraph_prefix(
     // possible hydrazine parent. P-66.3.2.1 and P-66.3.5.2 cite its acyl
     // fragment as (hydrazinecarbonyl) when reached through the linker.
     if let Some(linker) = upstream
-        && let Some(atoms) = linked_hydrazinecarbonyl(mol, start, linker)
+        && let Some(atoms) = linked_hydrazinecarbonyl(mol, start, linker, "C")
         && atoms.iter().all(|id| component.contains(id))
     {
         return Ok(Some("(hydrazinecarbonyl)".into()));

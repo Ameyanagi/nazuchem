@@ -453,7 +453,7 @@ type NitrogenSubstituentRank = ((String, String), Vec<usize>);
 fn nitrogen_substituent_ranks(
     mol: &Molecule,
     n: usize,
-    carbon: usize,
+    is_principal_atom: impl Fn(usize) -> bool,
     exclude: &AtomSet,
 ) -> Result<Vec<NitrogenSubstituentRank>, String> {
     let status = mol.name_status();
@@ -462,7 +462,7 @@ fn nitrogen_substituent_ranks(
         let mut blocked = exclude.clone();
         blocked.insert(n);
         for &r in mol.get_neighbors(n) {
-            if r != carbon && mol.atoms[&r].symbol != "H" {
+            if !is_principal_atom(r) && mol.atoms[&r].symbol != "H" {
                 let name = name_subgraph_rendered(mol, r, &blocked, Some(n), false)?;
                 let name =
                     super::isotope_naming::citation_name(&name.text, &name.isotope_descriptors);
@@ -556,7 +556,19 @@ pub fn add_component_n_substituents(
     // to the Z, R, M or r one where only stereodescriptors differ
     // (P-14.3.5, P-14.4 (f), (g), (j)).
     let polyamine = key == "amine" && selected.len() > 1;
-    if polyamine {
+    let polyhydrazide = selected.len() > 1
+        && selected.iter().all(|g| {
+            g.resolved_rule
+                .as_ref()
+                .is_some_and(|rule| rule.has_capability("hydrazide"))
+        });
+    let geminal_hydrazides = polyhydrazide
+        && selected
+            .windows(2)
+            .any(|pair| pair[0].attachment_carbon == pair[1].attachment_carbon);
+    // Geminal carboximidohydrazides use four distinct prime counts at
+    // the same superscripted parent locant (P-66.4.2.1, P-16.9.3).
+    if polyamine || geminal_hydrazides {
         let status = mol.name_status();
         let mut ranked = Vec::with_capacity(selected.len());
         for group in selected {
@@ -564,7 +576,12 @@ pub fn add_component_n_substituents(
             let mut names = Vec::new();
             for &n in &group.atoms_involved {
                 if mol.atoms[&n].symbol == "N" {
-                    names.extend(nitrogen_substituent_ranks(mol, n, carbon, exclude)?);
+                    names.extend(nitrogen_substituent_ranks(
+                        mol,
+                        n,
+                        |r| r == carbon || group.atoms_involved.contains(&r),
+                        exclude,
+                    )?);
                 }
             }
             names.sort();
@@ -582,16 +599,6 @@ pub fn add_component_n_substituents(
         ranked.sort_by(|a, b| a.0.cmp(&b.0));
         selected = ranked.into_iter().map(|(_, group)| group).collect();
     }
-    // Two or more hydrazide groups cite the parent locant as a superscript
-    // on N and N', N^1, N'^4 (P-66.3.1.1, P-66.3.3.2). Geminal groups, which
-    // share a parent locant, keep the plain primed series.
-    let distinct_sites = selected.len() > 1
-        && selected
-            .iter()
-            .map(|group| group.attachment_carbon)
-            .collect::<AtomSet>()
-            .len()
-            == selected.len();
     let mut global = 0;
     for (gi, group) in selected.iter().enumerate() {
         let carbon = group.attachment_carbon;
@@ -637,7 +644,7 @@ pub fn add_component_n_substituents(
             for n in nitrogens {
                 let order = mol.bond_order(n, core);
                 let ranks = if order == 1 {
-                    nitrogen_substituent_ranks(mol, n, core, exclude)?
+                    nitrogen_substituent_ranks(mol, n, |r| r == core, exclude)?
                 } else {
                     Vec::new()
                 };
@@ -675,8 +682,16 @@ pub fn add_component_n_substituents(
                     .filter(|g| g.attachment_carbon == carbon)
                     .count();
                 format!("N{}^{}", "'".repeat(primes), locants[&carbon])
-            } else if distinct_sites && rule.has_capability("hydrazide") && nitrogens.len() == 2 {
-                format!("N{}^{}", "'".repeat(ni), locants[&carbon])
+            } else if polyhydrazide && nitrogens.len() == 2 {
+                let earlier_at_site = selected[..gi]
+                    .iter()
+                    .filter(|g| g.attachment_carbon == carbon)
+                    .count();
+                format!(
+                    "N{}^{}",
+                    "'".repeat(2 * earlier_at_site + ni),
+                    locants[&carbon]
+                )
             } else {
                 n_substituent_locant(key, selected.len(), nitrogens.len(), ni, global, gi)
             };

@@ -119,6 +119,9 @@ al is allowed on standardGroup/aminoAcids but not on acidStems c.f. acetal != ac
 		<token value="amidrazone">amidrazone|amidrazon</token>
 		<token value="amidylium">amidylium</token>
 		<token value="ate">ate|at</token>
+		<!-- P-73.1.2.1: protonation of the proximal or distal hydrazide nitrogen. -->
+		<token value="hydrazid_N_ium">hydrazid-n-ium</token>
+		<token value="hydrazid_N_prime_ium">hydrazid-n'-ium</token>
 		<token value="hydrazide">hydrazide|hydrazid</token>
 		<token value="hydroxamic">hydroxamic|hydroxamicacid|hydroxamic acid</token>
 		<token value="hydroxamate">hydroxamate|hydroxamat</token>

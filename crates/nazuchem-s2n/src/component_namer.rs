@@ -67,6 +67,7 @@ pub(super) enum Derivation {
     Shortcut {
         component_splits: BTreeSet<Edge>,
         certified: bool,
+        principal_group_atoms: AtomSet,
     },
 }
 
@@ -146,6 +147,7 @@ fn name_component_with_locant_policy(
             derivation: Derivation::Shortcut {
                 component_splits: name.component_splits,
                 certified: name.certified,
+                principal_group_atoms: name.principal_group_atoms,
             },
         }),
         ComponentResult::Plan(mut plan, parent_atoms, component_splits) => {
@@ -219,6 +221,7 @@ pub(super) fn name_component_with_atom_locants(
             derivation: Derivation::Shortcut {
                 component_splits: name.component_splits,
                 certified: name.certified,
+                principal_group_atoms: name.principal_group_atoms,
             },
         }),
         ComponentResult::Plan(mut plan, parent_atoms, component_splits) => {
