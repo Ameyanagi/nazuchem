@@ -379,7 +379,7 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
         if parts.is_substituent
             && parts.parent_length == 1
             && count == 1
-            && grouped.len() == 1
+            && group_count == 1
             && loc.is_empty()
             && matches!(
                 used.as_str(),
