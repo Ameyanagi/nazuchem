@@ -98,8 +98,12 @@ pub(super) fn name_radical(mol: &Molecule) -> Result<Option<Name>, String> {
                         mol.degree(center.idx) + center.total_h_count + 1 == e.standard_valence + 2
                     }) =>
             {
+                // A virtual attachment would let a standalone hydride radical
+                // use a lambda prefix that the strict parser reads only on a parent.
+                if mol.degree(center.idx) == 0 {
+                    return Err(unsupported());
+                }
                 let name = substituent_radical(mol, center.idx, 1)?;
-                // The unsubstituted hydride radical is rendered without its lambda.
                 if !name.contains("lambda") {
                     return Err(unsupported());
                 }

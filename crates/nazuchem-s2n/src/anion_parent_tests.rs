@@ -286,6 +286,12 @@ fn anion_parent_choice_matrix() {
             NameStatus::Preferred,
         ),
         (
+            "nonroot terminal chain carbanion",
+            "[O-]C(=O)c1cc(C(=O)[O-])ccc1CC[CH2-]",
+            "4-(propan-3-id-1-yl)benzene-1,3-dicarboxylate",
+            NameStatus::Preferred,
+        ),
+        (
             "control two cited anions (B23)",
             "[O-]C(=O)c1ccccc1-c1[n-]cc(C(=O)[O-])c1",
             "5-(2-carboxylatophenyl)-1H-pyrrol-1-ide-3-carboxylate",
@@ -330,17 +336,6 @@ fn anion_parent_choice_matrix() {
         if let Err(error) = crate::test_support::verify_identity(smiles, &round_trip) {
             failures.push(format!("{row}: {} -> {round_trip}: {error}", actual.text));
         }
-    }
-    // Nonroot chain carbanions remain unsupported: decline before assembly
-    // can miscite the charged atom as the substituent's free valence.
-    let smiles = "[O-]C(=O)c1cc(C(=O)[O-])ccc1CC[CH2-]";
-    let result = crate::test_support::canonical_smiles(smiles)
-        .and_then(|canonical| super::name_smiles(&canonical, &Default::default()));
-    match result {
-        Err(error)
-            if error.starts_with("openclatura: anionic C parent atom ")
-                && error.ends_with(" has no supported charge citation") => {}
-        result => failures.push(format!("nonroot chain carbanion: {smiles}: {result:?}")),
     }
     // Several skeletal anions with a skeletal cation remain outside the
     // supported parent-anion scope after the P-74.1.1 spelling correction.
