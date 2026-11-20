@@ -19,7 +19,7 @@ use super::{
     molecule::{AtomSet, Molecule, bond_ids_within},
     nomenclature::RULES,
     perception::{PerceivedGroup, is_anionic_group_key, perceive_groups},
-    ring_assembly::cyclic_units,
+    ring_assembly::{candidate_ring_assemblies, cyclic_units},
 };
 use std::collections::BTreeMap;
 
@@ -271,7 +271,7 @@ fn parent_anionic_centres<'a>(
 ) -> Result<BTreeMap<&'a str, AnionicScore>, String> {
     // Fused and spiro rings can share a parent. A bond joining two ring
     // units does not belong to either unit.
-    let rings = cyclic_units(mol);
+    let mut rings = cyclic_units(mol);
     let cyclic: AtomSet = rings.iter().flatten().copied().collect();
     let mut classes: BTreeMap<&str, Vec<&PerceivedGroup>> = BTreeMap::new();
     for &group in groups
@@ -281,15 +281,43 @@ fn parent_anionic_centres<'a>(
         classes.entry(&group.key).or_default().push(group);
     }
 
+    if classes
+        .values()
+        .flatten()
+        .any(|g| cyclic.contains(&g.attachment_carbon))
+    {
+        rings.extend(
+            candidate_ring_assemblies(mol, &rings)?
+                .into_iter()
+                .map(|assembly| assembly.locant_maps[0].keys().copied().collect()),
+        );
+    }
+
+    let has_skeletal_chain_anion = mol
+        .atoms
+        .iter()
+        .any(|(id, atom)| atom.is_carbon() && atom.charge < 0 && !cyclic.contains(id));
+    // A class with one acyclic attachment and no skeletal chain anions
+    // has the same score on every path containing that attachment.
+    let needs_path_score =
+        |sites: &AtomSet| sites.len() > 1 || has_skeletal_chain_anion && !sites.is_empty();
+    let chain_sites = classes
+        .iter()
+        .map(|(&key, groups)| {
+            let sites: AtomSet = groups
+                .iter()
+                .map(|g| g.attachment_carbon)
+                .filter(|id| !cyclic.contains(id))
+                .collect();
+            (key, sites)
+        })
+        .collect::<BTreeMap<_, _>>();
+
     // Removing cyclic and non-carbon atoms leaves a forest. Number the
     // vertices so every child comes after its parent.
     let mut forest = Vec::new();
     let mut seen = AtomSet::new();
-    if classes
-        .values()
-        .flatten()
-        .any(|g| !cyclic.contains(&g.attachment_carbon))
-    {
+    if chain_sites.values().any(needs_path_score) {
         for (&root, atom) in &mol.atoms {
             if !atom.is_carbon() || cyclic.contains(&root) || seen.contains(&root) {
                 continue;
@@ -309,14 +337,24 @@ fn parent_anionic_centres<'a>(
 
     let mut scores = BTreeMap::new();
     for (key, groups) in classes {
-        mol.spend_naming_work(forest.len() + cyclic.len())?;
+        let sites = &chain_sites[key];
+        let needs_path = needs_path_score(sites);
+        mol.spend_naming_work(if needs_path {
+            forest.len()
+        } else {
+            sites.len()
+        })?;
         let ring_score = rings
             .iter()
             .filter(|ring| groups.iter().any(|g| ring.contains(&g.attachment_carbon)))
             .map(|ring| score_suffix(mol, ring, &groups, key))
             .max()
             .unwrap_or_default();
-        let chain_score = score_anionic_chains(mol, &forest, &groups, key);
+        let chain_score = if needs_path {
+            score_anionic_chains(mol, &forest, &groups, key)
+        } else {
+            score_suffix(mol, sites, &groups, key)
+        };
         scores.insert(key, ring_score.max(chain_score));
     }
     Ok(scores)
@@ -406,7 +444,7 @@ pub fn component_principal_key(
     groups: &[PerceivedGroup],
     is_substituent: bool,
 ) -> Option<String> {
-    principal_key(mol, groups, is_substituent, None)
+    principal_key(mol, groups, is_substituent, AnionicParentScope::Component)
 }
 
 /// The characteristic suffix is chosen from the groups still available on
@@ -419,7 +457,26 @@ pub(super) fn principal_key_on_parent(
     is_substituent: bool,
     parent: &AtomSet,
 ) -> Option<String> {
-    principal_key(mol, groups, is_substituent, Some(parent))
+    principal_key(
+        mol,
+        groups,
+        is_substituent,
+        AnionicParentScope::Selected(parent),
+    )
+}
+
+/// Anion parent scores only order anions. Fusion numbering can ask whether
+/// ketone is the principal suffix while ring candidates are being found.
+// Provenance: fn ketone_is_principal | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::ketone_is_principal
+pub(super) fn ketone_is_principal(mol: &Molecule, groups: &[PerceivedGroup]) -> bool {
+    principal_key(mol, groups, false, AnionicParentScope::Ignore).as_deref() == Some("ketone")
+}
+
+enum AnionicParentScope<'a> {
+    Component,
+    Selected(&'a AtomSet),
+    Ignore,
 }
 
 // Provenance: fn principal_key | adapted
@@ -428,7 +485,7 @@ fn principal_key(
     mol: &Molecule,
     groups: &[PerceivedGroup],
     is_substituent: bool,
-    parent: Option<&AtomSet>,
+    scope: AnionicParentScope<'_>,
 ) -> Option<String> {
     if is_substituent {
         return None;
@@ -449,19 +506,19 @@ fn principal_key(
     let competing_anionic_classes = anionic_groups
         .first()
         .is_some_and(|first| anionic_groups.iter().any(|g| g.key != first.key));
-    let anionic_scores = if !competing_anionic_classes {
-        BTreeMap::new()
-    } else if let Some(parent) = parent {
-        anionic_groups
+    let anionic_scores = match scope {
+        AnionicParentScope::Component if competing_anionic_classes => {
+            // The callers check the shared naming budget before using the key.
+            parent_anionic_centres(mol, &anionic_groups).ok()?
+        }
+        AnionicParentScope::Selected(parent) if competing_anionic_classes => anionic_groups
             .iter()
             .map(|g| g.key.as_str())
             .collect::<std::collections::BTreeSet<_>>()
             .into_iter()
             .map(|key| (key, score_suffix(mol, parent, &anionic_groups, key)))
-            .collect()
-    } else {
-        // The callers check the shared naming budget before using the key.
-        parent_anionic_centres(mol, &anionic_groups).ok()?
+            .collect(),
+        _ => BTreeMap::new(),
     };
     let effective = |group: &PerceivedGroup, seniority: &[i64]| {
         let mut best = seniority.to_vec();

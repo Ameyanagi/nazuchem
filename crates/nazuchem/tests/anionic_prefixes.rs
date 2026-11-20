@@ -330,6 +330,19 @@ fn anionic_parent_counts_centres_on_one_ring_system_or_chain() {
             "[2-oxido-5-(3-oxidocyclopentyl)phenyl]acetate",
             -3,
         ),
+        // Identical linked ring units form an assembly (P-28). The two
+        // carboxylates on that parent tie the side-chain olates, so
+        // the carboxylates win under P-72.7(e).
+        (
+            "[O-]C(=O)c1ccc(-c2ccc(C(=O)[O-])cc2)cc1CC([O-])C([O-])C",
+            "3-(2,3-dioxidobutyl)[1,1'-biphenyl]-4,4'-dicarboxylate",
+            -4,
+        ),
+        (
+            "[O-]C(=O)C1CCC(C2CCC(C(=O)[O-])CC2)CC1CC([O-])C([O-])C",
+            "3-(2,3-dioxidobutyl)[1,1'-bi(cyclohexane)]-4,4'-dicarboxylate",
+            -4,
+        ),
         // The chain has three centres including its skeletal charges, so
         // it wins under P-72.7(a). P-72.5.3 gives -ide the lowest locants.
         (
@@ -400,6 +413,35 @@ fn anionic_parent_counts_centres_on_one_ring_system_or_chain() {
             "{smiles}"
         );
     }
+}
+
+#[test]
+fn one_anionic_group_on_a_chain_stays_nameable_near_the_budget_limit() {
+    let smiles = |n| format!("[O-]C1CC([O-])CC1{}C(=O)[O-]", "C".repeat(n));
+    let input = smiles(498);
+    let name = smiles_to_name(&input).unwrap();
+    assert_eq!(
+        name.text,
+        "4-(498-carboxylatooctanonacontatetractyl)cyclopentane-1,3-bis(olate)"
+    );
+    assert_eq!(name.status, NameStatus::Unverified(NameReason::AnionParent));
+    let parsed = name_to_smiles(&name.text).unwrap();
+    let budget = Budget::default();
+    assert_eq!(
+        canonical_smiles(&parsed, &budget).unwrap(),
+        canonical_smiles(&input, &budget).unwrap()
+    );
+    let molecule = name_to_molecule(&name.text).unwrap();
+    assert_eq!(
+        molecule
+            .atoms
+            .iter()
+            .map(|a| i32::from(a.charge))
+            .sum::<i32>(),
+        -3
+    );
+    let err = smiles_to_name(&smiles(500)).unwrap_err();
+    assert!(err.to_string().contains("naming complexity limit exceeded"));
 }
 
 #[test]

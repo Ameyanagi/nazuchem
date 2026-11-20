@@ -1341,8 +1341,7 @@ fn is_fused_ring_derivative(mol: &Molecule, faces: &[&Face]) -> bool {
     let ketone_suffix = || {
         *ketone_suffix.get_or_init(|| {
             let groups = crate::perception::perceive_groups(mol);
-            crate::principal_groups::component_principal_key(mol, &groups, false).as_deref()
-                == Some("ketone")
+            crate::principal_groups::ketone_is_principal(mol, &groups)
         })
     };
     atoms.iter().any(|&a| {

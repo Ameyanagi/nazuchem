@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
 // Source: ReShiki | src/naming/openclatura/ring_assembly.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
+// Source: Nazuchem | crates/nazuchem-s2n/src/ring_assembly.rs | issue #180
 // Copyright (c) 2026 lamalab-org
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
@@ -666,6 +667,40 @@ pub(super) fn discover_ring_assemblies(
 ) -> Vec<RingAssembly> {
     let atoms = cyclic_units(mol);
     let edges = identical_junctions(mol, &atoms);
+    discover_assemblies_from_units(mol, systems, &atoms, &edges)
+}
+
+/// Discover assemblies before characteristic suffixes prune parent candidates.
+// Provenance: fn candidate_ring_assemblies | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/ring_assembly.rs::candidate_ring_assemblies
+pub(super) fn candidate_ring_assemblies(
+    mol: &Molecule,
+    units: &[AtomSet],
+) -> Result<Vec<RingAssembly>, String> {
+    if units.len() < 2 {
+        return Ok(Vec::new());
+    }
+    let edges = identical_junctions(mol, units);
+    if edges.is_empty() {
+        return Ok(Vec::new());
+    }
+    mol.spend_naming_work(units.len())?;
+    let Ok(systems) = super::chains::find_ring_systems(mol, &AtomSet::new()) else {
+        // The final parent search handles unsupported fusion candidates.
+        mol.spend_naming_work(0)?;
+        return Ok(Vec::new());
+    };
+    Ok(discover_assemblies_from_units(mol, &systems, units, &edges))
+}
+
+// Provenance: fn discover_assemblies_from_units | original
+// Source: ReShiki | src/naming/openclatura/ring_assembly.rs::discover_ring_assemblies
+fn discover_assemblies_from_units(
+    mol: &Molecule,
+    systems: &[RingSystem],
+    atoms: &[AtomSet],
+    edges: &[(usize, usize, usize)],
+) -> Vec<RingAssembly> {
     let mut unseen: AtomSet = edges.iter().flat_map(|&(a, b, _)| [a, b]).collect();
     let mut result = Vec::new();
     while let Some(&start) = unseen.first() {
