@@ -2107,39 +2107,6 @@ mod tests {
     }
 
     #[test]
-    fn complete_senior_parents_need_multiplicative_pin_status_and_round_trip() {
-        use nazuchem_ir::{NameReason, NameStatus};
-        // P-16.5.4 Fig. 1.3(f) and P-15.3.2.1: the first central group is
-        // asymmetric; the second has a cyclic assembly between equal arms.
-        for (smiles, expected) in [
-            // P-45.5: 'oxopropanyl' precedes 'oxopropyl' between the tied rings.
-            (
-                "N#Cc1ccc(-c2ccc(OCCCCCOC(=O)C(Cc3ccc(C(=O)O)cc3)c3ccc(C(=O)O)cc3)cc2)cc1",
-                "4-[3-(4-carboxyphenyl)-1-({5-[(4'-cyano[1,1'-biphenyl]-4-yl)oxy]pentyl}oxy)-1-oxopropan-2-yl]benzoic acid",
-            ),
-            (
-                "O=C(O)CCCCCCCCCOc1ccc(-c2ccc(OCCCCCCCCCC(=O)O)cc2)cc1",
-                "10-({4'-[(9-carboxynonyl)oxy][1,1'-biphenyl]-4-yl}oxy)decanoic acid",
-            ),
-        ] {
-            let name = name_smiles(smiles, &Default::default()).unwrap();
-            assert_eq!(name.text, expected, "{smiles}");
-            assert_eq!(
-                name.status,
-                NameStatus::NotPreferred(NameReason::Multiplicative),
-                "{smiles}"
-            );
-            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
-            assert_eq!(
-                crate::test_support::canonical_smiles(smiles).unwrap(),
-                crate::test_support::canonical_smiles(&parsed).unwrap(),
-                "{}",
-                name.text,
-            );
-        }
-    }
-
-    #[test]
     fn multiplicative_pin_accepts_simple_cores_and_identical_concatenated_arms() {
         for smiles in [
             "c1ccccc1Oc1ccccc1",
@@ -3890,15 +3857,6 @@ mod tests {
                 "c1cc2cccc3conc3c-2c1",
                 "azuleno[4,5-c]isoxazole",
                 R::FusionComponent,
-            ),
-            // P-15.3.2.4.1, P-15.3.1.2.2: substituted units and concatenated
-            // linking groups are not multiplied yet.
-            // P-15.3.1.3: the unit numbering that puts the linking group
-            // at locant 1 is not built, so the substitutive name stays.
-            (
-                "Brc1ccc(Oc2ccc(Br)c(Br)c2)cc1Br",
-                "1,2-dibromo-4-(3,4-dibromophenoxy)benzene",
-                R::Multiplicative,
             ),
             (
                 "O=C(O)c1ccc(cc1)C(=O)C1CCCCC1",

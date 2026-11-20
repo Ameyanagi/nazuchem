@@ -10,7 +10,7 @@
 
 //! Prefix grouping, alphabetization and protective parentheses.
 use super::{
-    assembly_parts::AssemblyParts,
+    assembly_parts::{AssemblyParts, SubstituentItem},
     assembly_utils::{is_fully_enclosed, needs_hyphen, parse_locant},
     formatting::{is_complex_prefix, is_compound_prefix, multiply_prefix, starts_with_multiplier},
     isotope_naming::{citation_name, leading_descriptor},
@@ -239,12 +239,15 @@ fn outer_parentheses_are_redundant(name: &str) -> bool {
     };
     only_locants && !starts_with_multiplier(&inner[end + 1..])
 }
-// Provenance: fn format_substituent_prefixes | adapted
+/// Group identical prefixes in the order used by the name renderer.
+// Provenance: fn cited_substituent_groups | adapted
 // Source: openclatura | src/openclatura/assembly_prefixes.py::format_substituent_prefixes
-pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
+pub(super) fn cited_substituent_groups(
+    substituents: &[SubstituentItem],
+) -> Vec<(&str, Vec<&SubstituentItem>)> {
     let mut grouped: BTreeMap<&str, Vec<_>> = BTreeMap::new();
     let mut names = Vec::new();
-    for sub in &parts.substituents {
+    for sub in substituents {
         let items = grouped.entry(sub.name.as_str()).or_default();
         if items.is_empty() {
             names.push(sub.name.as_str());
@@ -265,10 +268,20 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
             rs_descriptors(s),
         )
     });
-    let groups: Vec<_> = names
+    names
         .into_iter()
-        .map(|name| {
-            let items = &grouped[name];
+        .map(|name| (name, grouped.remove(name).unwrap()))
+        .collect()
+}
+
+// Provenance: fn format_substituent_prefixes | adapted
+// Source: openclatura | src/openclatura/assembly_prefixes.py::format_substituent_prefixes
+pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
+    let groups = cited_substituent_groups(&parts.substituents);
+    let group_count = groups.len();
+    let groups: Vec<_> = groups
+        .into_iter()
+        .map(|(name, items)| {
             let mut locs: Vec<_> = items
                 .iter()
                 .flat_map(|item| item.locants.iter().cloned())
@@ -277,7 +290,7 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
             let loc = if parts.elided_substituent_locants.contains(name) {
                 String::new()
             } else {
-                substituent_locant_string(parts, &locs, grouped.len())
+                substituent_locant_string(parts, &locs, group_count)
             };
             (name, items, locs, loc)
         })
@@ -289,7 +302,7 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
     let mut cites_numeric_locants = false;
     for (i, (name, items, locs, mut loc)) in groups.into_iter().enumerate() {
         if cites_locants && parts.elided_substituent_locants.contains(name) {
-            loc = substituent_locant_string(parts, &locs, grouped.len());
+            loc = substituent_locant_string(parts, &locs, group_count);
         }
         cites_numeric_locants |= loc
             .split(',')
@@ -316,7 +329,7 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
             && parts.principal_group.is_none()
             && count == 1
             && loc.is_empty()
-            && grouped.len() == 1
+            && group_count == 1
             && optional
             && is_fully_enclosed(name)
             && outer_parentheses_are_redundant(name)
@@ -331,14 +344,14 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
             // a multiplying term, chloro(disulfanyl)acetic acid; unenclosed,
             // the chlorine would be read as a substituent of disulfanyl.
             if !loc.is_empty()
-                || (grouped.len() > 1 && (i > 0 || name == "diazenyl"))
+                || (group_count > 1 && (i > 0 || name == "diazenyl"))
                 || used.contains(|c: char| c.is_ascii_digit())
             {
                 used = format!("({used})");
             }
         } else if count == 1
             && loc.is_empty()
-            && grouped.len() > 1
+            && group_count > 1
             // P-16.5.1.3.1/P-16.5.1.3.2: the first cited unlocanted prefix is
             // enclosed only when compound: hydroxy(phenyl)acetic acid.
             && (i > 0 || is_compound_prefix(name))

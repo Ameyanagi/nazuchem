@@ -45,6 +45,8 @@ pub struct NumberingModifiers {
     /// P-24.5.1: minimize the junction within the component's own numbering,
     /// before hydrogen state and characteristic suffixes are considered.
     pub spiro_junction: Option<usize>,
+    /// P-15.3.1.3: the multiplicative linker is cited ahead of detached prefixes.
+    pub multiplicative_attachment: Option<usize>,
     /// Per parent atom, each N-substituent with the primes of its nitrogen:
     /// 0 for N, 1 for the N' of a hydrazide (P-66.3.3.2).
     pub nitrogen_substituents: BTreeMap<usize, Vec<(usize, String)>>,
@@ -168,14 +170,15 @@ pub struct NumberingPreference {
     pub hydro: Vec<usize>,
     pub unsaturation: Vec<usize>,
     pub double_bonds: Vec<usize>,
+    pub multiplicative_attachment: Vec<usize>,
     pub substituent_and_unsaturation: Vec<usize>,
     pub substituent_citation: Vec<usize>,
     pub stereochemistry: Vec<usize>,
     pub isotopes: Vec<Vec<usize>>,
 }
 
-/// The registry lists the criteria by name; the two free-valence and ion
-/// criteria are inserted by `numbering_criteria` and cannot be listed.
+/// The registry lists the ordinary criteria by name. Contextual criteria
+/// are inserted by `numbering_criteria`.
 #[derive(Clone, Copy, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NumberingCriterion {
@@ -189,6 +192,8 @@ pub enum NumberingCriterion {
     Hydro,
     Unsaturation,
     DoubleBonds,
+    #[serde(skip)]
+    MultiplicativeAttachment,
     SubstituentAndUnsaturation,
     SubstituentCitation,
     Stereochemistry,
@@ -209,6 +214,12 @@ fn numbering_criteria(criteria: &[NumberingCriterion]) -> Vec<NumberingCriterion
     {
         criteria.insert(principal, NumberingCriterion::SkeletalIons);
         criteria.insert(principal, NumberingCriterion::FreeValence);
+    }
+    if let Some(prefixes) = criteria
+        .iter()
+        .position(|criterion| matches!(criterion, NumberingCriterion::SubstituentAndUnsaturation))
+    {
+        criteria.insert(prefixes, NumberingCriterion::MultiplicativeAttachment);
     }
     criteria
 }
@@ -247,6 +258,9 @@ impl NumberingPreference {
             NumberingCriterion::Hydro => Criterion::Flat(&self.hydro),
             NumberingCriterion::Unsaturation => Criterion::Flat(&self.unsaturation),
             NumberingCriterion::DoubleBonds => Criterion::Flat(&self.double_bonds),
+            NumberingCriterion::MultiplicativeAttachment => {
+                Criterion::Flat(&self.multiplicative_attachment)
+            }
             NumberingCriterion::SubstituentAndUnsaturation => {
                 Criterion::Flat(&self.substituent_and_unsaturation)
             }
@@ -324,6 +338,7 @@ fn number_parent(
         substituent_mapping,
         retained_name,
         topology,
+        modifiers.multiplicative_attachment,
     );
     for candidate in &candidates[1..] {
         let evaluation = numbering_preference(
@@ -334,6 +349,7 @@ fn number_parent(
             substituent_mapping,
             retained_name,
             topology,
+            modifiers.multiplicative_attachment,
         );
         let spiro_preference = modifiers
             .spiro_junction
@@ -394,7 +410,7 @@ pub fn choose_parent_numbering(
             Vec<LocantKey>,
             Vec<LocantKey>,
             Vec<LocantKey>,
-            (Vec<LocantKey>, Vec<usize>),
+            (Vec<LocantKey>, Vec<usize>, Option<LocantKey>),
             Vec<LocantKey>,
             Vec<(String, LocantKey)>,
             Vec<(LocantKey, usize)>,
@@ -534,7 +550,15 @@ pub fn choose_parent_numbering(
                 free_valence,
                 skeletal_ions,
                 principal,
-                (hydro, unsaturation),
+                (
+                    hydro,
+                    unsaturation,
+                    modifiers
+                        .multiplicative_attachment
+                        .as_ref()
+                        .filter(|a| map.contains_key(a))
+                        .map(value),
+                ),
                 subst,
                 citation,
                 stereo,
@@ -572,6 +596,7 @@ pub fn choose_parent_numbering(
 // Provenance: fn numbering_preference | adapted
 // Source: openclatura | src/openclatura/numbering.py::NumberingPreference
 // Source: openclatura | src/openclatura/numbering.py::_numbering_preference
+#[allow(clippy::too_many_arguments)]
 fn numbering_preference(
     mol: &Molecule,
     path: &[usize],
@@ -580,6 +605,7 @@ fn numbering_preference(
     substituents: &BTreeMap<usize, Vec<String>>,
     retained_name: Option<&str>,
     topology: NumberingTopology,
+    multiplicative_attachment: Option<usize>,
 ) -> NumberingPreference {
     let free_valence = get_atom_locants(path, &root.into_iter().collect());
     // Group perception runs only for a path that carries a positive charge.
@@ -653,6 +679,10 @@ fn numbering_preference(
         hydro,
         unsaturation,
         double_bonds,
+        multiplicative_attachment: get_atom_locants(
+            path,
+            &multiplicative_attachment.into_iter().collect(),
+        ),
         substituent_and_unsaturation,
         substituent_citation,
         stereochemistry,
@@ -713,6 +743,7 @@ pub(super) fn chain_orientations_before_stereo(
             substituents,
             None,
             NumberingTopology::default(),
+            None,
         );
         preference.stereochemistry.clear();
         preference
@@ -760,6 +791,7 @@ pub(super) fn parent_preference_before_stereo(
         substituents,
         None,
         NumberingTopology::default(),
+        None,
     )
 }
 

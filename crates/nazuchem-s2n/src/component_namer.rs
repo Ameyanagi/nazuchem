@@ -756,6 +756,7 @@ fn component_pipeline(
             None => super::spiro_subgraph::heterogeneous_spiro_junction(mol),
         }
         .filter(|junction| parent.contains(junction)),
+        multiplicative_attachment: tied_parent.and_then(|(_, bond)| bond.map(|(root, _)| root)),
         nitrogen_substituents: numbering_n_subs
             .as_ref()
             .map_or_else(BTreeMap::new, |subs| subs.numbering_modifiers()),
@@ -856,31 +857,15 @@ fn component_pipeline(
             )?
         }
     } else {
-        // P-15.3.1.3: a multiplied unit keeps its numbering and gives the
-        // linking group the lowest locant that numbering allows. Citing the
-        // group first decides ties; a lower locant set of all prefixes
-        // together that moves the group is not this rule, and is refused.
-        let mut lowest = None;
+        // P-15.3.1.3: cite the linker separately from the unit's prefixes.
         if let Some((_, Some((root, link)))) = tied_parent {
             let item = mapping
                 .get_mut(&root)
                 .and_then(|items| items.iter_mut().find(|i| i.atom_ids.contains(&link)))
                 .ok_or("openclatura: linking group is not a prefix of the unit")?;
             item.name.clear();
-            let alone = build_parent_assembly_plan_with_modifiers(
-                mol,
-                &selection,
-                &principal,
-                None,
-                None,
-                &BTreeMap::from([(root, vec![item.clone()])]),
-                retained_name.clone(),
-                &maps,
-                &modifiers,
-            )?;
-            lowest = Some((root, alone.locant_map[&root].clone()));
         }
-        let plan = build_parent_assembly_plan_with_modifiers(
+        build_parent_assembly_plan_with_modifiers(
             mol,
             &selection,
             &principal,
@@ -890,11 +875,7 @@ fn component_pipeline(
             retained_name,
             &maps,
             &modifiers,
-        )?;
-        if lowest.is_some_and(|(root, locant)| plan.locant_map[&root] != locant) {
-            return Err("openclatura: linking group does not take its lowest locant".into());
-        }
-        plan
+        )?
     };
     if retained_metadata.is_some() {
         plan.parts.retained_parent_metadata = retained_metadata;

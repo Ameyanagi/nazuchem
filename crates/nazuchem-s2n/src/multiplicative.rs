@@ -6,13 +6,18 @@
 //! Multiplicative names for identical units on a simple or concatenated
 //! linking group (P-15.3.1, P-51.3.1).
 use super::{
+    assembly_parent::format_unsaturations,
+    assembly_parts::{AssemblyParts, SubstituentItem, UnsaturationItem},
+    assembly_prefixes::{cited_substituent_groups, format_substituent_prefixes},
     chains::{self, RingSystem, get_cyclic_atoms},
     component_group_rules, component_namer,
     graph_kernel::{EdgeSet, connected_components, normalize_edge},
+    locants::{LocantKey, retained_locant_sort_key},
     molecule::{AtomSet, Molecule},
+    namer::name_subgraph_rendered,
     parent_selection::{self, ParentSelection},
     perception, principal_groups,
-    rules::{multipliers, stems},
+    rules::{multipliers, retained, stems},
     subgraph_tools::subgraph_component,
 };
 use nazuchem_ir::{NameReason, NameStatus};
@@ -60,10 +65,17 @@ pub(super) fn parents(mol: &Molecule) -> Option<(Vec<(ParentSelection, AtomSet)>
     Some((parents, (paths, rings)))
 }
 
-/// Two to four identical units on a linking group built from single atoms,
-/// unbranched alkane chains and benzene rings, where each unit is a ring or
-/// functionalized chain bearing nothing but suffix groups. Everything else
-/// keeps its substitutive name.
+fn same_chalcogen_bond(mol: &Molecule, a: usize, b: usize) -> bool {
+    let symbol = mol.atoms[&a].symbol.as_str();
+    matches!(symbol, "O" | "S" | "Se" | "Te")
+        && mol.atoms[&b].symbol == symbol
+        && mol
+            .get_bond(a, b)
+            .is_some_and(|bond| bond.order == 1 && !bond.is_aromatic)
+}
+
+/// Two to four identical rings or functionalized chains joined by a
+/// polyvalent substituent group.
 pub(super) fn name(mol: &Molecule, component: &AtomSet) -> Option<String> {
     if mol
         .atoms
@@ -93,137 +105,241 @@ struct Unit<'a> {
     link: usize,
 }
 
-/// One component of a linking group: a single atom with its oxo groups, an
-/// unbranched alkane chain or a benzene ring.
+/// One component of a linking group, with its bonds towards the multiplied units.
 struct Segment {
     atoms: AtomSet,
-    methyl_sites: Vec<usize>,
-    /// Bonds to the neighbouring components and units, inner atom first.
     ports: Vec<(usize, usize)>,
+    substituents: Vec<(usize, usize)>,
+    ring: Option<LinkerRing>,
+}
+
+struct LinkerRing {
+    parent: retained::RetainedMatch,
+    fixed_numbering: bool,
+}
+
+#[derive(PartialEq, Eq)]
+enum LinkPrefix {
+    Retained(&'static str),
+    Locanted(String),
+    Substituted(String),
+}
+
+impl LinkPrefix {
+    fn text(&self) -> &str {
+        match self {
+            Self::Retained(text) => text,
+            Self::Locanted(text) | Self::Substituted(text) => text,
+        }
+    }
 }
 
 impl Segment {
-    /// The prefix for the given attachment atoms. In an arm they are the atom
-    /// towards the central group, then the atom towards the unit.
-    fn name(&self, mol: &Molecule, ports: &[usize], central: bool) -> Option<String> {
-        if let Some(prefix) = self.atom_prefix(mol, ports) {
-            return Some(prefix.into());
+    fn name(
+        &self,
+        mol: &Molecule,
+        paths: &[Vec<usize>],
+        ports: &[usize],
+        central: bool,
+    ) -> Option<LinkPrefix> {
+        if let Some(name) = self
+            .atom_prefix(mol, ports)
+            .or_else(|| self.chalcogen_chain(mol, ports))
+        {
+            return self
+                .substituents
+                .is_empty()
+                .then_some(LinkPrefix::Retained(name));
+        }
+        let suffix = format!("{}yl", multipliers::basic(ports.len()));
+        if let Some(ring) = &self.ring {
+            let (_, _, prefix, cited) = ring
+                .parent
+                .locant_maps
+                .iter()
+                .filter_map(|map| {
+                    let mut cited = ports
+                        .iter()
+                        .map(|a| Some((retained_locant_sort_key(map.get(a)?), map[a].as_str())))
+                        .collect::<Option<Vec<_>>>()?;
+                    if central {
+                        cited.sort();
+                    }
+                    let mut terminal_rank: Vec<_> =
+                        cited.iter().map(|(key, _)| key.clone()).collect();
+                    let mut fixed_rank = Vec::new();
+                    // P-15.3.1.2.2.4 and P-15.3.2.1: a fixed parent takes
+                    // the lowest set of free valences before ranking the
+                    // ones nearest to the multiplied unit.
+                    if ring.fixed_numbering {
+                        fixed_rank.clone_from(&terminal_rank);
+                        fixed_rank.sort();
+                    }
+                    if !central {
+                        terminal_rank.reverse();
+                    }
+                    let (substituent_rank, prefix) =
+                        render_substituents(mol, &self.atoms, &self.substituents, map)?;
+                    Some(((fixed_rank, terminal_rank), substituent_rank, prefix, cited))
+                })
+                .min()?;
+            let cited = cited
+                .iter()
+                .map(|(_, locant)| *locant)
+                .collect::<Vec<_>>()
+                .join(",");
+            let text = if ring.parent.name == "benzene" && ports.len() == 2 {
+                let separator = if prefix.is_empty() { "" } else { "-" };
+                format!("{prefix}{separator}{cited}-phenylene")
+            } else {
+                format!("{prefix}{}-{cited}-{suffix}", ring.parent.name)
+            };
+            return Some(if prefix.is_empty() {
+                LinkPrefix::Locanted(text)
+            } else {
+                LinkPrefix::Substituted(text)
+            });
         }
         if !self.atoms.iter().all(|a| mol.atoms[a].is_carbon()) || self.atoms.len() < 2 {
             return None;
         }
-        let aromatic: AtomSet = self
+        let mut best = None;
+        for path in paths.iter().filter(|p| {
+            p.iter().all(|a| self.atoms.contains(a)) && ports.iter().all(|a| p.contains(a))
+        }) {
+            for order in [path.clone(), path.iter().rev().copied().collect()] {
+                let numbering: BTreeMap<_, _> =
+                    order.iter().enumerate().map(|(i, &a)| (a, i + 1)).collect();
+                let mut locants: Vec<_> = ports.iter().map(|a| numbering[a]).collect();
+                if central {
+                    locants.sort_unstable();
+                }
+                let mut priority = locants.clone();
+                if !central {
+                    priority.reverse();
+                }
+                let mut unsaturations = Vec::new();
+                let mut double = Vec::new();
+                let mut triple = Vec::new();
+                for (i, pair) in order.windows(2).enumerate() {
+                    match mol.bond_order(pair[0], pair[1]) {
+                        1 => continue,
+                        2 => double.push(i + 1),
+                        3 => triple.push(i + 1),
+                        _ => return None,
+                    }
+                    unsaturations.push(i + 1);
+                }
+                let skeleton: AtomSet = order.iter().copied().collect();
+                let branches: Vec<_> = order
+                    .iter()
+                    .flat_map(|&a| {
+                        mol.get_neighbors(a)
+                            .iter()
+                            .filter(|n| self.atoms.contains(n) && !skeleton.contains(n))
+                            .map(move |&n| (a, n))
+                    })
+                    .chain(self.substituents.iter().copied())
+                    .collect();
+                // A pendant heteroatom group must attach to the numbered chain.
+                if branches.iter().any(|(a, _)| !skeleton.contains(a)) {
+                    continue;
+                }
+                let rank = (
+                    std::cmp::Reverse(order.len()),
+                    std::cmp::Reverse(unsaturations.len()),
+                    std::cmp::Reverse(double.len()),
+                    priority,
+                    unsaturations,
+                    double.clone(),
+                );
+                let map = numbering
+                    .into_iter()
+                    .map(|(a, locant)| (a, locant.to_string()))
+                    .collect();
+                let (branch_locants, prefix) =
+                    render_substituents(mol, &skeleton, &branches, &map)?;
+                let stem = stems::stem_for(order.len());
+                let text = if double.is_empty() && triple.is_empty() {
+                    format!("{stem}ane")
+                } else {
+                    let parts = AssemblyParts {
+                        unsaturations: [(double, "double"), (triple, "triple")]
+                            .into_iter()
+                            .filter(|(locants, _)| !locants.is_empty())
+                            .map(|(locants, bond_key)| UnsaturationItem {
+                                bond_key: bond_key.into(),
+                                locants: locants
+                                    .into_iter()
+                                    .map(|locant| locant.to_string())
+                                    .collect(),
+                                ..Default::default()
+                            })
+                            .collect(),
+                        ..Default::default()
+                    };
+                    let (stem, unsaturation, _) = format_unsaturations(&parts, &stem, false);
+                    format!("{stem}{unsaturation}e")
+                };
+                let cited = locants
+                    .iter()
+                    .map(usize::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let candidate = (
+                    rank,
+                    std::cmp::Reverse(branches.len()),
+                    branch_locants,
+                    prefix,
+                    text,
+                    cited,
+                );
+                if best.as_ref().is_none_or(|previous| candidate < *previous) {
+                    best = Some(candidate);
+                }
+            }
+        }
+        let (_, _, _, prefix, text, cited) = best?;
+        let text = format!("{prefix}{text}-{cited}-{suffix}");
+        Some(if prefix.is_empty() {
+            LinkPrefix::Locanted(text)
+        } else {
+            LinkPrefix::Substituted(text)
+        })
+    }
+
+    /// P-63.4.2 and P-68.4.1.2 give the names of homogeneous chalcogen chains.
+    fn chalcogen_chain(&self, mol: &Molecule, ports: &[usize]) -> Option<&'static str> {
+        let &[a, b] = ports else { return None };
+        if a == b
+            || ports.iter().any(|p| {
+                mol.get_neighbors(*p)
+                    .iter()
+                    .filter(|n| self.atoms.contains(n))
+                    .count()
+                    != 1
+            })
+        {
+            return None;
+        }
+        let symbol = mol.atoms[&a].symbol.as_str();
+        if !self
             .atoms
             .iter()
-            .copied()
-            .filter(|a| mol.atoms[a].is_aromatic)
-            .collect();
-        let ring = !aromatic.is_empty();
-        if ring && (aromatic.len() != 6 || !central && !self.methyl_sites.is_empty()) {
-            return None;
-        }
-        let skeleton = if ring { &aromatic } else { &self.atoms };
-        let inside = |a: usize| {
-            mol.get_neighbors(a)
-                .iter()
-                .filter(|n| skeleton.contains(n))
-                .count()
-        };
-        if ring && aromatic.iter().any(|&a| inside(a) != 2) {
-            return None;
-        }
-        // Walk the ring from any atom, or the chain from an end.
-        let start = if ring {
-            *aromatic.first()?
-        } else {
-            *self.atoms.iter().find(|&&a| inside(a) == 1)?
-        };
-        let mut path = vec![start];
-        while let Some(&next) = mol
-            .get_neighbors(path[path.len() - 1])
-            .iter()
-            .find(|n| skeleton.contains(n) && !path.contains(n))
+            .all(|n| mol.atoms[n].symbol == symbol && mol.atoms[n].total_h_count == 0)
         {
-            path.push(next);
-        }
-        if path.len() != skeleton.len() {
             return None;
         }
-        let size = path.len();
-        let mut numberings = vec![path.clone()];
-        if ring {
-            numberings = (0..size)
-                .map(|i| path[i..].iter().chain(&path[..i]).copied().collect())
-                .collect();
-        }
-        numberings.extend(
-            numberings
-                .clone()
-                .into_iter()
-                .map(|n: Vec<usize>| n.into_iter().rev().collect()),
-        );
-        let (_, methyl_locants, locants) = numberings
-            .iter()
-            .filter_map(|numbering| {
-                let mut locants = ports
-                    .iter()
-                    .map(|p| Some(numbering.iter().position(|a| a == p)? + 1))
-                    .collect::<Option<Vec<_>>>()?;
-                if central {
-                    // P-29.3.2.2 and P-14.4: free valences take lower
-                    // locants before detachable prefixes.
-                    locants.sort();
-                    let mut methyl_locants = self
-                        .methyl_sites
-                        .iter()
-                        .map(|p| Some(numbering.iter().position(|a| a == p)? + 1))
-                        .collect::<Option<Vec<_>>>()?;
-                    methyl_locants.sort();
-                    Some((locants.clone(), methyl_locants, locants))
-                } else {
-                    // P-15.3.1.2.2.4: the lowest locant is nearest to the
-                    // unit and is cited last, as in ethane-2,1-diyl.
-                    Some((locants.iter().rev().copied().collect(), Vec::new(), locants))
-                }
-            })
-            .min()?;
-        let cited = locants
-            .iter()
-            .map(usize::to_string)
-            .collect::<Vec<_>>()
-            .join(",");
-        let prefix = if methyl_locants.is_empty() {
-            String::new()
-        } else {
-            let locants = methyl_locants
-                .iter()
-                .map(usize::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
-            let count = methyl_locants.len();
-            let multiplier = if count > 1 {
-                multipliers::basic(count)
-            } else {
-                String::new()
-            };
-            format!("{locants}-{multiplier}methyl")
-        };
-        Some(if !ring {
-            // P-29.3.2.2: propane-1,2-diyl, ethane-1,1,2-triyl.
-            format!(
-                "{}ane-{cited}-{}yl",
-                stems::stem_for(size),
-                multipliers::basic(ports.len())
-            )
-        } else if ports.len() == 2 {
-            // P-29.6.1: the retained prefix phenylene.
-            let separator = if prefix.is_empty() { "" } else { "-" };
-            format!("{prefix}{separator}{cited}-phenylene")
-        } else {
-            format!(
-                "{prefix}benzene-{cited}-{}yl",
-                multipliers::basic(ports.len())
-            )
+        Some(match (symbol, self.atoms.len()) {
+            ("O", 2) => "peroxy",
+            ("O", 3) => "trioxidanediyl",
+            ("S", 2) => "disulfanediyl",
+            ("S", 3) => "trisulfanediyl",
+            ("Se", 2) => "diselanediyl",
+            ("Se", 3) => "triselanediyl",
+            ("Te", 2) => "ditellanediyl",
+            ("Te", 3) => "tritellanediyl",
+            _ => return None,
         })
     }
 
@@ -256,6 +372,7 @@ impl Segment {
                 ("Te", 2, 2, 0) => "telluronyl",
                 ("C", 0, 2, 2) => "methylene",
                 ("C", 0, 3, 1) => "methanetriyl",
+                ("C", 0, 4, 0) => "methanetetrayl",
                 ("N", 0, 2, 1) => "azanediyl",
                 ("N", 0, 3, 0) => "nitrilo",
                 ("P", 0, 3, 0) => "phosphanetriyl",
@@ -263,6 +380,162 @@ impl Segment {
             },
         )
     }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct SubstituentRank {
+    locants: Vec<LocantKey>,
+    citation_locants: Vec<LocantKey>,
+}
+
+fn render_substituents(
+    mol: &Molecule,
+    skeleton: &AtomSet,
+    branches: &[(usize, usize)],
+    locants: &BTreeMap<usize, String>,
+) -> Option<(SubstituentRank, String)> {
+    let mut items = Vec::new();
+    for &(site, root) in branches {
+        let name = name_subgraph_rendered(mol, root, skeleton, Some(site), false).ok()?;
+        let locant = locants.get(&site)?.clone();
+        let mut item = SubstituentItem::new(name.text, vec![locant]);
+        item.prefix_kind = name.prefix_kind;
+        items.push(item);
+    }
+    // P-46.1.12 and P-46.1.13: first compare all locants as a set, then
+    // compare numeric locants in the order their prefixes are cited.
+    let mut citation_locants = Vec::new();
+    for (_, group) in cited_substituent_groups(&items) {
+        let mut group_locants: Vec<_> = group
+            .iter()
+            .flat_map(|item| &item.locants)
+            .map(|locant| retained_locant_sort_key(locant))
+            .collect();
+        group_locants.sort();
+        citation_locants.extend(group_locants);
+    }
+    let mut locants = citation_locants.clone();
+    locants.sort();
+    let (text, _) = format_substituent_prefixes(&AssemblyParts {
+        is_substituent: true,
+        substituents: items,
+        ..Default::default()
+    });
+    Some((
+        SubstituentRank {
+            locants,
+            citation_locants,
+        },
+        text,
+    ))
+}
+
+/// Numbering maps for cyclic linker skeletons with audited parent spelling.
+fn linker_rings(
+    mol: &Molecule,
+    linker: &AtomSet,
+    systems: &[RingSystem],
+) -> BTreeMap<AtomSet, LinkerRing> {
+    let mut rings = BTreeMap::new();
+    for ring in systems.iter().filter(|r| r.atoms.is_subset(linker)) {
+        let Some(path) = ring.paths.first() else {
+            continue;
+        };
+        if ring.is_bicycle || ring.is_spiro || ring.is_polycycle {
+            let Some(proof) = retained::get_retained_ring(mol, path) else {
+                continue;
+            };
+            if proof.name == "naphthalene" {
+                rings.insert(
+                    ring.atoms.clone(),
+                    LinkerRing {
+                        parent: proof,
+                        fixed_numbering: true,
+                    },
+                );
+            }
+            continue;
+        }
+        let aromatic = path.iter().all(|a| mol.atoms[a].is_aromatic);
+        let name = if aromatic {
+            match retained::get_retained_ring(mol, path)
+                .as_ref()
+                .map(|r| r.name.as_str())
+            {
+                Some("benzene") => "benzene".into(),
+                Some("pyridine") => "pyridine".into(),
+                _ => continue,
+            }
+        } else if path.iter().all(|a| mol.atoms[a].is_carbon())
+            && mol
+                .bonds
+                .values()
+                .filter(|b| ring.atoms.contains(&b.u) && ring.atoms.contains(&b.v))
+                .all(|b| b.order == 1)
+        {
+            format!("cyclo{}ane", stems::stem_for(path.len()))
+        } else {
+            continue;
+        };
+        let mut maps = Vec::new();
+        for start in 0..path.len() {
+            for order in [
+                path[start..]
+                    .iter()
+                    .chain(&path[..start])
+                    .copied()
+                    .collect::<Vec<_>>(),
+                path[..=start]
+                    .iter()
+                    .rev()
+                    .chain(path[start + 1..].iter().rev())
+                    .copied()
+                    .collect(),
+            ] {
+                if name == "pyridine" && mol.atoms[&order[0]].symbol != "N" {
+                    continue;
+                }
+                maps.push(
+                    order
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, a)| (a, (i + 1).to_string()))
+                        .collect(),
+                );
+            }
+        }
+        rings.insert(
+            ring.atoms.clone(),
+            LinkerRing {
+                fixed_numbering: name == "pyridine",
+                parent: retained::RetainedMatch {
+                    name,
+                    locant_maps: maps,
+                },
+            },
+        );
+    }
+    for assembly in super::ring_assembly::discover_ring_assemblies(mol, systems) {
+        if assembly.units_audited
+            && assembly.name == "1,1'-biphenyl"
+            && let Some(map) = assembly.locant_maps.first()
+        {
+            let atoms: AtomSet = map.keys().copied().collect();
+            if atoms.is_subset(linker) {
+                rings.insert(
+                    atoms,
+                    LinkerRing {
+                        fixed_numbering: true,
+                        parent: retained::RetainedMatch {
+                            name: format!("[{}]", assembly.name),
+                            locant_maps: assembly.locant_maps,
+                        },
+                    },
+                );
+            }
+        }
+    }
+    rings
 }
 
 /// The multiplicative name, or nothing where it is not built.
@@ -275,7 +548,7 @@ fn parts(mol: &Molecule, component: &AtomSet) -> Option<String> {
     // A unit is a senior parent with its suffix groups and one bond towards
     // the other parents; P-51.3.2.1 multiplies all of them. Its branches
     // that hold no senior parent are its substituents (P-15.3.2.4.1).
-    let (parents, _) = parents(mol)?;
+    let (parents, (paths, rings)) = parents(mol)?;
     let mut units: Vec<Unit> = Vec::new();
     for (parent, suffixed) in &parents {
         let mut atoms = suffixed.clone();
@@ -320,50 +593,33 @@ fn parts(mol: &Molecule, component: &AtomSet) -> Option<String> {
         .copied()
         .collect();
     let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
-    let chain = |a: usize| {
-        mol.atoms[&a].is_carbon()
-            && !cyclic.contains(&a)
-            && mol
-                .get_neighbors(a)
-                .iter()
-                .all(|&n| !heavy(&n) || plain(a, n))
-    };
+    let chain = |a: usize| mol.atoms[&a].is_carbon() && !cyclic.contains(&a);
     let oxo = |a: usize, b: usize| {
         mol.atoms[&a].symbol == "O"
             && mol.degree(a) == 1
             && mol.bond_order(a, b) == 2
             && matches!(mol.atoms[&b].symbol.as_str(), "S" | "Se" | "Te")
     };
-    // A methyl substituent belongs to its aromatic linker segment. Retain
-    // the ring sites for numbering after assigning the free valences.
-    let methyl_sites: BTreeMap<_, _> = linker
-        .iter()
-        .filter_map(|&a| {
-            let atom = &mol.atoms[&a];
-            if !atom.is_carbon() || atom.is_aromatic || atom.total_h_count != 3 {
-                return None;
-            }
-            let mut neighbors = mol.get_neighbors(a).iter().copied().filter(heavy);
-            let b = neighbors.next()?;
-            (neighbors.next().is_none()
-                && linker.contains(&b)
-                && mol.atoms[&b].is_aromatic
-                && mol.atoms[&b].is_carbon()
-                && plain(a, b))
-            .then_some((a, b))
-        })
-        .collect();
-    // Chains and aromatic rings are one component each; every other atom
-    // stands alone, with its oxo groups.
+    let mut rings = linker_rings(mol, &linker, &rings);
+    let mut ring_edges = EdgeSet::new();
+    for atoms in rings.keys() {
+        ring_edges.extend(
+            mol.bonds
+                .values()
+                .filter(|b| atoms.contains(&b.u) && atoms.contains(&b.v))
+                .map(|b| normalize_edge(b.u, b.v)),
+        );
+    }
+    // Each component supplies one prefix. Pendant branches are substituents
+    // of that component and must have a single attachment to it.
     let joined: EdgeSet = mol
         .bonds
         .values()
         .filter(|b| linker.contains(&b.u) && linker.contains(&b.v))
         .filter(|b| {
             chain(b.u) && chain(b.v)
-                || b.is_aromatic && mol.atoms[&b.u].is_carbon() && mol.atoms[&b.v].is_carbon()
-                || methyl_sites.get(&b.u) == Some(&b.v)
-                || methyl_sites.get(&b.v) == Some(&b.u)
+                || ring_edges.contains(&normalize_edge(b.u, b.v))
+                || same_chalcogen_bond(mol, b.u, b.v)
                 || oxo(b.u, b.v)
                 || oxo(b.v, b.u)
         })
@@ -372,41 +628,64 @@ fn parts(mol: &Molecule, component: &AtomSet) -> Option<String> {
     let mut owner = BTreeMap::new();
     let mut segments = Vec::new();
     for atoms in connected_components(&linker, &joined) {
-        let ports: Vec<_> = atoms
-            .iter()
-            .flat_map(|&u| {
-                mol.get_neighbors(u)
-                    .iter()
-                    .filter(|n| !atoms.contains(n) && heavy(n))
-                    .map(move |&n| (u, n))
-            })
-            .collect();
-        // P-51.3.1 (1): single bonds throughout. Rings other than benzene
-        // are not named as linking groups, nor are heteroatom chains, which
-        // have names of their own such as triselanediyl (P-68.4.1.2).
+        let mut ports = Vec::new();
+        let mut substituents = Vec::new();
+        for &a in &atoms {
+            for &n in mol
+                .get_neighbors(a)
+                .iter()
+                .filter(|n| heavy(n) && !atoms.contains(n))
+            {
+                let branch = subgraph_component(mol, n, &atoms);
+                if branch.is_disjoint(&unit_atoms) {
+                    super::spiro_subgraph::require_single_parent_attachment(mol, &branch, &atoms)
+                        .ok()?;
+                    substituents.push((a, n));
+                } else {
+                    ports.push((a, n));
+                }
+            }
+        }
+        // A wholly pendant segment has only one path back to the units.
+        if ports.len() < 2 {
+            continue;
+        }
+        // P-51.3.1 (1): single bonds connect the components and units.
         if ports.iter().any(|&(u, n)| {
             !plain(u, n)
                 || linker.contains(&n) && !mol.atoms[&u].is_carbon() && !mol.atoms[&n].is_carbon()
-        }) || atoms
-            .iter()
-            .any(|a| cyclic.contains(a) && !mol.atoms[a].is_aromatic)
-        {
+        }) {
+            return None;
+        }
+        let ring = rings.remove(&atoms);
+        if ring.is_none() && atoms.iter().any(|a| cyclic.contains(a)) {
             return None;
         }
         owner.extend(atoms.iter().map(|&a| (a, segments.len())));
         segments.push(Segment {
-            methyl_sites: atoms
-                .iter()
-                .filter_map(|a| methyl_sites.get(a).copied())
-                .collect(),
             atoms,
             ports,
+            substituents,
+            ring,
         });
+    }
+    // P-68.4.1.1: a chain of at least three chalcogens can itself be
+    // senior to an unsubstituted ring (e.g. diphenyltriselane).
+    if segments.iter().any(|s| {
+        s.atoms.len() >= 3
+            && s.ports.len() == 2
+            && s.chalcogen_chain(mol, &[s.ports[0].0, s.ports[1].0])
+                .is_some()
+    }) && units
+        .iter()
+        .all(|unit| unit.suffixed.len() == unit.parent.primary_path().len())
+    {
+        return None;
     }
     // P-51.4.1.1: four heterounits call for skeletal replacement names.
     if segments
         .iter()
-        .filter(|s| s.atoms.iter().any(|a| !mol.atoms[a].is_carbon()))
+        .filter(|s| s.atoms.iter().any(|a| !mol.atoms[a].is_carbon()) && s.ring.is_none())
         .count()
         >= 4
     {
@@ -425,11 +704,7 @@ fn parts(mol: &Molecule, component: &AtomSet) -> Option<String> {
                     return None;
                 };
                 let exit = if a == (at, from) { b } else { a };
-                arm.push((
-                    segment.name(mol, &[at, exit.0], false)?,
-                    segment.atoms.len() > 1
-                        && segment.atoms.iter().all(|a| mol.atoms[a].is_carbon()),
-                ));
+                arm.push(segment.name(mol, &paths, &[at, exit.0], false)?);
                 used += 1;
                 if used > segments.len() {
                     return None;
@@ -445,23 +720,34 @@ fn parts(mol: &Molecule, component: &AtomSet) -> Option<String> {
             return None;
         }
         let ports: Vec<_> = centre.ports.iter().map(|p| p.0).collect();
-        let central = centre.name(mol, &ports, true)?;
-        let central = if !centre.methyl_sites.is_empty() && !arms[0].is_empty() {
-            format!("({central})")
-        } else {
-            central
-        };
+        let central = centre.name(mol, &paths, &ports, true)?;
+        let text = central.text();
         Some(match &arms[0][..] {
-            [] if centre.atom_prefix(mol, &ports).is_some() => central,
-            [] => format!("({central})"),
-            // P-16.3.4 (a), (c): di(4,1-phenylene), di(tetradecane-14,1-diyl).
-            [(arm, true)] => format!("({central}{}({arm}))", multipliers::basic(arms.len())),
-            // P-16.3.5 (a), P-16.3.6 (a), (b): bis(oxy), bis(oxymethylene).
-            arm => format!(
-                "({central}{}({}))",
-                multipliers::complex_(arms.len()),
-                arm.iter().map(|a| a.0.as_str()).collect::<String>()
-            ),
+            [] if matches!(central, LinkPrefix::Retained(_)) => text.into(),
+            [] => format!("({text})"),
+            arm => {
+                let central = if matches!(central, LinkPrefix::Substituted(_)) {
+                    format!("({text})")
+                } else {
+                    text.into()
+                };
+                let multiplier = if matches!(arm, [LinkPrefix::Locanted(_)]) {
+                    multipliers::basic(arms.len())
+                } else {
+                    multipliers::complex_(arms.len())
+                };
+                let arm_text = arm
+                    .iter()
+                    .map(|prefix| {
+                        if arm.len() > 1 && matches!(prefix, LinkPrefix::Substituted(_)) {
+                            format!("({})", prefix.text())
+                        } else {
+                            prefix.text().into()
+                        }
+                    })
+                    .collect::<String>();
+                format!("({central}{multiplier}({arm_text}))")
+            }
         })
     })?;
     let Unit {
@@ -485,12 +771,11 @@ fn parts(mol: &Molecule, component: &AtomSet) -> Option<String> {
     }) {
         return None;
     }
-    // P-15.3.2.4.1: substituted units are cited with their prefixes. Only
-    // rings are built, and not where every position is substituted: those
-    // names omit locants, as in bis(pentafluorodisilane).
+    // P-15.3.2.4.1: substituted units are cited with their prefixes. Fully
+    // substituted units omit locants, as in bis(pentafluorodisilane).
     let substituted = atoms.len() > suffixed.len();
     let path = parent.primary_path();
-    if substituted && (!parent.is_ring || path.iter().all(|a| mol.atoms[a].total_h_count == 0)) {
+    if substituted && path.iter().all(|a| mol.atoms[a].total_h_count == 0) {
         return None;
     }
     // The unit keeps the locants it needs beside the linking group
@@ -537,27 +822,40 @@ fn parts(mol: &Molecule, component: &AtomSet) -> Option<String> {
     ]
     .iter()
     .any(|term| stem.starts_with(term));
-    // P-16.3.6 (c): Hantzsch-Widman and replacement names take 'bis' and are
-    // not built; these retained names take 'di', as in 3,3'-[...]difuran
-    // (P-51.3.2.1).
-    if path.iter().any(|a| !mol.atoms[a].is_carbon())
-        && ![
-            "furan",
-            "morpholine",
-            "piperazine",
-            "piperidine",
-            "pyrazine",
-            "pyridazine",
-            "pyridine",
-            "pyrimidine",
-            "pyrrolidine",
-            "selenophene",
-            "tellurophene",
-            "thiophene",
-        ]
-        .contains(&text.as_str())
-    {
+    // P-16.3.6 (c): distinguish repeated Hantzsch-Widman rings from
+    // multiplication of their replacement prefixes.
+    let retained_heterocycle = [
+        "furan",
+        "morpholine",
+        "piperazine",
+        "piperidine",
+        "pyrazine",
+        "pyridazine",
+        "pyridine",
+        "pyrimidine",
+        "pyrrolidine",
+        "selenophene",
+        "tellurophene",
+        "thiophene",
+    ]
+    .contains(&text.as_str());
+    let hw = parent.is_ring
+        && !retained_heterocycle
+        && retained::hw_spec_for_ring(mol, path).is_some_and(|spec| spec.name == text);
+    if path.iter().any(|a| !mol.atoms[a].is_carbon()) && !retained_heterocycle && !hw {
         return None;
+    }
+    let count = units.len();
+    let locants: Vec<_> = (0..count)
+        .map(|i| format!("{locant}{}", "'".repeat(i)))
+        .collect();
+    let locants = locants.join(",");
+    if substituted || hw {
+        return Some(format!(
+            "{locants}-{linker}{}({})",
+            multipliers::complex_(count),
+            if substituted { &named.text } else { &text },
+        ));
     }
     // P-16.3.3 (d): diphenol, diacetic acid. P-16.3.4 (c), (d), (e):
     // functionalized parent hydrides that begin with a numerical term or cite
@@ -575,25 +873,10 @@ fn parts(mol: &Molecule, component: &AtomSet) -> Option<String> {
     } else {
         return None;
     };
-    let count = units.len();
-    let locants: Vec<_> = (0..count)
-        .map(|i| format!("{locant}{}", "'".repeat(i)))
-        .collect();
-    Some(if substituted {
-        // P-16.3.5 (e): bis(2-bromobenzoic acid).
-        format!(
-            "{}-{linker}{}({})",
-            locants.join(","),
-            multipliers::complex_(count),
-            named.text
-        )
-    } else {
-        format!(
-            "{}-{linker}{}{unit}",
-            locants.join(","),
-            multipliers::basic(count)
-        )
-    })
+    Some(format!(
+        "{locants}-{linker}{}{unit}",
+        multipliers::basic(count)
+    ))
 }
 
 #[cfg(test)]
@@ -622,6 +905,127 @@ mod tests {
         );
         verify_identity(smiles, &parse_strict(expected)?)?;
         verify_identity(smiles, &parse_strict(substitutive)?)
+    }
+
+    #[test]
+    fn ring_and_substituted_chain_linkers_round_trip() -> Result<(), String> {
+        for (smiles, expected, substitutive) in [
+            // P-15.3.2.1, P-16.5.4.1.2: the assembly keeps its intrinsic brackets.
+            (
+                "O=C(O)CCCCCCCCCOc1ccc(-c2ccc(OCCCCCCCCCC(=O)O)cc2)cc1",
+                "10,10'-[[1,1'-biphenyl]-4,4'-diylbis(oxy)]di(decanoic acid)",
+                "10-({4'-[(9-carboxynonyl)oxy][1,1'-biphenyl]-4-yl}oxy)decanoic acid",
+            ),
+            // P-15.6.1.4: preserved numbering of a fused or heterocyclic linker.
+            (
+                "OC(=O)Cc1c(CC(=O)O)cc2ccccc2c1",
+                "2,2'-(naphthalene-2,3-diyl)diacetic acid",
+                "[3-(carboxymethyl)naphthalen-2-yl]acetic acid",
+            ),
+            (
+                "OC(=O)CCCCCCCCCc1ncccc1CCCCCCCCCC(=O)O",
+                "10,10'-(pyridine-2,3-diyl)di(decanoic acid)",
+                "10-[2-(9-carboxynonyl)pyridin-3-yl]decanoic acid",
+            ),
+            // P-15.3.2.1: the central linker bears a detachable methyl prefix.
+            (
+                "Oc1ccc(OCC(C)COc2ccc(O)cc2)cc1",
+                "4,4'-[(2-methylpropane-1,3-diyl)bis(oxy)]diphenol",
+                "4-[3-(4-hydroxyphenoxy)-2-methylpropoxy]phenol",
+            ),
+            // P-15.3.3.1: a side branch belongs to the unsymmetrical linker.
+            (
+                "N#Cc1ccc(-c2ccc(OCCCCCOC(=O)C(Cc3ccc(C(=O)O)cc3)c3ccc(C(=O)O)cc3)cc2)cc1",
+                "4,4'-[3-({5-[(4'-cyano[1,1'-biphenyl]-4-yl)oxy]pentyl}oxy)-3-oxopropane-1,2-diyl]dibenzoic acid",
+                "4-[3-(4-carboxyphenyl)-1-({5-[(4'-cyano[1,1'-biphenyl]-4-yl)oxy]pentyl}oxy)-1-oxopropan-2-yl]benzoic acid",
+            ),
+            (
+                "Brc1ccc(C=CCc2ccc(Br)cc2)cc1",
+                "1,1'-(prop-1-ene-1,3-diyl)bis(4-bromobenzene)",
+                "1-bromo-4-[3-(4-bromophenyl)prop-1-en-1-yl]benzene",
+            ),
+            (
+                "c1ccccc1C(c1ccccc1)(c1ccccc1)c1ccccc1",
+                "1,1',1'',1'''-methanetetrayltetrabenzene",
+                "(triphenylmethyl)benzene",
+            ),
+            // P-68.4.1.2: the selenium chain joins the acid parents.
+            (
+                "O=C(O)c1ccc([Se][Se][Se]c2ccc(C(=O)O)cc2)cc1",
+                "4,4'-triselanediyldibenzoic acid",
+                "4-({[(4-carboxyphenyl)selanyl]selanyl}selanyl)benzoic acid",
+            ),
+        ] {
+            assert_pin(smiles, expected, substitutive)?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn linker_numbering_follows_fixed_parents_and_prefix_citation_order() -> Result<(), String> {
+        for (expected, traversals) in [
+            (
+                "4,4'-[oxydi(pyridine-2,5-diyl)]dibenzoic acid",
+                [
+                    "O(c1ncc(-c2ccc(C(=O)O)cc2)cc1)c1ncc(-c2ccc(C(=O)O)cc2)cc1",
+                    "O(c1ccc(-c2ccc(C(=O)O)cc2)cn1)c1ccc(-c2ccc(C(=O)O)cc2)cn1",
+                ],
+            ),
+            (
+                "4,4'-[(2-bromo-11-chlorododecane-1,12-diyl)bis(oxy)]dibenzoic acid",
+                [
+                    "OC(=O)c1ccc(OCC(Br)CCCCCCCCC(Cl)COc2ccc(C(=O)O)cc2)cc1",
+                    "OC(=O)c1ccc(OCC(Cl)CCCCCCCCC(Br)COc2ccc(C(=O)O)cc2)cc1",
+                ],
+            ),
+            (
+                "4,4'-[oxybis(1-fluoroethane-2,1-diyl)]di(cyclohexane-1-sulfonic acid)",
+                [
+                    "O=S(=O)(O)C1CCC(C(F)COCC(F)C2CCC(S(=O)(=O)O)CC2)CC1",
+                    "O(CC(F)C1CCC(S(=O)(=O)O)CC1)CC(F)C1CCC(S(=O)(=O)O)CC1",
+                ],
+            ),
+        ] {
+            for smiles in traversals {
+                let generated = name(smiles);
+                assert_eq!(generated.text, expected, "{smiles}");
+                assert_eq!(generated.status, NameStatus::Preferred, "{smiles}");
+                verify_identity(smiles, &parse_strict(expected)?)?;
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn multiplied_units_use_linker_locants_and_complex_multipliers() -> Result<(), String> {
+        for (smiles, expected, substitutive) in [
+            // P-15.3.2.4.1: the linker fixes the benzene origin even when
+            // another origin would give a lower combined prefix locant set.
+            (
+                "ClCc1ccc(Cc2ccc(CCl)c(Br)c2)cc1Br",
+                "1,1'-methylenebis[3-bromo-4-(chloromethyl)benzene]",
+                "2-bromo-4-{[3-bromo-4-(chloromethyl)phenyl]methyl}-1-(chloromethyl)benzene",
+            ),
+            (
+                "Brc1ccc(Oc2ccc(Br)c(Br)c2)cc1Br",
+                "1,1'-oxybis(3,4-dibromobenzene)",
+                "1,2-dibromo-4-(3,4-dibromophenoxy)benzene",
+            ),
+            (
+                "CN(C)C(=O)CCSCCC(=O)N(C)C",
+                "3,3'-sulfanediylbis(N,N-dimethylpropanamide)",
+                "3-{[3-(dimethylamino)-3-oxopropyl]sulfanyl}-N,N-dimethylpropanamide",
+            ),
+            // P-16.3.6 (c): a Hantzsch-Widman parent takes 'bis'.
+            (
+                "C1CCOC1OC1CCCO1",
+                "2,2'-oxybis(oxolane)",
+                "2-[(oxolan-2-yl)oxy]oxolane",
+            ),
+        ] {
+            assert_pin(smiles, expected, substitutive)?;
+        }
+        Ok(())
     }
 
     #[test]
@@ -978,53 +1382,16 @@ mod tests {
     #[test]
     fn other_multiplicative_pins_keep_the_substitutive_name_and_its_status() {
         for (smiles, expected) in [
-            // P-15.3.1.3: the linking group takes locant 1 here, against the
-            // lowest locant set of the substitutive name; this unit numbering
-            // is not built.
-            (
-                "ClCc1ccc(Cc2ccc(CCl)c(Br)c2)cc1Br",
-                "2-bromo-4-{[3-bromo-4-(chloromethyl)phenyl]methyl}-1-(chloromethyl)benzene",
-            ),
-            (
-                "Brc1ccc(Oc2ccc(Br)c(Br)c2)cc1Br",
-                "1,2-dibromo-4-(3,4-dibromophenoxy)benzene",
-            ),
             // The unit alone would be contracted to anisole.
             (
                 "COc1ccc(Cc2ccc(OC)cc2)cc1",
                 "1-methoxy-4-[(4-methoxyphenyl)methyl]benzene",
             ),
-            // P-15.3.2.4.1: fully substituted units omit locants, and
-            // substituted chain units are not built.
+            // P-15.3.2.4.1: fully substituted units omit locants.
             (
                 "Fc1c(F)c(F)c(F)c(F)c1Oc1c(F)c(F)c(F)c(F)c1F",
                 "pentafluoro(2,3,4,5,6-pentafluorophenoxy)benzene",
             ),
-            (
-                "CN(C)C(=O)CCSCCC(=O)N(C)C",
-                "3-{[3-(dimethylamino)-3-oxopropyl]sulfanyl}-N,N-dimethylpropanamide",
-            ),
-            // P-15.3.2.1: ring assembly, branched chain and other ring
-            // linking groups are not built.
-            (
-                "O=C(O)CCCCCCCCCOc1ccc(-c2ccc(OCCCCCCCCCC(=O)O)cc2)cc1",
-                "10-({4'-[(9-carboxynonyl)oxy][1,1'-biphenyl]-4-yl}oxy)decanoic acid",
-            ),
-            (
-                "Oc1ccc(OCC(C)COc2ccc(O)cc2)cc1",
-                "4-[3-(4-hydroxyphenoxy)-2-methylpropoxy]phenol",
-            ),
-            (
-                "c1ccccc1C(c1ccccc1)(c1ccccc1)c1ccccc1",
-                "(triphenylmethyl)benzene",
-            ),
-            // P-68.4.1.2: the PIN is 4,4'-triselanediyldibenzoic acid.
-            (
-                "O=C(O)c1ccc([Se][Se][Se]c2ccc(C(=O)O)cc2)cc1",
-                "4-({[(4-carboxyphenyl)selanyl]selanyl}selanyl)benzoic acid",
-            ),
-            // P-16.3.6 (c): Hantzsch-Widman units take 'bis'.
-            ("C1CCOC1OC1CCCO1", "2-[(oxolan-2-yl)oxy]oxolane"),
             // P-45.6.2: configuration needs primed stereodescriptors.
             (
                 "C[C@H](O)CSC[C@H](C)O",
@@ -1047,6 +1414,14 @@ mod tests {
             );
             assert!(name.alternatives.is_empty(), "{smiles}");
         }
+    }
+
+    #[test]
+    fn a_chalcogen_parent_is_senior_to_unfunctionalized_benzene() {
+        // P-68.4.1.1 gives diphenyltriselane as the PIN.
+        let generated = name("c1ccccc1[Se][Se][Se]c1ccccc1");
+        assert_ne!(generated.text, "1,1'-triselanediyldibenzene");
+        assert!(generated.alternatives.is_empty());
     }
 
     #[test]
