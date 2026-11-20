@@ -365,6 +365,13 @@ pub fn amide_prefix_from_group(
     group: &PerceivedGroup,
     exclude: &AtomSet,
 ) -> Result<String, String> {
+    if group
+        .descriptor
+        .as_ref()
+        .is_some_and(|d| d.derivative == "amidium")
+    {
+        return Err("openclatura: amidium substituent prefix is not supported".into());
+    }
     let Some(nitrogen) = amide_nitrogen(mol, group) else {
         return Ok(String::new());
     };

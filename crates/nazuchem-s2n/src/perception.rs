@@ -99,7 +99,7 @@ impl FunctionalGroupDescriptor {
     pub fn uses_chain_end_ligand_prefixes(&self) -> bool {
         self.family == "acyl"
             && match self.derivative.as_str() {
-                "amide" | "ester" | "acid_halide" => true,
+                "amide" | "amidium" | "ester" | "acid_halide" => true,
                 "acid" => match self.ligands.as_slice() {
                     // -COOH stays carboxy and -CS-SH dithiocarboxy.
                     [double, single] => double.element != single.element,
@@ -1179,6 +1179,23 @@ fn carbonyl_group(
         ),
     ))
 }
+pub(super) fn has_terminal_chalcogenide(m: &Molecule, n: usize) -> bool {
+    m.get_neighbors(n).iter().any(|&neighbor| {
+        classify_chalcogen_ligand(m, n, neighbor).is_some_and(|ligand| {
+            ligand.role == LigandRole::Anionic
+                && matches!(ligand.element.as_str(), "O" | "S" | "Se" | "Te")
+        })
+    })
+}
+
+// P-73.1.2.1 and Table 7.4: amidium cites positive nitrogen. With a terminal
+// chalcogenide, the neutral suffix preserves both charges only when the
+// nitrogen has no hydrogens. H-bearing sites need an explicit amidium suffix.
+fn is_amidium_n(m: &Molecule, n: usize) -> bool {
+    let atom = &m.atoms[&n];
+    atom.charge == 1 && (atom.total_h_count > 0 || !has_terminal_chalcogenide(m, n))
+}
+
 // Provenance: fn acyl_group | adapted
 // Source: openclatura | src/openclatura/perception.py::_acyl_chalcogen_group
 fn acyl_group(
@@ -1393,6 +1410,7 @@ fn acyl_group(
     ns.sort_by_key(|&n| {
         std::cmp::Reverse((
             !cyclic.contains(&n),
+            is_amidium_n(m, n),
             m.get_neighbors(n)
                 .iter()
                 .any(|&x| x != c && m.atoms[&x].symbol != "H"),
@@ -1403,7 +1421,9 @@ fn acyl_group(
         return carbonyl_group(c, attachment, double, "ketone").map(|g| vec![g]);
     }
     let (mut attachment, mut external) = (attachment, external);
-    let (derivative, group_ns) = if let Some(v) = hydrazide_ns(m, c, n, cyclic) {
+    let (derivative, group_ns) = if !cyclic.contains(&n) && is_amidium_n(m, n) {
+        ("amidium", vec![n])
+    } else if let Some(v) = hydrazide_ns(m, c, n, cyclic) {
         ("hydrazide", v)
     } else if let Some(v) = urea_ns(m, c, &ns, cyclic) {
         attachment = c;
@@ -2804,9 +2824,8 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
     // shared with another acyl centre belongs to that centre, whatever the
     // atom order: N-carbamoylacetamide, not N-acetylurea.
     let mut ureas = Vec::new();
-    // P-66.1.2: (R-CO)2NH is an N-acyl derivative of the senior amide, so
-    // every acyl centre on a shared nitrogen stays an amide candidate until
-    // the parent is selected.
+    // P-66.1.2 and P-73.1.2.1: each acyl centre on a shared nitrogen stays
+    // a suffix candidate until the senior amide or amidium parent is selected.
     let mut amide_nitrogens = AtomSet::new();
     for (&c, a) in &m.atoms {
         if a.is_carbon()
@@ -2825,7 +2844,7 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                     let amide = g
                         .descriptor
                         .as_ref()
-                        .is_some_and(|d| d.derivative == "amide");
+                        .is_some_and(|d| matches!(d.derivative.as_str(), "amide" | "amidium"));
                     for atom in g.atoms_without_attachment() {
                         if amide && m.atoms[&atom].symbol == "N" {
                             amide_nitrogens.insert(atom);

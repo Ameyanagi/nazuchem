@@ -10,7 +10,7 @@
 
 //! Bounded recovery of the closed-shell parent for descriptive radical-ion names.
 //!
-//! RC-85.1 permits a neutral parent's name followed by `radical cation` or
+//! P-75.1 permits a neutral parent's name followed by `radical cation` or
 //! `radical anion`. The recovered graph is only a naming/verification target:
 //! it must never replace the identity of the original radical ion.
 use nazuchem_kernel::{
@@ -330,6 +330,31 @@ mod tests {
             );
             let parsed_smiles = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
             crate::test_support::verify_identity(&neutral, &parsed_smiles).unwrap();
+        }
+    }
+
+    #[test]
+    fn isothiocyanate_radical_anion_uses_descriptive_neutral_parent_verification() {
+        let budget = Default::default();
+        let smiles = "CCN=C=[S-]";
+        let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+        for result in [
+            crate::name_smiles(smiles, &budget),
+            crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+        ] {
+            let name = result.unwrap();
+            assert_eq!(name.text, "isothiocyanatoethane radical anion");
+            assert_eq!(
+                name.status,
+                nazuchem_ir::NameStatus::NotPreferred(nazuchem_ir::NameReason::RadicalIon),
+            );
+            let verification = name.verification.unwrap();
+            let neutral = crate::test_support::parse_strict(&verification.name).unwrap();
+            crate::test_support::verify_identity("CCN=C=S", &neutral).unwrap();
+            assert_eq!(
+                verification.smiles,
+                crate::canonical_smiles(&neutral, &budget).unwrap()
+            );
         }
     }
 

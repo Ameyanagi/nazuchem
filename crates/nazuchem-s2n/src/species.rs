@@ -209,6 +209,41 @@ pub(super) fn assess_cation_parent(mol: &Molecule, derivation: &Derivation) {
     if !centres.is_empty() && !centres.iter().any(cited) {
         mol.mark_name(NameStatus::Unverified(NameReason::CationParent));
     }
+    // P-73.1.2.2: uronium and its chalcogen analogues are the preferred
+    // parents of protonated ureas. The amidium fallback preserves the
+    // N-bound hydron when the retained uronium name parses as a tautomer.
+    // An H-bearing N-chalcogenide likewise uses an explicit amidium suffix
+    // to preserve the charge pair when the functional-class name cannot.
+    if principal_group.as_ref().is_some_and(|(key, atoms)| {
+        key.starts_with("acyl_amidium_")
+            && atoms.iter().any(|&id| {
+                let atom = &mol.atoms[&id];
+                atom.symbol == "N"
+                    && atom.charge == 1
+                    && (atom.total_h_count > 0
+                        && super::perception::has_terminal_chalcogenide(mol, id)
+                        || mol.get_neighbors(id).iter().any(|&c| {
+                            atoms.contains(&c)
+                                && mol.atoms[&c].is_carbon()
+                                && mol.degree(c) == 3
+                                && mol.get_neighbors(c).iter().any(|&x| {
+                                    x != id
+                                        && mol.atoms[&x].symbol == "N"
+                                        && mol.bond_order(c, x) == 1
+                                })
+                                && mol.get_neighbors(c).iter().any(|&x| {
+                                    atoms.contains(&x)
+                                        && matches!(
+                                            mol.atoms[&x].symbol.as_str(),
+                                            "O" | "S" | "Se" | "Te"
+                                        )
+                                        && mol.bond_order(c, x) == 2
+                                })
+                        }))
+            })
+    }) {
+        mol.mark_name(NameStatus::Unverified(NameReason::CationParent));
+    }
     // P-73.1.2 takes the largest neutral parent: an aminium or iminium
     // nitrogen on a substituent nitrogen belongs to a hydrazinium or
     // hydrazidium parent, as in pentamethylhydrazinium (P-73.1.1.2) and

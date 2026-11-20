@@ -325,8 +325,8 @@ impl NumberingNSubstituents {
     }
 }
 
-/// Precollect ordinary amine/amide branches without detaching their nitrogen
-/// labels from the corresponding parent carbon. Other nitrogen suffix systems
+/// Precollect amine, amide and amidium branches with their nitrogen sites
+/// attached to the corresponding parent carbon. Other nitrogen suffix systems
 /// retain their specialized local ordering below.
 // Provenance: fn collect_numbering_n_substituents | adapted
 // Source: openclatura | src/openclatura/component_modifiers.py::n_substituent_locant
@@ -351,7 +351,13 @@ pub fn collect_numbering_n_substituents(
             .as_ref()
             .is_some_and(|rule| rule.has_capability("hydrazide"))
     });
-    if !(hydrazide || matches!(key, "amine" | "amide" | "ring_amide"))
+    let amidium = selected.iter().all(|group| {
+        group
+            .descriptor
+            .as_ref()
+            .is_some_and(|descriptor| descriptor.derivative == "amidium")
+    });
+    if !(hydrazide || amidium || matches!(key, "amine" | "amide" | "ring_amide"))
         || selected.len() < 2
         || selected
             .iter()

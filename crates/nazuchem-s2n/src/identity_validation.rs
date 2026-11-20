@@ -280,6 +280,257 @@ mod tests {
     }
 
     #[test]
+    fn amidium_names_preserve_charge_in_both_public_naming_paths() {
+        use crate::test_support::{canonical_smiles, parse_strict};
+
+        let budget = Default::default();
+        for (smiles, expected) in [
+            // P-73.1.2.1 and Table 7.4: use amidium for positive nitrogen.
+            ("C[NH+](C)C=S", "N,N-dimethylmethanethioamidium"),
+            (
+                "C[NH+](C)C=S.[Cl-]",
+                "N,N-dimethylmethanethioamidium chloride",
+            ),
+            ("C[NH+](C)C=O", "N,N-dimethylformamidium"),
+            ("C[NH+](C)C=O.[Cl-]", "N,N-dimethylformamidium chloride"),
+            (
+                "O=C(O)CC=[N+](C)C=S",
+                "N-(3-hydroxy-3-oxopropylidene)-N-methylmethanethioamidium",
+            ),
+            (
+                "C[NH+](C)C(=S)c1ccccc1",
+                "N,N-dimethylbenzenecarbothioamidium",
+            ),
+            ("C[N+](C)(C)C=S", "N,N,N-trimethylmethanethioamidium"),
+            ("C[NH+](C)C=[Se]", "N,N-dimethylmethaneselenoamidium"),
+            ("C[NH+](C)C=[Te]", "N,N-dimethylmethanetelluroamidium"),
+            ("CC(=[OH+])N", "1-oxidaniumylideneethan-1-amine"),
+            (
+                "CC(=[OH+])N.[Cl-]",
+                "1-oxidaniumylideneethan-1-amine chloride",
+            ),
+            (
+                "C[NH+](C)C(=S)CC(=O)[O-]",
+                "3-(N-methylmethanaminiumyl)-3-sulfanylidenepropanoate",
+            ),
+            (
+                "[NH3+]C(=S)CC(=O)[O-]",
+                "3-azaniumyl-3-sulfanylidenepropanoate",
+            ),
+            ("[NH3+]C(=O)CC(=O)[O-]", "3-azaniumyl-3-oxopropanoate"),
+            ("[NH3+]C(=S)C(=O)[O-]", "azaniumyl(sulfanylidene)acetate"),
+            ("[NH3+]C(=O)C(=O)[O-]", "azaniumyl(oxo)acetate"),
+            ("CN(C)C=S", "N,N-dimethylmethanethioamide"),
+            ("CC(=S)NN=C(C)C", "N'-(propan-2-ylidene)ethanethiohydrazide"),
+            ("C[N+]([O-])(C)C=S", "N,N-dimethyl-N-oxidomethanethioamide"),
+        ] {
+            let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+            for result in [
+                name_smiles(smiles, &budget),
+                crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+            ] {
+                let name = result.unwrap_or_else(|error| panic!("{smiles}: {error}"));
+                assert_eq!(name.text, expected, "{smiles}");
+                let reconstructed = parse_strict(&name.text).unwrap();
+                assert_eq!(
+                    canonical_smiles(&reconstructed).unwrap(),
+                    canonical_smiles(smiles).unwrap(),
+                    "{smiles} -> {} -> {reconstructed}",
+                    name.text,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn charged_amidium_variants_preserve_protons_and_charge_pairs() {
+        use crate::test_support::{canonical_smiles, parse_strict};
+        use nazuchem_ir::{NameReason, NameStatus};
+
+        let budget = Default::default();
+        let fallback = NameStatus::Unverified(NameReason::CationParent);
+        for (smiles, expected, status) in [
+            // The retained uronium names parse as C=N+ tautomers.
+            ("NC(=O)[NH3+]", "aminoformamidium", fallback),
+            ("[NH3+]C(=O)N", "aminoformamidium", fallback),
+            ("NC(=S)[NH3+]", "aminomethanethioamidium", fallback),
+            ("[NH3+]C(=S)N", "aminomethanethioamidium", fallback),
+            (
+                "[NH3+]C(=O)C(=O)[NH3+]",
+                "ethanebis(amidium)",
+                NameStatus::Preferred,
+            ),
+            (
+                "[NH3+]C(=S)CC(=S)[NH3+]",
+                "propanebis(thioamidium)",
+                NameStatus::Preferred,
+            ),
+            ("[NH2+]([O-])C(=O)C", "N-oxidoacetamidium", fallback),
+            ("[NH2+]([S-])C(=S)C", "N-sulfidoethanethioamidium", fallback),
+            (
+                "[NH2+]([Se-])C(=[Se])C",
+                "N-selenidoethaneselenoamidium",
+                fallback,
+            ),
+            (
+                "[NH2+]([Te-])C(=[Te])C",
+                "N-telluridoethanetelluroamidium",
+                fallback,
+            ),
+            (
+                "C[NH+]([O-])C(=O)C",
+                "N-methyl-N-oxidoacetamidium",
+                fallback,
+            ),
+        ] {
+            let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+            let reconstructed = parse_strict(expected).unwrap();
+            assert_eq!(
+                canonical_smiles(&reconstructed).unwrap(),
+                canonical_smiles(smiles).unwrap(),
+                "{smiles} -> {expected} -> {reconstructed}",
+            );
+            for result in [
+                name_smiles(smiles, &budget),
+                crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+            ] {
+                let name = result.unwrap_or_else(|error| panic!("{smiles}: {error}"));
+                assert_eq!(name.text, expected, "{smiles}");
+                assert_eq!(name.status, status, "{smiles}");
+            }
+        }
+    }
+
+    #[test]
+    fn amide_nitrogen_chalcogenides_keep_the_neutral_amide_suffix() {
+        use crate::test_support::{canonical_smiles, parse_strict};
+        use nazuchem_ir::{NameReason, NameStatus};
+
+        let budget = Default::default();
+        for (element, prefix) in [
+            ("O", "oxido"),
+            ("S", "sulfido"),
+            ("Se", "selenido"),
+            ("Te", "tellurido"),
+        ] {
+            let expected = format!("N,N,N',N'-tetramethyl-N-{prefix}ethanediamide");
+            let reconstructed = parse_strict(&expected).unwrap();
+            let canonical = canonical_smiles(&reconstructed).unwrap();
+            for smiles in [
+                format!("C[N+]([{element}-])(C)C(=O)C(=O)N(C)C"),
+                format!("CN(C)C(=O)C(=O)[N+](C)(C)[{element}-]"),
+            ] {
+                let ir = crate::ir_input::from_smiles(&smiles, &budget).unwrap();
+                assert_eq!(canonical_smiles(&smiles).unwrap(), canonical, "{smiles}");
+                for result in [
+                    name_smiles(&smiles, &budget),
+                    crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+                ] {
+                    let name = result.unwrap_or_else(|error| panic!("{smiles}: {error}"));
+                    assert_eq!(name.text, expected, "{smiles}");
+                    assert_eq!(
+                        name.status,
+                        NameStatus::NotPreferred(NameReason::UnretainedParent),
+                        "{smiles}",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn multiplied_amidium_n_locants_are_independent_of_atom_order() {
+        use crate::test_support::{canonical_smiles, parse_strict};
+
+        let budget = Default::default();
+        for (smiles_pair, expected) in [
+            (
+                ["C[NH2+]C(=O)C(=O)[NH3+]", "[NH3+]C(=O)C(=O)[NH2+]C"],
+                "N-methylethanebis(amidium)",
+            ),
+            (
+                ["C[NH2+]C(=S)C(=S)[NH3+]", "[NH3+]C(=S)C(=S)[NH2+]C"],
+                "N-methylethanebis(thioamidium)",
+            ),
+            (
+                ["C[NH2+]C(=S)C(=S)[NH2+]CC", "CC[NH2+]C(=S)C(=S)[NH2+]C"],
+                "N-ethyl-N'-methylethanebis(thioamidium)",
+            ),
+            (
+                ["C[NH2+]C(=O)C(=S)[NH2+]CC", "CC[NH2+]C(=S)C(=O)[NH2+]C"],
+                "2-(ethanaminiumyl)-N-methyl-2-sulfanylideneacetamidium",
+            ),
+        ] {
+            let reconstructed = parse_strict(expected).unwrap();
+            let canonical = canonical_smiles(&reconstructed).unwrap();
+            for smiles in smiles_pair {
+                let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+                assert_eq!(canonical_smiles(smiles).unwrap(), canonical, "{smiles}");
+                for result in [
+                    name_smiles(smiles, &budget),
+                    crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+                ] {
+                    let name = result.unwrap_or_else(|error| panic!("{smiles}: {error}"));
+                    assert_eq!(name.text, expected, "{smiles}");
+                    assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn shared_nitrogen_amidium_parent_is_independent_of_atom_order() {
+        use crate::test_support::{canonical_smiles, parse_strict};
+
+        let budget = Default::default();
+        for (smiles_pair, expected) in [
+            (
+                ["CC(=O)[NH+](C)C(=O)CC", "CCC(=O)[NH+](C)C(=O)C"],
+                "N-acetyl-N-methylpropanamidium",
+            ),
+            (
+                ["CC(=S)[NH+](C)C(=S)CC", "CCC(=S)[NH+](C)C(=S)C"],
+                "N-(ethanethioyl)-N-methylpropanethioamidium",
+            ),
+            (
+                ["CC(=O)[NH+](C)C(=S)CC", "CCC(=S)[NH+](C)C(=O)C"],
+                "N-methyl-N-(propanethioyl)acetamidium",
+            ),
+        ] {
+            let reconstructed = parse_strict(expected).unwrap();
+            let canonical = canonical_smiles(&reconstructed).unwrap();
+            for smiles in smiles_pair {
+                let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+                assert_eq!(canonical_smiles(smiles).unwrap(), canonical, "{smiles}");
+                for result in [
+                    name_smiles(smiles, &budget),
+                    crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+                ] {
+                    let name = result.unwrap_or_else(|error| panic!("{smiles}: {error}"));
+                    assert_eq!(name.text, expected, "{smiles}");
+                    assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn amidium_substituent_prefixes_without_a_charge_citation_are_declined() {
+        let budget = Default::default();
+        let smiles = "C[NH+](C)C(=S)c1ccc(C(=O)[O-])cc1";
+        let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+        for result in [
+            name_smiles(smiles, &budget),
+            crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+        ] {
+            assert_eq!(
+                result.unwrap_err(),
+                "openclatura: amidium substituent prefix is not supported",
+            );
+        }
+    }
+
+    #[test]
     // Provenance: fn tests::public_entry_declines_kekule_dependent_cip_ranks | original
     // Source: ReShiki | src/naming/openclatura/identity_validation.rs::tests::public_entry_declines_kekule_dependent_cip_ranks
     fn public_entry_declines_kekule_dependent_cip_ranks() {
