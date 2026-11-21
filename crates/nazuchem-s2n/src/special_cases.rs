@@ -5940,14 +5940,15 @@ pub(super) fn format_locanted_ligands(cited: Vec<(String, &str)>, omit_locants: 
 }
 
 // P-65.1.7: derive a carboacyl prefix from the acid name, as in
-// 2-bromobenzoyl from 2-bromobenzoic acid.
+// 2-bromobenzoyl from 2-bromobenzoic acid. Keep whether the acid parent
+// is substituted so the caller can enclose prefixes such as chloroacetyl.
 // Provenance: fn carboacyl_from_acid | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::carboacyl_from_acid
 pub(super) fn carboacyl_from_acid(
     mol: &Molecule,
     carbon: usize,
     blocked: &AtomSet,
-) -> Result<Option<String>, String> {
+) -> Result<Option<(String, bool)>, String> {
     let acid = name_anhydride_acid(mol, &[carbon], blocked, false, &[])?;
     if !acid.cited || !acid.complete {
         return Ok(None);
@@ -5957,7 +5958,7 @@ pub(super) fn carboacyl_from_acid(
             if acid.status != NameStatus::Preferred {
                 mol.mark_name(acid.status);
             }
-            return Ok(Some(format!("{stem}{suffix}")));
+            return Ok(Some((format!("{stem}{suffix}"), !acid.unsubstituted)));
         }
     }
     Ok(None)

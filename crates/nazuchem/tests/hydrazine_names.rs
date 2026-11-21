@@ -348,6 +348,14 @@ fn sulfur_attachment_cites_the_substituted_hydrazinesulfonyl_prefix() {
             "OC(=O)CS(=O)(=O)NNC(=O)C1CCCCC1",
             "[2-(cyclohexanecarbonyl)hydrazine-1-sulfonyl]acetic acid",
         ),
+        (
+            "OC(=O)CS(=O)(=O)NNC(=O)CCl",
+            "[2-(chloroacetyl)hydrazine-1-sulfonyl]acetic acid",
+        ),
+        (
+            "OC(=O)CS(=O)(=O)NNC(=O)CO",
+            "[2-(hydroxyacetyl)hydrazine-1-sulfonyl]acetic acid",
+        ),
     ] {
         check(smiles, expected, NameStatus::Preferred);
     }

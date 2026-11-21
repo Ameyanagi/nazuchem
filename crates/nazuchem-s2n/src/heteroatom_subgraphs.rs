@@ -474,7 +474,16 @@ fn acylhydrazinesulfonyl(
         return Ok(None);
     }
     let acyl = super::special_cases::carboacyl_from_acid(mol, carbon, &outside)?;
-    Ok(acyl.map(|name| format_element_substituent("2-", &name, "hydrazine-1-sulfonyl", false)))
+    Ok(acyl.map(|(name, substituted)| {
+        if substituted {
+            // P-16.5.1.1: enclose a compound acyl prefix even without a locant,
+            // as in (chloroacetyl)oxyl (P-71.3.4).
+            let name = format_multiplier(&name, 1, true);
+            format!("(2-{name}hydrazine-1-sulfonyl)")
+        } else {
+            format_element_substituent("2-", &name, "hydrazine-1-sulfonyl", false)
+        }
+    }))
 }
 
 // Provenance: fn sulfonyl_group | adapted
