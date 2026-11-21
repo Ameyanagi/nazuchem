@@ -497,6 +497,11 @@ fn sulfonyl_group(mol: &Molecule, branch: &str, suffix: &str) -> (String, bool) 
             return (result, before.is_empty());
         }
     }
+    // For a sulfur attachment, the hydrazido concatenation is a fallback
+    // when the corresponding substituted hydrazinesulfonyl cannot be cited.
+    if suffix == "sulfonyl" && b.ends_with("hydrazido") {
+        mol.mark_name(NameStatus::NotPreferred(NameReason::SulfonylPrefix));
+    }
     // Preferred names cite methanesulfonyl, sulfo, sulfamoyl (P-65.3.2.3);
     // alkoxy, halo, azido and similar concatenations are preferred prefixes.
     if (b.ends_with("yl") || phenylamino_spelling(&b).ends_with("amino") || b == "hydroxy")

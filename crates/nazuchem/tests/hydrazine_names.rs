@@ -352,3 +352,23 @@ fn sulfur_attachment_cites_the_substituted_hydrazinesulfonyl_prefix() {
         check(smiles, expected, NameStatus::Preferred);
     }
 }
+
+#[test]
+fn n_alkyl_acylhydrazide_sulfonyl_fallbacks_are_not_preferred() {
+    for (smiles, expected) in [
+        (
+            "OC(=O)CS(=O)(=O)N(C)NC(C)=O",
+            "(N'-methylacetohydrazidosulfonyl)acetic acid",
+        ),
+        (
+            "OC(=O)CS(=O)(=O)NN(C)C(C)=O",
+            "(N-methylacetohydrazidosulfonyl)acetic acid",
+        ),
+    ] {
+        check(
+            smiles,
+            expected,
+            NameStatus::NotPreferred(NameReason::SulfonylPrefix),
+        );
+    }
+}
