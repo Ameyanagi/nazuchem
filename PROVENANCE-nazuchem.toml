@@ -7979,7 +7979,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/python/pyproject.toml", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
-sha256 = "511bc92965e417769bb399c3d6e2d12e8b3092e929cffa4938f0cdd4d1af83c7"
+sha256 = "53f7f5e7609284911d22cbc5359b6b23f58e64c77bfe2af7759bbddb00491c53"
 
 [[file]]
 path = "bindings/python/python/nazuchem/__init__.py"
@@ -8058,7 +8058,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/python/uv.lock", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time."
-sha256 = "37571e42d70c915331fc0723107c636b519eb9768f4ddea380359b6a8b68d902"
+sha256 = "690010cd803df554313423bed7cde8b424b0610c1fef9fd856844df6c09cf833"
 
 [[file]]
 path = "bindings/wasm/.gitignore"
@@ -8108,7 +8108,7 @@ sources = [
   { project = "Nazuchem", path = "bindings/wasm/package.json", ref = "Phase B step 9", license = "MIT OR Apache-2.0" },
 ]
 notes = "Original Nazuchem Python/npm binding implementation, packaging, validation or dependency-lock metadata. Generated distribution notices are verified against the dependency closure at build time. Adds the local Bun benchmark command; npm is publishable and benchmark files remain outside the package whitelist. Owner decision 2026-11-10, Rust stable sort: remove the LLVM-exception package-expression term after the kernel C++ sort code is deleted; no retained incorporated material requires it."
-sha256 = "d89f8fd7c919674ad84b8432e1b1e4bd9182c1ff15c3d6f71ff37c242d6e4e07"
+sha256 = "59cafae2f59110228e3ff60ad34ee6ff7c15df374361746cf588c7c52d81ea9e"
 
 [[file]]
 path = "bindings/wasm/scripts/build.ts"
