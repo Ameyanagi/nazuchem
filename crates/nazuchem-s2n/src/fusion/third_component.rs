@@ -565,17 +565,34 @@ mod tests {
     }
 
     #[test]
-    fn cyclic_aza_covers_preserve_the_carbon_pi_decline() {
-        for smiles in [
-            "N1=C2C3=C(N=NC3=N1)N=N2",
-            "N1=C2C3=C(N=NC3=N1)C=C2",
-            "CC1=CC=2C3=C1N=NC3=NN2",
-            "FC1=CC=2C3=C1N=NC3=NN2",
+    fn explicit_bridge_parents_preserve_localized_bonds_and_numbering() {
+        for (source, reversed) in [
+            (
+                "CC1=NC=C(S1)C#CC2=C3CN4C(=NN=C4C5=C(N3C=N2)C=CC(=C5)Cl)COC",
+                "COCC1=NN=C2C3=C(C=CC(Cl)=C3)N3C=NC(C#CC4=CN=C(C)S4)=C3CN21",
+            ),
+            (
+                "C1CCCC2=C(CC1)C3=C(S2)N=CC(=NC3=O)C4=CC=CC=C4",
+                "C1=CC=CC=C1C1=NC(=O)C2=C(N=C1)SC1=C2CCCCCC1",
+            ),
+            ("N1=C2C3=C(N=NC3=N1)C=C2", "C1=CC2=C3C(=NN=C13)N=N2"),
+            ("N1=C2C3=C(N=NC3=N1)N=N2", "N1=NC2=C3C(=NN=C13)N=N2"),
+            ("CC1=CC=2C3=C1N=NC3=NN2", "N1=C2C3=C(N=NC3=N1)C(C)=C2"),
+            ("FC1=CC=2C3=C1N=NC3=NN2", "N1=C2C3=C(N=NC3=N1)C(F)=C2"),
         ] {
-            assert_eq!(
-                super::super::super::name_smiles(smiles, &Default::default()).unwrap_err(),
-                "openclatura: localized nonaromatic fused pi state not ported"
-            );
+            let mut spelling = None;
+            for smiles in [source, reversed] {
+                let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+                assert_eq!(
+                    name.status,
+                    nazuchem_ir::NameStatus::NotPreferred(
+                        nazuchem_ir::NameReason::VonBaeyerFusionFallback
+                    )
+                );
+                let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+                crate::test_support::verify_identity(smiles, &parsed).unwrap();
+                assert_eq!(spelling.get_or_insert(name.text.clone()), &name.text);
+            }
         }
     }
 

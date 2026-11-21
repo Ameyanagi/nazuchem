@@ -8,7 +8,11 @@
 //! chalcogen esters follow the IUPAC 2013 recommendations and read back as
 //! the structure they were generated from.
 
-use nazuchem::{Budget, name_to_smiles, s2n::canonical_smiles, smiles_to_name};
+use nazuchem::{
+    Budget, name_to_smiles,
+    s2n::{canonical_smiles, verify_identity},
+    smiles_to_name,
+};
 
 #[test]
 fn chalcogen_peroxy_names_follow_the_blue_book_and_round_trip() {
@@ -20,10 +24,10 @@ fn chalcogen_peroxy_names_follow_the_blue_book_and_round_trip() {
         ("CCCOS", "propane-1-OS-thioperoxol"),
         ("OSc1ccccc1", "benzene-SO-thioperoxol"),
         ("CCCO[SeH]", "propane-1-OSe-selenoperoxol"),
-        // P-72.2.2.2.2 (benzene-1,4-bis(OS-thioperoxolate)): a suffix with a
-        // letter locant takes bis.
-        ("OSCCSO", "ethane-1,2-bis(SO-thioperoxol)"),
-        ("SOc1ccc(OS)cc1", "benzene-1,4-bis(OS-thioperoxol)"),
+        // P-16.3.3(a), P-63.4.2.1 Table 6.1: the neutral suffix is
+        // formed by functional replacement. The letter locant stays enclosed.
+        ("OSCCSO", "ethane-1,2-di(SO-thioperoxol)"),
+        ("SOc1ccc(OS)cc1", "benzene-1,4-di(OS-thioperoxol)"),
         // P-63.4.2.2: as a prefix the group stays hydroxysulfanyl or
         // sulfanyloxy (3-(sulfanyloxy)propanenitrile).
         ("OSCCO", "2-(hydroxysulfanyl)ethan-1-ol"),
@@ -103,11 +107,11 @@ fn chalcogen_peroxy_names_follow_the_blue_book_and_round_trip() {
         ),
         (
             "CSC(=O)c1ccc(-c2ccc(C(=O)SCC)cc2)cc1",
-            "4'-S-ethyl 4-S-methyl [1,1'-biphenyl]-4,4'-dicarbothioate",
+            "S-ethyl S-methyl [1,1'-biphenyl]-4,4'-dicarbothioate",
         ),
         (
             "COSC(=O)c1ccc(-c2ccc(C(=O)SOCC)cc2)cc1",
-            "4'-SO-ethyl 4-SO-methyl [1,1'-biphenyl]-4,4'-dicarbo(thioperoxoate)",
+            "SO-ethyl SO-methyl [1,1'-biphenyl]-4,4'-dicarbo(thioperoxoate)",
         ),
         // P-65.1.5.3 (4-[(hydroxysulfanyl)carbonyl]cyclohexane-1-carboxylic
         // acid): a peroxy acid cited as a prefix names its own chalcogens.
@@ -143,5 +147,45 @@ fn chalcogen_peroxy_names_follow_the_blue_book_and_round_trip() {
             canonical_smiles(smiles, &budget),
             "{smiles} -> {name} -> {parsed}"
         );
+    }
+}
+
+#[test]
+fn position_located_repeated_chalcogen_ester_modifiers_round_trip() {
+    for (smiles, expected) in [
+        (
+            "c1(C(=O)SC)c(C(=O)SC)cc(C(=O)SCC)cc1",
+            "4-S-ethyl 1,2-bis(S-methyl) benzene-1,2,4-tricarbothioate",
+        ),
+        (
+            "c1(C(=O)OSC)c(C(=O)OSC)cc(C(=O)OSCC)cc1",
+            "4-OS-ethyl 1,2-bis(OS-methyl) benzene-1,2,4-tricarbo(thioperoxoate)",
+        ),
+        (
+            "c1(C(=O)[Se]C)c(C(=O)[Se]C)cc(C(=O)[Se]CC)cc1",
+            "4-Se-ethyl 1,2-bis(Se-methyl) benzene-1,2,4-tricarboselenoate",
+        ),
+        (
+            "c1(-c2ccc(C(=O)[Se]CC)cc2)cc(C(=O)[Se]C)c(C(=O)[Se]C)cc1",
+            "4'-Se-ethyl 3,4-bis(Se-methyl) [1,1'-biphenyl]-3,4,4'-tricarboselenoate",
+        ),
+        (
+            "c1(C(=O)[Te]C)c(C(=O)[Te]C)cc(C(=O)[Te]CC)cc1",
+            "4-Te-ethyl 1,2-bis(Te-methyl) benzene-1,2,4-tricarbotelluroate",
+        ),
+        (
+            "c1(-c2ccc(C(=O)[Te]CC)cc2)cc(C(=O)[Te]C)c(C(=O)[Te]C)cc1",
+            "4'-Te-ethyl 3,4-bis(Te-methyl) [1,1'-biphenyl]-3,4,4'-tricarbotelluroate",
+        ),
+        (
+            "c1(-c2ccc(C(=O)SCC)cc2)cc(C(=O)SC)c(C(=O)SC)cc1",
+            "4'-S-ethyl 3,4-bis(S-methyl) [1,1'-biphenyl]-3,4,4'-tricarbothioate",
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap().text;
+        assert_eq!(name, expected, "{smiles}");
+        let parsed = name_to_smiles(&name).unwrap_or_else(|error| panic!("{name}: {error}"));
+        verify_identity(smiles, &parsed, &Budget::default())
+            .unwrap_or_else(|error| panic!("{smiles} -> {name} -> {parsed}: {error}"));
     }
 }

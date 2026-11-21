@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/locant_elision.rs | issue #128
 // Source: openclatura | src/openclatura/locant_elision.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/locant_elision.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/exploratory/test_parenthesis_functions_direct.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -535,6 +536,18 @@ fn isomorphic<'a>(
     candidate: &'a Decoration,
     budget: &mut usize,
 ) -> Option<bool> {
+    isomorphic_where(g, actual, candidate, budget, &|_| true)
+}
+
+// Provenance: fn isomorphic_where | adapted
+// Source: openclatura | src/openclatura/locant_elision.py::_isomorphic
+fn isomorphic_where<'a>(
+    g: &Graph,
+    actual: &'a Decoration,
+    candidate: &'a Decoration,
+    budget: &mut usize,
+    accept: &dyn Fn(&[Option<usize>]) -> bool,
+) -> Option<bool> {
     type EdgeLabel<'a> = (usize, &'a [(String, String)]);
     let n = g.nodes.len();
     let adjacency = |decoration: &'a Decoration| {
@@ -589,10 +602,16 @@ fn isomorphic<'a>(
     let target_ranks = ranks(candidate, &target_adj);
     let mut target_order: Vec<_> = (0..n).collect();
     target_order.sort_by_key(|&i| target_ranks[i]);
-    // Provenance: fn isomorphic::search | adapted
+    type SearchGraphs<'a> = (
+        &'a Graph,
+        &'a Decoration,
+        &'a Decoration,
+        &'a dyn Fn(&[Option<usize>]) -> bool,
+    );
+    // Provenance: fn isomorphic_where::search | adapted
     // Source: openclatura | src/openclatura/locant_elision.py::_isomorphic.search
     fn search(
-        graphs: (&Graph, &Decoration, &Decoration),
+        graphs: SearchGraphs<'_>,
         adjacency: (&LabeledAdjacency<'_>, &LabeledAdjacency<'_>),
         signatures: (&EdgeSignatures<'_>, &EdgeSignatures<'_>),
         ordering: (&[usize], &[usize]),
@@ -600,7 +619,7 @@ fn isomorphic<'a>(
         used: &mut [bool],
         budget: &mut usize,
     ) -> Option<bool> {
-        let (g, actual, candidate) = graphs;
+        let (g, actual, candidate, accept) = graphs;
         let (source_adj, target_adj) = adjacency;
         let (source_signatures, target_signatures) = signatures;
         let (source_ranks, target_order) = ordering;
@@ -618,7 +637,7 @@ fn isomorphic<'a>(
                 )
             })
         else {
-            return Some(true);
+            return Some(accept(mapping));
         };
         for &target in target_order {
             consume(budget)?;
@@ -649,7 +668,7 @@ fn isomorphic<'a>(
         Some(false)
     }
     search(
-        (g, actual, candidate),
+        (g, actual, candidate, accept),
         (&source_adj, &target_adj),
         (&source_signatures, &target_signatures),
         (&source_ranks, &target_order),
@@ -659,8 +678,10 @@ fn isomorphic<'a>(
     )
 }
 
-/// P-65.6.3.3.2.1: the two alcohol assignments coincide only when the
-/// complete acid component admits an exchange of its ester carbonyl sites.
+/// P-65.6.3.3.2.1: modifier locants can be omitted if any placement gives
+/// the same ester. For one distinct modifier, its site must map to every
+/// other ester site. Otherwise exchanges with the first site, fixing every
+/// other site, suffice to generate all permutations.
 // Provenance: fn ester_sites_are_equivalent | adapted
 // Source: openclatura | src/openclatura/locant_elision.py::_elision_is_safe
 // Source: openclatura | src/openclatura/locant_elision.py::_decorated_labels
@@ -668,16 +689,31 @@ pub fn ester_sites_are_equivalent(
     mol: &super::molecule::Molecule,
     acid_atoms: &super::molecule::AtomSet,
     sites: &[usize],
+    singleton: Option<usize>,
 ) -> bool {
-    sites.len() == 2
-        && sites[0] != sites[1]
-        && sites_correspond(mol, acid_atoms, sites, &[sites[1], sites[0]], false)
+    if sites.len() < 2 {
+        return false;
+    }
+    if let Some(site) = singleton {
+        return sites
+            .iter()
+            .copied()
+            .filter(|&other| other != site)
+            .all(|other| sites_correspond(mol, acid_atoms, &[site], &[other], sites, false));
+    }
+    let mut images = sites.to_vec();
+    (1..sites.len()).all(|i| {
+        images.swap(0, i);
+        let equivalent = sites_correspond(mol, acid_atoms, sites, &images, &[], false);
+        images.swap(0, i);
+        equivalent
+    })
 }
 
 /// Whether a symmetry of the component carries `from` onto `to`; unlike an
 /// exchange this also covers sites related only by a rotation of order three
-/// or more. R and S centres must map onto centres with the same descriptor,
-/// so the mapped structure is the same stereoisomer.
+/// or more. The mapping must preserve configurations and the descriptors
+/// rendered from the source molecule.
 // Provenance: fn site_maps_onto | adapted
 // Source: openclatura | src/openclatura/locant_elision.py::_elision_is_safe
 // Source: openclatura | src/openclatura/locant_elision.py::_decorated_labels
@@ -687,7 +723,7 @@ pub fn site_maps_onto(
     from: usize,
     to: usize,
 ) -> bool {
-    sites_correspond(mol, atoms, &[from], &[to], true)
+    sites_correspond(mol, atoms, &[from], &[to], &[], true)
 }
 
 // Provenance: fn sites_correspond | adapted
@@ -698,14 +734,17 @@ fn sites_correspond(
     acid_atoms: &super::molecule::AtomSet,
     sites: &[usize],
     images: &[usize],
+    preserved_sites: &[usize],
     cip_labels: bool,
 ) -> bool {
     let mut parts = AssemblyParts::new(acid_atoms.len());
     for &id in acid_atoms {
         let atom = &mol.atoms[&id];
-        // An unlabeled graph cannot establish preservation of stereochemical
-        // configurations or relative stereo under the proposed exchange.
-        if atom.has_stereo() && !(cip_labels && matches!(atom.stereo.as_deref(), Some("R" | "S"))) {
+        if atom.has_stereo()
+            && !(cip_labels
+                && matches!(atom.stereo.as_deref(), Some("R" | "S" | "r" | "s"))
+                && matches!(atom.raw_stereo.as_deref(), Some("CW" | "CCW")))
+        {
             return false;
         }
         let locant = id.to_string();
@@ -724,7 +763,11 @@ fn sites_correspond(
         if !acid_atoms.contains(&bond.u) || !acid_atoms.contains(&bond.v) {
             continue;
         }
-        if bond.stereo.is_some() || !matches!(bond.order, 1..=3) {
+        if !matches!(bond.order, 1..=3)
+            || bond.stereo.as_deref().is_some_and(|stereo| {
+                !cip_labels || !matches!(stereo, "E" | "Z") || bond.alkene_geometry.is_none()
+            })
+        {
             return false;
         }
         // Aromatic equivalence is independent of the localized Kekule orders.
@@ -736,7 +779,18 @@ fn sites_correspond(
     let Some(g) = graph(&parts, true) else {
         return false;
     };
-    let position = |id: &usize| g.locants.iter().position(|l| l == &id.to_string());
+    let atom_ids: Vec<_> = g
+        .locants
+        .iter()
+        .map(|l| parts.parent_atom_ids_by_locant[l])
+        .collect();
+    let positions_by_id: BTreeMap<_, _> = atom_ids
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(position, id)| (id, position))
+        .collect();
+    let position = |id: &usize| positions_by_id.get(id).copied();
     let (Some(positions), Some(images)) = (
         sites.iter().map(position).collect::<Option<Vec<_>>>(),
         images.iter().map(position).collect::<Option<Vec<_>>>(),
@@ -762,6 +816,31 @@ fn sites_correspond(
             }
         })
         .collect();
+    for bond in mol.bonds.values() {
+        if let (Some(key), Some(u), Some(v)) = (&bond.stereo, position(&bond.u), position(&bond.v))
+        {
+            all.push(Feature {
+                category: "bond_configuration",
+                key: key.clone(),
+                positions: vec![Position::Edge(normalize_edge(u, v))],
+            });
+        }
+    }
+    if !preserved_sites.is_empty() {
+        let Some(positions) = preserved_sites
+            .iter()
+            .map(position)
+            .map(|p| p.map(Position::Node))
+            .collect()
+        else {
+            return false;
+        };
+        all.push(Feature {
+            category: "ester_site",
+            key: String::new(),
+            positions,
+        });
+    }
     let fixed = all.len();
     for (i, &position) in positions.iter().enumerate() {
         all.push(Feature {
@@ -776,7 +855,87 @@ fn sites_correspond(
     }
     let candidate = decorate(&g, &all);
     let mut budget = MAX_CANDIDATE_PLACEMENTS;
-    isomorphic(&g, &actual, &candidate, &mut budget) == Some(true)
+    let preserves_stereo = |mapping: &[Option<usize>]| {
+        let image = |id: usize| position(&id).and_then(|p| mapping[p]).map(|p| atom_ids[p]);
+        !cip_labels || same_stereo_under_mapping(mol, acid_atoms, image)
+    };
+    isomorphic_where(&g, &actual, &candidate, &mut budget, &preserves_stereo) == Some(true)
+}
+
+// Compare actual winding and alkene geometry. Source CIP labels alone cannot
+// establish their preservation after removing the oxide used to assign them.
+// Provenance: fn same_stereo_under_mapping | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/locant_elision.rs::same_stereo_under_mapping
+fn same_stereo_under_mapping(
+    mol: &super::molecule::Molecule,
+    atoms: &super::molecule::AtomSet,
+    image: impl Fn(usize) -> Option<usize>,
+) -> bool {
+    for &atom in atoms {
+        let Some(winding) = &mol.atoms[&atom].raw_stereo else {
+            continue;
+        };
+        let Some(target) = image(atom) else {
+            return false;
+        };
+        let target_neighbors = mol.get_neighbors(target);
+        let order = mol
+            .get_neighbors(atom)
+            .iter()
+            .map(|&neighbor| {
+                let target_neighbor = image(neighbor)?;
+                target_neighbors.iter().position(|&n| n == target_neighbor)
+            })
+            .collect::<Option<Vec<_>>>();
+        let Some(order) = order
+            .filter(|order| matches!(order.len(), 3 | 4) && order.len() == target_neighbors.len())
+        else {
+            return false;
+        };
+        let odd = order
+            .iter()
+            .enumerate()
+            .map(|(i, index)| order[i + 1..].iter().filter(|other| *other < index).count())
+            .sum::<usize>()
+            % 2
+            != 0;
+        if mol.atoms[&target]
+            .raw_stereo
+            .as_ref()
+            .is_none_or(|target_winding| (winding != target_winding) != odd)
+        {
+            return false;
+        }
+    }
+    for bond in mol
+        .bonds
+        .values()
+        .filter(|b| atoms.contains(&b.u) && atoms.contains(&b.v))
+    {
+        let Some((carriers, same_side)) = bond.alkene_geometry else {
+            continue;
+        };
+        let Some((u, v)) = image(bond.u).zip(image(bond.v)) else {
+            return false;
+        };
+        let Some(target) = mol.get_bond(u, v) else {
+            return false;
+        };
+        let Some((mut target_carriers, target_same_side)) = target.alkene_geometry else {
+            return false;
+        };
+        if u != target.u {
+            target_carriers.swap(0, 1);
+        }
+        let Some(mapped) = image(carriers[0]).zip(image(carriers[1])) else {
+            return false;
+        };
+        let switched = (mapped.0 != target_carriers[0]) ^ (mapped.1 != target_carriers[1]);
+        if same_side ^ switched != target_same_side {
+            return false;
+        }
+    }
+    true
 }
 
 // Provenance: fn stereo_positions | original
@@ -1214,7 +1373,7 @@ mod tests {
         ] {
             let (mol, atoms, sites) = acid_graph(smiles);
             assert_eq!(
-                ester_sites_are_equivalent(&mol, &atoms, &sites),
+                ester_sites_are_equivalent(&mol, &atoms, &sites, None),
                 equivalent,
                 "{smiles}"
             );
@@ -1224,15 +1383,15 @@ mod tests {
     #[test]
     fn ester_site_exchange_ignores_aromatic_kekule_orders() {
         let (mut mol, atoms, sites) = acid_graph("O=C(O)c1cccc(C(=O)O)c1");
-        assert!(ester_sites_are_equivalent(&mol, &atoms, &sites));
+        assert!(ester_sites_are_equivalent(&mol, &atoms, &sites, None));
         for bond in mol.bonds.values_mut().filter(|b| b.is_aromatic) {
             bond.order = 3 - bond.order;
         }
-        assert!(ester_sites_are_equivalent(&mol, &atoms, &sites));
+        assert!(ester_sites_are_equivalent(&mol, &atoms, &sites, None));
         for bond in mol.bonds.values_mut() {
             bond.is_aromatic = false;
         }
-        assert!(!ester_sites_are_equivalent(&mol, &atoms, &sites));
+        assert!(!ester_sites_are_equivalent(&mol, &atoms, &sites, None));
     }
 
     #[test]
@@ -1244,7 +1403,7 @@ mod tests {
         ] {
             let (mol, atoms, sites) = acid_graph(smiles);
             assert!(
-                !ester_sites_are_equivalent(&mol, &atoms, &sites),
+                !ester_sites_are_equivalent(&mol, &atoms, &sites, None),
                 "{smiles}"
             );
         }
@@ -1487,8 +1646,9 @@ mod tests {
                 assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
             }
         }
-        let error = super::super::name_smiles("F/C=C=C=C/Cl", &Default::default()).unwrap_err();
-        assert!(error.contains("cumulene E/Z"), "{error}");
+        // P-93.4.2.3: E/Z of an odd cumulene, cited at its first locant.
+        let name = super::super::name_smiles("F/C=C=C=C/Cl", &Default::default()).unwrap();
+        assert_eq!(name.text, "(1E)-1-chloro-4-fluorobuta-1,2,3-triene");
     }
 
     #[test]

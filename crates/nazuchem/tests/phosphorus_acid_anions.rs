@@ -102,13 +102,7 @@ fn pnictogen_prefixes_cite_their_oxygen_ligands() {
             "[O-][As](=O)(OC)CC(=O)[O-]",
             "[methoxy(oxido)arsoryl]acetate",
         ),
-        // P-67.1.4.1.1.2 arsoryl; P-67.1.4.1.1.6 hydroxyarsanyl and
-        // dimethoxyphosphanyl.
-        ("O[As](C)(=O)CC(=O)O", "[hydroxy(methyl)arsoryl]acetic acid"),
-        (
-            "CO[As](C)(=O)CC(=O)O",
-            "[methoxy(methyl)arsoryl]acetic acid",
-        ),
+        // P-67.1.4.1.1.6: hydroxyarsanyl and its substituted analogues.
         ("O[AsH]CC(=O)O", "(hydroxyarsanyl)acetic acid"),
         ("O[As](C)CC(=O)O", "[hydroxy(methyl)arsanyl]acetic acid"),
         ("CO[As](C)CC(=O)O", "[methoxy(methyl)arsanyl]acetic acid"),

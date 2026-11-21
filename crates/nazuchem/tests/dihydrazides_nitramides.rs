@@ -96,7 +96,7 @@ fn dihydrazides_cite_the_parent_locant_on_n_and_n_prime() {
         ),
         (
             "CC(C)=NNC(=O)CCC(=O)NN=C(C)C",
-            "N'^1,N'^4-bis(propan-2-ylidene)butanedihydrazide",
+            "N'^1,N'^4-di(propan-2-ylidene)butanedihydrazide",
         ),
         // P-66.3.3.3: an acyl group substitutes the senior hydrazide.
         (
@@ -111,6 +111,64 @@ fn dihydrazides_cite_the_parent_locant_on_n_and_n_prime() {
         (
             "CNNC(=S)CCC(=S)NNC",
             "N'^1,N'^4-dimethylbutanedithiohydrazide",
+        ),
+        // The parent locant is retained for geminal groups. The four
+        // nitrogen sites use distinct prime counts (P-66.4.2.1).
+        (
+            "C1CCCCC1(C(=O)NNC)C(=O)NNC",
+            "N'^1,N'''^1-dimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1CCCCC1(C(=O)NNC)C(=O)NNCC",
+            "N'^1-ethyl-N'''^1-methylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "CCNNC(=O)C1(C(=O)NNC)CCCCC1",
+            "N'^1-ethyl-N'''^1-methylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1(C(=O)NNC)(C(=O)NNCC)CC(C(=O)NN(C)C)CCC1",
+            "N'^1-ethyl-N'''^1,N'^3,N'^3-trimethylcyclohexane-1,1,3-tricarbohydrazide",
+        ),
+        // Compare nitrogen locants before citation order or the total count
+        // of substituents across a geminal group (P-14.3.5).
+        (
+            "C1CCCCC1(C(=O)N(C)N)C(=O)NNC",
+            "N^1,N'''^1-dimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1CCCCC1(C(=O)NNC)C(=O)N(C)N",
+            "N^1,N'''^1-dimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "CN(C(=O)C1(C(=O)NNC)CCCCC1)N",
+            "N^1,N'''^1-dimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1CCCCC1(C(=O)N(C)N)C(=O)NNCC",
+            "N'''^1-ethyl-N^1-methylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1CCCCC1(C(=O)N(C)N)C(=O)NN(C)C",
+            "N^1,N'''^1,N'''^1-trimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1CCCCC1(C(=O)NN(C)C)C(=O)N(C)N",
+            "N^1,N'''^1,N'''^1-trimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        // When both groups occupy the same sites, the first cited
+        // substituent takes the lower locants (P-14.4).
+        (
+            "C1CCCCC1(C(=O)N(CC)NC)C(=O)N(C)NCC",
+            "N^1,N'''^1-diethyl-N'^1,N''^1-dimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1CCCCC1(C(=O)N(C)NCC)C(=O)N(CC)NC",
+            "N^1,N'''^1-diethyl-N'^1,N''^1-dimethylcyclohexane-1,1-dicarbohydrazide",
+        ),
+        (
+            "C1(C(=O)NNCC)(C(=O)NNC)CC(C(=O)NN(C)C)CCC1",
+            "N'^1-ethyl-N'''^1,N'^3,N'^3-trimethylcyclohexane-1,1,3-tricarbohydrazide",
         ),
         // One hydrazide group keeps N and N' (P-66.3.3.1).
         ("CC(=O)N(C)NC", "N,N'-dimethylacetohydrazide"),
@@ -155,6 +213,17 @@ fn amides_of_nitric_and_nitrous_acid_substitute_nitramide_and_nitrous_amide() {
         // hydrazide; benzylidene is preferred when unsubstituted (P-29.6.2.1).
         ("CC(C)=N[N+](=O)[O-]", "(propan-2-ylidene)nitramide"),
         ("c1ccccc1C=N[N+](=O)[O-]", "benzylidenenitramide"),
+        // P-67.1.2.6.3 gives N'-hexylidenenitrous hydrazide. P-93.4.2.1.3
+        // cites E/Z in front of a C=N name when the bond has no numeric locant.
+        ("CCCCCC=NNN=O", "N'-hexylidenenitrous hydrazide"),
+        ("CCCCC/C=N/NN=O", "(E)-N'-hexylidenenitrous hydrazide"),
+        ("c1ccccc1/C=N/[N+](=O)[O-]", "(E)-benzylidenenitramide"),
+        ("c1ccccc1/C=N\\[N+](=O)[O-]", "(Z)-benzylidenenitramide"),
+        ("CNNN=O", "N'-methylnitrous hydrazide"),
+        ("NNN=O", "nitrous hydrazide"),
+        ("CNN[N+](=O)[O-]", "N'-methylnitric hydrazide"),
+        ("NN[N+](=O)[O-]", "nitric hydrazide"),
+        ("NNC(=O)CCN[N+](=O)[O-]", "3-nitramidopropanehydrazide"),
         // P-41: acids, esters and amides of senior acids stay principal and
         // cite nitramido or a substituted amino prefix (P-67.1.4.3.2).
         ("OC(=O)CCN[N+](=O)[O-]", "3-nitramidopropanoic acid"),
@@ -172,32 +241,45 @@ fn amides_of_nitric_and_nitrous_acid_substitute_nitramide_and_nitrous_amide() {
 
 #[test]
 fn a_charged_hydrazone_nitrogen_is_not_named_as_the_neutral_hydrazone() {
-    // A hydrazone or azine name describes the neutral N-N, so these names
-    // used to read back without the charge. The cation is cited by the
-    // suffix iminium or aminium (P-73.1.2.1, Table 7.4). P-73.1.2 takes the
-    // largest neutral parent, as in pentamethylhydrazinium (P-73.1.1.2) and
-    // N',N',N'-trimethylbenzohydrazid-N'-ium (P-73.1.2.1); that parent is
-    // not chosen yet, so the names are not certified.
+    // P-73.1.1.2, P-73.1.2.1: hydrazinium and hydrazid-N'-ium
+    // cite the cationic nitrogen and retain its bond orders.
     for (smiles, expected) in [
+        ("N[NH3+]", "hydrazinium"),
+        ("C[N+](C)(C)N(C)C", "pentamethylhydrazinium"),
+        (
+            "C[N+](C)(C)NC(=O)c1ccccc1",
+            "N',N',N'-trimethylbenzohydrazid-N'-ium",
+        ),
         (
             "CC(=O)N[N+](C)=C(C)C",
-            "N-acetamido-N-methylpropan-2-iminium",
+            "N'-methyl-N'-(propan-2-ylidene)acetohydrazid-N'-ium",
         ),
-        ("CC(=O)N[NH+]=C(C)C", "N-acetamidopropan-2-iminium"),
-        ("N[N+](C)=C(C)C", "N-amino-N-methylpropan-2-iminium"),
+        (
+            "CC(=O)N[NH+]=C(C)C",
+            "N'-(propan-2-ylidene)acetohydrazid-N'-ium",
+        ),
+        ("CC(=O)[NH2+]N", "acetohydrazid-N-ium"),
+        ("N[N+](C)=C(C)C", "1-methyl-1-(propan-2-ylidene)hydrazinium"),
         (
             "CN[N+](C)=C(C)C",
-            "N-methyl-N-(methylamino)propan-2-iminium",
+            "1,2-dimethyl-1-(propan-2-ylidene)hydrazinium",
         ),
         (
             "CC(C)=N[N+](C)(C)C",
-            "N,N-dimethyl-N-[(propan-2-ylidene)amino]methanaminium",
+            "1,1,1-trimethyl-2-(propan-2-ylidene)hydrazinium",
         ),
-        (
-            "CC(C)=N[NH+]=C(C)C",
-            "N-[(propan-2-ylidene)amino]propan-2-iminium",
-        ),
-        ("C[N+](C)(C)N", "N-amino-N,N-dimethylmethanaminium"),
+        ("CC(C)=N[NH+]=C(C)C", "1,2-di(propan-2-ylidene)hydrazinium"),
+        ("C[N+](C)(C)N", "1,1,1-trimethylhydrazinium"),
+    ] {
+        check(smiles, expected, NameStatus::Preferred);
+    }
+    // P-72.2.2.1 cites the deprotonated hydrazine nitrogen with -ide.
+    check(
+        "CC(C)=N[N-]C",
+        "1-methyl-2-(propan-2-ylidene)hydrazin-1-ide",
+        NameStatus::Preferred,
+    );
+    for (smiles, expected) in [
         (
             "CC(C)=[N+](C)NO",
             "N-(hydroxyamino)-N-methylpropan-2-iminium",

@@ -20,8 +20,8 @@ fn assert_round_trip(cases: &[(&str, &str, NameStatus)]) {
         assert_eq!(name.status, status, "{smiles}");
         let parsed = name_to_smiles(&name.text).unwrap_or_else(|e| panic!("{expected}: {e:?}"));
         assert_eq!(
-            canonical_smiles(&parsed, &budget),
-            canonical_smiles(smiles, &budget),
+            canonical_smiles(&parsed, &budget).unwrap(),
+            canonical_smiles(smiles, &budget).unwrap(),
             "{smiles} -> {expected} -> {parsed}"
         );
     }
@@ -95,60 +95,172 @@ fn acid_groups_use_the_retained_and_acyl_prefixes() {
 }
 
 #[test]
-fn prefixes_that_are_not_the_preferred_acyl_form_say_so() {
-    let acyl = NameStatus::NotPreferred(NameReason::AcylPrefix);
+fn acid_derived_prefixes_preserve_hydrogen_and_add_ligands() {
+    let preferred = NameStatus::Preferred;
     assert_round_trip(&[
-        // P-67.1.4.1.1.5: the preferred prefixes are
-        // hydroxy(methylphosphonoyl) and its methoxy and phenyl analogues.
+        // P-67.1.4.1.1.5: the methyl group substitutes H within the
+        // phosphonoyl group, and the chalcogen group fills a free valence.
         (
             "OC(=O)CP(C)(=O)O",
-            "[hydroxy(methyl)phosphoryl]acetic acid",
-            acyl,
+            "[hydroxy(methylphosphonoyl)]acetic acid",
+            preferred,
         ),
         (
             "OC(=O)CP(C)(=O)OC",
-            "[methoxy(methyl)phosphoryl]acetic acid",
-            acyl,
+            "[methoxy(methylphosphonoyl)]acetic acid",
+            preferred,
         ),
         (
             "OC(=O)CP(=O)(O)c1ccccc1",
-            "[hydroxy(phenyl)phosphoryl]acetic acid",
-            acyl,
+            "[hydroxy(phenylphosphonoyl)]acetic acid",
+            preferred,
         ),
-        // P-67.1.4.1.1.4: the preferred prefixes derive from the
-        // phosphorochloridic and phosphoramidic acids, as in
-        // phosphorodichloridoyl, not dichlorophosphoryl.
+        (
+            "OC(=O)C[PH](=O)O",
+            "(hydroxyphosphonoyl)acetic acid",
+            preferred,
+        ),
+        (
+            "OC(=O)C[PH](=O)[SeH]",
+            "(selanylphosphonoyl)acetic acid",
+            preferred,
+        ),
+        (
+            "OC(=O)C[As](C)(=O)O",
+            "[hydroxy(methylarsonoyl)]acetic acid",
+            preferred,
+        ),
+        (
+            "OC(=O)C[As](C)(=O)OC",
+            "[methoxy(methylarsonoyl)]acetic acid",
+            preferred,
+        ),
+        (
+            "OC(=O)C[SbH](=O)O",
+            "(hydroxystibonoyl)acetic acid",
+            preferred,
+        ),
+        // P-67.1.4.1.1.4: halide and amide replacement changes the acyl
+        // stem. Hydroxy then fills one of the free valences.
         (
             "OC(=O)CP(=O)(O)Cl",
-            "[chloro(hydroxy)phosphoryl]acetic acid",
-            acyl,
+            "(hydroxyphosphorochloridoyl)acetic acid",
+            preferred,
+        ),
+        (
+            "OC(=O)CP(=O)(Cl)Cl",
+            "phosphorodichloridoylacetic acid",
+            preferred,
         ),
         (
             "OC(=O)CP(=O)(O)N",
-            "[amino(hydroxy)phosphoryl]acetic acid",
-            acyl,
+            "(hydroxyphosphoramidoyl)acetic acid",
+            preferred,
         ),
-        // P-67.1.4.1.1.5: hydrogen of phosphinoyl is not substituted in a
-        // preferred prefix; hydroxy is concatenated with phosphonoyl, as in
-        // hydroxyazonoyl and selanylphosphonoyl.
-        ("OC(=O)C[PH](=O)O", "(hydroxyphosphinoyl)acetic acid", acyl),
-        // P-64.7.1, P-68.3.2.3.1: heterones are senior to hydroxy compounds
-        // and amines, so without a more senior class the phosphorus is the
-        // parent, a lambda5-phosphanone.
-        ("C[PH2]=O", "phosphinoylmethane", acyl),
-        ("C[PH](C)=O", "(methylphosphinoyl)methane", acyl),
-        ("OCCP(C)(C)=O", "2-(dimethylphosphinoyl)ethan-1-ol", acyl),
-        ("OC[PH](C)=O", "(methylphosphinoyl)methanol", acyl),
-        ("NCCP(C)(C)=O", "2-(dimethylphosphinoyl)ethan-1-amine", acyl),
-        ("OCC[As](C)(C)=O", "2-(dimethylarsinoyl)ethan-1-ol", acyl),
+        (
+            "OC(=O)CP(=S)(O)O",
+            "(dihydroxyphosphorothioyl)acetic acid",
+            preferred,
+        ),
+        (
+            "OC(=O)CP(=[Se])(OC)OC",
+            "(dimethoxyphosphoroselenoyl)acetic acid",
+            preferred,
+        ),
+        (
+            "OC(=O)CCNP(=S)(O)S",
+            "3-{[hydroxy(sulfanyl)phosphorothioyl]amino}propanoic acid",
+            preferred,
+        ),
+        // P-67.1.4.1.1.2 and P-67.1.4.1.1.6 distinguish these Sb prefixes.
+        ("OC(=O)C[SbH2]=O", "stibinoylacetic acid", preferred),
+        ("OC(=O)C[Sb]=O", "oxostibanylacetic acid", preferred),
+        (
+            "OC(=O)CP(=O)=O",
+            "(dioxo-lambda^5-phosphanyl)acetic acid",
+            preferred,
+        ),
+        // P-67.1.5.1: the phosphorus acid is senior to the arsenic acid.
+        (
+            "OP(=O)(O)CCCC[As](=O)(O)O",
+            "(4-arsonobutyl)phosphonic acid",
+            preferred,
+        ),
     ]);
 }
 
 #[test]
-fn unsubstituted_stibinoyl_is_declined() {
-    // P-67.1.4.1.1.2 names SbH2(O)- stibinoyl, which the parser reads as
-    // -Sb=O; no name is better than one for another structure.
-    assert!(smiles_to_name("OC(=O)C[SbH2]=O").is_err());
+fn phosphorus_heterones_with_hydrogen_use_lambda_five() {
+    let preferred = NameStatus::Preferred;
+    assert_round_trip(&[
+        // P-64.4.1 and P-68.3.2.3.1: the oxygen is a suffix on the
+        // phosphorus parent, which retains any remaining hydrogens.
+        ("[PH3]=O", "lambda5-phosphanone", preferred),
+        ("C[PH2]=O", "methyl-lambda5-phosphanone", preferred),
+        ("C[PH](C)=O", "dimethyl-lambda5-phosphanone", preferred),
+        (
+            "OC[PH](C)=O",
+            "(hydroxymethyl)(methyl)-lambda5-phosphanone",
+            preferred,
+        ),
+    ]);
+}
+
+#[test]
+fn the_heterone_shortcut_preserves_charge() {
+    for smiles in ["[PH3+][O-]", "C[PH2+][O-]", "C[PH+](C)[O-]"] {
+        assert!(smiles_to_name(smiles).is_err(), "{smiles}");
+    }
+
+    assert_round_trip(&[(
+        "[Cl-].[PH3+]C",
+        "phosphaniumylmethane chloride",
+        NameStatus::Unverified(NameReason::CationParent),
+    )]);
+}
+
+#[test]
+fn isotopic_phosphorus_heterones_need_locants() {
+    for smiles in ["C[PH]([2H])=O", "C[PH2]=[18O]"] {
+        assert!(smiles_to_name(smiles).is_err(), "{smiles}");
+    }
+
+    assert_round_trip(&[(
+        "C[PH]([13CH3])=O",
+        "(methylphosphinoyl)(1-13C)methane",
+        NameStatus::NotPreferred(NameReason::AcylPrefix),
+    )]);
+}
+
+#[test]
+fn competing_ketones_use_the_ordinary_parent_selection() {
+    let acyl = NameStatus::NotPreferred(NameReason::AcylPrefix);
+    assert_round_trip(&[
+        // P-64.7.2: the dione can express both carbonyls as suffixes.
+        (
+            "C[PH](=O)CC(=O)CC(=O)C",
+            "1-(methylphosphinoyl)pentane-2,4-dione",
+            acyl,
+        ),
+        (
+            "C[PH](=O)CC(=O)C",
+            "1-(methylphosphinoyl)propan-2-one",
+            acyl,
+        ),
+    ]);
+}
+
+#[test]
+fn prefixes_that_are_not_the_preferred_acyl_form_say_so() {
+    let acyl = NameStatus::NotPreferred(NameReason::AcylPrefix);
+    assert_round_trip(&[
+        // P-64.7.1, P-68.3.2.3.1: heterones are senior to hydroxy compounds
+        // and amines, so without a more senior class the phosphorus is the
+        // parent, a lambda5-phosphanone.
+        ("OCCP(C)(C)=O", "2-(dimethylphosphinoyl)ethan-1-ol", acyl),
+        ("NCCP(C)(C)=O", "2-(dimethylphosphinoyl)ethan-1-amine", acyl),
+        ("OCC[As](C)(C)=O", "2-(dimethylarsinoyl)ethan-1-ol", acyl),
+    ]);
 }
 
 #[test]
@@ -173,9 +285,124 @@ fn blue_book_prefix_names_are_read() {
     ] {
         let parsed = name_to_smiles(name).unwrap_or_else(|e| panic!("{name}: {e:?}"));
         assert_eq!(
-            canonical_smiles(&parsed, &budget),
-            canonical_smiles(smiles, &budget),
+            canonical_smiles(&parsed, &budget).unwrap(),
+            canonical_smiles(smiles, &budget).unwrap(),
             "{name} -> {parsed}"
+        );
+    }
+}
+
+#[test]
+fn tetrahedral_phosphorus_configurations() {
+    let acyl = NameStatus::NotPreferred(NameReason::AcylPrefix);
+    // P-93.2.3–4: four distinct ligands about phosphorus, including H or OH.
+    assert_round_trip(&[
+        ("C[P@H](CC)=O", "[(R)-methylphosphinoyl]ethane", acyl),
+        ("C[P@@H](CC)=O", "[(S)-methylphosphinoyl]ethane", acyl),
+        (
+            "OC(=O)C[P@](=O)(O)C",
+            "[(R)-hydroxy(methyl)phosphoryl]acetic acid",
+            acyl,
+        ),
+        (
+            "OC(=O)C[P@@](=O)(O)C",
+            "[(S)-hydroxy(methyl)phosphoryl]acetic acid",
+            acyl,
+        ),
+        (
+            "C[P@H]([13CH3])=O",
+            "[(R)-methylphosphinoyl](1-13C)methane",
+            acyl,
+        ),
+        (
+            "C[P@@H]([13CH3])=O",
+            "[(S)-methylphosphinoyl](1-13C)methane",
+            acyl,
+        ),
+    ]);
+    for smiles in [
+        "C[P@H](C)=O",
+        "OC(=O)C[P@](=O)([O-])C",
+        "C[P@H+](CC)[O-]",
+        "[18O]=[P@H](C)CC",
+        "[2H][P@](C)(CC)=O",
+    ] {
+        assert!(smiles_to_name(smiles).is_err(), "{smiles}");
+    }
+    for name in [
+        "[(R)-methylphosphinoyl]methane",
+        "carboxy[(R)-methyloxido(oxo)phosphanyl]methane",
+    ] {
+        assert!(name_to_smiles(name).is_err(), "{name}");
+    }
+}
+
+#[test]
+fn phosphorus_stereo_groups() {
+    use nazuchem::{
+        StereoGroup,
+        StereoGroupKind::{And, Or},
+        name_to_molecule,
+    };
+    for (name, cxsmiles, kind) in [
+        (
+            "[(RS)-amino(sulfanyl)oxophosphanyl]methane",
+            "N[P@](=O)(S)C |r|",
+            And(1),
+        ),
+        (
+            "[(S*)-amino(sulfanyl)oxophosphanyl]methane",
+            "N[P@@](=O)(S)C |o1:1|",
+            Or(1),
+        ),
+        (
+            "[(RS)-methylphosphinoyl]ethane",
+            "C[P@@H](=O)CC |r|",
+            And(1),
+        ),
+        ("[(SR)-methylphosphinoyl]ethane", "C[P@H](=O)CC |r|", And(1)),
+        (
+            "[(R*)-methylphosphinoyl]ethane",
+            "C[P@@H](=O)CC |o1:1|",
+            Or(1),
+        ),
+        (
+            "[(S*)-methylphosphinoyl]ethane",
+            "C[P@H](=O)CC |o1:1|",
+            Or(1),
+        ),
+        (
+            "rac-[(R)-methylphosphinoyl]ethane",
+            "C[P@@H](=O)CC |r|",
+            And(1),
+        ),
+        (
+            "rel-[(S)-methylphosphinoyl]ethane",
+            "C[P@H](=O)CC |o1:1|",
+            Or(1),
+        ),
+    ] {
+        assert_eq!(name_to_smiles(name).unwrap(), cxsmiles, "{name}");
+        assert_eq!(
+            name_to_molecule(name).unwrap().stereo_groups,
+            [StereoGroup {
+                kind,
+                stereo: vec![0]
+            }],
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn isotope_differentiated_phosphinate_oxygens_require_isotope_placement() {
+    for smiles in ["OC(=O)C[P@](=[18O])([O-])C", "OC(=O)C[P@](=O)([18O-])C"] {
+        let error = smiles_to_name(smiles).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("an isotope label on a characteristic group"),
+            "{smiles}: {error}"
         );
     }
 }

@@ -5,7 +5,7 @@
 // Copyright (c) 2006-2015, Rational Discovery LLC, Greg Landrum, and Julie Penzotti and others
 // Changes: Rust adaptation; the internal chemistry-to-kernel copy and any extraction changes remain recorded below.
 
-// Copied unchanged from crates/chemistry/src/smiles/stereo/bonds.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3
+// Copied from crates/chemistry/src/smiles/stereo/bonds.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: share direction assignment with odd cumulenes
 use super::*;
 use std::collections::VecDeque;
 
@@ -39,7 +39,33 @@ impl Context<'_> {
     fn can_direct(&self, b: usize) -> Result<bool, Error> {
         Ok(matches!(at(&self.input.graph.bonds, b)?.order, 1 | 4))
     }
-    pub(super) fn bonds(&mut self) -> Result<(), Error> {
+    pub(super) fn bonds(&mut self, cumulenes: Option<&[CumuleneEz]>) -> Result<(), Error> {
+        let mut representative = vec![None; self.input.graph.bonds.len()];
+        let mut ends = vec![None; self.input.graph.bonds.len()];
+        for ez in cumulenes.unwrap_or_default() {
+            let terminal_bond = |end| {
+                at(&self.adjacent, end)?
+                    .iter()
+                    .copied()
+                    .find(|&id| {
+                        self.input
+                            .graph
+                            .bonds
+                            .get(id)
+                            .is_some_and(|bond| bond.order == 2)
+                    })
+                    .ok_or_else(|| invalid("Missing cumulene terminal bond"))
+            };
+            let mut terminals = [terminal_bond(ez.ends[0])?, terminal_bond(ez.ends[1])?];
+            terminals.sort_by_key(|&id| self.bond_visit.get(id).copied());
+            put(&mut ends, terminals[0], Some(ez.ends))?;
+            for id in terminals {
+                put(&mut representative, id, Some(terminals[0]))?;
+                let meta = self.output.metadata.bonds.get_mut(id).ok_or(Error::Limit)?;
+                meta.stereo = if ez.cis { 4 } else { 5 };
+                meta.stereo_atoms = ez.refs.to_vec();
+            }
+        }
         let walk = self.walk;
         let mut neighbors = vec![Vec::new(); self.input.graph.bonds.len()];
         let mut priority = Vec::new();
@@ -54,9 +80,12 @@ impl Context<'_> {
                 meta.stereo_atoms.clear();
                 continue;
             }
+            if at(&representative, b)?.is_some_and(|rep| b != rep) {
+                continue;
+            }
             let bond = at(&self.input.graph.bonds, b)?;
             let mut current = Vec::new();
-            for atom in [bond.a, bond.b] {
+            for atom in at(&ends, b)?.unwrap_or([bond.a, bond.b]) {
                 for &nbr in at(&self.adjacent, atom)? {
                     self.work.spend(1)?;
                     if !self.can_direct(nbr)? {
@@ -65,7 +94,7 @@ impl Context<'_> {
                     for &next in at(&self.adjacent, self.other(nbr, atom)?)? {
                         self.work.spend(1)?;
                         if next != nbr && self.canonical_bond(next)? {
-                            current.push(next);
+                            current.push(at(&representative, next)?.unwrap_or(next));
                             break;
                         }
                     }
@@ -88,7 +117,7 @@ impl Context<'_> {
                 if *at(&seen, bond)? {
                     continue;
                 }
-                self.double_bond(bond)?;
+                self.double_bond(bond, *at(&ends, bond)?)?;
                 put(&mut seen, bond, true)?;
                 for &next in at(&neighbors, bond)? {
                     self.work.spend(1)?;
@@ -98,8 +127,114 @@ impl Context<'_> {
                 }
             }
         }
+        if let Some(configurations) = cumulenes
+            && self.select_shared_directions(&ends, &representative, configurations)?
+        {
+            return Ok(());
+        }
         self.remove_unwanted()?;
         self.remove_redundant()
+    }
+
+    fn select_shared_directions(
+        &mut self,
+        ends: &[Option<[usize; 2]>],
+        representative: &[Option<usize>],
+        configurations: &[CumuleneEz],
+    ) -> Result<bool, Error> {
+        // OpenSMILES 3.8.3: each configured end requires at least one
+        // directed ligand. Each unspecified unit forbids every pair of
+        // directions across opposite ends. A shared bond is one variable.
+        let candidates = crate::stereo::stereogenic_odd_cumulenes(self.input).map_err(invalid)?;
+        if candidates.is_empty() {
+            return Ok(false);
+        }
+        let mut marked = vec![Vec::new(); self.adjacent.len()];
+        for (id, bond) in self.input.graph.bonds.iter().enumerate() {
+            if self.can_direct(id)?
+                && matches!(
+                    at(&self.output.directions, id)?,
+                    Direction::Up | Direction::Down
+                )
+            {
+                marked.get_mut(bond.a).ok_or(Error::Limit)?.push(id);
+                marked.get_mut(bond.b).ok_or(Error::Limit)?.push(id);
+            }
+        }
+        let mut configured = vec![false; self.adjacent.len()];
+        for ez in configurations {
+            for &end in &ez.ends {
+                put(&mut configured, end, true)?;
+            }
+        }
+        let mut unspecified = Vec::new();
+        for chain in candidates {
+            let [a, b] = chain.ends.map(|(end, _)| end);
+            if !*at(&configured, a)? && !at(&marked, a)?.is_empty() && !at(&marked, b)?.is_empty() {
+                unspecified.push([a, b]);
+            }
+        }
+        unspecified.extend(
+            crate::stereo::unspecified_directed_alkenes(self.input, &marked).map_err(invalid)?,
+        );
+        if unspecified.is_empty() {
+            return Ok(false);
+        }
+        let mut implications = vec![Vec::new(); self.bond_counts.len() * 2];
+        let mut clause = |a: usize, b: usize| -> Result<(), Error> {
+            implications.get_mut(a ^ 1).ok_or(Error::Limit)?.push(b);
+            implications.get_mut(b ^ 1).ok_or(Error::Limit)?.push(a);
+            Ok(())
+        };
+        for (id, bond) in self.input.graph.bonds.iter().enumerate() {
+            if !self.canonical_bond(id)? || at(representative, id)?.is_some_and(|rep| rep != id) {
+                continue;
+            }
+            self.work.spend(4)?;
+            for end in at(ends, id)?.unwrap_or([bond.a, bond.b]) {
+                match at(&marked, end)?.as_slice() {
+                    [a] => clause(2 * a, 2 * a)?,
+                    [a, b] => clause(2 * a, 2 * b)?,
+                    _ => return Err(invalid("Invalid configured stereo end")),
+                }
+            }
+        }
+        for [a, b] in unspecified {
+            for left in at(&marked, a)? {
+                for right in at(&marked, b)? {
+                    self.work.spend(2)?;
+                    clause(2 * left + 1, 2 * right + 1)?;
+                }
+            }
+        }
+        let mut assigned = vec![false; implications.len()];
+        for token in self.walk.tokens() {
+            let Token::Bond { index, .. } = *token else {
+                continue;
+            };
+            if !self.can_direct(index)?
+                || !matches!(
+                    at(&self.output.directions, index)?,
+                    Direction::Up | Direction::Down
+                )
+            {
+                put(&mut self.output.directions, index, Direction::None)?;
+                continue;
+            }
+            // Try omission first, in canonical traversal order.
+            let omit = 2 * index + 1;
+            if !force_direction(omit, &implications, &mut assigned, &mut self.work)?
+                && !force_direction(omit ^ 1, &implications, &mut assigned, &mut self.work)?
+            {
+                return Err(invalid(
+                    "SMILES would specify the geometry of an unspecified cumulene or double bond",
+                ));
+            }
+            if *at(&assigned, omit)? {
+                put(&mut self.output.directions, index, Direction::None)?;
+            }
+        }
+        Ok(true)
     }
 
     fn side(&self, atom: usize, bond: usize, left: bool) -> Result<Option<Side>, Error> {
@@ -216,9 +351,9 @@ impl Context<'_> {
             Ok(second)
         }
     }
-    fn double_bond(&mut self, b: usize) -> Result<(), Error> {
+    fn double_bond(&mut self, b: usize, ends: Option<[usize; 2]>) -> Result<(), Error> {
         let bond = at(&self.input.graph.bonds, b)?;
-        let (mut a, mut z) = (bond.a, bond.b);
+        let [mut a, mut z] = ends.unwrap_or([bond.a, bond.b]);
         if !(2..=3).contains(&at(&self.adjacent, a)?.len())
             || !(2..=3).contains(&at(&self.adjacent, z)?.len())
         {
@@ -457,5 +592,48 @@ impl Context<'_> {
             }
         }
         Ok(())
+    }
+}
+
+// For 2-SAT, a choice whose transitive implications contain no complementary
+// pair preserves satisfiability. Roll back just this trial if it conflicts.
+fn force_direction(
+    literal: usize,
+    implications: &[Vec<usize>],
+    assigned: &mut [bool],
+    work: &mut Work,
+) -> Result<bool, Error> {
+    let mut stack = vec![literal];
+    let mut added = Vec::new();
+    while let Some(next) = stack.pop() {
+        work.spend(1)?;
+        if *at(assigned, next ^ 1)? {
+            for old in added {
+                put(assigned, old, false)?;
+            }
+            return Ok(false);
+        }
+        if !*at(assigned, next)? {
+            put(assigned, next, true)?;
+            added.push(next);
+            let consequences = at(implications, next)?;
+            work.spend(consequences.len())?;
+            stack.extend(consequences);
+        }
+    }
+    Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shared_direction_propagation_obeys_the_work_limit() {
+        let implications = vec![vec![2], vec![], vec![4], vec![], vec![], vec![]];
+        assert!(matches!(
+            force_direction(0, &implications, &mut [false; 6], &mut Work(2)),
+            Err(Error::Limit)
+        ));
     }
 }

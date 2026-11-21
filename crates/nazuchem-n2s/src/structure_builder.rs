@@ -25,6 +25,7 @@ use crate::{
     structure_building_methods::{Assembly, Result, bond_order, error},
     valence,
 };
+use nazuchem_kernel::{identity, smiles as kernel_smiles};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub fn build_fragment(
@@ -105,7 +106,8 @@ impl Builder<'_> {
                 "A mixed chalcogen peroxy group needs an element locant such as SO or OS",
             ));
         }
-        self.process_stereochemistry(molecule, fragment)?;
+        let stereo = self.stereo_processing_order(molecule);
+        Self::process_stereochemistry(self.assembly.state, self.assembly.arena, &stereo, fragment)?;
         if !self
             .assembly
             .graph()
@@ -1168,8 +1170,394 @@ impl Builder<'_> {
         let b = two.remove_functional_atom(self.assembly.graph_mut(), 0)?;
         self.form_anhydride_link(smiles, a, b)
     }
+    fn acid_contains_anhydride(&self, acid: &BuildResults) -> bool {
+        let graph = self.assembly.graph();
+        acid.fragments.iter().any(|&fragment| {
+            graph.fragment(fragment).atoms.iter().any(|&atom| {
+                let bridge = graph.atom(atom);
+                bridge.element.is_chalcogen()
+                    && bridge.bonds.len() == 2
+                    && graph.neighbours(atom).iter().all(|&center| {
+                        graph.atom(center).bonds.iter().any(|&bond| {
+                            let bond = graph.bond(bond);
+                            bond.order == 2
+                                && graph
+                                    .atom(bond.other_atom(center).unwrap())
+                                    .element
+                                    .is_chalcogen()
+                        })
+                    })
+            })
+        })
+    }
+
+    fn equivalent_anhydride_sites(&self, word: NodeId, sites: &[AtomId]) -> Result<bool> {
+        if sites.len() < 2 {
+            return Ok(true);
+        }
+        if !crate::ambiguity::all_atoms_equivalent(self.assembly.graph(), sites)? {
+            return Ok(false);
+        }
+
+        let graph = self.assembly.graph();
+        let mut atoms = BTreeSet::new();
+        let mut pending = sites.to_vec();
+        while let Some(atom) = pending.pop() {
+            if atoms.insert(atom) {
+                pending.extend(graph.neighbours(atom));
+            }
+        }
+        let stereo = self.stereo_processing_order(word);
+        if stereo.is_empty()
+            && !atoms.iter().any(|&atom| {
+                graph.atom(atom).parity.is_some()
+                    || graph.atom(atom).bonds.iter().any(|&bond| {
+                        graph.bond(bond).stereo.is_some() || graph.bond(bond).axial_stereo.is_some()
+                    })
+            })
+        {
+            return Ok(true);
+        }
+
+        // Assign the cited acid's configuration before marking either site.
+        // Equivalent sites give the same canonical isomeric SMILES with the
+        // marker in either position. This distinguishes enantiotopic sites
+        // on a meso acid from homotopic sites on a symmetric chiral acid.
+        let mut state = self.assembly.state.clone();
+        let mut arena = self.assembly.arena.clone();
+        state
+            .fragment_manager
+            .convert_spare_valencies_to_double_bonds()?;
+        state.fragment_manager.make_hydrogens_explicit()?;
+        let graph = state.graph_mut();
+        // Include hydrogens added above and bonds between the acid's fragments.
+        let bonds: BTreeSet<_> = atoms
+            .iter()
+            .flat_map(|&atom| graph.atom(atom).bonds.iter().copied())
+            .collect();
+        for &bond in &bonds {
+            let bond = graph.bond(bond);
+            atoms.extend([bond.from, bond.to]);
+        }
+        let fragment = graph.add_fragment("");
+        for &atom in &atoms {
+            graph.atom_mut(atom).fragment = fragment;
+        }
+        graph.fragment_mut(fragment).atoms = atoms.into_iter().collect();
+        graph.fragment_mut(fragment).bonds = bonds.into_iter().collect();
+
+        Self::process_stereochemistry(&mut state, &mut arena, &stereo, fragment)?;
+        if state.warnings.len() != self.assembly.state.warnings.len() {
+            return Ok(false);
+        }
+
+        let graph = state.graph_mut();
+        // Use the kernel's axis markers for the M/P configuration. They rank
+        // the original axis as part of the marked molecular identity.
+        let axes: Vec<_> = graph
+            .fragment(fragment)
+            .bonds
+            .iter()
+            .filter_map(|&id| {
+                let bond = graph.bond(id);
+                let stereo = bond.axial_stereo.as_ref()?;
+                Some(([bond.from, bond.to], stereo.descriptor.clone()))
+            })
+            .collect();
+        for (ends, descriptor) in &axes {
+            let class = match descriptor.as_str() {
+                "M" => identity::AXIS_M,
+                "P" => identity::AXIS_P,
+                _ => return Ok(false),
+            } as u32;
+            for &end in ends {
+                if graph
+                    .atom_mut(end)
+                    .properties
+                    .atom_class
+                    .replace(class)
+                    .is_some()
+                {
+                    return Ok(false);
+                }
+            }
+        }
+        let used_classes: BTreeSet<_> = graph
+            .fragment(fragment)
+            .atoms
+            .iter()
+            .filter_map(|&atom| graph.atom(atom).properties.atom_class)
+            .collect();
+        let marker = (1..=i32::MAX as u32)
+            .find(|class| !used_classes.contains(class))
+            .ok_or_else(|| error("No atom map available for anhydride site comparison"))?;
+        let budget = &self.assembly.state.budget;
+        let mut first = None;
+        for &site in sites {
+            let previous = graph.atom_mut(site).properties.atom_class.replace(marker);
+            let (smiles, _, _) =
+                crate::smiles::write_semantic_cxsmiles_with_locants_and_axes(graph, fragment, &[])
+                    .map_err(|e| error(e.to_string()))?;
+            graph.atom_mut(site).properties.atom_class = previous;
+            let imported = kernel_smiles::read_preserving_stereo_groups(&smiles, budget)
+                .map_err(|e| error(e.to_string()))?;
+            if imported.dropped_cumulene_ez {
+                return Ok(false);
+            }
+            let mut prepared = imported.prepared;
+            if !axes.is_empty() {
+                let Ok(decoded) = identity::apply_axis_markers(&prepared.state, budget) else {
+                    return Ok(false);
+                };
+                prepared.state = decoded;
+            }
+            if let Some(first) = &first {
+                if !kernel_smiles::equivalent_marked_prepared(first, &prepared, budget)
+                    .map_err(|e| error(e.to_string()))?
+                {
+                    return Ok(false);
+                }
+            } else {
+                first = Some(prepared);
+            }
+        }
+        Ok(true)
+    }
+
+    fn anhydride_site_index(
+        &self,
+        word: NodeId,
+        acid: &BuildResults,
+        locant: &str,
+    ) -> Result<usize> {
+        let graph = self.assembly.graph();
+        let matches: Vec<_> = acid
+            .functional_atoms
+            .iter()
+            .copied()
+            .enumerate()
+            .filter(|&(_, site)| {
+                if ft::is_numeric_locant(locant) {
+                    self.search_non_suffix_locant(site, locant).is_some()
+                } else {
+                    graph.neighbours(site).iter().any(|&center| {
+                        graph.atom(center).element == Element::P
+                            && graph
+                                .atom(center)
+                                .locants
+                                .iter()
+                                .any(|value| value == locant)
+                    })
+                }
+            })
+            .collect();
+        let Some(&(index, first)) = matches.first() else {
+            return Err(error("Unable to find anhydride linkage locant"));
+        };
+        if matches.len() > 1
+            && (ft::is_numeric_locant(locant)
+                || matches
+                    .iter()
+                    .any(|&(_, site)| graph.neighbours(site) != graph.neighbours(first))
+                || !self.equivalent_anhydride_sites(
+                    word,
+                    &matches.iter().map(|&(_, site)| site).collect::<Vec<_>>(),
+                )?)
+        {
+            return Err(error("Anhydride linkage locant is ambiguous"));
+        }
+        Ok(index)
+    }
+
+    fn build_polyanhydride(
+        &mut self,
+        smiles: &str,
+        count: usize,
+        acid_words: &[NodeId],
+    ) -> Result<()> {
+        let mut acids = Vec::with_capacity(acid_words.len());
+        for &word in acid_words {
+            self.assembly.resolve_word_or_bracket(word)?;
+            acids.push(self.results(word)?);
+        }
+        let locants: Vec<_> = acid_words
+            .iter()
+            .map(|&word| self.assembly.attr(word, "locant"))
+            .collect();
+        let any_located = locants.iter().any(Option::is_some);
+        let values: Vec<_> = acid_words
+            .iter()
+            .map(|&word| self.assembly.attr(word, "value"))
+            .collect();
+        if let [_, inner_word, central_word, _] = acid_words
+            && let Some(link) = self.assembly.attr(*inner_word, "anhydrideNeighbourLocant")
+        {
+            let [outer, inner, central, other] = acids.as_mut_slice() else {
+                return Err(error("Invalid grouped anhydride end"));
+            };
+            if count != 3
+                || [
+                    outer.functional_atoms.len(),
+                    inner.functional_atoms.len(),
+                    central.functional_atoms.len(),
+                    other.functional_atoms.len(),
+                ] != [1, 2, 2, 1]
+                || locants[..3].iter().any(Option::is_some)
+                || !self.equivalent_anhydride_sites(*inner_word, &inner.functional_atoms)?
+            {
+                return Err(error("Invalid grouped anhydride end"));
+            }
+            let first = self.anhydride_site_index(*central_word, central, &link)?;
+            let Some(other_locant) = locants[3].as_deref() else {
+                return Err(error("Missing anhydride end locant"));
+            };
+            let second = self.anhydride_site_index(*central_word, central, other_locant)?;
+            if first == second {
+                return Err(error("Anhydride end locants repeat a site"));
+            }
+            let first = central.remove_functional_atom(self.assembly.graph_mut(), first)?;
+            self.link_anhydride_results(smiles, outer, inner)?;
+            let inner = inner.remove_functional_atom(self.assembly.graph_mut(), 0)?;
+            self.form_anhydride_link(smiles, inner, first)?;
+            return self.link_anhydride_results(smiles, other, central);
+        }
+        let polybasic: Vec<_> = acids
+            .iter()
+            .enumerate()
+            .filter_map(|(i, acid)| (acid.functional_atoms.len() == count).then_some(i))
+            .collect();
+        if let [central] = polybasic[..]
+            && acids.len() == count + 1
+            && acids
+                .iter()
+                .enumerate()
+                .all(|(i, acid)| i == central || acid.functional_atoms.len() == 1)
+        {
+            let equal_ends = values
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| *i != central)
+                .map(|(_, value)| value)
+                .all(|value| value == &values[usize::from(central == 0)]);
+            // P-65.7.6.1 uses sequence for a simple dianhydride. Equal
+            // multiplied ends and the names in .2 and .3 may put the
+            // polybasic word last.
+            let composed = acids.iter().any(|acid| self.acid_contains_anhydride(acid));
+            if count == 2 && central != 1 && !equal_ends && !any_located && !composed {
+                return Err(error("Invalid dianhydride description"));
+            }
+            if count > 2 && central + 1 != acids.len() {
+                return Err(error(
+                    "The polybasic acid must come last in a polyanhydride",
+                ));
+            }
+            let mut parent = acids.remove(central);
+            if locants[central].is_some() {
+                return Err(error("Anhydride end locant on the polybasic acid"));
+            }
+            if any_located
+                && locants
+                    .iter()
+                    .enumerate()
+                    .any(|(i, locant)| i != central && locant.is_none())
+            {
+                return Err(error("Missing anhydride end locant"));
+            }
+            let graph = self.assembly.graph();
+            let shared_center = parent.functional_atoms.first().is_some_and(|&first| {
+                let neighbors = graph.neighbours(first);
+                parent
+                    .functional_atoms
+                    .iter()
+                    .all(|&site| graph.neighbours(site) == neighbors)
+            });
+            if !any_located
+                && !equal_ends
+                && ((count > 2 && !shared_center)
+                    || !self.equivalent_anhydride_sites(
+                        acid_words[central],
+                        &parent.functional_atoms,
+                    )?)
+            {
+                return Err(error("Polyanhydride needs locants for its end acids"));
+            }
+            let mut end_locants = locants;
+            end_locants.remove(central);
+            let parent_atoms = if any_located {
+                let mut chosen = Vec::with_capacity(count);
+                for locant in end_locants.iter().flatten() {
+                    let index = self.anhydride_site_index(acid_words[central], &parent, locant)?;
+                    chosen.push(parent.remove_functional_atom(self.assembly.graph_mut(), index)?);
+                }
+                chosen
+            } else {
+                (0..count)
+                    .map(|_| parent.remove_functional_atom(self.assembly.graph_mut(), 0))
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            };
+            for (acid, parent_atom) in acids.iter_mut().zip(parent_atoms) {
+                let end = acid.remove_functional_atom(self.assembly.graph_mut(), 0)?;
+                self.form_anhydride_link(smiles, end, parent_atom)?;
+            }
+            return Ok(());
+        }
+        // The two-link sequence can leave acid groups unused on the
+        // outer residues. An initial multiplied end word puts both of
+        // its copies before the dibasic acid.
+        if count == 2
+            && !any_located
+            && let [left, middle, right] = acids.as_mut_slice()
+        {
+            let (central, right, central_index, right_index) = if values[0] == values[1] {
+                (right, middle, 2, 1)
+            } else {
+                (middle, right, 1, 2)
+            };
+            if left.functional_atoms.is_empty()
+                || right.functional_atoms.is_empty()
+                || central.functional_atoms.len() != 2
+            {
+                return Err(error("Invalid dianhydride description"));
+            }
+            if (values[0] != values[right_index]
+                && !self.equivalent_anhydride_sites(
+                    acid_words[central_index],
+                    &central.functional_atoms,
+                )?)
+                || !self.equivalent_anhydride_sites(acid_words[0], &left.functional_atoms)?
+                || !self
+                    .equivalent_anhydride_sites(acid_words[right_index], &right.functional_atoms)?
+            {
+                return Err(error("Dianhydride needs locants for its end acids"));
+            }
+            self.link_anhydride_results(smiles, left, central)?;
+            return self.link_anhydride_results(smiles, right, central);
+        }
+        // P-65.7.6.2 method (2): an ordered residue chain, with each
+        // intermediate residue contributing two equivalent acid groups.
+        if count < 3 || any_located || acids.len() != count + 1 {
+            return Err(error("Invalid polyanhydride description"));
+        }
+        for (i, acid) in acids.iter().enumerate() {
+            let terminal = i == 0 || i + 1 == acids.len();
+            if acid.functional_atoms.len() != if terminal { 1 } else { 2 } {
+                return Err(error("Invalid acid functionality in linear polyanhydride"));
+            }
+            if !terminal
+                && !self.equivalent_anhydride_sites(acid_words[i], &acid.functional_atoms)?
+            {
+                return Err(error("Linear polyanhydride needs linkage locants"));
+            }
+        }
+        for i in 1..acids.len() {
+            let (left, right) = acids.split_at_mut(i);
+            self.link_anhydride_results(smiles, &mut left[i - 1], &mut right[0])?;
+        }
+        Ok(())
+    }
+
     fn build_anhydride(&mut self, words: &[NodeId]) -> Result<()> {
-        if !(2..=4).contains(&words.len()) {
+        if words.len() < 2 {
             return Err(error("Unexpected number of words in anhydride"));
         }
         let word = *words.last().unwrap();
@@ -1202,42 +1590,14 @@ impl Builder<'_> {
             .collect();
         let (first, last) = (symbols.first().cloned(), symbols.last().cloned());
         let mixed = first != last;
-        if words.len() == 4 {
-            // P-65.7.6.1: "acetic methanedisulfonic propanoic dianhydride" links
-            // the acids in their order of occurrence. In "diacetic butanedioic
-            // dianhydride" the multiplied word became two equal copies, and
-            // both link to the dibasic acid.
-            if count != 2 || locant.is_some() || mixed {
+        if count > 1 && words.len() > 3 {
+            if locant.is_some() || mixed {
                 return Err(error("Unsupported or invalid anhydride"));
             }
-            let mut acids = [words[0], words[1], words[2]];
-            if self.assembly.attr(acids[0], "value") == self.assembly.attr(acids[1], "value") {
-                acids.swap(1, 2);
-            }
-            let mut results = Vec::new();
-            for acid in acids {
-                self.assembly.resolve_word_or_bracket(acid)?;
-                results.push(self.results(acid)?);
-            }
-            let [mut one, mut two, mut three] = <[BuildResults; 3]>::try_from(results).unwrap();
-            if one.functional_atoms.is_empty()
-                || three.functional_atoms.is_empty()
-                || two.functional_atoms.len() != 2
-            {
-                return Err(error("Invalid dianhydride description"));
-            }
-            // Unlike end acids on unlike acid groups need locants
-            // (P-65.7.6.2), which are not read.
-            if self.assembly.attr(acids[0], "value") != self.assembly.attr(acids[2], "value")
-                && !crate::ambiguity::all_atoms_equivalent(
-                    self.assembly.graph(),
-                    &two.functional_atoms,
-                )?
-            {
-                return Err(error("Dianhydride needs locants for its end acids"));
-            }
-            self.link_anhydride_results(&smiles, &mut one, &mut two)?;
-            return self.link_anhydride_results(&smiles, &mut three, &mut two);
+            return self.build_polyanhydride(&smiles, count, &words[..words.len() - 1]);
+        }
+        if words.len() > 3 {
+            return Err(error("Unexpected number of words in anhydride"));
         }
         self.assembly.resolve_word_or_bracket(words[0])?;
         let mut one = self.results(words[0])?;
@@ -1257,6 +1617,9 @@ impl Builder<'_> {
             if count > 1 {
                 if mixed {
                     return Err(error("Unsupported or invalid anhydride"));
+                }
+                if acid_locants.iter().any(Option::is_some) {
+                    return Err(error("Locanted anhydride ends must be cited explicitly"));
                 }
                 for i in (0..count).rev() {
                     if two.functional_atoms.is_empty() {
@@ -2992,38 +3355,39 @@ impl Builder<'_> {
         descendants.extend(this_level);
         descendants
     }
-    fn process_stereochemistry(&mut self, molecule: NodeId, fragment: FragmentId) -> Result<()> {
-        let elements = self.stereo_processing_order(molecule);
-        let f = self.assembly.graph().fragment(fragment);
+    fn process_stereochemistry(
+        state: &mut BuildState,
+        arena: &mut Arena,
+        elements: &[NodeId],
+        fragment: FragmentId,
+    ) -> Result<()> {
+        let graph = state.graph();
+        let f = graph.fragment(fragment);
         let atoms = f
             .atoms
             .iter()
             .copied()
-            .filter(|&a| self.assembly.graph().atom(a).parity.is_some())
+            .filter(|&a| graph.atom(a).parity.is_some())
             .collect::<Vec<_>>();
         let bonds = f
             .bonds
             .iter()
             .copied()
-            .filter(|&b| self.assembly.graph().bond(b).stereo.is_some())
+            .filter(|&b| graph.bond(b).stereo.is_some())
             .collect::<Vec<_>>();
         if elements.is_empty() && atoms.is_empty() && bonds.is_empty() {
             return Ok(());
         }
-        let analysis = stereo_analyser::analyse(self.assembly.graph(), fragment)?;
+        let analysis = stereo_analyser::analyse(graph, fragment)?;
         let stereo_bonds = analysis
             .bonds
             .into_iter()
-            .filter(|b| ft::not_in_six_member_or_smaller_ring(self.assembly.graph(), b.bond))
+            .filter(|b| ft::not_in_six_member_or_smaller_ring(graph, b.bond))
             .collect::<Vec<_>>();
-        let mut handler = StereochemistryHandler::new(
-            self.assembly.state,
-            self.assembly.arena,
-            &analysis.centres,
-            &stereo_bonds,
-        );
+        let mut handler =
+            StereochemistryHandler::new(state, arena, &analysis.centres, &stereo_bonds);
         handler
-            .apply_stereochemical_elements(&elements)
+            .apply_stereochemical_elements(elements)
             .map_err(|e| error(e.to_string()))?;
         handler.remove_redundant_stereo_centres(&atoms, &bonds);
         Ok(())

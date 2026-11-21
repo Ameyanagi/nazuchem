@@ -4,6 +4,7 @@
 // Source: ReShiki | src/naming/openclatura/ionic_naming.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/unit/test_audit_reconstruction.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/ionic_naming.rs | issue #160
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura ionic spelling logic reworked as structured anion preparation with local identity guards.
@@ -27,6 +28,39 @@ struct ChargeSite {
 }
 
 /// Admit oxo protonation only where the naming grammar preserves its charge.
+/// Check formal P=O and P-O(-) ligands while their isotope labels are intact.
+// Provenance: fn validate_phosphorus_stereo | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/ionic_naming.rs::validate_phosphorus_stereo
+pub(super) fn validate_phosphorus_stereo(mol: &Molecule) -> Result<(), String> {
+    for (&id, atom) in &mol.atoms {
+        // P-93.2.4: P=O and P-O(-) of the same isotope are equivalent
+        // terminal ligands, so the formal bond orders cannot support R/S.
+        if atom.symbol == "P" && atom.has_stereo() && atom.charge == 0 {
+            let neighbours = mol.get_neighbors(id);
+            if neighbours.iter().any(|&oxo| {
+                let oxygen = &mol.atoms[&oxo];
+                oxygen.symbol == "O"
+                    && oxygen.charge == 0
+                    && oxygen.total_h_count == 0
+                    && mol.degree(oxo) == 1
+                    && mol.bond_order(id, oxo) == 2
+                    && neighbours.iter().any(|&oxido| {
+                        let anion = &mol.atoms[&oxido];
+                        anion.symbol == "O"
+                            && anion.charge == -1
+                            && anion.isotope == oxygen.isotope
+                            && anion.total_h_count == 0
+                            && mol.degree(oxido) == 1
+                            && mol.bond_order(id, oxido) == 1
+                    })
+            }) {
+                return Err("openclatura: equivalent oxygens at stereospecified phosphorus".into());
+            }
+        }
+    }
+    Ok(())
+}
+
 // Provenance: fn validate_heteroatom_oxo_charge_states | original
 // Source: ReShiki | src/naming/openclatura/ionic_naming.rs::validate_heteroatom_oxo_charge_states
 pub(super) fn validate_heteroatom_oxo_charge_states(mol: &Molecule) -> Result<(), String> {
@@ -171,20 +205,31 @@ pub(super) fn prepare_anion_parent(
             && !(hydro("added_hydrogen")
                 && (!parts.substituents.is_empty() || hydro("additive_hydrogen")))
     });
-    // A saturated substituent that cites its stem and attachment (`propan-2-yl`).
-    let saturated_attachment = parts.is_substituent
+    let saturated_substituent = parts.is_substituent
         && !parts.is_acyl_substituent
         && parts.attachment_order == 1
         && parts.retained_name.is_none()
         && parts.unsaturations.is_empty()
-        && parts.parent_length > 1
+        && parts.parent_length > 1;
+    // A saturated substituent that cites its stem and attachment (`propan-2-yl`).
+    let saturated_attachment = saturated_substituent
         && (parts.attachment_locant != "1"
             || super::assembly_parent::always_print_substituent_locant(parts));
+    // P-72.6.3: a terminal -CH2(-) on a saturated carbon-chain prefix
+    // takes a locanted -id- before the free valence, as in butan-4-id-1-yl.
+    let terminal_chain_anion = saturated_substituent
+        && !parts.is_ring
+        && parts.a_prefixes.is_empty()
+        && negative.len() == 1;
     let supported = |site: &&ChargeSite| {
         zwitterion
             || retained_supported
             || parts.retained_name.is_none() && site.symbol == "C" && !parts.is_substituent
             || site.symbol == "C" && site.locant == parts.attachment_locant && saturated_attachment
+            || site.symbol == "C"
+                && site.locant != parts.attachment_locant
+                && terminal_chain_anion
+                && mol.atoms[&site.atom].total_h_count == 2
     };
     if !negative.iter().all(supported) {
         return Ok(());
@@ -712,6 +757,8 @@ mod tests {
         // nitrogen takes the suffix iminide (butaniminide). Anions are senior
         // to every neutral class (P-41), so the ketone and the ester of the
         // PubChem row (CID 149515574) are cited as prefixes.
+        // Enclose the substituted ethoxy ligand inside the carbonyl prefix
+        // under P-16.5.1.1 and P-65.6.3.2.3.
         let parser = nazuchem_n2s::Parser::new().unwrap();
         for (smiles, expected) in [
             ("CCCC=[N-]", "butan-1-iminide"),
@@ -723,7 +770,7 @@ mod tests {
             ("[Na+].CCC=[N-]", "sodium propan-1-iminide"),
             (
                 "CC(=O)C(=C=[N-])C(=O)OCCC1=CC=C(C=C1)NC(=O)C",
-                "2-[2-(4-acetamidophenyl)ethoxycarbonyl]-3-oxobut-1-en-1-iminide",
+                "2-{[2-(4-acetamidophenyl)ethoxy]carbonyl}-3-oxobut-1-en-1-iminide",
             ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default())

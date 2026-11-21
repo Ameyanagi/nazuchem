@@ -472,7 +472,7 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
     assert_eq!(counts.names.records, 1650);
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (1639, 11)
+        (1644, 6)
     );
     counts
         .names
@@ -483,7 +483,7 @@ fn every_distinct_smiles_retains_complete_names_and_aromatic_graphs() {
             counts.rejection_messages_identical,
             counts.rejection_messages_differing
         ),
-        (11, 0)
+        (6, 0)
     );
     assert_eq!(
         (
@@ -704,7 +704,7 @@ fn stereo_free_corpus_ordinary_hydrogen_variants_retain_complete_name_results() 
             counts.names.identical,
             counts.names.both_rejected
         ),
-        (1376, 1366, 10)
+        (1376, 1370, 6)
     );
     counts.names.assert_routes(&[("salt", 9)], 1366);
     assert_eq!(
@@ -1046,7 +1046,7 @@ fn every_n2s_structure_oracle_structure_retains_complete_name_results() {
     assert_n2s_coverage(&counts, (2624, 2535, 70, 19));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (2423, 182)
+        (2425, 180)
     );
     counts
         .names
@@ -1128,13 +1128,13 @@ fn every_n2s_golden_structure_retains_complete_name_results() {
     finish("n2s generated-name golden", &counts, differences, started);
     assert_eq!(records, 1650);
     // One generated name cites impossible hydro/indicated hydrogen (P-14.7.1, P-31.2.2; #34).
-    // Two are lambda radicals (P-71.2.1.2; #27), which strict parsing refuses.
-    assert_n2s_coverage(&counts, (1677, 1671, 0, 6));
+    // Two are lambda radicals (P-71.2.1.2; #27) and one is the standalone methyl substituent.
+    assert_n2s_coverage(&counts, (1682, 1678, 0, 4));
     assert_eq!(
         (counts.names.identical, counts.names.both_rejected),
-        (1670, 1)
+        (1677, 1)
     );
     counts
         .names
-        .assert_routes(&[("monatomic cation", 1), ("salt", 11)], 1659);
+        .assert_routes(&[("monatomic cation", 1), ("salt", 11)], 1666);
 }

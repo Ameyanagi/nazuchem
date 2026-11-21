@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs | issue #128
 // Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs | Phase B step 8b
 // Source: openclatura | src/openclatura/graph_io.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/small_ring_stereo.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -43,7 +44,7 @@ pub fn read_smiles(
     let prepared = smiles::prepare(text, budget).map_err(|error| error.to_string())?;
     let state = nazuchem_kernel::identity::apply_axis_markers(&prepared.state, budget)
         .map_err(|_| "openclatura: invalid biaryl axis markers".to_owned())?;
-    read_state(state, None)
+    read_state(state, None, &prepared.cumulene_ez)
 }
 
 /// Read IR directly without changing its atom or bond indices.
@@ -61,7 +62,7 @@ pub(crate) fn read_molecule(
     if canonical.contains('.') {
         return Err("Openclatura requires a single connected molecule".into());
     }
-    read_state(state, Some(molecule))
+    read_state(state, Some(molecule), &[])
 }
 
 /// Shared graph construction keeps the aromatic snapshot and naming decisions
@@ -71,7 +72,22 @@ pub(crate) fn read_molecule(
 pub(crate) fn read_state(
     mut state: perception::State,
     input: Option<&nazuchem_ir::Molecule>,
+    cumulenes: &[nazuchem_kernel::stereo::CumuleneEz],
 ) -> Result<Molecule, String> {
+    // P-93.4.2.3: an odd cumulene has one E/Z descriptor; each of its bonds
+    // carries it so naming can tell if a proposed parent splits the chain.
+    use nazuchem_kernel::stereo::{cumulene_is_e, odd_cumulenes};
+    let mut cumulene_stereo = BTreeMap::new();
+    if !cumulenes.is_empty() {
+        for chain in odd_cumulenes(&state)? {
+            let ends = chain.ends.map(|(end, _)| end);
+            if let Some(ez) = cumulenes.iter().find(|ez| ez.ends == ends) {
+                let e =
+                    cumulene_is_e(&state, ez)?.ok_or("openclatura: unassignable cumulene E/Z")?;
+                cumulene_stereo.extend(chain.bonds.into_iter().map(|bond| (bond, e)));
+            }
+        }
+    }
     // Upstream divergence: aromatic atom endpoints cannot identify localized
     // inter-ring bonds; retain bond aromaticity for the final fusion pi audit.
     let aromatic_bonds: Vec<_> = state.graph.bonds.iter().map(|b| b.aromatic).collect();
@@ -200,7 +216,10 @@ pub(crate) fn read_state(
                 "openclatura: pseudoasymmetric bond stereochemistry is not supported".into(),
             );
         }
-        let stereo = modern_stereo.cloned().or(legacy_stereo);
+        let stereo = match cumulene_stereo.get(&idx) {
+            Some(&e) => Some(if e { "E" } else { "Z" }.into()),
+            None => modern_stereo.cloned().or(legacy_stereo),
+        };
         let in_small_ring = legacy.rings.atoms.iter().any(|ring| {
             (3..=7).contains(&ring.len())
                 && ring
@@ -208,6 +227,11 @@ pub(crate) fn read_state(
                     .zip(ring.iter().cycle().skip(1))
                     .any(|(&u, &v)| (u == bond.a && v == bond.b) || (u == bond.b && v == bond.a))
         });
+        let alkene_geometry = if bond.order == 2 && !cumulene_stereo.contains_key(&idx) {
+            alkene_geometry(&legacy.metadata.bonds[idx])
+        } else {
+            None
+        };
         mol.add_bond(Bond {
             idx: idx + 1,
             u: bond.a,
@@ -215,6 +239,7 @@ pub(crate) fn read_state(
             order: usize::from(bond.order),
             is_aromatic: aromatic_bonds[idx],
             stereo,
+            alkene_geometry,
             in_small_ring,
         })?;
     }
@@ -349,6 +374,19 @@ fn assign_naming_kekule(
     Ok(result)
 }
 
+// Provenance: fn alkene_geometry | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs::alkene_geometry
+fn alkene_geometry(metadata: &ranking::BondMetadata) -> Option<([usize; 2], bool)> {
+    // SMILES perception uses Z/E (2/3). Typed IR supplies cis/trans (4/5)
+    // relative to its carrier pair, which need not be the highest CIP pair.
+    let same_side = match metadata.stereo {
+        2 | 4 => true,
+        3 | 5 => false,
+        _ => return None,
+    };
+    Some((metadata.stereo_atoms.as_slice().try_into().ok()?, same_side))
+}
+
 /// Detached default-H removal shared by localization and naming projection.
 // Provenance: fn ordinary_hydrogen_projection | original
 // Source: Nazuchem | crates/nazuchem-s2n/src/graph_io.rs::ordinary_hydrogen_projection
@@ -405,8 +443,15 @@ fn fold_ordinary_hydrogens(
         };
         projected.add_atom(atom)?;
     }
-    for &original in &removed.kept_bonds {
-        projected.add_bond(source.bonds[&(original + 1)].clone())?;
+    for (index, &original) in removed.kept_bonds.iter().enumerate() {
+        let mut bond = source.bonds[&(original + 1)].clone();
+        if bond.alkene_geometry.is_some() {
+            bond.alkene_geometry =
+                alkene_geometry(&removed.metadata.bonds[index]).map(|(carriers, same_side)| {
+                    (carriers.map(|id| removed.kept_atoms[id]), same_side)
+                });
+        }
+        projected.add_bond(bond)?;
     }
     projected.legacy_cip = source
         .legacy_cip

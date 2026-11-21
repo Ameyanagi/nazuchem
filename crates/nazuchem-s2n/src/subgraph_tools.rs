@@ -56,8 +56,8 @@ pub fn emit_bond_stereo(
     numbered_path: &[usize],
     locants: &BTreeMap<usize, String>,
     upstream_atom: Option<usize>,
-) {
-    emit_bond_stereo_except(mol, parts, numbered_path, locants, upstream_atom, None);
+) -> Result<(), String> {
+    emit_bond_stereo_except(mol, parts, numbered_path, locants, upstream_atom, None)
 }
 
 // Provenance: fn emit_bond_stereo_except | adapted
@@ -69,7 +69,7 @@ pub(super) fn emit_bond_stereo_except(
     locants: &BTreeMap<usize, String>,
     upstream_atom: Option<usize>,
     excluded_bond: Option<usize>,
-) {
+) -> Result<(), String> {
     let path_set: AtomSet = numbered_path.iter().copied().collect();
     let cyclic = get_cyclic_atoms(mol, &AtomSet::new());
     for &u in numbered_path {
@@ -80,6 +80,24 @@ pub(super) fn emit_bond_stereo_except(
             let Some(stereo) = bond.stereo.as_ref() else {
                 continue;
             };
+            // P-93.4.2.3: an odd cumulene is cited once, by the locant at
+            // which the cumulated system starts.
+            let cumulated = |a: usize, b: usize| {
+                mol.get_neighbors(a)
+                    .iter()
+                    .any(|&n| n != b && mol.get_bond(a, n).is_some_and(|x| x.order == 2))
+            };
+            let cumulene = bond.order == 2
+                && matches!(stereo.as_str(), "E" | "Z")
+                && (cumulated(u, v) || cumulated(v, u));
+            if cumulene {
+                if !path_set.contains(&v) || cyclic.contains(&u) || cyclic.contains(&v) {
+                    return Err("Naming supports cumulene E/Z only within one acyclic chain".into());
+                }
+                if cumulated(u, v) {
+                    continue;
+                }
+            }
             if bond.in_small_ring || Some(bond.idx) == excluded_bond {
                 continue;
             }
@@ -101,6 +119,9 @@ pub(super) fn emit_bond_stereo_except(
             } else {
                 loc_u
             };
+            if cumulene && loc != loc_u {
+                continue;
+            }
             if !parts.is_substituent && matches!(stereo.as_str(), "Ξ" | "ξ") {
                 let unit = if let Some(loc_v) = locants.get(&v) {
                     if parse_locant(loc_u) <= parse_locant(loc_v) {
@@ -122,6 +143,7 @@ pub(super) fn emit_bond_stereo_except(
             }
         }
     }
+    Ok(())
 }
 
 /// Add the selected parent's replacement and explicit multiple-bond features.
@@ -165,7 +187,23 @@ pub fn add_parent_features(
                         .filter(|&v| v >= heavy_bonding)
                         .min()
                 });
-            if implied_valence != Some(heavy_bonding + atom.total_h_count) {
+            // A cited hydrogen at a conventional-valence site (such as Sn in
+            // 10H-phenoxastannine) can select a higher standard bonding number
+            // than the SMILES minimum for the heavy bonds alone.
+            let observed_valence = heavy_bonding + atom.total_h_count;
+            let indicated_standard_valence = atom.charge == 0
+                && atom
+                    .element()
+                    .is_some_and(|e| e.standard_valence == observed_valence)
+                && parts
+                    .retained_parent_metadata
+                    .as_ref()
+                    .is_some_and(|metadata| {
+                        locants
+                            .get(&idx)
+                            .is_some_and(|locant| metadata.default_indicated_h.contains(locant))
+                    });
+            if implied_valence != Some(observed_valence) && !indicated_standard_valence {
                 return Err(format!(
                     "openclatura: retained parent hydrogen state for {} is not supported",
                     atom.symbol
@@ -357,10 +395,22 @@ pub fn add_substituent(
     if let Some(existing) = parts.substituents.iter_mut().find(|existing| {
         existing.name == item.name
             && existing.outer_parentheses_optional == item.outer_parentheses_optional
+            // Acyl promotion consumes the attachment carbonyl, while another
+            // carbonyl remains a separate prefix (3-ethoxy-3-oxopropanoyl,
+            // P-65.6.3.3.4.2).
+            && !(parts.is_substituent
+                && parts.attachment_order == 1
+                && parts.attachment_locant == "1"
+                && matches!(
+                    item.name.as_str(),
+                    "oxo" | "sulfanylidene" | "selanylidene" | "tellanylidene"
+                )
+                && (existing.locants == ["1"] || item.locants == ["1"]))
             // Upstream divergence: keep spiro instances separate to preserve their component metadata.
             && existing.spiro.is_none()
             && item.spiro.is_none()
     }) {
+        existing.prefix_kind = existing.prefix_kind.or(item.prefix_kind);
         existing.locants.extend(item.locants);
         existing.atom_ids.extend(item.atom_ids);
         existing.bond_ids.extend(item.bond_ids);
@@ -389,13 +439,13 @@ mod tests {
             .unwrap();
         let locants = BTreeMap::from([(axis.u, "2".into()), (axis.v, "1'".into())]);
         let mut parts = AssemblyParts::new(2);
-        emit_bond_stereo(&mol, &mut parts, &[axis.u, axis.v], &locants, None);
+        emit_bond_stereo(&mol, &mut parts, &[axis.u, axis.v], &locants, None).unwrap();
         assert_eq!(parts.stereo_features, [("1'".into(), "M".into())]);
         parts.stereo_features.clear();
-        emit_bond_stereo(&mol, &mut parts, &[axis.u], &locants, None);
+        emit_bond_stereo(&mol, &mut parts, &[axis.u], &locants, None).unwrap();
         assert_eq!(parts.stereo_features, [("2".into(), "M".into())]);
         parts.stereo_features.clear();
-        emit_bond_stereo(&mol, &mut parts, &[axis.v], &locants, Some(axis.u));
+        emit_bond_stereo(&mol, &mut parts, &[axis.v], &locants, Some(axis.u)).unwrap();
         assert!(parts.stereo_features.is_empty());
     }
 
@@ -418,7 +468,8 @@ mod tests {
             &locants,
             Some(4),
             Some(attachment.idx),
-        );
+        )
+        .unwrap();
         assert_eq!(parts.stereo_features, [("2".into(), "E".into())]);
         assert_eq!(attachment.stereo.as_deref(), Some("E"));
     }

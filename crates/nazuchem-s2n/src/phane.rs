@@ -3,7 +3,7 @@
 // Source: ReShiki | src/naming/openclatura/phane.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 
-//! Cyclic and linear phanes with disjoint monocyclic mancude amplificants
+//! Cyclic and linear phanes with disjoint monocyclic amplificants
 //! (PhI-2/PhI-3, P-26).
 use super::{
     graph_kernel::{Edge, adjacency_from_edges, connected_components, normalize_edge},
@@ -75,10 +75,10 @@ pub(super) fn has_linear_skeleton(mol: &Molecule, splits: &BTreeSet<Edge>) -> bo
 /// amplificants leaves one cycle or one unbranched chain; every atom is
 /// accounted for.
 pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
-    if mol
-        .atoms
-        .values()
-        .any(|a| a.charge != 0 || a.isotope.is_some() || a.has_stereo() || a.radical_electrons != 0)
+    if mol.bonds.len() <= mol.atoms.len()
+        || mol.atoms.values().any(|a| {
+            a.charge != 0 || a.isotope.is_some() || a.has_stereo() || a.radical_electrons != 0
+        })
         || mol.bonds.values().any(|b| b.stereo.is_some())
     {
         return None;
@@ -95,10 +95,38 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
         .filter(|b| b.is_aromatic)
         .map(|b| normalize_edge(b.u, b.v))
         .collect();
-    let adjacency = adjacency_from_edges(&aromatic, &aromatic_edges);
+    let mut ring_atoms = aromatic.clone();
+    let mut ring_edges: BTreeSet<_> = aromatic_edges;
+    // An isolated saturated six-carbon ring is a cyclohexana amplificant.
+    for system in super::ring_assembly::cyclic_units(mol) {
+        if system.len() == 6
+            && system.iter().all(|i| {
+                let a = &mol.atoms[i];
+                !a.is_aromatic
+                    && a.is_carbon()
+                    && mol.degree(*i) + a.total_h_count == 4
+                    && mol
+                        .get_neighbors(*i)
+                        .iter()
+                        .filter(|n| system.contains(n))
+                        .count()
+                        == 2
+            })
+        {
+            for &atom in &system {
+                ring_atoms.insert(atom);
+                for &neighbor in mol.get_neighbors(atom) {
+                    if system.contains(&neighbor) {
+                        ring_edges.insert(normalize_edge(atom, neighbor));
+                    }
+                }
+            }
+        }
+    }
+    let adjacency = adjacency_from_edges(&ring_atoms, &ring_edges);
     let mut amplificants = BTreeMap::new();
     let mut collapsed: BTreeMap<_, _> = mol.atoms.keys().map(|&i| (i, i)).collect();
-    for atoms in connected_components(&aromatic, &aromatic_edges) {
+    for atoms in connected_components(&ring_atoms, &ring_edges) {
         if !matches!(atoms.len(), 5 | 6) || atoms.iter().any(|i| adjacency[i].len() != 2) {
             return None;
         }
@@ -117,6 +145,7 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
             .filter(|&&i| !mol.atoms[&i].is_carbon())
             .collect();
         let (prefix, seniority) = match (ring.len(), hetero.as_slice()) {
+            (6, []) if !aromatic.contains(&start) => ("cyclohexana", 4),
             (6, []) => ("benzena", 3),
             (6, [i]) if mol.atoms[i].symbol == "N" => ("pyridina", 0),
             (5, [i]) if mol.atoms[i].symbol == "O" => ("furana", 1),
@@ -126,7 +155,7 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
         if ring.iter().any(|i| {
             let a = &mol.atoms[i];
             if a.is_carbon() {
-                mol.degree(*i) + a.total_h_count != 3
+                mol.degree(*i) + a.total_h_count != if a.is_aromatic { 3 } else { 4 }
             } else {
                 mol.degree(*i) != 2 || a.total_h_count != 0
             }
@@ -167,14 +196,88 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
     if amplificants.len() < 2 {
         return None;
     }
+    // Number the parent hydride first, then the substituent (P-26.4.3).
+    let mut branches = mol.atoms.values().filter_map(|atom| {
+        let group = match (atom.symbol.as_str(), atom.total_h_count) {
+            ("O", 1) => "ol",
+            ("C", 3) => "methyl",
+            ("F", 0) => "fluoro",
+            ("Cl", 0) => "chloro",
+            ("Br", 0) => "bromo",
+            ("I", 0) => "iodo",
+            _ => return None,
+        };
+        let neighbors = mol.get_neighbors(atom.idx);
+        let [ring_atom] = neighbors else { return None };
+        (aromatic.contains(ring_atom) && mol.bond_order(atom.idx, *ring_atom) == 1)
+            .then_some((atom.idx, *ring_atom, group))
+    });
+    let mut branch = branches.next();
+    if branches.next().is_some() {
+        return None;
+    }
+    if let Some((atom, _, _)) = branch {
+        collapsed.remove(&atom);
+    }
+    // In the presence of a senior carboxylic acid, a bridging carbonate
+    // can contribute an O-C-O path and an oxo prefix (P-41, P-65.6.3.2.3).
+    let mut carbonyl = None;
+    for atom in mol
+        .atoms
+        .values()
+        .filter(|a| a.is_carbon() && !a.is_aromatic && mol.degree(a.idx) == 3)
+    {
+        let neighbors = mol.get_neighbors(atom.idx);
+        let Some(&oxygen) = neighbors.iter().find(|&&n| {
+            mol.atoms[&n].symbol == "O" && mol.degree(n) == 1 && mol.bond_order(atom.idx, n) == 2
+        }) else {
+            continue;
+        };
+        if atom.total_h_count != 0
+            || mol.atoms[&oxygen].total_h_count != 0
+            || neighbors
+                .iter()
+                .any(|&n| n != oxygen && mol.bond_order(atom.idx, n) != 1)
+        {
+            return None;
+        }
+        let others: Vec<_> = neighbors.iter().copied().filter(|&n| n != oxygen).collect();
+        if let Some(&ring) = others.iter().find(|n| aromatic.contains(n)) {
+            let hydroxyl = *others.iter().find(|&&n| n != ring)?;
+            if mol.atoms[&hydroxyl].symbol != "O"
+                || mol.atoms[&hydroxyl].total_h_count != 1
+                || mol.degree(hydroxyl) != 1
+                || branch.is_some()
+            {
+                return None;
+            }
+            branch = Some((atom.idx, ring, "carboxylic acid"));
+            for i in [atom.idx, hydroxyl, oxygen] {
+                collapsed.remove(&i);
+            }
+        } else if others
+            .iter()
+            .all(|n| mol.atoms[n].symbol == "O" && mol.degree(*n) == 2)
+        {
+            if carbonyl.replace(atom.idx).is_some() {
+                return None;
+            }
+            collapsed.remove(&oxygen);
+        }
+    }
+    if carbonyl.is_some() && !matches!(branch, Some((_, _, "carboxylic acid"))) {
+        return None;
+    }
     let nodes: AtomSet = collapsed.values().copied().collect();
     let mut edges = BTreeSet::new();
     // For each skeleton edge, retain the real atom at either end for attachments.
     let mut attachments = BTreeMap::new();
     for b in mol.bonds.values() {
-        let (u, v) = (collapsed[&b.u], collapsed[&b.v]);
+        let (Some(&u), Some(&v)) = (collapsed.get(&b.u), collapsed.get(&b.v)) else {
+            continue;
+        };
         if u == v {
-            if !b.is_aromatic {
+            if !ring_edges.contains(&normalize_edge(b.u, b.v)) {
                 return None;
             }
             continue;
@@ -197,11 +300,11 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
     if adjacency.values().any(|neighbors| neighbors.len() > 2)
         || connected_components(&nodes, &edges).len() != 1
         || !(if linear {
-            // The parser reads a two-digit skeletal locant such as 12 as
-            // ambiguous with a composite locant, so longer chains are left.
-            (7..=9).contains(&nodes.len()) && amplificants.len() >= 4
+            (7..=1000).contains(&nodes.len())
+                && amplificants.len() >= 4
+                && terminals.iter().all(|i| amplificants.contains_key(i))
         } else {
-            terminals.is_empty() && nodes.len() >= 6
+            branch.is_none() && ring_atoms == aromatic && terminals.is_empty() && nodes.len() >= 6
         })
     {
         return None;
@@ -219,12 +322,13 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
             }
         } else {
             let a = &mol.atoms[&i];
+            if Some(i) == carbonyl {
+                continue;
+            }
             let hydrogens = match a.symbol.as_str() {
                 "C" => 2,
                 "O" | "S" => 0,
-                // An amine is a characteristic group; only ethers and
-                // sulfides are replaced in a linear phane here.
-                "N" if !linear => 1,
+                "N" => 1,
                 _ => return None,
             };
             if a.is_aromatic || a.total_h_count != hydrogens || mol.degree(i) != 2 {
@@ -235,7 +339,7 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
     let order_starts: Vec<_> = nodes.iter().copied().collect();
     // Each numbering is compared numerically, never by the rendered name.
     let mut best = None;
-    let mut ends = vec![];
+
     // A chain is numbered from either end, a cycle from any node either way.
     for &start in if linear {
         &terminals[..]
@@ -272,7 +376,7 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
                     .map(|n| locants[n])
                     .collect()
             };
-            let seniority: Vec<Vec<usize>> = (0..4)
+            let seniority: Vec<Vec<usize>> = (0..5)
                 .map(|rank| {
                     order
                         .iter()
@@ -284,13 +388,15 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
             let mut numbered = vec![];
             let mut attachment_sets = vec![];
             let mut attachment_order = vec![];
+            let mut branch_locant = None;
+            let mut center = None;
             for &node in &order {
                 let Some(amplificant) = amplificants.get(&node) else {
                     continue;
                 };
                 let mut neighbors: Vec<_> = adjacency[&node].iter().copied().collect();
                 neighbors.sort_by_key(|n| locants[n]);
-                let (set, pair) = amplificant
+                let (set, pair, position) = amplificant
                     .numberings
                     .iter()
                     .map(|numbering| {
@@ -300,15 +406,43 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
                             .collect();
                         let mut set = pair.clone();
                         set.sort();
-                        (set, pair)
+                        (
+                            set,
+                            pair,
+                            branch.and_then(|(_, i, _)| numbering.get(&i).copied()),
+                        )
                     })
                     .min()?;
+                if let Some(position) = position {
+                    branch_locant = Some((locants[&node], position));
+                }
+                // Only the middle node can remain unpaired when a linear
+                // skeleton has two otherwise equivalent numberings.
+                if linear && locants[&node] * 2 == nodes.len() + 1 && pair.len() == 2 {
+                    let reversible = amplificant.numberings.iter().any(|numbering| {
+                        numbering[&attachments[&(node, neighbors[0])]] == pair[1]
+                            && numbering[&attachments[&(node, neighbors[1])]] == pair[0]
+                    });
+                    if !reversible {
+                        center = Some((amplificant.seniority, set.clone(), pair.clone()));
+                    }
+                }
                 attachment_sets.push((amplificant.seniority, locants[&node], set));
                 attachment_order.push(pair.clone());
                 numbered.push((amplificant.prefix, locants[&node], pair));
             }
             // PhI-3.2.2 compares attachment sets by amplificant seniority,
             // then by superatom locant within each cited amplification prefix.
+            // P-26.4.2.3 precedes comparison of all attachment locants
+            // only when a single unsymmetrical amplificant remains.
+            let single_asymmetric = center.and_then(|(rank, set, pair)| {
+                (attachment_sets
+                    .iter()
+                    .filter(|(r, _, s)| *r == rank && *s == set)
+                    .count()
+                    == 1)
+                    .then_some(pair)
+            });
             attachment_sets.sort_by_key(|&(rank, locant, _)| (rank, locant));
             let attachment_sets: Vec<_> =
                 attachment_sets.into_iter().map(|(_, _, set)| set).collect();
@@ -320,23 +454,15 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
                 attachment_sets,
                 // P-26.4.2.4 completes the hydrocarbon numbering before
                 // P-26.5.1 places the heteroatoms on it.
+                single_asymmetric,
                 attachment_order,
                 hetero(None),
                 hetero(Some("O")),
                 hetero(Some("S")),
                 hetero(Some("N")),
+                branch_locant,
+                carbonyl.map(|c| locants[&c]),
             );
-            // P-26.4.2.3 lets a single unsymmetrical amplificant choose the
-            // end before P-26.4.2.4 compares the locants in name order. That
-            // rule is not modelled, so a chain whose ends differ only in
-            // attachment order is left to the substitutive name.
-            ends.push((key.0.clone(), key.1.clone(), key.2.clone(), key.3.clone()));
-            if linear
-                && (&ends[0].0, &ends[0].1, &ends[0].2) == (&key.0, &key.1, &key.2)
-                && ends[0].3 != key.3
-            {
-                return None;
-            }
             if best.as_ref().is_none_or(|(old, _)| key < *old) {
                 let mut parts = vec![];
                 for (symbol, prefix) in [("O", "oxa"), ("S", "thia"), ("N", "aza")] {
@@ -357,7 +483,7 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
                         ));
                     }
                 }
-                for rank in 0..4 {
+                for rank in 0..5 {
                     let Some(amplificant) = amplificants.values().find(|a| a.seniority == rank)
                     else {
                         continue;
@@ -396,17 +522,50 @@ pub(super) fn name(mol: &Molecule) -> Option<(String, bool)> {
                     };
                     parts.push(format!("{descriptor}-{multiplier}{}", amplificant.prefix));
                 }
-                let name = format!(
+                let mut name = format!(
                     "{}{}{}phane",
                     parts.join("-"),
                     if linear { "" } else { "cyclo" },
                     multipliers::numerical_term(nodes.len())
                 );
-                best = Some((key, name));
+                if let (Some((node, ring)), Some((_, _, group))) = (branch_locant, branch) {
+                    let superscript = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶'];
+                    let locant = format!("{node}{}", superscript[ring]);
+                    if group == "ol" {
+                        name.pop();
+                        name.push_str(&format!("-{locant}-ol"));
+                    } else if group == "carboxylic acid" {
+                        name.push_str(&format!("-{locant}-carboxylic acid"));
+                        if let Some(carbon) = carbonyl {
+                            name = format!("{}-oxo-{name}", locants[&carbon]);
+                        }
+                    } else {
+                        name = format!("{locant}-{group}-{name}");
+                    }
+                }
+                // The parser also accepts flattened composite locants. If
+                // no explicit superscript distinguishes the notation, a
+                // skeletal replacement locant can collide with a ring atom.
+                let ambiguous = linear
+                    && branch.is_none()
+                    && hetero(None).iter().any(|&i| {
+                        let locant = i.to_string();
+                        numbered.iter().any(|(_, n, _)| {
+                            locant
+                                .strip_prefix(&n.to_string())
+                                .filter(|s| !s.starts_with('0'))
+                                .and_then(|s| s.parse::<usize>().ok())
+                                .is_some_and(|ring| {
+                                    (1..=amplificants[&order[*n - 1]].numberings[0].len())
+                                        .contains(&ring)
+                                })
+                        })
+                    });
+                best = Some((key, (!ambiguous).then_some(name)));
             }
         }
     }
-    best.map(|(_, name)| (name, linear))
+    best.and_then(|(_, name)| name.map(|name| (name, linear)))
 }
 
 #[cfg(test)]

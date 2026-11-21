@@ -187,6 +187,19 @@ impl<'a> ComponentGenerator<'a> {
         Ok(())
     }
     pub fn resolve_ambiguities(&mut self, sub: NodeId) -> Result {
+        if let Some(group) = self.arena.first_child_named(sub, GROUP_EL)
+            && self.attr_is(group, SUBTYPE_ATR, GROUPSTEM_SUBTYPE_VAL)
+            && self.val(group) == "stibin"
+            && self
+                .arena
+                .children_named(sub, SUFFIX_EL)
+                .iter()
+                .any(|&suffix| self.attr_is(suffix, VALUE_ATR, "oyl"))
+        {
+            // P-67.1.4.1.1.2: stibinoyl is derived from stibinic acid.
+            // The ordinary oyl suffix on the stibane stem would give -Sb=O.
+            return err("Interpret stibinoyl using the stibinic acid stem");
+        }
         for m in self.arena.children_named(sub, MULTIPLIER_EL) {
             if ![BASIC_TYPE_VAL, VONBAEYER_TYPE_VAL].contains(&self.attr(m, TYPE_ATR).as_str()) {
                 continue;
@@ -1506,8 +1519,35 @@ impl<'a> ComponentGenerator<'a> {
     fn handle_suffix_irregularities(&mut self, sub: NodeId) -> Result {
         for s in self.arena.children_named(sub, SUFFIX_EL) {
             let value = self.val(s);
-            // P-65.2.1.2 (carbonobis(thioperoxoic) OS,SO-acid): a list of
-            // pair locants has one for each peroxy acid group.
+            if self.attr_is(s, VALUE_ATR, "carbonic_peroxoic_acid") {
+                let stem = self.arena.previous_sibling(s);
+                if !stem
+                    .is_some_and(|id| self.arena[id].name == GROUP_EL && self.val(id) == "carbon")
+                {
+                    return err("This peroxy acid suffix requires a carbonic acid stem");
+                }
+                let locants = value
+                    .split_once(") ")
+                    .and_then(|(_, suffix)| suffix.strip_suffix("-acid"))
+                    .ok_or_else(|| {
+                        ComponentGenerationError("Missing peroxy acid locants".into())
+                    })?;
+                let mut infixes = Vec::new();
+                for locant in locants.split(',') {
+                    infixes.push(match locant.to_ascii_lowercase().as_str() {
+                        "os" => "-O-:OS",
+                        "so" => "-O-:SO",
+                        "ose" => "-O-:O[Se|2]",
+                        "seo" => "-O-:[Se|2]O",
+                        "ote" => "-O-:O[Te|2]",
+                        "teo" => "-O-:[Te|2]O",
+                        _ => return err("Invalid peroxy acid locant"),
+                    });
+                }
+                self.set(s, INFIX_ATR, infixes.join(";"));
+                continue;
+            }
+            // A list of pair locants has one for each peroxy acid group.
             if value.contains("peroxoic) ") && value.contains(',') {
                 let mut before = self.arena.previous_sibling(s);
                 while let Some(prefix) = before.filter(|&b| self.arena[b].name == SUFFIXPREFIX_EL) {
@@ -2710,9 +2750,12 @@ impl<'a> ComponentGenerator<'a> {
 pub fn standardize_locant_variants(text: &str) -> String {
     let mut text = text.to_string();
     if text.contains('-') {
-        let pattern = rx(&format!("^(\\d+'*)-({ELEMENT_SYMBOLS}'*)(.*)$"));
+        // The lexer allows a bracketed locant after the complete element
+        // symbol. An unrestricted tail would read "4-Se" as "4-S" plus "e".
+        let pattern = rx(&format!(r"^(\d+'*)-({ELEMENT_SYMBOLS}'*)(-?[\[({{].*)?$"));
         if let Some(c) = pattern.captures(&text) {
-            text = format!("{}{}{}", &c[2], &c[1], &c[3])
+            let tail = c.get(3).map_or("", |m| m.as_str());
+            text = format!("{}{}{tail}", &c[2], &c[1]);
         }
     }
     text = standardize_locant_prime_position(&text);
@@ -2971,6 +3014,21 @@ fn append_ring_locations(smiles: &mut String, locations: &HashMap<usize, Vec<usi
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn numbered_element_locants_consume_the_whole_symbol() {
+        for (input, expected) in [
+            ("4-Se", "Se4"),
+            ("4'-Se", "Se4'"),
+            ("4-Se'", "Se'4"),
+            ("4-Se[2]", "Se4[2]"),
+            ("4'-Te", "Te4'"),
+            ("4-N(2)", "N4(2)"),
+            ("4-S", "S4"),
+        ] {
+            assert_eq!(standardize_locant_variants(input), expected, "{input}");
+        }
+    }
 
     #[test]
     fn name_expansions_reject_extreme_counts_before_allocating() {

@@ -8,7 +8,10 @@
 //! oxygen on a chalcogen chain keep their charge, are named after the IUPAC
 //! 2013 recommendations and read back as the structure they came from.
 
-use nazuchem::{Budget, NameStatus, name_to_smiles, s2n::canonical_smiles, smiles_to_name};
+use nazuchem::{
+    Budget, NameReason, NameStatus, name_to_molecule, name_to_smiles, s2n::canonical_smiles,
+    smiles_to_name,
+};
 
 #[test]
 fn anionic_prefix_names_follow_the_blue_book_and_round_trip() {
@@ -317,6 +320,131 @@ fn anionic_parent_has_the_most_anionic_centres() {
 }
 
 #[test]
+fn anionic_parent_counts_centres_on_one_ring_system_or_chain() {
+    let long_chain = format!("[O-]C1CC([O-])CC1{}C(=O)[O-]", "C".repeat(400));
+    for (smiles, expected, charge) in [
+        // The single bond between the rings is not part of either ring.
+        // The carboxylate wins the one-centre tie under P-72.7(e).
+        (
+            "[O-]c1ccc(C2CC([O-])CC2)cc1CC(=O)[O-]",
+            "[2-oxido-5-(3-oxidocyclopentyl)phenyl]acetate",
+            -3,
+        ),
+        // Identical linked ring units form an assembly (P-28). The two
+        // carboxylates on that parent tie the side-chain olates, so
+        // the carboxylates win under P-72.7(e).
+        (
+            "[O-]C(=O)c1ccc(-c2ccc(C(=O)[O-])cc2)cc1CC([O-])C([O-])C",
+            "3-(2,3-dioxidobutyl)[1,1'-biphenyl]-4,4'-dicarboxylate",
+            -4,
+        ),
+        (
+            "[O-]C(=O)C1CCC(C2CCC(C(=O)[O-])CC2)CC1CC([O-])C([O-])C",
+            "3-(2,3-dioxidobutyl)[1,1'-bi(cyclohexane)]-4,4'-dicarboxylate",
+            -4,
+        ),
+        // The chain has three centres including its skeletal charges, so
+        // it wins under P-72.7(a). P-72.5.3 gives -ide the lowest locants.
+        (
+            "[O-]C1CC([O-])CC1[CH-][CH-]C(=O)[O-]",
+            "1-(2,4-dioxidocyclopentyl)propane-1,2-diid-3-oate",
+            -5,
+        ),
+        // At two centres each, the chain's skeletal -ide decides P-72.7(b).
+        (
+            "[O-]C1CC([O-])CC1[CH-]CC(=O)[O-]",
+            "1-(2,4-dioxidocyclopentyl)propan-1-id-3-oate",
+            -4,
+        ),
+        // Without a skeletal charge, the two olates win under P-72.7(a).
+        (
+            "[O-]C1CC([O-])CC1CCC(=O)[O-]",
+            "4-(2-carboxylatoethyl)cyclopentane-1,3-bis(olate)",
+            -3,
+        ),
+        // The longest carbon path with the carboxylate has only one
+        // skeletal anion. A path through both skeletal anions places the
+        // carboxylate outside the parent and cites it as carboxylato.
+        (
+            "[CH2-]CC([O-])C([CH2-])C(=O)[O-]",
+            "2-carboxylatopentane-1,5-diid-3-olate",
+            -4,
+        ),
+        (
+            "[CH2-]CC([S-])C([CH2-])C(=O)[O-]",
+            "2-carboxylatopentane-1,5-diide-3-thiolate",
+            -4,
+        ),
+        (
+            "[CH2-]CC(O[O-])C([CH2-])C(=O)[O-]",
+            "2-carboxylatopentane-1,5-diide-3-peroxolate",
+            -4,
+        ),
+        // The same budget must cover parent choice and naming of branches.
+        (
+            "[O-]C(C(C(C(C(C)C)C(C)C)C(C(C)C)C(C)C)C(C(C(C)C)C(C)C)C(C(C)C)C(C)C)C(=O)[O-]",
+            "3-[2,6-dimethyl-3,5-di(propan-2-yl)heptan-4-yl]-4-(2,4-dimethylpentan-3-yl)-6-methyl-2-oxido-5-(propan-2-yl)heptanoate",
+            -2,
+        ),
+        (
+            &long_chain,
+            "4-(400-carboxylatotetractyl)cyclopentane-1,3-bis(olate)",
+            -3,
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+        let parsed = name_to_smiles(&name.text).unwrap();
+        let budget = Budget::default();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget).unwrap(),
+            canonical_smiles(smiles, &budget).unwrap(),
+            "{smiles} -> {expected} -> {parsed}"
+        );
+        let molecule = name_to_molecule(&name.text).unwrap();
+        assert_eq!(
+            molecule
+                .atoms
+                .iter()
+                .map(|a| i32::from(a.charge))
+                .sum::<i32>(),
+            charge,
+            "{smiles}"
+        );
+    }
+}
+
+#[test]
+fn one_anionic_group_on_a_chain_stays_nameable_near_the_budget_limit() {
+    let smiles = |n| format!("[O-]C1CC([O-])CC1{}C(=O)[O-]", "C".repeat(n));
+    let input = smiles(498);
+    let name = smiles_to_name(&input).unwrap();
+    assert_eq!(
+        name.text,
+        "4-(498-carboxylatooctanonacontatetractyl)cyclopentane-1,3-bis(olate)"
+    );
+    assert_eq!(name.status, NameStatus::Unverified(NameReason::AnionParent));
+    let parsed = name_to_smiles(&name.text).unwrap();
+    let budget = Budget::default();
+    assert_eq!(
+        canonical_smiles(&parsed, &budget).unwrap(),
+        canonical_smiles(&input, &budget).unwrap()
+    );
+    let molecule = name_to_molecule(&name.text).unwrap();
+    assert_eq!(
+        molecule
+            .atoms
+            .iter()
+            .map(|a| i32::from(a.charge))
+            .sum::<i32>(),
+        -3
+    );
+    let err = smiles_to_name(&smiles(500)).unwrap_err();
+    assert!(err.to_string().contains("naming complexity limit exceeded"));
+}
+
+#[test]
 fn amide_nitrogen_anions_are_azanides() {
     // Issue #180. P-72.2.2.2.4: an anionic centre on an amide nitrogen is
     // named from the anionic parent hydride, acetylazanide; `amidide` and
@@ -330,6 +458,8 @@ fn amide_nitrogen_anions_are_azanides() {
         ("[N-](C(=O)C)C(=O)C", "diacetylazanide", true),
         ("[NH-]C(=S)C", "(ethanethioyl)azanide", true),
         ("[Na+].[NH-]C(=O)C", "sodium acetylazanide", true),
+        // P-72.2.2.2.4: the N–N parent is retained in hydrazide anions.
+        ("[N-](N)C(=O)C", "1-acetylhydrazin-1-ide", true),
         // A ligand with its own characteristic group is not audited.
         ("[NH-]C(=O)CCO", "(3-hydroxypropanoyl)azanide", false),
         ("[NH-]C(=O)OC", "(methoxycarbonyl)azanide", false),
@@ -358,31 +488,39 @@ fn amide_nitrogen_anions_are_azanides() {
             "{smiles} -> {expected} -> {parsed}"
         );
     }
-    // A neutral amide suffix would drop the charge beside a nitro group,
-    // and a hydrazide keeps its hydrazine parent (P-72.2.2.2.4,
-    // acetylhydrazine-1,1-diide).
-    for smiles in ["[NH-]C(=O)c1ccc(cc1)[N+](=O)[O-]", "[N-](N)C(=O)C"] {
-        assert!(smiles_to_name(smiles).is_err(), "{smiles}");
-    }
+    // A neutral amide suffix would drop the charge beside a nitro group.
+    assert!(smiles_to_name("[NH-]C(=O)c1ccc(cc1)[N+](=O)[O-]").is_err());
 }
 
 #[test]
 fn peroxy_acid_anion_prefix_reads_back() {
-    // Issue #180. P-72.6.3: -O-O(-) is dioxidanidyl, formed like
-    // disulfanidyl, here on carbonyl. P-72.6.1 has no example of an `ato`
-    // prefix for a peroxy acid anion, so the names are not labelled
-    // preferred. P-72.7(b): the aminide is the suffix.
+    // Issue #180. P-72.6.1: the external -C(=O)OO(-) group uses
+    // carboperoxoate with its ending changed to -ato.
+    // P-72.7(b): the aminide is the suffix.
     for (smiles, expected) in [
-        ("[NH-]CC(=O)O[O-]", "1-(dioxidanidylcarbonyl)methanaminide"),
-        ("[O-]OC(=O)CC(=O)[O-]", "(dioxidanidylcarbonyl)acetate"),
+        ("[NH-]CC(=O)O[O-]", "1-carboperoxoatomethanaminide"),
+        ("[O-]OC(=O)CC(=O)[O-]", "carboperoxoatoacetate"),
+        ("[O-]OC(=O)c1ccccc1C(=O)[O-]", "2-carboperoxoatobenzoate"),
         (
-            "[O-]OC(=O)c1ccccc1C(=O)[O-]",
-            "2-(dioxidanidylcarbonyl)benzoate",
+            "[O-]OC(=O)CC(C(=O)O[O-])CC(=O)O[O-]",
+            "3-carboperoxoatopentanediperoxoate",
+        ),
+        (
+            "O=C(O[O-])C(CC(=O)O[O-])CC(=O)O[O-]",
+            "3-carboperoxoatopentanediperoxoate",
+        ),
+        (
+            "[O-]OC(=O)CC(C(=O)O[O-])(C(=O)O[O-])CC(=O)O[O-]",
+            "3,3-dicarboperoxoatopentanediperoxoate",
+        ),
+        (
+            "[O-]OC(=O)CCC(CC(=O)O[O-])CCC(=O)O[O-]",
+            "4-(carboperoxoatomethyl)heptanediperoxoate",
         ),
     ] {
         let name = smiles_to_name(smiles).unwrap();
         assert_eq!(name.text, expected, "{smiles}");
-        assert_ne!(name.status, NameStatus::Preferred, "{smiles}");
+        assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
         let parsed = name_to_smiles(&name.text).unwrap_or_else(|e| panic!("{expected}: {e:?}"));
         let budget = Budget::default();
         assert_eq!(
@@ -393,4 +531,60 @@ fn peroxy_acid_anion_prefix_reads_back() {
     }
     // The chalcogen analogues have no validated prefix.
     assert!(smiles_to_name("[S-]OC(=O)CC(=O)[O-]").is_err());
+}
+
+#[test]
+fn peroxy_acyl_substituents_keep_unverified_ligand_and_isotope_citations() {
+    for (smiles, expected, reason) in [
+        (
+            "[O-]OC(=O)CCC(CC(=O)O[S-])CCC(=O)O[O-]",
+            "4-[2-oxo-2-(sulfidooxy)ethyl]heptanediperoxoate",
+            NameReason::AnionParent,
+        ),
+        (
+            "[O-]OC(=O)CC([13C](=O)O[O-])CC(=O)O[O-]",
+            "3-(13C)carboperoxoatopentanediperoxoate",
+            NameReason::IsotopePlacement,
+        ),
+        (
+            "[O-]OC(=O)CC(C(=[18O])O[O-])CC(=O)O[O-]",
+            "3-{dioxidanidyl[(18O)oxo]methyl}pentanediperoxoate",
+            NameReason::IsotopePlacement,
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        assert_eq!(name.status, NameStatus::Unverified(reason), "{smiles}");
+        let parsed = name_to_smiles(&name.text).unwrap_or_else(|e| panic!("{expected}: {e:?}"));
+        let budget = Budget::default();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget),
+            canonical_smiles(smiles, &budget),
+            "{smiles} -> {expected} -> {parsed}"
+        );
+    }
+}
+
+#[test]
+fn an_aminide_ring_assembly_can_cite_a_terminal_carbanion_in_its_prefix() {
+    // Issue #180. The ring assembly and carboxylate chain each have two
+    // anionic centres. The assembly's two aminide centres outrank the chain
+    // with one ide and one oate (P-72.7(a), (b)).
+    let expected = "5-(2-carboxylatobutan-4-id-1-yl)[1,1'-bi(cyclopentane)]-3,3'-bis(aminide)";
+    let parsed = name_to_smiles(expected).unwrap();
+    let budget = Budget::default();
+    let round_trip = canonical_smiles(&parsed, &budget).unwrap();
+    for input in [
+        "C1CC([NH-])CC1C2CC([NH-])CC2CC(C(=O)[O-])C[CH2-]",
+        "[CH2-]CC(C([O-])=O)CC1CC([NH-])CC1C2CC([NH-])CC2",
+    ] {
+        let name = smiles_to_name(input).unwrap();
+        assert_eq!(name.text, expected, "{input}");
+        assert_eq!(name.status, NameStatus::Preferred, "{input}");
+        assert_eq!(
+            canonical_smiles(input, &budget).unwrap(),
+            round_trip,
+            "{input}"
+        );
+    }
 }

@@ -10,6 +10,7 @@
 // Source: ReShiki | crates/opsin/src/smiles.rs | 1e2ada3e92b99b1487058f5a4031799d41c27645
 // Source: ReShiki | crates/opsin/src/smiles.rs | 2fb808b58e5f572709ea335de644e6f5df406852
 // Source: ReShiki | crates/opsin/src/smiles.rs | cc6840eb98c18b3d6d10151b18df174675be1170
+// Source: Nazuchem | crates/nazuchem-n2s/src/smiles.rs | issue #15
 // Copyright 2017 Daniel Lowe
 // Changes: Rust ownership, arena/container and error-handling adaptation; integrated native changes are documented in PORTING.md. Original function boundaries are marked below.
 
@@ -91,8 +92,21 @@ pub fn build_fragment(
     fragment_type: &str,
     label_mapping: &str,
 ) -> Result<FragmentId, GraphError> {
+    build_fragment_with_token_dialect(graph, smiles, fragment_type, label_mapping, false)
+}
+
+// Provenance: fn build_fragment_with_token_dialect | adapted
+// Source: Nazuchem | crates/nazuchem-n2s/src/smiles.rs::build_fragment_with_token_dialect
+// Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESFragmentBuilder.java::build
+pub(crate) fn build_fragment_with_token_dialect(
+    graph: &mut Graph,
+    smiles: &str,
+    fragment_type: &str,
+    label_mapping: &str,
+    ring_token: bool,
+) -> Result<FragmentId, GraphError> {
     let backup = graph.clone();
-    let result = build_fragment_inner(graph, smiles, fragment_type, label_mapping);
+    let result = build_fragment_inner(graph, smiles, fragment_type, label_mapping, ring_token);
     if result.is_err() {
         *graph = backup;
     }
@@ -108,6 +122,7 @@ fn build_fragment_inner(
     smiles: &str,
     fragment_type: &str,
     labels: &str,
+    ring_token: bool,
 ) -> Result<FragmentId, GraphError> {
     let fragment = graph.add_fragment(fragment_type);
     if smiles.is_empty() {
@@ -246,6 +261,7 @@ fn build_fragment_inner(
                     &smiles[index + 1..close],
                     stack.last_mut().unwrap(),
                     first_out,
+                    ring_token,
                 )?;
                 stack.last_mut().unwrap().atom = Some(atom);
                 index = close + 1;
@@ -365,6 +381,7 @@ fn parse_bracket(
     content: &str,
     frame: &mut Frame,
     first_out: Option<u8>,
+    ring_token: bool,
 ) -> Result<AtomId, GraphError> {
     let bytes = content.as_bytes();
     let mut index = 0;
@@ -382,7 +399,9 @@ fn parse_bracket(
     let element = if symbol == "*" {
         Element::R
     } else if spare {
-        if !aromatic(symbol) {
+        // Native pheno...ine and boranthrene dictionary entries use spare
+        // valence at these bracketed atoms.
+        if !(aromatic(symbol) || ring_token && matches!(symbol, "b" | "ge" | "sn" | "bi")) {
             return Err(GraphError(format!("{symbol} is not an aromatic Element")));
         }
         let mut normal = symbol.to_owned();
@@ -1017,7 +1036,20 @@ impl<'a> Writer<'a> {
             if bond.order != 2 || bond.stereo.is_some() {
                 continue;
             }
-            let marked = [bond.from, bond.to].map(|atom| {
+            // Slashes at both terminal atoms of an odd cumulene specify its
+            // E/Z just as they do across one double bond (OpenSMILES 3.8.3).
+            // Constitutionally identical ligands at an end leave nothing to
+            // specify.
+            let cumulene = crate::stereochemistry_handler::odd_cumulene(self.graph, central)
+                .map(|(refs, _)| [refs[1], refs[2]])
+                .filter(|ends| {
+                    ends.iter().all(|&end| {
+                        crate::cip::CipSequenceRules::new(self.graph, end)
+                            .get_neighbouring_atoms_in_cip_order()
+                            .is_ok()
+                    })
+                });
+            let marked = cumulene.unwrap_or([bond.from, bond.to]).map(|atom| {
                 self.graph
                     .atom(atom)
                     .bonds
@@ -1034,6 +1066,7 @@ impl<'a> Writer<'a> {
             // Avoid specifying this bond through redundant neighbouring slashes.
             // A slash can serve stereo at either endpoint: each such endpoint
             // must retain another marked single bond after the whole side is cleared.
+            let mut cleared = false;
             for side in &marked {
                 if side.iter().all(|bond| {
                     let bond = self.graph.bond(*bond);
@@ -1052,11 +1085,19 @@ impl<'a> Writer<'a> {
                     for bond in side {
                         self.directions[bond.0] = None;
                     }
+                    cleared = true;
                     break;
                 }
             }
             // If neither side can be cleared safely, keep the slashes, as in
-            // conjugated chains with no redundant marks.
+            // conjugated chains with no redundant marks. Across a cumulene
+            // they would assert a configuration the structure does not have.
+            if cumulene.is_some() && !cleared {
+                return Err(SerializationError(
+                    "SMILES cannot leave a cumulene unspecified between specified double bonds"
+                        .into(),
+                ));
+            }
         }
         Ok(())
     }
@@ -1064,8 +1105,11 @@ impl<'a> Writer<'a> {
     fn assign_one_stereo(&mut self, central: BondId) -> Result<Vec<BondId>, SerializationError> {
         let stereo = self.graph.bond(central).stereo.as_ref().unwrap();
         let refs = stereo.atom_refs;
+        // An odd cumulene's record sits on its two terminal bonds, each
+        // holding one of the terminal atoms `refs[1]` and `refs[2]`.
         if self.graph.bond(central).order != 2
-            || self.graph.bond(central).other_atom(refs[1]) != Some(refs[2])
+            || self.graph.bond(central).other_atom(refs[1]).is_none()
+                && self.graph.bond(central).other_atom(refs[2]).is_none()
         {
             return Err(SerializationError(
                 "Bond stereo has invalid central bond references".into(),
@@ -1110,7 +1154,9 @@ impl<'a> Writer<'a> {
                 .bonds
                 .iter()
                 .copied()
-                .filter(|bond| *bond != primary && *bond != central)
+                .filter(|bond| {
+                    *bond != primary && *bond != central && self.graph.bond(*bond).order == 1
+                })
                 .collect();
             if bonds.len() == 1 && self.next[bonds[0].0].is_some() {
                 Some(bonds[0])

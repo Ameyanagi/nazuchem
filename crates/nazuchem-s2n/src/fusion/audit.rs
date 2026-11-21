@@ -204,7 +204,14 @@ pub fn audit_fusion_plan(
             charge_operations,
             &mut errors,
         );
-        audit_component_pi_constraints(ast, &specs, abstract_parent_graph, &mut errors)?;
+        audit_component_pi_constraints(
+            mol,
+            parent_atoms,
+            ast,
+            &specs,
+            abstract_parent_graph,
+            &mut errors,
+        )?;
         audit_numbering(
             mol,
             parent_atoms,
@@ -252,6 +259,7 @@ pub fn audit_fusion_plan(
                 &carbon_candidates,
                 &intrinsic_n_h,
                 &cited_n_h,
+                is_benzodipyran(ast, &specs),
             )?;
             intrinsic_c_h = carbon;
             if (!intrinsic_n_h.is_empty() || !intrinsic_c_h.is_empty() || !released.is_empty())
@@ -409,6 +417,25 @@ fn unrepresented_component_indicated_hydrogens(
         .copied()
         .filter(|a| locants.get(a).is_some_and(|l| cited.contains(l)))
         .collect();
+    // P-58.2.3.1.4 places both indicated hydrogens on one pyran when
+    // required by the completed benzodipyran's double bonds. The two
+    // local pyran defaults are then accounted for by a single whole-parent
+    // maximum matching, independently of their original occurrence.
+    if is_benzodipyran(ast, specs) && cited.len() == 2 && cited_carbon.len() == 2 {
+        let graph = component_parent_graph(ast, specs, true)?;
+        let capable = numbering::parent_pi_capable_atom_ids(&graph)?;
+        let complete = parent_bond_model(&graph)?;
+        if model.allowed_kekule_assignments.iter().any(|assignment| {
+            complete.allowed_kekule_assignments.contains(assignment)
+                && capable
+                    .difference(&assignment.paired_atoms())
+                    .copied()
+                    .collect::<AtomSet>()
+                    == cited_carbon
+        }) {
+            return Ok(Vec::new());
+        }
+    }
     let mut domains = Vec::new();
     let mut owned_targets = AtomSet::new();
     for matched in &ast.component_occurrences {
@@ -1421,6 +1448,8 @@ fn audit_reconstructed_graph(
     }
 }
 fn audit_component_pi_constraints(
+    mol: &Molecule,
+    parent_atoms: &AtomSet,
     ast: &FusionNameAst,
     specs: &Specs,
     graph: &FusionGraph,
@@ -1451,13 +1480,18 @@ fn audit_component_pi_constraints(
         let components = expected
             .get(&atom.id)
             .ok_or("abstract atom has no component pi constraint")?;
-        if atom.pi_capacity
-            != components
+        let lambda_h = super::valence::endocyclic_lambda_h(mol, parent_atoms, atom.id);
+        let capacity = if lambda_h {
+            1
+        } else {
+            components
                 .iter()
                 .map(RetainedGraphAtomTemplate::resolved_pi_capacity)
                 .min()
                 .unwrap_or(0)
-            || atom.forced_single != components.iter().any(|a| a.forced_single)
+        };
+        if atom.pi_capacity != capacity
+            || atom.forced_single != (!lambda_h && components.iter().any(|a| a.forced_single))
             || atom.saturated != components.iter().any(|a| a.saturated)
         {
             issue(
@@ -2406,6 +2440,37 @@ fn audited_pin_composition_errors(
     {
         return Ok(vec!["fusion of exclusively generated Hantzsch-Widman components lacks an audited orientation anchor".into()]);
     }
+    // Replay the complete suffix composition when intrinsic H, oxo, added H
+    // and hydro all occur together (P-58.2.3.1.4). Each C=O must be present
+    // in the input and the suffix calculation must reproduce the same H roles.
+    if !consistent
+        && is_benzodipyran(ast, specs)
+        && cited.len() == 2
+        && state.oxo_operations.len() == 2
+        && state.external_pi_operations().count() == 2
+    {
+        let graph = component_parent_graph(ast, specs, true)?;
+        let suffix: AtomSet = state
+            .oxo_operations
+            .iter()
+            .map(|op| op.parent_atom_id)
+            .collect();
+        if let Some((indicated, proved_model, proof)) =
+            super::super::additive::graph_suffix_hydrogen_state(
+                mol, &graph, &suffix, &suffix, &locants, None,
+            )?
+            && indicated == cited
+            && &proved_model == model
+            && proof.hydro_operations == state.hydro_operations
+            && proof.bond_delta.added_hydrogen_operations
+                == state.bond_delta.added_hydrogen_operations
+            && proof.bond_delta.assignment == state.bond_delta.assignment
+            && proof.unsaturation_operations == state.unsaturation_operations
+            && proof.pi_redistribution == state.pi_redistribution
+        {
+            return Ok(vec![]);
+        }
+    }
     if consistent || has_complete_hydrogenation(mol, numbering, cited, state)? {
         return Ok(vec![]);
     }
@@ -2568,14 +2633,14 @@ fn has_consistent_derivative_operations(
         if a.symbol == "C" {
             continue;
         }
-        let neighbors = mol.get_neighbors(id);
-        if a.symbol != "N"
-            || a.charge != 0
-            || a.is_aromatic
-            || neighbors
-                .iter()
-                .any(|&n| mol.get_bond(id, n).is_none_or(|b| b.order != 1))
-            || a.total_h_count + neighbors.len() != 3
+        // For P, As, Si and B, require the reconstructed pi redistribution
+        // to prove that each locant marks a net gain of hydrogen.
+        if !mancude::neutral_hydro_heteroatom(mol, id)
+            || (a.symbol != "N"
+                && state
+                    .pi_redistribution
+                    .as_ref()
+                    .is_none_or(|proof| !proof.hydrogenated_atom_ids.contains(&id)))
         {
             return Ok(false);
         }

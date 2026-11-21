@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Origin: original
 // Source: Nazuchem | crates/nazuchem/tests/hydrazine_names.rs | issue #168
+// Source: Nazuchem | crates/nazuchem/tests/hydrazine_names.rs | issue #113
+// Source: Nazuchem | crates/nazuchem/tests/hydrazine_names.rs | issue #141
 
 #![cfg(all(feature = "n2s", feature = "s2n"))]
 
@@ -23,6 +25,63 @@ fn check(smiles: &str, expected: &str, status: NameStatus) {
         canonical_smiles(&parsed, &budget).unwrap(),
         canonical_smiles(smiles, &budget).unwrap(),
         "{expected}"
+    );
+}
+
+#[test]
+fn linked_hydrazinecarbonyl_prefixes_keep_their_enclosing_marks() {
+    // P-66.3.5.2 cites (hydrazinecarbonyl)oxy and (hydrazinecarbonyl)amino.
+    // P-16.5.1.4, P-16.5.2.4 and P-16.5.3.1 govern the enclosing marks.
+    for (smiles, expected) in [
+        (
+            "OC(=O)CCOC(=O)NN",
+            "3-[(hydrazinecarbonyl)oxy]propanoic acid",
+        ),
+        (
+            "OC(=O)CCNC(=O)NN",
+            "3-[(hydrazinecarbonyl)amino]propanoic acid",
+        ),
+        (
+            "OC(=O)c1ccc(OC(=O)NN)cc1",
+            "4-[(hydrazinecarbonyl)oxy]benzoic acid",
+        ),
+        (
+            "OC(=O)c1ccc(NC(=O)NN)cc1",
+            "4-[(hydrazinecarbonyl)amino]benzoic acid",
+        ),
+        (
+            "OC(=O)c1ccc(CCOC(=O)NN)cc1",
+            "4-{2-[(hydrazinecarbonyl)oxy]ethyl}benzoic acid",
+        ),
+        (
+            "OC(=O)c1ccc(CCNC(=O)NN)cc1",
+            "4-{2-[(hydrazinecarbonyl)amino]ethyl}benzoic acid",
+        ),
+    ] {
+        check(smiles, expected, NameStatus::Preferred);
+    }
+
+    for (name, structure) in [
+        ("[(hydrazinecarbonyl)oxy]formohydrazide", "NNC(=O)OC(=O)NN"),
+        (
+            "[(hydrazinecarbonyl)amino]formohydrazide",
+            "NNC(=O)NC(=O)NN",
+        ),
+    ] {
+        let parsed = name_to_smiles(name).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        nazuchem::s2n::verify_identity(structure, &parsed, &Budget::default())
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+    }
+}
+
+#[test]
+fn simple_hydrazinyl_in_a_substituted_chain_needs_no_inner_enclosure() {
+    // Hydrazinyl is a simple prefix (P-68.3.1.2.1). The compound ethyl prefix
+    // takes parentheses under P-16.5.1.1.
+    check(
+        "NNCCc1ccc(cc1)C(O)=O",
+        "4-(2-hydrazinylethyl)benzoic acid",
+        NameStatus::Preferred,
     );
 }
 
@@ -223,5 +282,101 @@ fn the_prefix_of_a_hydrazone_is_hydrazinylidene() {
         ),
     ] {
         check(smiles, expected, NameStatus::NotPreferred(reason));
+    }
+}
+
+#[test]
+fn hydrazine_suffixes_and_hydrazido_prefixes_read_back() {
+    for (smiles, expected) in [
+        // P-66.1.1.3.1.1, P-68.3.1.2.1: give each suffix nitrogen
+        // the locant of its attachment on the hydrazine parent.
+        (
+            "CNC(=O)NNC(=O)NC",
+            "N^1,N^2-dimethylhydrazine-1,2-dicarboxamide",
+        ),
+        ("NN(C(=O)O)C(=O)O", "hydrazine-1,1-dicarboxylic acid"),
+        ("NNC(=O)OOC", "methyl hydrazinecarboperoxoate"),
+        // P-66.3.2.3 and P-68.3.1.2.6 give these preferred prefixes.
+        ("O=C(O)c1ccc(NNC(C)=O)cc1", "4-acetohydrazidobenzoic acid"),
+        (
+            "O=C(O)c1ccc(NNC(=O)c2ccccc2Br)cc1",
+            "4-(2-bromobenzohydrazido)benzoic acid",
+        ),
+        (
+            "O=C(O)c1ccc(NNC(=O)C2CCCCC2)cc1",
+            "4-(cyclohexanecarbohydrazido)benzoic acid",
+        ),
+        (
+            "O=S(=O)(O)c1ccc(NN(CC)C(C)=O)cc1",
+            "4-(N-ethylacetohydrazido)benzene-1-sulfonic acid",
+        ),
+        (
+            "O=C(O)CCNNC(=O)NN",
+            "3-(hydrazinecarbohydrazido)propanoic acid",
+        ),
+        (
+            "NC(=O)CCNNC(=O)NN",
+            "3-(hydrazinecarbohydrazido)propanamide",
+        ),
+        // P-93.4.2.1.3 cites C=N stereo at the hydrazine nitrogen locant.
+        (
+            "c1ccccc1/C=N/NC(N)=O",
+            "(2E)-2-benzylidenehydrazine-1-carboxamide",
+        ),
+        (
+            "c1ccccc1/C=N\\NC(N)=O",
+            "(2Z)-2-benzylidenehydrazine-1-carboxamide",
+        ),
+    ] {
+        check(smiles, expected, NameStatus::Preferred);
+    }
+}
+
+#[test]
+fn sulfur_attachment_cites_the_substituted_hydrazinesulfonyl_prefix() {
+    // P-66.3.2.1 (1) and P-65.3.2.2.2 select the acyl prefix at sulfur.
+    // P-16.5.2.4 and P-16.5.3.1 supply the nested enclosing marks.
+    let acetamide = "N-{5-[2-(2-bromobenzoyl)hydrazine-1-sulfonyl]-2-methoxyphenyl}acetamide";
+    for (smiles, expected) in [
+        ("CC(=O)Nc1cc(S(=O)(=O)NNC(=O)c2ccccc2Br)ccc1OC", acetamide),
+        ("Brc1ccccc1C(=O)NNS(=O)(=O)c1ccc(OC)c(NC(C)=O)c1", acetamide),
+        (
+            "OC(=O)CS(=O)(=O)NNC(C)=O",
+            "(2-acetylhydrazine-1-sulfonyl)acetic acid",
+        ),
+        (
+            "OC(=O)CS(=O)(=O)NNC(=O)C1CCCCC1",
+            "[2-(cyclohexanecarbonyl)hydrazine-1-sulfonyl]acetic acid",
+        ),
+        (
+            "OC(=O)CS(=O)(=O)NNC(=O)CCl",
+            "[2-(chloroacetyl)hydrazine-1-sulfonyl]acetic acid",
+        ),
+        (
+            "OC(=O)CS(=O)(=O)NNC(=O)CO",
+            "[2-(hydroxyacetyl)hydrazine-1-sulfonyl]acetic acid",
+        ),
+    ] {
+        check(smiles, expected, NameStatus::Preferred);
+    }
+}
+
+#[test]
+fn n_alkyl_acylhydrazide_sulfonyl_fallbacks_are_not_preferred() {
+    for (smiles, expected) in [
+        (
+            "OC(=O)CS(=O)(=O)N(C)NC(C)=O",
+            "(N'-methylacetohydrazidosulfonyl)acetic acid",
+        ),
+        (
+            "OC(=O)CS(=O)(=O)NN(C)C(C)=O",
+            "(N-methylacetohydrazidosulfonyl)acetic acid",
+        ),
+    ] {
+        check(
+            smiles,
+            expected,
+            NameStatus::NotPreferred(NameReason::SulfonylPrefix),
+        );
     }
 }

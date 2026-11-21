@@ -32,7 +32,8 @@ use super::{
         format_replacement_prefixes, format_substituent_prefixes, substituent_sort_key,
     },
     assembly_utils::{needs_hyphen, parse_locant},
-    formatting::format_multiplier,
+    component_group_rules::linked_hydrazinecarbonyl,
+    formatting::{format_multiplier, multiply_prefix},
     fused_ion_templates::{consume_fused_ion_operation, select_fused_ion_operation},
     nomenclature::NAMER_RULES,
 };
@@ -43,6 +44,9 @@ use std::collections::{BTreeMap, BTreeSet};
 // Provenance: fn mark_assembled_name | original
 // Source: ReShiki | src/naming/openclatura/assembler.rs::mark_assembled_name
 pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &AssemblyParts) {
+    if parts.lambda_prefix_order_tie {
+        mol.mark_name(NameStatus::Unverified(NameReason::LambdaPrefixOrder));
+    }
     if parts.spiro_same_size_components {
         mol.mark_name(NameStatus::Unverified(NameReason::UnauditedParent));
     }
@@ -86,8 +90,8 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
                             .any(|&o| symbol(o) == "O" && mol.bond_order(t, o) == 2)
                 })
             };
-            // P-68.3.1.2.4: under a class senior to amides (P-41),
-            // H2N-CO-NH-NH- is the preferred prefix 2-carbamoylhydrazin-1-yl.
+            // Under a class senior to amides (P-41), allow the documented
+            // substituent forms (P-66.3.5.2, P-68.3.1.2.4).
             let senior = rule
                 .and_then(|rule| rule.seniority.as_ref())
                 .is_some_and(|seniority| seniority[0] < 60);
@@ -126,9 +130,23 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
                     }) && around.iter().any(|&n| {
                         on_hydrazine(n)
                             && !carbamoyl(c, n)
-                            && around
-                                .iter()
-                                .any(|&y| y != n && single(c, y) && !matches!(symbol(y), "C" | "H"))
+                            && !parts.substituents.iter().any(|item| {
+                                item.atom_ids.contains(&c)
+                                    && item.atom_ids.contains(&n)
+                                    && item.name.contains("hydrazinecarbohydrazido")
+                            })
+                            && around.iter().any(|&y| {
+                                y != n
+                                    && single(c, y)
+                                    && !matches!(symbol(y), "C" | "H")
+                                    && !(senior
+                                        && linked_hydrazinecarbonyl(mol, c, y, "C").is_some()
+                                        && parts.substituents.iter().any(|item| {
+                                            item.atom_ids.contains(&c)
+                                                && item.atom_ids.contains(&y)
+                                                && item.name.contains("(hydrazinecarbonyl)")
+                                        }))
+                            })
                     })
                         // P-66.3.1.2.1: NC-NH-NH2 is cyanohydrazide, named by
                         // special_cases::cyanohydrazide_name.
@@ -233,11 +251,19 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
         }
     }
     // Formic acids, formyl halides and formamides substituted on carbon are
-    // carbamic or carbonic acid derivatives (P-65.1.8.1).
+    // carbamic or carbonic acid derivatives (P-65.1.8.1). Anhydrides cite
+    // the formic acid parent as "formic" (P-65.7).
     let formyl_parent = parts.retained_name.as_deref().is_some_and(|name| {
-        matches!(name, "formic acid" | "formate" | "formamide") || name.starts_with("formyl ")
+        matches!(name, "formic" | "formic acid" | "formate" | "formamide")
+            || name.starts_with("formyl ")
     });
+    // P-65.1.8.2 lists nitroformic acid as a PIN.
+    let nitroformic = matches!(
+        parts.retained_name.as_deref(),
+        Some("formic" | "formic acid")
+    ) && matches!(parts.substituents.as_slice(), [item] if item.name == "nitro");
     if formyl_parent
+        && !nitroformic
         && parts
             .substituents
             .iter()
@@ -509,6 +535,34 @@ fn add_indicated_hydrogen_prefix(parts: &mut AssemblyParts, core: &str) -> (Stri
     indicated.dedup();
     additive.sort_by_key(|l| parse_locant(l));
     additive.dedup();
+    // P-72.2.2.1.1: a hydron removed from one of the two N-H
+    // sites of the dihydro parent leaves the other as added hydrogen.
+    if let [charge] = parts.parent_charges.as_slice()
+        && charge.symbol == "N"
+        && charge.charge == -1
+        && let Some(plan) = parts.fusion_plan.as_ref().or_else(|| {
+            parts
+                .parent_hydride
+                .as_ref()
+                .and_then(|p| p.fusion_plan.as_ref())
+        })
+        && let [a, b] = plan.indicated_hydrogens.as_slice()
+        && super::fusion::registry::has_parent_hydride_component(plan)
+        && [a, b].iter().all(|l| {
+            additive.contains(l)
+                && parts
+                    .parent_atom_symbols_by_locant
+                    .get(*l)
+                    .is_some_and(|s| s == "N")
+        })
+        && (a == &charge.locant || b == &charge.locant)
+        && let Some(parent) = core.strip_suffix(&format!("-{}-ide", charge.locant))
+    {
+        let added = if a == &charge.locant { b } else { a };
+        core = format!("{parent}-{}({added}H)-ide", charge.locant);
+        additive.retain(|l| l != a && l != b);
+        cites_locants = true;
+    }
     if !indicated.is_empty() {
         cites_locants = true;
         let added: BTreeSet<_> = parts
@@ -577,10 +631,11 @@ fn add_indicated_hydrogen_prefix(parts: &mut AssemblyParts, core: &str) -> (Stri
             m.fusion_locants
                 .iter()
                 .filter(|&locant| {
-                    parts
-                        .parent_atom_symbols_by_locant
-                        .get(locant)
-                        .is_some_and(|symbol| symbol == "N")
+                    !additive.contains(locant)
+                        && parts
+                            .parent_atom_symbols_by_locant
+                            .get(locant)
+                            .is_some_and(|symbol| symbol == "N")
                 })
                 .count()
         });
@@ -732,20 +787,19 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
     let multiplied = |name: &str, count: usize, safe_enclose: bool| {
         let descriptor =
             super::isotope_naming::leading_descriptor(name, &parts.front_modifier_descriptors);
-        if descriptor.is_empty() || super::formatting::is_complex_prefix(&name[descriptor.len()..])
-        {
+        let plain = &name[descriptor.len()..];
+        if count > 1 {
+            multiply_prefix(name, plain, count, None, false)
+        } else if descriptor.is_empty() || super::formatting::is_complex_prefix(plain) {
             format_multiplier(name, count, safe_enclose)
-        } else if count == 1 {
-            name.to_owned()
         } else {
-            format!("{}({name})", super::rules::multipliers::basic(count))
+            name.to_owned()
         }
     };
     let have = parts.front_modifier_locants.len() == parts.front_modifiers.len()
         && parts.front_modifier_locants.iter().all(Option::is_some);
     let distinct = parts.front_modifiers.iter().collect::<BTreeSet<_>>().len();
-    let redundant = parts.front_modifiers.len() == 2 && parts.ester_site_exchange_proven;
-    if have && distinct > 1 && !redundant {
+    if have && distinct > 1 && !parts.ester_site_exchange_proven {
         let mut by_name: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
         for (m, l) in parts
             .front_modifiers
@@ -897,7 +951,8 @@ fn finish_name_with_parent(
     if cites_locants {
         parts.elided_substituent_locants.clear();
     }
-    let (prefix, prefix_cites_locants) = format_substituent_prefixes(parts);
+    let (prefix, prefix_cites_locants, lambda_tie) = format_substituent_prefixes(parts);
+    parts.lambda_prefix_order_tie = lambda_tie;
     cites_locants |= prefix_cites_locants;
     if prefix_cites_locants {
         parts.elided_substituent_locants.clear();
@@ -967,6 +1022,7 @@ mod tests {
         );
         parts.front_modifiers.push("methyl".into());
         parts.front_modifier_locants.push(Some("2".into()));
+        parts.ester_site_exchange_proven = false;
         assert_eq!(
             add_front_modifiers(&parts, "parent"),
             "1-ethyl 4-(2-methoxyethyl) 2-methyl parent"
@@ -1482,18 +1538,6 @@ mod tests {
         // it leaves to this assembler keeps its fallback name, which is not
         // preferred.
         for (smiles, expected) in [
-            // N^1,N^2-dimethylhydrazine-1,2-dicarboxamide (P-66.1.1.3.1.1)
-            (
-                "CNC(=O)NNC(=O)NC",
-                "N-methyl-1-[2-(methylcarbamoyl)hydrazin-1-yl]formamide",
-            ),
-            // hydrazine-1,1-dicarboxylic acid
-            (
-                "NN(C(=O)O)C(=O)O",
-                "1-hydroxy-N-(hydroxycarbonyl)formohydrazide",
-            ),
-            // methyl hydrazinecarboperoxoate (P-65.1.4.1)
-            ("NNC(=O)OOC", "1-(methylperoxy)formohydrazide"),
             // The parent is right and the hydrazinyl prefix is numbered
             // (P-68.3.1.2.1), but the Blue Book shows no acid or ester
             // prefix on it. The acyl prefix is enclosed (P-16.5.1.1).
@@ -1528,11 +1572,6 @@ mod tests {
                 "OS(=O)(=O)CCNNC(=O)O",
                 "2-[2-(hydroxycarbonyl)hydrazin-1-yl]ethane-1-sulfonic acid",
             ),
-            // 3-(hydrazinecarbohydrazido)propanamide (P-68.3.1.2.6)
-            (
-                "NC(=O)CCNNC(=O)NN",
-                "3-[2-(hydrazinylcarbonyl)hydrazin-1-yl]propanamide",
-            ),
             // P-68.3.1.2.5: carbamoylhydrazinylidene is the preferred prefix;
             // the label is not decided here.
             (
@@ -1548,17 +1587,6 @@ mod tests {
                 "{smiles}"
             );
         }
-        // A semicarbazone with a configured C=N bond (P-68.3.1.2.5): no Blue
-        // Book example places the descriptor, so the amino form is kept.
-        let name = super::super::name_smiles("c1ccccc1/C=N/NC(N)=O", &Default::default()).unwrap();
-        assert_eq!(
-            name.text,
-            "1-({[(E)-phenylmethylidene]amino}amino)formamide"
-        );
-        assert_eq!(
-            name.status,
-            NameStatus::NotPreferred(NameReason::AminoPrefix)
-        );
         // Ordinary acylhydrazides stay preferred, and a nitroso nitrogen is
         // not a hydrazine nitrogen (P-61.5.2). Under a class senior to amides
         // H2N-CO-NH-NH- is the preferred prefix 2-carbamoylhydrazin-1-yl

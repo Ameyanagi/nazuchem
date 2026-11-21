@@ -32,6 +32,45 @@ impl Site {
     }
 }
 
+/// P-44.4.1.11.4-.6 and P-45.4. Compare the complete locant set, then
+/// the sets for each element, then those for each nuclide. One modified
+/// substituent counts once at its attachment even if it carries several labels.
+pub(super) fn modified_locants<L: Ord + Clone>(
+    positions: impl IntoIterator<Item = (L, Vec<(usize, u16)>)>,
+) -> (Vec<L>, Vec<Vec<L>>, Vec<Vec<L>>) {
+    let mut all = Vec::new();
+    let mut elements = BTreeMap::new();
+    let mut nuclides = BTreeMap::new();
+    for (locant, labels) in positions {
+        if labels.is_empty() {
+            continue;
+        }
+        all.push(locant.clone());
+        for z in labels.iter().map(|(z, _)| *z).collect::<BTreeSet<_>>() {
+            elements
+                .entry(z)
+                .or_insert_with(Vec::new)
+                .push(locant.clone());
+        }
+        for label in labels.into_iter().collect::<BTreeSet<_>>() {
+            nuclides
+                .entry(label)
+                .or_insert_with(Vec::new)
+                .push(locant.clone());
+        }
+    }
+    all.sort();
+    let sorted = |mut locants: Vec<L>| {
+        locants.sort();
+        locants
+    };
+    (
+        all,
+        elements.into_values().rev().map(sorted).collect(),
+        nuclides.into_values().rev().map(sorted).collect(),
+    )
+}
+
 /// The descriptor that a prefix name starts with, as in (2H3)methyl.
 pub(super) fn leading_descriptor<'a>(name: &str, descriptors: &'a [String]) -> &'a str {
     descriptors
@@ -49,6 +88,22 @@ pub(super) fn citation_name(name: &str, descriptors: &[String]) -> String {
             name.replace(&format!("{descriptor}-"), "")
                 .replace(descriptor.as_str(), "")
         })
+}
+
+pub(super) fn numbering_citation_name(name: &str, descriptors: &[String]) -> String {
+    let unmodified = citation_name(name, descriptors);
+    // Isotopic locants require the systematic form of a retained tert-butyl
+    // prefix. Number its parent using the ordinary substituent citation.
+    if !descriptors.is_empty()
+        && matches!(
+            unmodified.as_str(),
+            "2-methylpropan-2-yl" | "(2-methylpropan-2-yl)"
+        )
+    {
+        "tert-butyl".into()
+    } else {
+        unmodified
+    }
 }
 
 /// Keep CIP labels calculated with the isotopes present. Recalculating them
@@ -444,14 +499,22 @@ pub(super) fn prefix_descriptor(
 
 /// P-82.2.1: a characteristic group cited as a prefix takes its descriptor in
 /// front, as in (131I)iodo and (13C)carboxy. Only nuclides that need no locant
-/// are cited (P-82.6.1.2, P-82.6.1.3), and no isotopic hydrogen.
+/// are cited (P-82.6.1.2, P-82.6.1.3). A terminal hydroxy has a single H site.
 pub(super) fn group_descriptor(mol: &Molecule, atoms: &AtomSet) -> Option<(String, AtomSet)> {
     let sites: Vec<_> = mol
         .isotope_sites()
         .into_iter()
         .filter(|site| atoms.contains(&site.anchor))
         .collect();
-    if sites.is_empty() || sites.iter().any(|site| site.symbol == "H") {
+    let hydroxy = atoms.len() == 1
+        && atoms.iter().all(|id| {
+            let atom = &mol.atoms[id];
+            atom.symbol == "O"
+                && atom.charge == 0
+                && atom.total_h_count == 1
+                && mol.degree(*id) == 1
+        });
+    if sites.is_empty() || !hydroxy && sites.iter().any(|site| site.symbol == "H") {
         return None;
     }
     let unit = Unit {
@@ -498,7 +561,11 @@ fn verify(smiles: &str, name: &str) -> Result<(), String> {
 }
 
 /// Name the already admitted graph without serializing its atom identities.
-pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Name, String> {
+pub(super) fn name_molecule(
+    source: &Molecule,
+    style: IsotopeStyle,
+    rendered: Option<&mut super::NameRenderMetadata>,
+) -> Result<Name, String> {
     let (parent, sites) = stripped_parent(source)?;
     if sites.is_empty() {
         return Err("openclatura: isotope naming requires an isotope".into());
@@ -540,7 +607,11 @@ pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Na
     {
         return Err(uncited());
     }
-    let text = if sites.is_empty() || super::formatting::descriptors_omitted() {
+    let text = if super::formatting::descriptors_omitted() {
+        // Keep the labelled derivation through assembly so omitting descriptors
+        // cannot change prefix multiplication or retained prefix spelling.
+        citation_name(&base.text, &base.prefix_isotope_descriptors)
+    } else if sites.is_empty() {
         base.text
     } else {
         let symmetry = lowest_equivalent_map(&parent, &sites, locants, &base.prefix_isotopes)?;
@@ -554,6 +625,10 @@ pub(super) fn name_molecule(source: &Molecule, style: IsotopeStyle) -> Result<Na
     };
     if style == IsotopeStyle::Boughton && !base.prefix_isotopes.is_empty() {
         return Err("openclatura: Boughton notation cannot place a label on a substituent prefix; use IUPAC isotope style".into());
+    }
+    if let Some(rendered) = rendered {
+        rendered.parent = Some(base.rendered_parent);
+        rendered.has_isotope_prefixes = !base.prefix_isotopes.is_empty();
     }
     let text = super::nest_enclosing_marks(&text);
     let status = if style == IsotopeStyle::Boughton {
@@ -836,9 +911,41 @@ mod tests {
     }
 
     #[test]
+    fn hydrazine_keeps_backbone_and_ligand_labels_in_their_own_units() {
+        for (smiles, expected) in [
+            ("NNS[2H]", "(S-2H1)-1-sulfanylhydrazine"),
+            ("NN(S[2H])", "(S-2H1)-1-sulfanylhydrazine"),
+            ("[2H]SNN", "(S-2H1)-1-sulfanylhydrazine"),
+            ("C[15NH]N", "1-methyl(1-15N)hydrazine"),
+            ("N[15NH]C", "1-methyl(1-15N)hydrazine"),
+            ("CN[15NH2]", "1-methyl(2-15N)hydrazine"),
+            ("[15NH2]N", "(1-15N)hydrazine"),
+            ("c1ccccc1[13CH2]NN", "1-[phenyl(13C)methyl]hydrazine"),
+            ("NN[13CH2]c1ccccc1", "1-[phenyl(13C)methyl]hydrazine"),
+            ("[13CH3][15NH]N", "1-(13C)methyl(1-15N)hydrazine"),
+            (
+                "c1ccccc1[13CH2]N[15NH2]",
+                "1-[phenyl(13C)methyl](2-15N)hydrazine",
+            ),
+        ] {
+            let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            verify(smiles, &name.text).unwrap();
+        }
+    }
+
+    #[test]
     fn labelled_prefixes_take_the_lower_parent_locant() {
         // P-82.5.2: lowest locants to the modified groups, in either atom order.
         for (smiles, expected) in [
+            (
+                "CC(C)([13CH3])c1ccccc1C(C)(C)C",
+                "2-(tert-butyl)-1-[2-methyl(1-13C)propan-2-yl]benzene",
+            ),
+            (
+                "CC(C)(C)c1ccccc1C(C)(C)[13CH3]",
+                "2-(tert-butyl)-1-[2-methyl(1-13C)propan-2-yl]benzene",
+            ),
             ("[13CH3]c1ccccc1C", "1-(13C)methyl-2-methylbenzene"),
             ("Cc1ccccc1[13CH3]", "1-(13C)methyl-2-methylbenzene"),
             ("[13CH3]c1cccc(C)c1", "1-(13C)methyl-3-methylbenzene"),
@@ -887,6 +994,38 @@ mod tests {
                 "[2-methyl(1-13C)propan-2-yl]benzene",
             ),
             ("CCC(CC)(CC[2H])O", "3-ethyl(1-2H1)pentan-3-ol"),
+            (
+                "OC(=O)CC(CC[13CH3])C[13CH2]C",
+                "3-(3-13C)propyl(5-13C)hexanoic acid",
+            ),
+            (
+                "OC(=O)CC(C[13CH2]C)CC[13CH3]",
+                "3-(3-13C)propyl(5-13C)hexanoic acid",
+            ),
+            // P-44.4.1.11.5 and .6: the same parent locant set, first the
+            // lower carbon locant, then the lower carbon-14 locant.
+            (
+                "OC(=O)CC(C[13CH2]C[2H])CC([2H])[13CH3]",
+                "3-(3-13C,2-2H1)propyl(5-13C,6-2H1)hexanoic acid",
+            ),
+            (
+                "OC(=O)CC(CC([2H])[13CH3])C[13CH2]C[2H]",
+                "3-(3-13C,2-2H1)propyl(5-13C,6-2H1)hexanoic acid",
+            ),
+            (
+                "OC(=O)CC(C[13CH2][14CH3])C[14CH2][13CH3]",
+                "3-(2-13C,3-14C)propyl(6-13C,5-14C)hexanoic acid",
+            ),
+            (
+                "OC(=O)CC(C[14CH2][13CH3])C[13CH2][14CH3]",
+                "3-(2-13C,3-14C)propyl(6-13C,5-14C)hexanoic acid",
+            ),
+            // P-44.4.1.11.4 precedes the greater prefix count on the
+            // competing 4-methylhexanoic acid parent.
+            (
+                "OC(=O)CC(C[13CH2]C)C(C)C[13CH3]",
+                "3-[(4-13C)butan-2-yl](5-13C)hexanoic acid",
+            ),
             // It precedes the number of prefixes (P-45.2.1).
             (
                 "[13CH3]CCC(CC[13CH3])C(C)CC",
@@ -957,6 +1096,21 @@ mod tests {
     }
 
     #[test]
+    fn nested_amino_citation_preserves_the_naming_budget() {
+        let input =
+            "O=C(O)c1cc(N(CCCCCCCCCCCCCCCCCCCCCC)CCN(C)CCN(C)CCN(C)CCN(C)CCN(C)CCN(C)C[13CH3])ccc1";
+        let name = crate::name_smiles(input, &Default::default()).unwrap();
+        assert_eq!(
+            name.status,
+            nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::UnauditedParent)
+        );
+        crate::test_support::verify_identity(
+            input,
+            &crate::test_support::parse_strict(&name.text).unwrap(),
+        )
+        .unwrap();
+    }
+    #[test]
     fn characteristic_group_prefixes_cite_their_own_labels() {
         // Issue #27. P-82.2.1: the descriptor precedes the part of the name
         // that is isotopically substituted, here a characteristic group
@@ -1005,23 +1159,103 @@ mod tests {
             ("N#[13C]c1ccccc1C(=O)O", "2-(13C)cyanobenzoic acid"),
             // P-82.3.1: nuclides at one place in alphabetical order.
             ("[15N]#[13C]c1ccccc1C(=O)O", "2-(13C,15N)cyanobenzoic acid"),
+            ("[2H]Oc1ccccc1C(=O)O", "2-(2H1)hydroxybenzoic acid"),
+            ("[2H][18O]c1ccccc1C(=O)O", "2-(2H1,18O)hydroxybenzoic acid"),
             ("[18OH]c1ccccc1C(=O)O", "2-(18O)hydroxybenzoic acid"),
+            ("C[15NH]c1ccccc1C(=O)O", "2-[methyl(15N)amino]benzoic acid"),
             ("[15NH2]c1ccccc1C(=O)O", "2-(15N)aminobenzoic acid"),
             ("[15NH2]CCO", "2-(15N)aminoethan-1-ol"),
             ("CC(=[18O])CC(=O)O", "3-(18O)oxobutanoic acid"),
             ("[34SH]CC(=O)O", "(34S)sulfanylacetic acid"),
+            // P-82.2.2.1: a labelled alkyl ligand is alphabetized by its
+            // ordinary name and cited first when the ligands otherwise tie.
+            (
+                "O=C(O)c1cc(N(C)CCC[2H])ccc1",
+                "3-{methyl[(3-2H1)propyl]amino}benzoic acid",
+            ),
+            (
+                "[2H]CCCN(C)c1cccc(C(=O)O)c1",
+                "3-{methyl[(3-2H1)propyl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(CC)C[13CH3])ccc1",
+                "3-{[(2-13C)ethyl](ethyl)amino}benzoic acid",
+            ),
+            (
+                "[13CH3]CN(CC)c1cccc(C(=O)O)c1",
+                "3-{[(2-13C)ethyl](ethyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(C)[13CH2]c2ccccc2)ccc1",
+                "3-{[phenyl(13C)methyl](methyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13CH2]c2ccccc2)C)ccc1",
+                "3-{[phenyl(13C)methyl](methyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(CCCC)[13CH2]c2ccccc2)ccc1",
+                "3-{[phenyl(13C)methyl](butyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13CH2]c2ccccc2)CCCC)ccc1",
+                "3-{[phenyl(13C)methyl](butyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(Cc2ccccc2)[13CH2]c2ccccc2)ccc1",
+                "3-{[phenyl(13C)methyl](benzyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13CH2]c2ccccc2)Cc2ccccc2)ccc1",
+                "3-{[phenyl(13C)methyl](benzyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(C(C)(C)C)C([13CH3])(C)C)ccc1",
+                "3-{[2-methyl(1-13C)propan-2-yl](tert-butyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(C([13CH3])(C)C)C(C)(C)C)ccc1",
+                "3-{[2-methyl(1-13C)propan-2-yl](tert-butyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(CC(F)F)CC([18F])F)ccc1",
+                "3-{[2-(18F)fluoro-2-fluoroethyl](2,2-difluoroethyl)amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(CC(F)[18F])CC(F)F)ccc1",
+                "3-{[2-(18F)fluoro-2-fluoroethyl](2,2-difluoroethyl)amino}benzoic acid",
+            ),
             // P-82.6.1.3: a group completely modified in the same way.
             (
                 "[18O-][N+](=[18O])c1ccccc1C(=O)O",
                 "2-(18O2)nitrobenzoic acid",
             ),
             // P-45.4.2 example: 2-(18O)methoxyethyl, a contracted alkoxy
-            // prefix cites its oxygen in front. The parent choice of P-45.4
-            // itself is not applied: the other atom order names the other
-            // chain as parent.
+            // prefix cites its oxygen in front. N precedes the numerical locant.
             (
                 "[13CH3]OCCNCC[18O]C",
                 "2-(13C)methoxy-N-[2-(18O)methoxyethyl]ethan-1-amine",
+            ),
+            (
+                "C[18O]CCNCCO[13CH3]",
+                "2-(13C)methoxy-N-[2-(18O)methoxyethyl]ethan-1-amine",
+            ),
+            (
+                "CCCC([81Br])COCC(Br)CCC",
+                "2-bromo-1-{[2-(81Br)bromopentyl]oxy}pentane",
+            ),
+            (
+                "CCCC(Br)COCC([81Br])CCC",
+                "2-bromo-1-{[2-(81Br)bromopentyl]oxy}pentane",
+            ),
+            // P-45.4.3: the 14C ethyl group is in the prefix at 2.
+            (
+                "C([13CH3])C(CC(CO)CC(CCC)C[14CH3])CCC",
+                "4-(2-13C)ethyl-2-[2-(2-14C)ethylpentyl]heptan-1-ol",
+            ),
+            (
+                "C([14CH3])C(CC(CO)CC(CCC)C[13CH3])CCC",
+                "4-(2-13C)ethyl-2-[2-(2-14C)ethylpentyl]heptan-1-ol",
             ),
             ("C[18O]c1ccccc1C(=O)O", "2-(18O)methoxybenzoic acid"),
             ("c1ccccc1[18O]CCC(=O)O", "3-(18O)phenoxypropanoic acid"),
@@ -1088,6 +1322,61 @@ mod tests {
     }
 
     #[test]
+    fn nested_ligands_multiply_according_to_the_underlying_prefix() {
+        // Issue #134. P-16.3.4(f) keeps a basic multiplier for a simple
+        // prefix with an isotope descriptor, including after a stereodescriptor.
+        for (smiles, expected) in [
+            (
+                "O=C(O)c1cc(N([13CH](C)C)[13CH](C)C)ccc1",
+                "3-{di[(2-13C)propan-2-yl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13CH3])[13CH3])ccc1",
+                "3-{di[(13C)methyl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(C([2H])[13CH3])C([2H])[13CH3])ccc1",
+                "3-{di[(2-13C,1-2H1)ethyl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N(CC([2H])[2H])CC([2H])[2H])ccc1",
+                "3-{di[(2,2-2H2)ethyl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13C@H](C)CC)[13C@H](C)CC)ccc1",
+                "3-{di[(2R)-(2-13C)butan-2-yl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13CH2]Cl)[13CH2]Cl)ccc1",
+                "3-{bis[chloro(13C)methyl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([34SH])[34SH])ccc1",
+                "3-{bis[(34S)sulfanyl]amino}benzoic acid",
+            ),
+            // P-16.3.6(c): elision does not hide a replacement term.
+            (
+                "O=C(O)c1cc(N([13c]2nnn[nH]2)[13c]2nnn[nH]2)ccc1",
+                "3-{bis[(13C)-1H-tetrazol-5-yl]amino}benzoic acid",
+            ),
+            (
+                "O=C(O)c1cc(N([13CH]2CCCO2)[13CH]2CCCO2)ccc1",
+                "3-{bis[(2-13C)oxolan-2-yl]amino}benzoic acid",
+            ),
+        ] {
+            let name = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default())
+                .unwrap_or_else(|e| panic!("{smiles}: {e}"));
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(
+                name.status,
+                NameStatus::Unverified(NameReason::IsotopePlacement),
+                "{smiles}"
+            );
+            verify(smiles, &name.text).unwrap_or_else(|e| panic!("{smiles}: {e}"));
+        }
+    }
+
+    #[test]
     fn modified_atoms_and_groups_take_the_lowest_locants_in_one_series() {
         // Issue #27. P-82.5.2: the modified atoms and groups are considered
         // together, {2,5} before {3,6}, in either atom order.
@@ -1131,13 +1420,10 @@ mod tests {
         for smiles in [
             "[13CH3][18O]c1ccccc1",
             "[13CH3][18O][13CH3]",
-            "C[15NH]c1ccccc1C(=O)O",
-            "[2H]Oc1ccccc1C(=O)O",
             "[18O-][N+](=O)c1ccccc1C(=O)O",
             "Cl[13C](=O)c1ccccc1C(=O)O",
             "OC(=O)C1(CCCCC1)[13C](=O)O",
             "[18OH]CCO",
-            "c1ccccc1[13CH2]NN",
             "[13CH3]OC(=O)Oc1ccccc1",
         ] {
             let error = name_smiles(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap_err();

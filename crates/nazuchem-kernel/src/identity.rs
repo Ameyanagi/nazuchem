@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Origin: original
 // Source: ReShiki | crates/model/src/molecule_names.rs | 2df788dc456793c687b934afd6d4b317e3c73ef8
-// Changes: copy pure identity helpers onto kernel State and forward an explicit Budget.
+// Changes: copy pure identity helpers onto kernel State and forward an explicit Budget; serialize odd-cumulene E/Z.
 // Intentionally mirrored on different State types until ReShiki's chemistry and the kernel converge; kept in step by crates/model/src/molecule_names/identity_parity.rs.
 
 //! Canonical molecular identity, independent of document selection and captions.
@@ -25,6 +25,15 @@ pub fn canonical_identity(
     state: &chemistry::stereo::perception::State,
     budget: &Budget,
 ) -> Result<String, IdentityRejection> {
+    canonical_smiles_identity(state, &[], budget)
+}
+
+/// Canonical molecular SMILES with odd-cumulene geometry supplied by the reader.
+pub fn canonical_smiles_identity(
+    state: &chemistry::stereo::perception::State,
+    cumulenes: &[chemistry::stereo::CumuleneEz],
+    budget: &Budget,
+) -> Result<String, IdentityRejection> {
     if state
         .graph
         .atoms
@@ -39,15 +48,10 @@ pub fn canonical_identity(
     {
         return Err(IdentityRejection::UnsupportedAtomsOrBonds);
     }
-    let state = unspecified_unknown_stereo(&encode_axis_markers(state, budget)?);
-    let smiles = chemistry::smiles::write::write(
-        &state,
-        chemistry::smiles::write::Options {
-            ignore_maps: false,
-            ..Default::default()
-        },
-    )
-    .map_err(|error| IdentityRejection::Write(error.to_string()))?;
+    let encoded = encode_axis_markers(state, budget)?;
+    let state = unspecified_unknown_stereo(&encoded);
+    let smiles = chemistry::smiles::write::with_cumulenes(&state, cumulenes)
+        .map_err(|error| IdentityRejection::Write(error.to_string()))?;
     if state
         .graph
         .atoms

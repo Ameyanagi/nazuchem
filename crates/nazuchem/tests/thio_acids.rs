@@ -8,7 +8,59 @@
 //! compound ester groups and -SSH prefixes are named after the IUPAC 2013
 //! recommendations and read back as the structure they were generated from.
 
-use nazuchem::{Budget, NameStatus, name_to_smiles, s2n::canonical_smiles, smiles_to_name};
+use nazuchem::{
+    Budget, NameReason, NameStatus, name_to_smiles, s2n::canonical_smiles, smiles_to_name,
+};
+
+/// Issue #27. A cyano group on the S-organyl part does not change the
+/// thiocarboxylate modifier's connectivity (P-65.2.1.5, P-65.6.3.3.7.1).
+#[test]
+fn acyl_carbonotrithioate_preserves_the_s_organyl_nitrile() {
+    let budget = Budget::default();
+    for smiles in ["Cc1ccc(C(=O)SC(=S)SCC#N)cc1", "N#CCSC(=S)SC(=O)c1ccc(C)cc1"] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(
+            name.text,
+            "S-{[(cyanomethyl)sulfanyl]carbonothioyl} 4-methylbenzene-1-carbothioate"
+        );
+        assert_eq!(
+            name.status,
+            NameStatus::Unverified(NameReason::FunctionalClass)
+        );
+        let parsed = name_to_smiles(&name.text).unwrap();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget).unwrap(),
+            canonical_smiles(smiles, &budget).unwrap()
+        );
+    }
+}
+
+#[test]
+fn sulfur_acid_carbonotrithioate_anhydrides_keep_their_acid_citations() {
+    let budget = Budget::default();
+    for (smiles, expected) in [
+        (
+            "CS(=O)(=O)SC(=S)SC#N",
+            "methanesulfonic thiocyanatomethanethioic thioanhydride",
+        ),
+        (
+            "CS(=O)SC(=S)SC#N",
+            "methanesulfinic thiocyanatomethanethioic thioanhydride",
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected);
+        assert_eq!(
+            name.status,
+            NameStatus::Unverified(NameReason::UnauditedParent)
+        );
+        let parsed = name_to_smiles(&name.text).unwrap();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget).unwrap(),
+            canonical_smiles(smiles, &budget).unwrap()
+        );
+    }
+}
 
 #[test]
 fn thio_acid_and_ester_names_follow_the_blue_book_and_round_trip() {
@@ -251,6 +303,16 @@ fn acid_suffix_seniority_and_carbonic_analogues_follow_the_blue_book() {
         // carbonotrithioic acid. P-65.2.1.5: carbonothioic O,O-acid.
         ("O=C(O)OO", "carbonoperoxoic acid"),
         ("OOC(=O)OO", "carbonodiperoxoic acid"),
+        ("O=C(O)OS", "carbono(thioperoxoic) OS-acid"),
+        ("O=C(O)SO", "carbono(thioperoxoic) SO-acid"),
+        ("OSC(=O)OS", "carbonobis(thioperoxoic) OS,SO-acid"),
+        ("O=C(OS)OS", "carbonobis(thioperoxoic) OS,OS-acid"),
+        ("O=C(SO)SO", "carbonobis(thioperoxoic) SO,SO-acid"),
+        ("O=C(O)O[SeH]", "carbono(selenoperoxoic) OSe-acid"),
+        (
+            "O[Te]C(=O)O[TeH]",
+            "carbonobis(telluroperoxoic) OTe,TeO-acid",
+        ),
         ("O=C(O)S", "carbonothioic S-acid"),
         ("O=C(O)[SeH]", "carbonoselenoic Se-acid"),
         ("OC(=S)O", "carbonothioic O,O-acid"),
@@ -269,17 +331,125 @@ fn acid_suffix_seniority_and_carbonic_analogues_follow_the_blue_book() {
             "{smiles} -> {expected} -> {parsed}"
         );
     }
-    // P-65.2.1.2: carbono(thioperoxoic) OS-acid is not read back yet, and
-    // the Blue Book shows no letter locants for HO-CS-SH or for two
-    // replacing elements. Their names on methane are not preferred names.
-    for smiles in [
-        "O=C(O)OS",
-        "OSC(=O)OS",
-        "O=C(S)OO",
-        "OC(=S)S",
-        "O=C(S)[SeH]",
-    ] {
+    // The names on methane for other carbonic replacements are unverified.
+    for smiles in ["O=C(S)OO", "OC(=S)S", "O=C(S)[SeH]"] {
         let name = smiles_to_name(smiles).unwrap();
         assert_ne!(name.status, NameStatus::Preferred, "{smiles} {}", name.text);
     }
+}
+
+#[test]
+fn carbonic_mixed_peroxy_acid_locants_match_the_suffix() {
+    for name in [
+        "carbono(thioperoxoic) acid",
+        "carbono(thioperoxoic) SeO-acid",
+        "carbono(thioperoxoic) OS,SO-acid",
+        "carbonobis(thioperoxoic) OS-acid",
+        "carbonobis(thioperoxoic) OS,SO,SO-acid",
+        "phosphorobis(thioperoxoic) OS,SO-acid",
+    ] {
+        assert!(name_to_smiles(name).is_err(), "{name}");
+    }
+}
+
+#[test]
+fn chain_end_acid_halides_and_esters_cite_separate_ligands() {
+    for (smiles, expected) in [
+        // P-65.5.4 (3): the halide and oxo at the end of the parent chain.
+        ("O=C(O)CC(=O)Cl", "3-chloro-3-oxopropanoic acid"),
+        ("O=C(O)CC(=O)C(=O)Br", "4-bromo-3,4-dioxobutanoic acid"),
+        (
+            "O=C(O)CC(=O)OC(=O)Br",
+            "3-(carbonobromidoyloxy)-3-oxopropanoic acid",
+        ),
+        ("O=C(O)CC(=S)Cl", "3-chloro-3-sulfanylidenepropanoic acid"),
+        // The same form can occur in a substituent chain.
+        (
+            "O=C(O)c1ccc(CC(=O)Cl)cc1",
+            "4-(2-chloro-2-oxoethyl)benzoic acid",
+        ),
+        // P-65.6.3.2.3 and P-65.6.3.3.5: neutral partial ester and its salt.
+        ("CCOC(=O)CCC(=O)O", "4-ethoxy-4-oxobutanoic acid"),
+        (
+            "CCOC(=O)CCC(=O)[O-].[Na+]",
+            "sodium 4-ethoxy-4-oxobutanoate",
+        ),
+        ("O=C(O)CCC(=O)SCC", "4-(ethylsulfanyl)-4-oxobutanoic acid"),
+        ("COOC(=O)CC(=O)O", "3-(methylperoxy)-3-oxopropanoic acid"),
+        (
+            "CC(C)OOC(=O)CC(=O)O",
+            "3-oxo-3-[(propan-2-yl)peroxy]propanoic acid",
+        ),
+        // P-65.6.3.3.7.1: the ordinary ester takes the suffix and
+        // the chain-end thiono ester cites its ligands separately.
+        (
+            "CCCCOC(=S)CCC(=O)OCC",
+            "ethyl 4-butoxy-4-sulfanylidenebutanoate",
+        ),
+        ("CCOC(=O)c1ccccc1C(=O)O", "2-(ethoxycarbonyl)benzoic acid"),
+        // P-65.6.3.3.4.2: the attachment carbonyl appears in propanoyl.
+        (
+            "CCOC(=O)CC(=O)Oc1ccc(OC(=O)CCC(=O)OC)cc1",
+            "4-[(3-ethoxy-3-oxopropanoyl)oxy]phenyl methyl butanedioate",
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+        let parsed = name_to_smiles(&name.text).unwrap_or_else(|e| panic!("{expected}: {e:?}"));
+        let budget = Budget::default();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget),
+            canonical_smiles(smiles, &budget),
+            "{smiles} -> {expected} -> {parsed}"
+        );
+    }
+}
+
+#[test]
+fn ester_organyl_locants_are_omitted_when_acid_sites_are_interchangeable() {
+    for (smiles, expected) in [
+        ("CCOC(=O)CCC(=O)OC", "ethyl methyl butanedioate"),
+        ("CCSC(=O)CCC(=O)SC", "S-ethyl S-methyl butanebis(thioate)"),
+        (
+            "CCOSC(=O)CCC(=O)SOC",
+            "SO-ethyl SO-methyl butanebis(thioperoxoate)",
+        ),
+        (
+            "CCOC(=O)c1cc(C(=O)OCC)cc(C(=O)OC)c1",
+            "diethyl methyl benzene-1,3,5-tricarboxylate",
+        ),
+        (
+            "CCOC(=O)c1cc(C(=O)OC)c(C(=O)OC)cc1C(=O)OC",
+            "ethyl trimethyl benzene-1,2,4,5-tetracarboxylate",
+        ),
+        // A chloro substituent breaks the exchange symmetry.
+        (
+            "CCSC(=O)CC(Cl)C(=O)SC",
+            "4-S-ethyl 1-S-methyl 2-chlorobutanebis(thioate)",
+        ),
+    ] {
+        let name = smiles_to_name(smiles).unwrap();
+        assert_eq!(name.text, expected, "{smiles}");
+        assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+        let parsed = name_to_smiles(&name.text).unwrap_or_else(|e| panic!("{expected}: {e:?}"));
+        let budget = Budget::default();
+        assert_eq!(
+            canonical_smiles(&parsed, &budget),
+            canonical_smiles(smiles, &budget),
+            "{smiles} -> {expected} -> {parsed}"
+        );
+    }
+    // Two ethyl groups may sit at several distinct relative positions.
+    let smiles = "CCOC(=O)c1cc(C(=O)OCC)c(C(=O)OC)cc1C(=O)OC";
+    let name = smiles_to_name(smiles).unwrap();
+    assert!(
+        name.text.starts_with(|c: char| c.is_ascii_digit()),
+        "{name:?}"
+    );
+    let parsed = name_to_smiles(&name.text).unwrap();
+    assert_eq!(
+        canonical_smiles(&parsed, &Budget::default()),
+        canonical_smiles(smiles, &Budget::default())
+    );
 }

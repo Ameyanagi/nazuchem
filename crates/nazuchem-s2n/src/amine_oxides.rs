@@ -104,10 +104,10 @@ pub(super) fn name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<Name>, Stri
                 // symmetric parents such as 4,4′-bipyridine leave a choice: the
                 // site takes the lowest of its equivalent locants (P-14.3.5:
                 // 1 before 1′). Morgan ranks only shortlist sites; a symmetry
-                // carrying one onto the other must exist, and it must keep
-                // every R/S descriptor (a reflection would invert them).
+                // carrying one onto the other must preserve the actual
+                // stereochemistry and its source descriptors.
                 let ranks = super::chains::canonical_ranks(&reduced, None);
-                let Some(locant) = parent_atoms
+                let mut equivalent_locants: Vec<_> = parent_atoms
                     .iter()
                     .filter(|&&i| {
                         i == n
@@ -120,16 +120,18 @@ pub(super) fn name(mol: &Molecule, atoms: &AtomSet) -> Result<Option<Name>, Stri
                                 )
                     })
                     .filter_map(|i| parent_locants.get(i))
-                    .min_by_key(|l| super::locants::retained_locant_sort_key(l))
-                else {
+                    .collect();
+                equivalent_locants.sort_by_key(|l| super::locants::retained_locant_sort_key(l));
+                let Some(&locant) = equivalent_locants.first() else {
                     return Ok(None);
                 };
-                let unambiguous = locant == "1"
-                    && parent_atoms
-                        .iter()
-                        .filter(|i| reduced.atoms[i].symbol == "N")
-                        .count()
-                        == 1;
+                let unambiguous = equivalent_locants.len() > 1
+                    || locant == "1"
+                        && parent_atoms
+                            .iter()
+                            .filter(|i| reduced.atoms[i].symbol == "N")
+                            .count()
+                            == 1;
                 (locant.as_str(), unambiguous)
             }
             Some((key, group))

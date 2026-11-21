@@ -259,6 +259,17 @@ pub fn retained_parent_metadata(name: &str) -> Option<RetainedParentMetadata> {
         .find(|t| t.name == name)
         .or_else(|| ALL_TEMPLATES.iter().find(|t| t.output_name() == name))
         .map(RetainedGraphTemplate::metadata)
+        .or_else(|| {
+            let (family, prefix, eager) = if let Some(prefix) = name.strip_suffix("cene") {
+                ("acenes", prefix, 9)
+            } else {
+                ("polyaphenes", name.strip_suffix("phene")?, 10)
+            };
+            static COUNTS: LazyLock<BTreeMap<String, usize>> =
+                LazyLock::new(|| (10..=1000).map(|n| (multipliers::basic(n), n)).collect());
+            let count = *COUNTS.get(prefix)?;
+            (count > eager).then(|| generated_series_template(family, count).metadata())
+        })
 }
 // Provenance: fn retained_graph_template_from_data | adapted
 // Source: openclatura | src/openclatura/retained_fused_templates.py::retained_graph_template_from_data

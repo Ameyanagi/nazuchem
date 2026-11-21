@@ -5,6 +5,7 @@
 // Source: ReShiki | src/naming/openclatura/component_namer.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/fixtures/diverse_corpus.csv | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_namer.rs | issue #110
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura component decision pipeline with local derivation, isotope and spiro projection adapters.
@@ -37,7 +38,7 @@ use super::{
     principal_groups::{
         add_component_principal_group, candidate_principal_attachments, component_groups,
         component_principal_key, demote_neutral_suffixes_for_skeletal_anion,
-        partition_principal_and_prefix_groups,
+        partition_principal_and_prefix_groups, principal_key_on_parent,
     },
     special_cases::{
         StructuralParentName, blocking_suffix_defers_to_chain_parent, single_atom_component_name,
@@ -66,6 +67,7 @@ pub(super) enum Derivation {
     Shortcut {
         component_splits: BTreeSet<Edge>,
         certified: bool,
+        principal_group_atoms: AtomSet,
     },
 }
 
@@ -86,6 +88,7 @@ impl Derivation {
 
 pub(super) struct ComponentName {
     pub text: String,
+    pub rendered_parent: Option<String>,
     pub principal_group_atoms: AtomSet,
     pub derivation: Derivation,
 }
@@ -98,25 +101,63 @@ pub(super) fn name_component_with_citation(
     citation: Option<&str>,
     principal_atom: Option<usize>,
 ) -> Result<ComponentName, String> {
+    name_component_with_locant_policy(mol, component_atoms, citation, principal_atom, false, &[])
+}
+
+// Provenance: fn name_component_for_anhydride | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_namer.rs::name_component_for_anhydride
+pub(super) fn name_component_for_anhydride(
+    mol: &Molecule,
+    component_atoms: &AtomSet,
+    retain_locants: bool,
+    anhydride_ends: &[(usize, usize)],
+) -> Result<ComponentName, String> {
+    name_component_with_locant_policy(
+        mol,
+        component_atoms,
+        Some("anhydride_half"),
+        None,
+        retain_locants,
+        anhydride_ends,
+    )
+}
+
+// Provenance: fn name_component_with_locant_policy | adapted
+// Source: ReShiki | src/naming/openclatura/component_namer.rs::name_component_with_citation
+fn name_component_with_locant_policy(
+    mol: &Molecule,
+    component_atoms: &AtomSet,
+    citation: Option<&str>,
+    principal_atom: Option<usize>,
+    retain_locants: bool,
+    anhydride_ends: &[(usize, usize)],
+) -> Result<ComponentName, String> {
     match component_pipeline(
         mol,
         component_atoms,
-        citation,
-        principal_atom,
-        None,
-        None,
-        None,
+        ComponentContext {
+            citation,
+            principal_atom,
+            anhydride_ends,
+            ..Default::default()
+        },
     )? {
         ComponentResult::Shortcut(name) => Ok(ComponentName {
             text: name.name,
+            rendered_parent: None,
             principal_group_atoms: AtomSet::new(),
             derivation: Derivation::Shortcut {
                 component_splits: name.component_splits,
                 certified: name.certified,
+                principal_group_atoms: name.principal_group_atoms,
             },
         }),
         ComponentResult::Plan(mut plan, parent_atoms, component_splits) => {
-            let text = render_component_parent(
+            if retain_locants {
+                plan.parts.omit_redundant_locants = false;
+                plan.parts.elided_substituent_locants.clear();
+            }
+            let (text, rendered_parent) = render_component_and_parent(
                 mol,
                 &mut plan.parts,
                 &plan.numbered_path,
@@ -125,6 +166,7 @@ pub(super) fn name_component_with_citation(
             let principal_group = plan.parts.principal_group.map(|g| (g.key, g.atom_ids));
             Ok(ComponentName {
                 text,
+                rendered_parent: Some(rendered_parent),
                 principal_group_atoms: principal_group
                     .as_ref()
                     .map_or_else(AtomSet::new, |(_, atoms)| atoms.clone()),
@@ -149,6 +191,8 @@ pub(super) struct IsotopeParentName {
     pub rendered_parent: String,
     /// Labelled atoms that the substituent prefixes cite themselves (P-82.2.1).
     pub prefix_isotopes: AtomSet,
+    /// Isotope descriptors emitted by the substituent prefixes and front modifiers.
+    pub prefix_isotope_descriptors: Vec<String>,
     /// Every atom of a substituent prefix.
     pub prefix_atoms: AtomSet,
     pub derivation: Derivation,
@@ -167,23 +211,36 @@ pub(super) fn name_component_with_atom_locants(
     match component_pipeline(
         mol,
         component_atoms,
-        None,
-        None,
-        None,
-        isotope_source,
-        tied_parent,
+        ComponentContext {
+            isotope_source,
+            tied_parent,
+            ..Default::default()
+        },
     )? {
-        ComponentResult::Shortcut(name) => Ok(IsotopeParentName {
-            rendered_parent: name.name.clone(),
-            text: name.name,
-            locants: BTreeMap::new(),
-            prefix_isotopes: AtomSet::new(),
-            prefix_atoms: AtomSet::new(),
-            derivation: Derivation::Shortcut {
-                component_splits: name.component_splits,
-                certified: name.certified,
-            },
-        }),
+        ComponentResult::Shortcut(name) => {
+            let parts =
+                name.isotope_parts
+                    .unwrap_or_else(|| super::special_cases::ShortcutIsotopeParts {
+                        rendered_parent: name.name.clone(),
+                        locants: BTreeMap::new(),
+                        prefix_isotopes: AtomSet::new(),
+                        prefix_isotope_descriptors: vec![],
+                        prefix_atoms: AtomSet::new(),
+                    });
+            Ok(IsotopeParentName {
+                text: name.name,
+                locants: parts.locants,
+                rendered_parent: parts.rendered_parent,
+                prefix_isotopes: parts.prefix_isotopes,
+                prefix_isotope_descriptors: parts.prefix_isotope_descriptors,
+                prefix_atoms: parts.prefix_atoms,
+                derivation: Derivation::Shortcut {
+                    component_splits: name.component_splits,
+                    certified: name.certified,
+                    principal_group_atoms: name.principal_group_atoms,
+                },
+            })
+        }
         ComponentResult::Plan(mut plan, parent_atoms, component_splits) => {
             let prefix_isotopes: AtomSet = plan
                 .parts
@@ -191,6 +248,13 @@ pub(super) fn name_component_with_atom_locants(
                 .iter()
                 .flat_map(|item| item.isotope_atoms.iter().copied())
                 .chain(plan.parts.front_modifier_isotopes.iter().copied())
+                .collect();
+            let prefix_isotope_descriptors = plan
+                .parts
+                .substituents
+                .iter()
+                .flat_map(|item| item.isotope_descriptors.iter().cloned())
+                .chain(plan.parts.front_modifier_descriptors.iter().cloned())
                 .collect();
             // P-82.6.1.1: when isotopic modification requires a locant, the
             // constitutional locants must be explicit as well. A prefix that
@@ -218,6 +282,7 @@ pub(super) fn name_component_with_atom_locants(
                 locants: plan.locant_map.clone(),
                 rendered_parent,
                 prefix_isotopes,
+                prefix_isotope_descriptors,
                 prefix_atoms: plan
                     .parts
                     .substituents
@@ -265,16 +330,15 @@ pub(super) fn build_spiro_component_parts(
             match component_pipeline(
                 mol,
                 component_atoms,
-                None,
-                None,
-                Some(SpiroProjection {
-                    junction,
-                    required_core,
-                    prefix_only,
-                    prioritize_junction,
-                }),
-                None,
-                None,
+                ComponentContext {
+                    projection: Some(SpiroProjection {
+                        junction,
+                        required_core,
+                        prefix_only,
+                        prioritize_junction,
+                    }),
+                    ..Default::default()
+                },
             )? {
                 ComponentResult::Shortcut(_) => None,
                 ComponentResult::Plan(plan, _, _) => Some(*plan),
@@ -324,19 +388,33 @@ pub(super) fn structural_parent(
     })
 }
 
+#[derive(Default)]
+struct ComponentContext<'a> {
+    citation: Option<&'a str>,
+    principal_atom: Option<usize>,
+    projection: Option<SpiroProjection<'a>>,
+    isotope_source: Option<&'a Molecule>,
+    // A parent to name instead of the selected one, when parents tie. With the
+    // bond from it to a linking group, the name is that of a multiplied unit.
+    tied_parent: Option<(&'a ParentSelection, Option<(usize, usize)>)>,
+    anhydride_ends: &'a [(usize, usize)],
+}
+
 // Provenance: fn component_pipeline | adapted
 // Source: openclatura | src/openclatura/component_namer.py::name_component
 fn component_pipeline(
     mol: &Molecule,
     component_atoms: &AtomSet,
-    citation: Option<&str>,
-    principal_atom: Option<usize>,
-    projection: Option<SpiroProjection<'_>>,
-    isotope_source: Option<&Molecule>,
-    // A parent to name instead of the selected one, when parents tie. With the
-    // bond from it to a linking group, the name is that of a multiplied unit.
-    tied_parent: Option<(&ParentSelection, Option<(usize, usize)>)>,
+    context: ComponentContext<'_>,
 ) -> Result<ComponentResult, String> {
+    let ComponentContext {
+        citation,
+        principal_atom,
+        projection,
+        isotope_source,
+        tied_parent,
+        anhydride_ends,
+    } = context;
     let _depth = mol.enter_naming()?;
     let as_prefix = projection.as_ref().is_some_and(|p| {
         p.prefix_only
@@ -392,6 +470,7 @@ fn component_pipeline(
         }
     }
     let mut key = component_principal_key(mol, &groups, as_prefix);
+    mol.spend_naming_work(0)?;
     if principal_atom.is_none()
         && let Some(result) = structural_parent(mol, component_atoms, &groups, key.as_deref())?
     {
@@ -454,19 +533,16 @@ fn component_pipeline(
             let chains = find_all_carbon_paths(mol, &exclude)?;
             let rings = find_ring_systems(mol, &exclude)?;
             let mut tied = tied_principal_parents(mol, &chains, &rings, &principal, &groups);
-            // P-44.4.1.10, P-44.4.1.12, P-45.2.2, P-45.2.3, P-45.5 and
-            // P-45.6.3 compare the assembled names of the tied parents.
-            // Isotopes (P-44.4.1.11, P-45.4) and nonstandard bonding numbers
-            // (P-45.3) are not modelled, and a difference in the parent with
-            // its suffix, other than in the ene, yne and hydro locants, is an
-            // earlier P-44.4.1 criterion; the earlier choice stands in those
-            // cases.
+            // Numbered parents provide the ene, hydro and isotope locants
+            // (P-44.4.1.10-.11); their assembled prefixes supply P-45.
+            // Compare like parent hydrides with the same suffix.
             let mut best = 0;
             if tied.len() > 1
                 && principal_atom.is_none()
-                && !mol.isotope_labels_stripped
+                && (!mol.isotope_labels_stripped || isotope_source.is_some())
                 && mol.atoms.values().all(|a| a.isotope.is_none())
             {
+                let sites = mol.isotope_sites();
                 let mut names = Vec::new();
                 for (i, parent) in tied.iter().enumerate() {
                     // Discard the status marks of every trial name.
@@ -474,11 +550,13 @@ fn component_pipeline(
                         if let ComponentResult::Plan(mut plan, ..) = component_pipeline(
                             mol,
                             component_atoms,
-                            citation,
-                            None,
-                            None,
-                            isotope_source,
-                            Some((parent, None)),
+                            ComponentContext {
+                                citation,
+                                isotope_source,
+                                tied_parent: Some((parent, None)),
+                                anhydride_ends,
+                                ..Default::default()
+                            },
                         )? {
                             let prefixes = plan.parts.substituents.clone();
                             let (name, mut parent) = render_component_and_parent(
@@ -520,21 +598,87 @@ fn component_pipeline(
                                 .iter()
                                 .map(|h| (h.key.clone(), h.locants.len()))
                                 .collect();
-                            let mut hydro: Vec<_> = plan
+                            let mut hydro_text: Vec<_> = plan
                                 .parts
                                 .hydro_operations
                                 .iter()
-                                .flat_map(|h| h.locants.iter().map(|l| parse_locant(l)))
+                                .filter(|h| h.operation_kind == "additive_hydrogen")
+                                .flat_map(|h| h.locants.iter().cloned())
                                 .collect();
-                            hydro.sort();
-                            if !name.contains("lambda") {
+                            hydro_text.sort_by_key(|l| parse_locant(l));
+                            hydro_text.dedup();
+                            let mut hydro = Vec::new();
+                            if !hydro_text.is_empty() {
+                                let term = super::formatting::format_multiplier(
+                                    "hydro",
+                                    hydro_text.len(),
+                                    false,
+                                );
+                                let prefix = format!("{}-{term}", hydro_text.join(","));
+                                if let Some(core) = parent.strip_prefix(&prefix) {
+                                    parent = format!("{term}{core}");
+                                    hydro = hydro_text.iter().map(|l| parse_locant(l)).collect();
+                                }
+                            }
+                            let parent_labels = super::isotope_naming::modified_locants(
+                                sites.iter().filter_map(|site| {
+                                    let locant = plan.locant_map.get(&site.anchor)?;
+                                    Some((parse_locant(locant), vec![site.priority()]))
+                                }),
+                            );
+                            // P-45.3.1: compare the bonding numbers of
+                            // directly attached lambda hydrides. A lambda atom
+                            // within an alkyl side chain is one level further away.
+                            let lambda = name.contains("lambda");
+                            if !lambda
+                                || super::identity_validation::supported_hydride_prefix_context(mol)
+                            {
+                                let mut bonding_numbers = Vec::new();
+                                if lambda {
+                                    for id in plan
+                                        .numbered_path
+                                        .iter()
+                                        .flat_map(|a| mol.get_neighbors(*a))
+                                    {
+                                        let atom = &mol.atoms[id];
+                                        if matches!(
+                                            (atom.symbol.as_str(), atom.total_h_count),
+                                            ("P", 4) | ("S", 3 | 5)
+                                        ) {
+                                            bonding_numbers.push((
+                                                atom.total_h_count + 1,
+                                                std::cmp::Reverse(1),
+                                            ));
+                                        } else if let Some(pair) =
+                                            super::identity_validation::diphosphanyl_hydrogens(
+                                                mol, *id,
+                                            )
+                                        {
+                                            match pair {
+                                                (3, 2) => {
+                                                    bonding_numbers.push((5, std::cmp::Reverse(1)))
+                                                }
+                                                (1, 4) => {
+                                                    bonding_numbers.push((5, std::cmp::Reverse(2)))
+                                                }
+                                                _ => {}
+                                            }
+                                        }
+                                    }
+                                    bonding_numbers.sort_by(|a, b| b.cmp(a));
+                                }
                                 names.push((
                                     i,
                                     (parent, operations),
                                     (endings, enes),
-                                    hydro,
+                                    (hydro, parent_labels),
                                     plan.parts.stereo_features,
-                                    assembled_name_preference(&prefixes, &name),
+                                    assembled_name_preference(
+                                        &prefixes,
+                                        &name,
+                                        &sites,
+                                        bonding_numbers,
+                                    ),
                                 ));
                             }
                         }
@@ -542,11 +686,15 @@ fn component_pipeline(
                     })
                     .ok();
                 }
-                // Ending and hydro locants that both differ are not compared.
+                // P-44.4.1.10.1 and .2: when both series differ, a
+                // candidate lowest in each wins independently of their order.
+                let lowest_endings = names.iter().map(|n| &n.2).min();
+                let lowest_hydro = names.iter().map(|n| &n.3.0).min();
                 if names.len() == tied.len()
                     && names.iter().all(|n| n.1 == names[0].1)
-                    && (names.iter().all(|n| n.2 == names[0].2)
-                        || names.iter().all(|n| n.3 == names[0].3))
+                    && names
+                        .iter()
+                        .any(|n| Some(&n.2) == lowest_endings && Some(&n.3.0) == lowest_hydro)
                 {
                     let lowest = names.iter().map(|n| (n.2.clone(), n.3.clone())).min();
                     names.retain(|n| Some((n.2.clone(), n.3.clone())) == lowest);
@@ -600,7 +748,8 @@ fn component_pipeline(
     groups.retain(|g| parent.contains(&g.attachment_carbon));
     prefix_only_groups.retain(|g| parent.contains(&g.attachment_carbon));
     let provisional = key;
-    key = component_principal_key(mol, &groups, as_prefix);
+    key = principal_key_on_parent(mol, &groups, as_prefix, &parent);
+    mol.spend_naming_work(0)?;
     // P-72.7(a): the carboxylate carbons left the parent as carboxylato
     // prefixes of another anionic suffix, which the selected parent lacks.
     if key.as_deref() == Some("carboxylate")
@@ -649,6 +798,7 @@ fn component_pipeline(
         None,
     )?;
     let mut retained_metadata = None;
+    let mut donor_hydrogens = Vec::new();
     if let Some(retained) = retained_fused {
         retained_name = Some(retained.name);
         maps = retained.locant_maps;
@@ -658,16 +808,14 @@ fn component_pipeline(
             !metadata.fusion_locants.is_empty()
                 && metadata.indicated_hydrogen_count > 0
                 && super::additive::name_indicated_hydrogen_locants(Some(name)).is_empty()
-                && parent.iter().any(|id| {
-                    let atom = &mol.atoms[id];
-                    atom.charge > 0 && atom.total_h_count > 1
-                })
         }) {
-            // Upstream divergence: the neutral retained match is not a charge
-            // proof. With an implicit donor H, the ium renderer suppresses its
-            // citation and can redistribute H between heteroatoms. A rejected
-            // production match must not restore that uncertified fallback.
-            return Err("openclatura: charged retained donor hydrogen state not supported".into());
+            // P-73.1.1.2: the hydron is added to the neutral donor N-H.
+            // Require its indicated-H citation in the numbered parent below.
+            donor_hydrogens = parent
+                .iter()
+                .copied()
+                .filter(|id| mol.atoms[id].charge > 0 && mol.atoms[id].total_h_count > 1)
+                .collect();
         }
         let context = if mapping.is_empty() && key.is_none() {
             "unsubstituted_parent"
@@ -699,11 +847,27 @@ fn component_pipeline(
             None => super::spiro_subgraph::heterogeneous_spiro_junction(mol),
         }
         .filter(|junction| parent.contains(junction)),
+        multiplicative_attachment: tied_parent.and_then(|(_, bond)| bond.map(|(root, _)| root)),
         nitrogen_substituents: numbering_n_subs
             .as_ref()
             .map_or_else(BTreeMap::new, |subs| subs.numbering_modifiers()),
         ester_alcohols: front.numbering_modifiers(),
         acid_isotopes: front.acid_isotopes(isotope_source),
+        anhydride_ends: anhydride_ends
+            .iter()
+            .filter_map(|&(center, priority)| {
+                // A carboxylic acid on a ring uses the number of its attachment
+                // atom, while a chain acid numbers its carbonyl carbon directly.
+                let atom = if parent.contains(&center) {
+                    center
+                } else {
+                    *mol.get_neighbors(center)
+                        .iter()
+                        .find(|idx| parent.contains(idx))?
+                };
+                Some((atom, priority))
+            })
+            .collect(),
     };
     let mut plan = if let Some(projection) = &projection {
         if !parent.contains(&projection.junction) {
@@ -784,31 +948,15 @@ fn component_pipeline(
             )?
         }
     } else {
-        // P-15.3.1.3: a multiplied unit keeps its numbering and gives the
-        // linking group the lowest locant that numbering allows. Citing the
-        // group first decides ties; a lower locant set of all prefixes
-        // together that moves the group is not this rule, and is refused.
-        let mut lowest = None;
+        // P-15.3.1.3: cite the linker separately from the unit's prefixes.
         if let Some((_, Some((root, link)))) = tied_parent {
             let item = mapping
                 .get_mut(&root)
                 .and_then(|items| items.iter_mut().find(|i| i.atom_ids.contains(&link)))
                 .ok_or("openclatura: linking group is not a prefix of the unit")?;
             item.name.clear();
-            let alone = build_parent_assembly_plan_with_modifiers(
-                mol,
-                &selection,
-                &principal,
-                None,
-                None,
-                &BTreeMap::from([(root, vec![item.clone()])]),
-                retained_name.clone(),
-                &maps,
-                &modifiers,
-            )?;
-            lowest = Some((root, alone.locant_map[&root].clone()));
         }
-        let plan = build_parent_assembly_plan_with_modifiers(
+        build_parent_assembly_plan_with_modifiers(
             mol,
             &selection,
             &principal,
@@ -818,11 +966,7 @@ fn component_pipeline(
             retained_name,
             &maps,
             &modifiers,
-        )?;
-        if lowest.is_some_and(|(root, locant)| plan.locant_map[&root] != locant) {
-            return Err("openclatura: linking group does not take its lowest locant".into());
-        }
-        plan
+        )?
     };
     if retained_metadata.is_some() {
         plan.parts.retained_parent_metadata = retained_metadata;
@@ -831,7 +975,7 @@ fn component_pipeline(
     let locants = &plan.locant_map;
     let parts = &mut plan.parts;
     parts.principal_citation_mode = citation.map(str::to_owned);
-    emit_bond_stereo(mol, parts, numbered, locants, None);
+    emit_bond_stereo(mol, parts, numbered, locants, None)?;
     front.add_to_parts(isotope_source.unwrap_or(mol), parts, locants);
     let component_splits = front.component_splits;
     let n_subs = if let Some(subs) = numbering_n_subs {
@@ -871,6 +1015,17 @@ fn component_pipeline(
         }
     }
     add_indicated_hydrogens(mol, parts, numbered, locants)?;
+    if !donor_hydrogens.is_empty() {
+        let mut cited =
+            super::additive::retained_indicated_hydrogen_locants(parts.retained_name.as_deref());
+        cited.extend(parts.indicated_hydrogens.iter().cloned());
+        if donor_hydrogens.iter().any(|id| {
+            !super::retained_fused_templates::is_ium_nitrogen(mol, *id)
+                || !cited.contains(&locants[id])
+        }) {
+            return Err("openclatura: charged retained donor hydrogen state not supported".into());
+        }
+    }
     if projection.is_some() {
         parts.omit_redundant_locants = false;
     }
@@ -1031,6 +1186,7 @@ fn collect_component_branch_substituents(
             bond_atoms.insert(idx);
             let mut item = SubstituentItem::new(branch.text, vec![]);
             item.outer_parentheses_optional = branch.outer_parentheses_optional;
+            item.prefix_kind = branch.prefix_kind;
             item.isotope_atoms = branch.isotope_atoms;
             item.isotope_descriptors = branch.isotope_descriptors;
             item.bond_ids = bond_ids_within(mol, &bond_atoms);
@@ -1139,8 +1295,8 @@ mod tests {
     // Test provenance: upstream inputs/expected names with local assertions and extensions;
     // exact matches are conservatively adapted; independent ancestry is not established.
     fn charged_retained_fallback_requires_citable_donor_hydrogen() {
-        assert!(super::super::name_smiles("C1=Nc2ccccc2[NH2+]1", &Default::default()).is_err());
         for (smiles, name) in [
+            ("C1=Nc2ccccc2[NH2+]1", "1H-1,3-benzimidazol-1-ium"),
             // P-73.1.1.2: a hydron added to the N-H of 1H-indazole.
             ("C1=N[NH2+]c2ccccc21", "1H-indazol-1-ium"),
             ("c1ccc2[nH+]cccc2c1", "quinolin-1-ium"),

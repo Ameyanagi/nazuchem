@@ -10,6 +10,8 @@
 // Source: ReShiki | src/naming/openclatura/heteroatom_subgraphs.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs | issue #8
+// Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs | issue #160
+// Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs | issue #113
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura heteroatom recursive renderer consolidated across role modules with local charge/acyl extensions.
@@ -235,6 +237,7 @@ pub fn format_amino_from_branches(
     double: bool,
     cation: bool,
     anion: bool,
+    unmodified_ligands: &BTreeMap<String, String>,
 ) -> String {
     if cation {
         // Substituted cationic nitrogen keeps the accepted ammonio/iminio alternative.
@@ -344,7 +347,20 @@ pub fn format_amino_from_branches(
                 }
             })
             .collect();
-        center(&names)
+        // P-82.2.2.1: isotope descriptors are ignored for alphabetical
+        // order; a labelled group precedes its otherwise identical twin.
+        if unmodified_ligands.is_empty() {
+            center(&names)
+        } else {
+            format_center_ligands_by(&names, |name| {
+                let unmodified = unmodified_ligands.get(name);
+                let plain = unmodified.map(String::as_str).unwrap_or(name);
+                (
+                    substituent_sort_key(&strip_outer_parentheses(plain)),
+                    unmodified.is_none(),
+                )
+            })
+        }
     };
     format!("({modifier}amino)")
 }
@@ -406,6 +422,70 @@ fn acid_sulfonyl(
     Ok(acyl.map(|acyl| format!("({}{acyl})", stereo(mol, sulfur))))
 }
 
+// P-66.3.2.1 (1) and P-65.3.2.2.2: for a sulfur attachment, use the
+// acyl prefix of the hydrazinesulfonic acid with the acyl group on N-2.
+// P-66.3.2.3's hydrazido prefix describes attachment through nitrogen.
+// Provenance: fn acylhydrazinesulfonyl | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs::acylhydrazinesulfonyl
+fn acylhydrazinesulfonyl(
+    mol: &Molecule,
+    sulfur: usize,
+    near: usize,
+    blocked: &AtomSet,
+) -> Result<Option<String>, String> {
+    let neutral_nh = |n: usize| {
+        let atom = &mol.atoms[&n];
+        atom.symbol == "N"
+            && atom.charge == 0
+            && !atom.is_aromatic
+            && atom.total_h_count == 1
+            && !atom.has_stereo()
+            && mol
+                .get_neighbors(n)
+                .iter()
+                .filter(|x| mol.atoms[x].symbol != "H")
+                .count()
+                == 2
+    };
+    if !neutral_nh(near) || mol.bond_order(sulfur, near) != 1 || mol.is_isotope_parent() {
+        return Ok(None);
+    }
+    let partners = subgraph_neighbors(mol, near, blocked, Some(sulfur));
+    let [far] = partners[..] else {
+        return Ok(None);
+    };
+    if !neutral_nh(far) || mol.bond_order(near, far) != 1 {
+        return Ok(None);
+    }
+    let outside = with_atoms(blocked, [near, far]);
+    let ligands = subgraph_neighbors(mol, far, &outside, Some(near));
+    let [carbon] = ligands[..] else {
+        return Ok(None);
+    };
+    if !mol.atoms[&carbon].is_carbon()
+        || mol.bond_order(far, carbon) != 1
+        || double_bonded_neighbors(mol, carbon, "O").len() != 1
+        || mol.get_neighbors(carbon).iter().any(|&n| {
+            n != far
+                && !matches!(mol.atoms[&n].symbol.as_str(), "C" | "H")
+                && !(mol.atoms[&n].symbol == "O" && mol.bond_order(carbon, n) == 2)
+        })
+    {
+        return Ok(None);
+    }
+    let acyl = super::special_cases::carboacyl_from_acid(mol, carbon, &outside)?;
+    Ok(acyl.map(|(name, substituted)| {
+        if substituted {
+            // P-16.5.1.1: enclose a compound acyl prefix even without a locant,
+            // as in (chloroacetyl)oxyl (P-71.3.4).
+            let name = format_multiplier(&name, 1, true);
+            format!("(2-{name}hydrazine-1-sulfonyl)")
+        } else {
+            format_element_substituent("2-", &name, "hydrazine-1-sulfonyl", false)
+        }
+    }))
+}
+
 // Provenance: fn sulfonyl_group | adapted
 // Source: openclatura | src/openclatura/heteroatom_subgraphs.py::sulfonyl_group_name
 fn sulfonyl_group(mol: &Molecule, branch: &str, suffix: &str) -> (String, bool) {
@@ -425,6 +505,11 @@ fn sulfonyl_group(mol: &Molecule, branch: &str, suffix: &str) -> (String, bool) 
             let result = format!("{before}{}", row.name);
             return (result, before.is_empty());
         }
+    }
+    // For a sulfur attachment, the hydrazido concatenation is a fallback
+    // when the corresponding substituted hydrazinesulfonyl cannot be cited.
+    if suffix == "sulfonyl" && b.ends_with("hydrazido") {
+        mol.mark_name(NameStatus::NotPreferred(NameReason::SulfonylPrefix));
     }
     // Preferred names cite methanesulfonyl, sulfo, sulfamoyl (P-65.3.2.3);
     // alkoxy, halo, azido and similar concatenations are preferred prefixes.
@@ -489,10 +574,13 @@ fn carbonyl_like_fragment(
     {
         return Ok(format!("({before}{base})"));
     }
+    // P-16.5.1.1 and P-16.5.1.2 apply to the ligand within the acyl
+    // prefix as well as to the completed prefix.
+    let fragment = format_element_substituent("", &name, branch_suffix, false);
     Ok(if wrap {
-        format!("({name}{branch_suffix})")
+        fragment
     } else {
-        format!("{name}{branch_suffix}")
+        strip_outer_parentheses(&fragment)
     })
 }
 
@@ -635,6 +723,28 @@ fn name_oxygen(
         }
     }
     if mol.atoms[&next].is_carbon() && no.len() == 1 {
+        // P-65.5.4 (1): Br-CO-O- is carbonobromidoyloxy.
+        if mol.degree(next) == 3
+            && !exclude.contains(&no[0])
+            && mol.atoms[&next].isotope.is_none()
+            && mol.atoms[&no[0]].isotope.is_none()
+            && let Some(&leaving) = mol
+                .get_neighbors(next)
+                .iter()
+                .find(|&&n| n != start && n != no[0])
+        {
+            let atom = &mol.atoms[&leaving];
+            if !exclude.contains(&leaving)
+                && matches!(atom.symbol.as_str(), "F" | "Cl" | "Br" | "I")
+                && atom.charge == 0
+                && atom.isotope.is_none()
+                && mol.degree(leaving) == 1
+                && mol.bond_order(next, leaving) == 1
+            {
+                let halide = &NAMER_RULES.chalcogen_acyl_leaving_groups[&atom.symbol].word;
+                return Ok(format!("(carbono{}oyloxy)", halide.trim_end_matches('e')));
+            }
+        }
         let acyl = plain_branch(mol, next, &with_atoms(exclude, [start]), start)?;
         return Ok(if acyl.is_empty() {
             "formyloxy".into()
@@ -918,6 +1028,8 @@ fn name_nitrogen(
         return Ok(prefix);
     }
     let mut names = Vec::new();
+    let mut unmodified_ligands = BTreeMap::new();
+    let mut ligand_roots = Vec::new();
     for &n in &roots {
         let oxygen = double_bonded_neighbors(mol, n, "O");
         let sulfur = double_bonded_neighbors(mol, n, "S");
@@ -928,7 +1040,12 @@ fn name_nitrogen(
             } else {
                 acyl
             }
-        } else if mol.atoms[&n].is_carbon() && sulfur.len() == 1 {
+        } else if mol.atoms[&n].is_carbon()
+            && mol.bond_order(start, n) == 1
+            && sulfur.len() == 1
+            && mol.atoms[&sulfur[0]].charge == 0
+            && mol.atoms[&sulfur[0]].total_h_count == 0
+        {
             carbonyl_like_fragment(
                 mol,
                 n,
@@ -957,7 +1074,26 @@ fn name_nitrogen(
             {
                 name
             } else {
-                name_subgraph_with_upstream(mol, n, &with_atoms(exclude, [start]), Some(start))?
+                let blocked = with_atoms(exclude, [start]);
+                let branch = name_subgraph_rendered(mol, n, &blocked, Some(start), false)?;
+                if !branch.isotope_atoms.is_empty()
+                    && roots.len() > 1
+                    && order == 1
+                    && atom.charge == 0
+                {
+                    let plain = super::isotope_naming::numbering_citation_name(
+                        &branch.text,
+                        &branch.isotope_descriptors,
+                    );
+                    // The labelled systematic phenylmethyl prefix is cited
+                    // under its ordinary retained name, benzyl (P-82.2.2.1).
+                    let plain = match plain.as_str() {
+                        "phenylmethyl" | "(phenylmethyl)" => "benzyl".into(),
+                        _ => plain,
+                    };
+                    unmodified_ligands.insert(branch.text.clone(), plain);
+                }
+                branch.text
             }
         };
         if !b.is_empty() {
@@ -981,7 +1117,43 @@ fn name_nitrogen(
                 // fallback; the preferred prefix is acid-derived amido.
                 mol.mark_name(NameStatus::NotPreferred(NameReason::AminoPrefix));
             }
+            ligand_roots.push(n);
             names.push(b);
+        }
+    }
+    // P-82.2.2.1: a labelled twin may use a systematic spelling while the
+    // ordinary ligand uses a retained or multiplied name. Compare the rooted
+    // ligands on the isotope-stripped graph and reuse the ordinary spelling.
+    // This bounded symmetry check does not recursively name either ligand.
+    if !unmodified_ligands.is_empty() {
+        let blocked = with_atoms(exclude, [start]);
+        let ligands: Vec<_> = ligand_roots
+            .iter()
+            .map(|&root| subgraph_component(mol, root, &blocked))
+            .collect();
+        for (i, name) in names.iter().enumerate() {
+            if !unmodified_ligands.contains_key(name) {
+                continue;
+            }
+            for (j, twin) in names.iter().enumerate() {
+                if unmodified_ligands.contains_key(twin)
+                    || ligands[i].len() != ligands[j].len()
+                    || !ligands[i].is_disjoint(&ligands[j])
+                {
+                    continue;
+                }
+                let mut atoms: AtomSet = ligands[i].union(&ligands[j]).copied().collect();
+                atoms.insert(start);
+                if super::locant_elision::site_maps_onto(
+                    mol,
+                    &atoms,
+                    ligand_roots[i],
+                    ligand_roots[j],
+                ) {
+                    unmodified_ligands.insert(name.clone(), twin.clone());
+                    break;
+                }
+            }
         }
     }
     // The uncharged multiple-imino fallback does not cite its branch names.
@@ -1002,6 +1174,7 @@ fn name_nitrogen(
         order == 2,
         atom.charge > 0,
         atom.charge < 0,
+        &unmodified_ligands,
     ))
 }
 
@@ -1043,10 +1216,84 @@ fn hydrazinyl_prefix(
     {
         return Ok(None);
     }
+    // Preserve the preselected isothiocyanato prefix (P-61.8) for N=C=S.
+    if nitrogen_heterocumulene(mol, far, exclude, Some(start)).as_deref() == Some("isothiocyanato")
+    {
+        return Ok(None);
+    }
     let blocked = with_atoms(exclude, [start, far]);
     let mut cited: Vec<(String, &str)> = Vec::new();
     let mut ylidene = false;
     let beyond = subgraph_neighbors(mol, far, &blocked, None);
+    if !double
+        && !mol.is_isotope_parent()
+        && ![start, far].iter().any(|n| mol.atoms[n].has_stereo())
+    {
+        // P-68.3.1.2.6: the unsubstituted carbazide prefix, with the
+        // attachment on a terminal nitrogen of either hydrazine unit.
+        if let [carbon] = beyond[..]
+            && roots == [far]
+            && super::component_group_rules::linked_hydrazinecarbonyl(mol, carbon, far, "N")
+                .is_some()
+        {
+            return Ok(Some("(hydrazinecarbohydrazido)".into()));
+        }
+        // P-66.3.2.3: R-CO-NH-NH- is the hydrazido prefix. The group
+        // R-CO-N(NH2)- still takes the numbered hydrazinyl form.
+        let acyls: Vec<_> = beyond
+            .iter()
+            .copied()
+            .filter(|&root| {
+                mol.atoms[&root].is_carbon()
+                    && mol.bond_order(far, root) == 1
+                    && mol
+                        .get_neighbors(root)
+                        .iter()
+                        .any(|&x| mol.bond_order(root, x) == 2 && mol.atoms[&x].symbol == "O")
+                    && mol.get_neighbors(root).iter().all(|&x| {
+                        x == far
+                            || matches!(mol.atoms[&x].symbol.as_str(), "C" | "H")
+                            || mol.atoms[&x].symbol == "O" && mol.bond_order(root, x) == 2
+                    })
+            })
+            .collect();
+        if let [acyl] = acyls[..]
+            && let Some(stem) = super::special_cases::hydrazide_stem_from_acyl(mol, acyl, &blocked)?
+        {
+            let mut prefixes = Vec::new();
+            for (locant, n, neighbors) in [("N", far, &beyond[..]), ("N'", start, roots)] {
+                for &root in neighbors {
+                    if root == acyl || root == far {
+                        continue;
+                    }
+                    // Keep diacyl branches on the existing fallback until
+                    // the senior hydrazide can be selected.
+                    if mol.bond_order(n, root) != 1
+                        || !mol.atoms[&root].is_carbon()
+                        || mol
+                            .get_neighbors(root)
+                            .iter()
+                            .any(|&x| mol.bond_order(root, x) == 2 && mol.atoms[&x].symbol == "O")
+                    {
+                        return Ok(None);
+                    }
+                    let name = name_subgraph_with_upstream(mol, root, &blocked, Some(n))?;
+                    prefixes.push((name, locant));
+                }
+            }
+            let prefix = super::special_cases::format_locanted_ligands(prefixes, false);
+            let rendered = format!("{prefix}{stem}o");
+            // P-16.5.1.4: a carbohydrazido group includes a parent
+            // hydride name, as in cyclohexanecarbohydrazido.
+            return Ok(Some(
+                if prefix.is_empty() && !stem.contains('-') && !stem.ends_with("carbohydrazid") {
+                    rendered
+                } else {
+                    format!("({rendered})")
+                },
+            ));
+        }
+    }
     for (locant, n, around) in [("1", start, roots), ("2", far, &beyond[..])] {
         for &root in around.iter().filter(|&&root| root != far) {
             let bond = mol
@@ -1531,6 +1778,22 @@ fn name_sulfur(
         return match roots.as_slice() {
             [] => Ok(format!("{sp}{suffix}")),
             [root] => {
+                if suffix == "sulfonyl"
+                    && order == 1
+                    && atom.charge == 0
+                    && atom.total_h_count == 0
+                    && !atom.has_stereo()
+                    && mol.degree(start) == 4
+                    && oxo.len() == 2
+                    && oxo.iter().all(|&o| {
+                        mol.degree(o) == 1
+                            && mol.atoms[&o].charge == 0
+                            && mol.bond_order(start, o) == 2
+                    })
+                    && let Some(prefix) = acylhydrazinesulfonyl(mol, start, *root, &blocked)?
+                {
+                    return Ok(prefix);
+                }
                 let b = plain_branch(mol, *root, &blocked, start)?;
                 let outside = with_atoms(exclude, upstream);
                 if let Some(acyl) = acid_sulfonyl(mol, start, *root, &b, &outside, &suffix)? {
@@ -1576,7 +1839,14 @@ fn name_sulfur(
             if ns.len() > 1 {
                 mol.set_name_status(status);
             }
-            imino.push(format_amino_from_branches(mol, &ns, true, false, false));
+            imino.push(format_amino_from_branches(
+                mol,
+                &ns,
+                true,
+                false,
+                false,
+                &BTreeMap::new(),
+            ));
         }
         if roots.is_empty() {
             return Ok(format!("{sp}{}{sulfanyl_suffix}", center(&imino)));
@@ -1637,6 +1907,143 @@ fn name_sulfur(
     Ok(lambda(mol, start, &ns, sulfanyl_suffix))
 }
 
+// Provenance: fn has_group_senior_to_ketones | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs::has_group_senior_to_ketones
+fn has_group_senior_to_ketones(mol: &Molecule) -> bool {
+    let ketone = super::nomenclature::RULES
+        .functional_groups
+        .get("ketone")
+        .and_then(|rule| rule.seniority.as_ref());
+    super::perception::perceive_groups(mol).iter().any(|group| {
+        group.is_principal_candidate
+            && group
+                .resolved_rule
+                .as_ref()
+                .and_then(|rule| rule.seniority.as_ref())
+                .is_some_and(|seniority| Some(seniority) < ketone)
+    })
+}
+
+/// P-67.1.4.1.1.3–5: identify the substituted or functionally replaced
+/// acid before concatenating ligands that fill its remaining acyl valences.
+// Provenance: fn concatenated_pnictogen_acyl | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs::concatenated_pnictogen_acyl
+fn concatenated_pnictogen_acyl(
+    mol: &Molecule,
+    start: usize,
+    exclude: &AtomSet,
+    upstream: Option<usize>,
+) -> Result<Option<String>, String> {
+    let atom = &mol.atoms[&start];
+    if atom.charge != 0
+        || atom.radical_electrons != 0
+        || atom.has_stereo()
+        || upstream_bond_order(mol, start, upstream) != 1
+        || substituent_bonding_number(mol, start) != 5
+    {
+        return Ok(None);
+    }
+    let mut chalcogen = None;
+    let mut organyl = Vec::new();
+    let mut addends = Vec::new();
+    let mut replacements = BTreeMap::new();
+    for n in subgraph_neighbors(mol, start, exclude, upstream) {
+        let ligand = &mol.atoms[&n];
+        if ligand.charge != 0 || ligand.radical_electrons != 0 {
+            return Ok(None);
+        }
+        match (mol.bond_order(start, n), ligand.symbol.as_str()) {
+            (2, "O" | "S" | "Se" | "Te") if mol.degree(n) == 1 && chalcogen.is_none() => {
+                chalcogen = Some(n);
+            }
+            // A directly bound cyanide is a pseudohalide (P-67.1.2.3.2).
+            (1, "C")
+                if !mol.get_neighbors(n).iter().any(|&other| {
+                    mol.atoms[&other].symbol == "N" && mol.bond_order(n, other) == 3
+                }) =>
+            {
+                organyl.push(n)
+            }
+            (1, "O" | "S" | "Se" | "Te") => addends.push(n),
+            (1, "F" | "Cl" | "Br" | "I" | "N")
+                if mol.degree(n) == 1
+                    && (ligand.symbol != "N"
+                        || ligand.total_h_count.max(ligand.explicit_h_count) == 2) =>
+            {
+                let infix = match ligand.symbol.as_str() {
+                    "F" => "fluorid",
+                    "Cl" => "chlorid",
+                    "Br" => "bromid",
+                    "I" => "iodid",
+                    _ => "amid",
+                };
+                *replacements.entry(infix).or_insert(0) += 1;
+            }
+            _ => return Ok(None),
+        }
+    }
+    let Some(chalcogen) = chalcogen else {
+        return Ok(None);
+    };
+    let oxo = mol.atoms[&chalcogen].symbol.as_str();
+    let substitutable = atom.total_h_count.max(atom.explicit_h_count) + organyl.len();
+    if substitutable + addends.len() + replacements.values().sum::<usize>() != 2
+        // Keep the retained phosphono-type names and the ordinary acyl prefixes.
+        || oxo == "O" && replacements.is_empty() && (substitutable == 0 || addends.is_empty())
+        // Mixed functional replacements require their own infix ordering.
+        || replacements.len() > 1
+        || oxo != "O" && !replacements.is_empty()
+        // An acyl prefix requires a senior characteristic group on the parent.
+        || !has_group_senior_to_ketones(mol)
+    {
+        return Ok(None);
+    }
+    let stem = match (atom.symbol.as_str(), substitutable) {
+        ("P", 0) => "phosphor",
+        ("P", 1) => "phosphon",
+        ("P", 2) => "phosphin",
+        ("As", 0) => "arsor",
+        ("As", 1) => "arson",
+        ("As", 2) => "arsin",
+        ("Sb", 0) => "stibor",
+        ("Sb", 1) => "stibon",
+        ("Sb", 2) => "stibin",
+        _ => return Ok(None),
+    };
+    let infix = match oxo {
+        "S" => "thio",
+        "Se" => "seleno",
+        "Te" => "telluro",
+        _ => "",
+    };
+    let blocked = with_atoms(exclude, [start, chalcogen]);
+    let organyl_name = center(&branches(mol, &organyl, &blocked, start)?);
+    let mut acyl = format!("{organyl_name}{stem}");
+    for (infix, count) in replacements {
+        if count > 1 || infix != "amid" {
+            acyl.push('o');
+        }
+        if count > 1 {
+            acyl.push_str(&multipliers::basic(count));
+        }
+        acyl.push_str(infix);
+    }
+    acyl.push('o');
+    acyl.push_str(infix);
+    acyl.push_str("yl");
+    if !addends.is_empty() {
+        let ligand_name = center(&branches(mol, &addends, &blocked, start)?);
+        if organyl.is_empty() {
+            acyl = format!("({ligand_name}{acyl})");
+        } else {
+            acyl = format!("({ligand_name}({acyl}))");
+        }
+    } else if !organyl.is_empty() {
+        acyl = format!("({acyl})");
+    }
+    Ok(Some(acyl))
+}
+
 // Provenance: fn name_heteroatom_subgraph | adapted
 // Source: openclatura | src/openclatura/heteroatom_subgraphs.py::name_heteroatom_subgraph
 pub fn name_heteroatom_subgraph(
@@ -1647,6 +2054,28 @@ pub fn name_heteroatom_subgraph(
 ) -> Result<Option<String>, String> {
     let symbol = mol.atoms[&start].symbol.as_str();
     let order = upstream_bond_order(mol, start, upstream);
+    if upstream.is_some_and(|i| mol.atoms[&i].is_carbon())
+        && let Some(pair) = super::identity_validation::diphosphanyl_hydrogens(mol, start)
+    {
+        let ligand = match pair {
+            (3, 2) => "(1lambda^5-diphosphan-1-yl)",
+            (1, 4) => "(2lambda^5-diphosphan-1-yl)",
+            _ => "diphosphanyl",
+        };
+        return Ok(Some(ligand.into()));
+    }
+    // P-45.3.1: the hydrogen count on a terminal ligand is part of its name.
+    if mol.degree(start) == 1 && order == 1 && mol.atoms[&start].charge == 0 {
+        let h = mol.atoms[&start].total_h_count;
+        let ligand = match (symbol, h) {
+            ("P", 4) => Some("phosphanyl"),
+            ("S", 3 | 5) => Some("sulfanyl"),
+            _ => None,
+        };
+        if let Some(ligand) = ligand {
+            return Ok(Some(format!("(lambda^{}-{ligand})", h + 1)));
+        }
+    }
     let name = match symbol {
         "O" => name_oxygen(mol, start, exclude, upstream)?,
         "N" => name_nitrogen(mol, start, exclude, upstream)?,
@@ -1732,6 +2161,9 @@ pub fn name_heteroatom_subgraph(
             }
         }
         "P" | "As" | "Sb" => {
+            if let Some(acyl) = concatenated_pnictogen_acyl(mol, start, exclude, upstream)? {
+                return Ok(Some(acyl));
+            }
             let atom = &mol.atoms[&start];
             let charged = if atom.charge != 0 && !has_balanced_oxo_charges(mol, start) {
                 // Upstream divergence: charged pnictogen branches need an available prefix for their exact bonding state.
@@ -1791,10 +2223,6 @@ pub fn name_heteroatom_subgraph(
                 && roots
                     .iter()
                     .all(|&n| mol.atoms[&n].is_carbon() && mol.bond_order(start, n) == 1);
-            // The parser reads an unsubstituted `stibinoyl` as -Sb=O.
-            if acyl && symbol == "Sb" && roots.is_empty() {
-                return Err(unsupported("stibinoyl"));
-            }
             let class = if acyl { None } else { class };
             let deficient = if class.is_none() && (acyl || roots.len() < 2) {
                 SPECS.heteroatom_substituents.get(symbol).and_then(|spec| {
@@ -1810,19 +2238,7 @@ pub fn name_heteroatom_subgraph(
             // P-64.7.1, P-68.3.2.3.1: unless a class senior to ketones takes
             // the suffix, the heterone is the parent, as in
             // dimethyl-lambda5-phosphanone.
-            let ketone = super::nomenclature::RULES
-                .functional_groups
-                .get("ketone")
-                .and_then(|rule| rule.seniority.as_ref());
-            if acyl
-                && !super::perception::perceive_groups(mol).iter().any(|g| {
-                    g.is_principal_candidate
-                        && g.resolved_rule
-                            .as_ref()
-                            .and_then(|rule| rule.seniority.as_ref())
-                            .is_some_and(|seniority| Some(seniority) < ketone)
-                })
-            {
+            if acyl && !has_group_senior_to_ketones(mol) {
                 mol.mark_name(NameStatus::NotPreferred(NameReason::AcylPrefix));
             }
             // P-67.1.4.1.1.5: hydrogen of a basic acyl group is not substituted
@@ -1848,7 +2264,8 @@ pub fn name_heteroatom_subgraph(
             if roots.is_empty() {
                 // P-16.5.1.1: a compound prefix such as oxido(oxo)phosphanyl
                 // is enclosed.
-                if suffix.contains('(') && !suffix.starts_with('(') {
+                if (suffix.contains('(') || suffix.contains("-lambda^")) && !suffix.starts_with('(')
+                {
                     format!("({sp}{suffix})")
                 } else {
                     format!("{sp}{suffix}")
@@ -2075,7 +2492,7 @@ fn nitrogen_heterocumulene(
     exclude: &AtomSet,
     upstream: Option<usize>,
 ) -> Option<String> {
-    if upstream_bond_order(mol, start, upstream) != 1 {
+    if upstream_bond_order(mol, start, upstream) != 1 || mol.atoms[&start].charge != 0 {
         return None;
     }
     let mut candidates = Vec::new();
@@ -2083,6 +2500,7 @@ fn nitrogen_heterocumulene(
         if Some(center) == upstream
             || exclude.contains(&center)
             || !mol.atoms[&center].is_carbon()
+            || mol.atoms[&center].charge != 0
             || mol.get_bond(start, center)?.order != 2
         {
             continue;
@@ -2095,6 +2513,7 @@ fn nitrogen_heterocumulene(
             .collect();
         if terminal.len() == 1
             && matches!(mol.atoms[&terminal[0]].symbol.as_str(), "O" | "S" | "Se")
+            && mol.atoms[&terminal[0]].charge == 0
             && mol.get_bond(center, terminal[0])?.order == 2
         {
             candidates.push(terminal[0]);
@@ -2213,7 +2632,12 @@ fn guanidino_prefix(
         let mut ligands: Vec<_> = names.into_keys().collect();
         ligands.push("carbamimidoyl".into());
         return Ok(Some(format_amino_from_branches(
-            mol, &ligands, false, false, false,
+            mol,
+            &ligands,
+            false,
+            false,
+            false,
+            &BTreeMap::new(),
         )));
     }
     let mut ordered: Vec<_> = names.into_iter().collect();
@@ -2384,10 +2808,10 @@ mod tests {
     fn heteroatom_branches_preserve_acyl_ligands_and_oxo_roles() -> Result<(), String> {
         for (smiles, expected) in [
             // P-16.5.1.1: an acyl prefix is enclosed inside amino.
-            ("CNC(=S)CC(C)C", "((2-methylpropylcarbonothioyl)amino)"),
+            ("CNC(=S)CC(C)C", "(((2-methylpropyl)carbonothioyl)amino)"),
             ("CNC(=S)N(C)C", "((dimethylcarbamothioyl)amino)"),
             ("CN(C(=O)OC)C", "((methoxycarbonyl)(methyl)amino)"),
-            ("COC(=S)N(C)C", "(dimethylaminocarbonothioyloxy)"),
+            ("COC(=S)N(C)C", "((dimethylamino)carbonothioyloxy)"),
             ("CP(=O)(O)ON", "((aminooxy)(hydroxy)phosphoryl)"),
             // P-16.5.1.1: the compound prefix ethylideneamino is enclosed.
             ("CS(=O)(=O)ON=CC", "((ethylideneamino)oxysulfonyl)"),
@@ -2549,19 +2973,17 @@ mod tests {
                 "3-(2-carbamoylhydrazin-1-yl)propanoic acid",
                 NameStatus::Preferred,
             ),
-            // P-66.3.2.3: method (2); the preferred prefix is
-            // acetohydrazido, which is not generated.
+            // P-66.3.2.3 (1) and P-66.3.5.3 (2): these terminal
+            // nitrogen attachments use the hydrazido prefixes.
             (
                 "OC(=O)c1ccc(NNC(C)=O)cc1",
-                "4-(2-acetylhydrazin-1-yl)benzoic acid",
-                NameStatus::NotPreferred(NameReason::AminoPrefix),
+                "4-acetohydrazidobenzoic acid",
+                NameStatus::Preferred,
             ),
-            // P-66.3.5.3: 3-(2-formylhydrazin-1-yl)propanoic acid, beside the
-            // preferred 3-formohydrazidopropanoic acid.
             (
                 "OC(=O)CCNNC=O",
-                "3-(2-formylhydrazin-1-yl)propanoic acid",
-                NameStatus::NotPreferred(NameReason::AminoPrefix),
+                "3-formohydrazidopropanoic acid",
+                NameStatus::Preferred,
             ),
             // No Blue Book example places E/Z in the prefix, so a configured
             // hydrazone keeps the amino form.

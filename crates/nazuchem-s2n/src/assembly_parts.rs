@@ -18,6 +18,7 @@ pub struct RenderedSubstituentName {
     pub text: String,
     pub outer_parentheses_optional: bool,
     pub oxy_prefix: Option<String>,
+    pub prefix_kind: Option<PrefixKind>,
     /// Atoms whose isotope labels the text already cites (P-82.2.1).
     pub isotope_atoms: AtomSet,
     /// The isotope descriptors that the text contains.
@@ -44,6 +45,13 @@ impl RenderedSubstituentName {
             .unwrap_or_else(|| super::formatting::oxy_prefix_from_branch(&self.text))
     }
 }
+/// Classification from the assembly of a substituent prefix (P-29.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PrefixKind {
+    Simple,
+    Substituted,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct SubstituentItem {
     pub name: String,
@@ -52,6 +60,7 @@ pub struct SubstituentItem {
     pub bond_ids: AtomSet,
     pub charge_atom_ids: AtomSet,
     pub outer_parentheses_optional: bool,
+    pub prefix_kind: Option<PrefixKind>,
     pub spiro: Option<Box<super::assembly_spiro::SpiroAssembly>>,
     /// Atoms whose isotope labels the prefix name already cites (P-82.2.1).
     pub isotope_atoms: AtomSet,
@@ -212,6 +221,7 @@ pub struct AssemblyParts {
     pub is_spiro_side_projection: bool,
     pub spiro_prefix_composition: bool,
     pub spiro_same_size_components: bool,
+    pub lambda_prefix_order_tie: bool,
     /// The renderer cited locants on hydro prefixes of a fully hydrogenated parent.
     pub locanted_total_hydrogenation: bool,
 }
@@ -300,6 +310,7 @@ impl AssemblyParts {
             is_spiro_side_projection: false,
             spiro_prefix_composition: false,
             spiro_same_size_components: false,
+            lambda_prefix_order_tie: false,
             locanted_total_hydrogenation: false,
         }
     }

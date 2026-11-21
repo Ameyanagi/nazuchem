@@ -28,13 +28,31 @@ and peroxide class names, the bracketed letter-locanted acid suffix in
 acid-anion prefixes of chalcogen-replaced sulfinic and sulfonic acids, such as
 `sulfinothioato` (P-72.6.1, P-65.3.1.3), and of the selenium and tellurium
 acids, `selenonato`, `seleninato`, `telluronato` and `tellurinato`
-(P-65.6.2.3.1). Native `arylGroups.xml` and `fusionComponents.xml` tokens read
+(P-65.6.2.3.1), and `carboperoxoato` for the peroxycarboxylic acid anion
+prefix (P-65.1.4.1 and P-72.6.1). Native `arylGroups.xml` and `fusionComponents.xml` tokens read
 the pheno...ine ring systems that P-25.2.2.3 forms from Hantzsch-Widman names,
 such as `phenothiaselenine` and `10H-phenoselenarsinine`, and the PIN spellings
-`phenazaphosphinine` and `phenazarsinine`. A native `wordRules.xml` rule reads a
+`phenazaphosphinine` and `phenazarsinine`. The same token lists read
+`boranthrene` (P-25.2.2.2) and `boranthreno` (P-25.3.2.2.2), using
+spare valence at boron to represent the mancude component. The mixed-ring
+tokens also cover O, S, Se or Te paired with Si, Ge, Sn, Bi or B,
+and the P/As, P/Sb and As/Sb pairs. These names are derived by applying
+[P-25.2.2.3](https://iupac.qmul.ac.uk/BlueBook/P2.html#25020203).
+[Table 2.4](https://iupac.qmul.ac.uk/BlueBook/P2.html#t204) supplies the
+prefix order and standard bonding numbers. The least senior atom selects
+the six-membered ring stem from [Table 2.5](https://iupac.qmul.ac.uk/BlueBook/P2.html#t205)
+under P-22.2.2.1.6. Thus P/Sb and As/Sb use the stem `inine`. Their
+mancude components have a double bond at both heteroatoms, and the
+5,10-dihydro forms add one hydrogen to each.
+
+A native `wordRules.xml` rule reads a
 dianhydride of three acid words (P-65.7.6.1). A native `simpleGroups.xml` token reads
-`cyanohydrazide` with the locants N and N′ (P-66.3.1.2.1, P-66.3.3.1). These additions only add dictionary tokens or a word rule to
-existing token lists, so the DFA tables are unchanged. `native_extensions` in
+`cyanohydrazide` with the locants N and N′ (P-66.3.1.2.1, P-66.3.3.1). A native terminal
+`carboxamidium` entry in `suffixes.xml`, `suffixApplicability.xml`, and
+`suffixRules.xml` supports bracketed suffix multipliers such as
+`bis(carboxamidium)` (P-73.1.2.1 and Table 7.4). The same suffix resources read `hydrazid-N-ium`
+and `hydrazid-N′-ium` with the charge on the cited nitrogen (P-73.1.2.1).
+These changes use existing token lists and word rules, so the DFA tables are unchanged. `native_extensions` in
 the manifest records these changes.
 
 The development oracle is the main build
@@ -213,16 +231,14 @@ Compressed JSONL uses gzip level 9 with timestamp zero and an empty filename.
 The resource fingerprint is SHA256 over each resource in sorted UTF-8 path
 order, concatenating path, NUL, raw file bytes, NUL. This independently covers
 all XML/DTD files and the neutral DFA table. The exported crate constant is
-`fb6924312ebd3ba141e08f304c91e3a8baf87d69393de4a81ac65100775d0828`.
+`fadcffe2bc19fccca5003e893064fe84caba5b1d5ff992ace75a120ee84a5b4a`.
 
 `ExportGraphResources.java.txt` captures every distinct literal resource
 `(value, type, labels)` triple. The current gate checks 2,643 ordered graph
-snapshots and constructs all 3,221 literal groups: the 3,183 pinned ones and
-the 16 native `simpleSubstituents.xml` acid-anion prefixes, which postdate the
-oracle and are checked natively as acyclic, kekulization-stable fragments. The
-11 native pheno...ine ring triples (the other 22 literal groups, in `arylGroups.xml` and
-`fusionComponents.xml`) also postdate the oracle; each must build and kekulize
-exactly like its pinned sibling. `phanes.txt` contributes
+snapshots and constructs all 3,267 literal groups. These include 3,181 pinned
+occurrences, 17 acid-anion prefixes and cyanohydrazide. The 34 native
+heteranthrene and pheno...ine ring triples contribute 68 parent and fusion
+groups. Each must build and kekulize exactly like its pinned sibling. `phanes.txt` contributes
 174 integration names (348 strict/radical structure records); the 21 phane
 rows in `uninterpretable.txt` are also checked natively. No goldens are edited
 by hand. Regeneration uses the checked exporter sources and the pinned jar.

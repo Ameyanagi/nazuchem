@@ -114,6 +114,7 @@ pub enum NameReason {
     UnknownConfiguration,
     AxialAlternative,
     ParentConfiguration,
+    LambdaPrefixOrder,
 }
 
 /// All naming reason values, serialized by binding declaration checks.
@@ -162,6 +163,7 @@ pub const NAME_REASONS: &[NameReason] = &[
     NameReason::UnknownConfiguration,
     NameReason::AxialAlternative,
     NameReason::ParentConfiguration,
+    NameReason::LambdaPrefixOrder,
 ];
 
 impl NameReason {
@@ -260,6 +262,9 @@ impl NameReason {
             Self::UnknownConfiguration => {
                 "Omits a descriptor for unknown configuration; preferred IUPAC names indicate unknown configuration with Ξ or ξ (P-91.2.1.2.1)."
             }
+            Self::LambdaPrefixOrder => {
+                "Equally ranked substituent prefixes have different lambda bonding numbers. Their preferred order of citation has not been verified (P-14.5, P-45.3)."
+            }
             Self::ParentConfiguration => {
                 "Equally senior parents differ in configuration that needs CIP sequence rules 4 and 5; the senior parent (P-44.4.1.12) has not been verified."
             }
@@ -294,7 +299,7 @@ impl NameReason {
                 "Cites the cationic centre only in a substituent prefix, as in (1-methylpyridin-1-ium-4-yl)methanol. A cation is senior to neutral classes, so the preferred IUPAC name takes a cationic parent, as in 4-(hydroxymethyl)-1-methylpyridin-1-ium (P-41, P-73.1); this name does not choose that parent yet. Also marks an aminium or iminium name whose cationic nitrogen is on another nitrogen: the preferred name takes the largest neutral parent (P-73.1.2), a hydrazinium, hydrazidium or amidium cation, as in pentamethylhydrazinium (P-73.1.1.2) and N′,N′,N′-trimethylbenzohydrazid-N′-ium (P-73.1.2.1)."
             }
             Self::FusionNitrogenHydron => {
-                "Cites a hydron added to a ring-fusion nitrogen as -ium on the neutral parent hydride, as in 4H-quinolizin-5-ium (P-73.1.1.2). The same spelling is widely used for the cation with one more skeletal bond at that nitrogen (5λ5-quinolizin-5-ylium, P-73.3.1), and the name parser reads it that way, so this name has not been confirmed by reading it back."
+                "A hydron at a ring-fusion nitrogen is named on the neutral parent hydride (P-73.1.1.2). Traditional mancude cation names can imply an additional skeletal bond at that nitrogen (P-73.3.1). Where the neutral-parent spelling is ambiguous, explicit hydro prefixes on the cation can distinguish the structures."
             }
             Self::Phane => {
                 "The structure is a cyclophane: at least six nodes, two or more rings and a mancude ring. Cyclic phane names rank above fused, bridged fused and von Baeyer names, so the preferred IUPAC name is a phane name (P-52.2.5.1, P-52.2.5.2). The numbering and citation order of this phane name have not been verified."

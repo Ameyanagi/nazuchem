@@ -148,6 +148,8 @@ pub struct Bond {
     pub order: usize,
     pub is_aromatic: bool,
     pub stereo: Option<String>,
+    // One carrier at each end and whether they are on the same side.
+    pub alkene_geometry: Option<([usize; 2], bool)>,
     pub in_small_ring: bool,
 }
 
@@ -162,6 +164,7 @@ impl Bond {
             order,
             is_aromatic: false,
             stereo: None,
+            alkene_geometry: None,
             in_small_ring: false,
         }
     }
@@ -287,7 +290,13 @@ impl Molecule {
     // Provenance: fn Molecule::mark_name | original
     // Source: ReShiki | src/naming/openclatura/molecule.rs::Molecule::mark_name
     pub(super) fn mark_name(&self, status: NameStatus) {
-        if status.severity() > self.name_status().severity() {
+        let previous = self.name_status();
+        // A fallback presentation order supplies a reason only in the
+        // absence of another unverified chemical assignment.
+        if status.severity() > previous.severity()
+            || previous == NameStatus::Unverified(NameReason::LambdaPrefixOrder)
+                && matches!(status, NameStatus::Unverified(reason) if reason != NameReason::UnauditedPath)
+        {
             self.set_name_status(status);
         }
     }

@@ -8,14 +8,17 @@
 //! Traversal-dependent stereochemistry from RDKit Canon.cpp.
 //! Copyright (C) 2001-2021 Greg Landrum and other RDKit contributors.
 //! BSD-3-Clause; see licenses/rdkit/LICENSE and NOTICE.
-// Copied unchanged from crates/chemistry/src/smiles/stereo.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3
+// Copied from crates/chemistry/src/smiles/stereo.rs at be63a799aa03a83dc6ec74bb294f4d42b89298d3; changed: pass odd-cumulene geometry into direction assignment
 mod atoms;
 mod bonds;
 use super::traversal::{Token, Traversal};
 use crate::{
     kekulize::Direction,
     ranking::Metadata,
-    stereo::perception::{self, State},
+    stereo::{
+        CumuleneEz,
+        perception::{self, State},
+    },
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -39,11 +42,21 @@ pub fn canonicalize(
     broken: &[bool],
     isomeric: bool,
 ) -> Result<Output, Error> {
+    canonicalize_with_cumulenes(input, walk, broken, isomeric, None)
+}
+
+pub(super) fn canonicalize_with_cumulenes(
+    input: &State,
+    walk: &Traversal,
+    broken: &[bool],
+    isomeric: bool,
+    cumulenes: Option<&[CumuleneEz]>,
+) -> Result<Output, Error> {
     let mut ctx = Context::new(input, walk, broken)?;
     if isomeric {
         ctx.atoms()?;
     }
-    ctx.bonds()?;
+    ctx.bonds(cumulenes)?;
     Ok(ctx.output)
 }
 

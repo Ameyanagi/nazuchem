@@ -133,6 +133,11 @@ pub(crate) fn parse(
         .collect();
     let repeated = words.join(" ");
     let written = parse_words(resources, name, &ratios, options);
+    if written.is_err()
+        && let Some(trees) = parse_located_anhydride_end(resources, name, &spaced, &ratios, options)
+    {
+        return Ok(trees);
+    }
     if repeated == name {
         return written;
     }
@@ -144,6 +149,44 @@ pub(crate) fn parse(
         (Err(_), Ok(repeated)) => Ok(repeated),
         (written, Err(_)) => written,
     }
+}
+
+// Changes: P-65.7.6.2 permits a locanted end to enclose more than one acid
+// word, as in 4-(acetic butanedioic) 2-methylbutanedioic 1-propanoic trianhydride.
+fn parse_located_anhydride_end(
+    resources: &Resources,
+    name: &str,
+    words: &[&str],
+    ratios: &Option<Vec<i32>>,
+    options: &ParseOptions,
+) -> Option<Vec<ParseTree>> {
+    let [end, central, other, class] = words else {
+        return None;
+    };
+    let (locant, end) = end.split_once("-(")?;
+    let end = end.strip_suffix(')')?;
+    let (outer, inner) = end.split_once(' ')?;
+    if !crate::fragment_tools::is_numeric_locant(locant) {
+        return None;
+    }
+    let expanded = format!("{outer} {inner} {central} {other} {class}");
+    let mut trees = parse_words(resources, &expanded, ratios, options).ok()?;
+    trees.retain_mut(|tree| {
+        let arena = &mut tree.arena;
+        let [rule] = arena.children_named(tree.root, "wordRule")[..] else {
+            return false;
+        };
+        let [_, inner, _, _, _] = arena.children_named(rule, "word")[..] else {
+            return false;
+        };
+        if arena[rule].attribute("wordRule") != Some("anhydride") {
+            return false;
+        }
+        arena[inner].set_attribute("anhydrideNeighbourLocant", locant);
+        arena[tree.root].set_attribute("name", name);
+        true
+    });
+    (!trees.is_empty()).then_some(trees)
 }
 
 fn parse_words(

@@ -8,25 +8,26 @@
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_acids.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/data/parser_xml_resources/arylSubstituents.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/namer.rs | issue #180
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura recursive substituent pipeline with local scope, status and acid attachment preservation.
 // Local contributions: MIT OR Apache-2.0; see NOTICE and PROVENANCE-nazuchem.toml.
 
 //! Recursive substituent naming, following the upstream plain-name pipeline.
-use super::assembly_parts::{AssemblyParts, RenderedSubstituentName, SubstituentItem};
+use super::assembly_parts::{AssemblyParts, PrefixKind, RenderedSubstituentName, SubstituentItem};
 use super::assembly_prefixes::substituent_sort_key;
 use super::chains::{find_all_carbon_paths, find_ring_systems, get_cyclic_atoms};
 use super::component_group_rules::{
-    amide_nitrogen, is_carboxylate_group, is_carboxylic_acid_group,
-    retarget_external_carbonyl_groups,
+    amide_nitrogen, is_carboxylate_group, is_carboxylic_acid_group, is_peroxy_acyl_anion,
+    linked_hydrazinecarbonyl, retarget_external_carbonyl_groups,
 };
 use super::component_namer::{name_component, name_component_with_citation};
 use super::formatting::{
     format_center_ligands_by, is_complex_prefix, is_composite_prefix, strip_outer_parentheses,
     substituted_alkoxy_prefix,
 };
-use super::heteroatom_subgraphs::name_heteroatom_subgraph;
+use super::heteroatom_subgraphs::{name_heteroatom_subgraph, upstream_bond_order};
 use super::locant_elision::apply_redundant_locant_elision;
 use super::molecule::{Atom, AtomSet, Bond, Molecule, bond_ids_within, charged_atoms};
 use super::nomenclature::RULES;
@@ -111,6 +112,22 @@ fn direct_amide_prefix(
     )))
 }
 
+// Provenance: fn can_cite_peroxycarboxylate_prefix | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/namer.rs::can_cite_peroxycarboxylate_prefix
+fn can_cite_peroxycarboxylate_prefix(mol: &Molecule, group: &PerceivedGroup) -> bool {
+    is_peroxy_acyl_anion(group)
+        && group
+            .descriptor
+            .as_ref()
+            .is_some_and(|d| d.ligands.iter().all(|l| l.element == "O"))
+        // A label that needs a group locant still uses the explicit ligands.
+        && (!mol
+            .isotope_sites()
+            .iter()
+            .any(|site| group.atoms_involved.contains(&site.anchor))
+            || super::isotope_naming::group_descriptor(mol, &group.atoms_involved).is_some())
+}
+
 // Provenance: fn direct_subgraph_prefix | adapted
 // Source: openclatura | src/openclatura/namer.py::DirectSubgraphPrefix
 // Source: openclatura | src/openclatura/namer.py::_direct_subgraph_prefix
@@ -118,7 +135,17 @@ fn direct_subgraph_prefix(
     mol: &Molecule,
     start: usize,
     component: &AtomSet,
+    upstream: Option<usize>,
 ) -> Result<Option<String>, String> {
+    // Functional-group perception reserves the whole O/N-linked group for a
+    // possible hydrazine parent. P-66.3.2.1 and P-66.3.5.2 cite its acyl
+    // fragment as (hydrazinecarbonyl) when reached through the linker.
+    if let Some(linker) = upstream
+        && let Some(atoms) = linked_hydrazinecarbonyl(mol, start, linker, "C")
+        && atoms.iter().all(|id| component.contains(id))
+    {
+        return Ok(Some("(hydrazinecarbonyl)".into()));
+    }
     if mol.atoms[&start].is_carbon() {
         let terminal: Vec<_> = mol
             .get_neighbors(start)
@@ -127,11 +154,18 @@ fn direct_subgraph_prefix(
             .filter(|n| {
                 component.contains(n)
                     && mol.atoms[n].symbol == "S"
+                    && mol.atoms[n].charge == 0
+                    && mol.atoms[n].total_h_count == 0
                     && mol.get_bond(start, *n).is_some_and(|b| b.order == 2)
                     && mol.get_neighbors(*n).iter().all(|n| *n == start)
             })
             .collect();
-        if terminal.len() == 1 && component == &AtomSet::from([start, terminal[0]]) {
+        // The thioacyl prefix joins its parent by a single bond.
+        if terminal.len() == 1
+            && upstream_bond_order(mol, start, upstream) == 1
+            && mol.atoms[&start].charge == 0
+            && component == &AtomSet::from([start, terminal[0]])
+        {
             return Ok(Some("(methanethioyl)".into()));
         }
         let phosphorus: Vec<_> = mol
@@ -170,7 +204,12 @@ fn direct_subgraph_prefix(
         if !group.atoms_involved.contains(&start) || !group.atoms_involved.is_subset(component) {
             continue;
         }
-        if is_carboxylate_group(&group)
+        // A branched chain can use two peroxy acyl groups as suffixes and
+        // still have another at a branch root (P-72.6.1).
+        if (is_carboxylate_group(&group)
+            || can_cite_peroxycarboxylate_prefix(mol, &group)
+                && group.atoms_involved == *component
+                && upstream_bond_order(mol, start, upstream) == 1)
             && group
                 .descriptor
                 .as_ref()
@@ -364,6 +403,7 @@ fn collect_subgraph_substituents(
             item.bond_ids = bond_ids_within(mol, &attached);
             item.charge_atom_ids = charged_atoms(mol, &atoms);
             item.outer_parentheses_optional = name.outer_parentheses_optional;
+            item.prefix_kind = name.prefix_kind;
             item.isotope_atoms = name.isotope_atoms;
             item.isotope_descriptors = name.isotope_descriptors;
             mapping.entry(idx).or_default().push(item);
@@ -392,6 +432,10 @@ fn finalize_subgraph_name(mut name: String, parts: &AssemblyParts) -> String {
         && parts.substituents.is_empty()
         // Thioacyl prefixes name a parent hydride, so they are enclosed (P-16.5.1.4).
         && parts.acyl_infix.is_empty()
+        // A contracted carbamoyl prefix can still carry an N-substituent.
+        // Compound prefixes such as methylcarbamoyl are enclosed (P-16.5.1.1).
+        && !(parts.is_acyl_substituent
+            && name.strip_suffix("carbamoyl").is_some_and(|stem| !stem.is_empty()))
         && parts.attachment_locant == "1"
         && (parts.unsaturations.is_empty()
             || !(is_complex_prefix(&name) || is_composite_prefix(&name)))
@@ -454,13 +498,33 @@ fn name_subgraph_rendered_except_stereo(
             let labelled = super::isotope_naming::group_descriptor(mol, &AtomSet::from([start]));
             let cite_start = |rendered: &mut RenderedSubstituentName| {
                 if let Some((descriptor, cited)) = &labelled {
-                    rendered.text = format!("{descriptor}{}", rendered.text);
+                    // The lambda stem and its isotope descriptor occupy one
+                    // prefix enclosure. A separate (34S) before an enclosed
+                    // lambda stem can instead be read as a stereodescriptor.
+                    if rendered.text.starts_with("(lambda^") && rendered.text.ends_with(')') {
+                        let stem = &rendered.text[1..rendered.text.len() - 1];
+                        rendered.text = format!("({descriptor}{stem})");
+                    } else {
+                        rendered.text = format!("{descriptor}{}", rendered.text);
+                    }
                     rendered.isotope_atoms.extend(cited);
                     rendered.isotope_descriptors.push(descriptor.clone());
                 }
             };
             if component.len() == 1 {
                 cite_start(&mut rendered);
+            } else if atom.symbol == "N"
+                && atom.charge == 0
+                && let Some((descriptor, cited)) = &labelled
+                && let Some(alkyl) = strip_outer_parentheses(&rendered.text)
+                    .strip_suffix("amino")
+                    .map(str::to_owned)
+            {
+                // P-82.2.1: the modified nitrogen in a substituted amino
+                // prefix is cited immediately before amino.
+                rendered.text = format!("({alkyl}{descriptor}amino)");
+                rendered.isotope_atoms.extend(cited);
+                rendered.isotope_descriptors.push(descriptor.clone());
             }
             // P-82.2.1: the groups on the heteroatom cite their own labels, as
             // in (2H3)methoxy. A label counts as cited only when the prefix
@@ -504,11 +568,20 @@ fn name_subgraph_rendered_except_stereo(
             return Ok(rendered);
         }
     }
-    if let Some(text) = direct_subgraph_prefix(mol, start, &component)? {
-        return Ok(RenderedSubstituentName {
+    if let Some(text) = direct_subgraph_prefix(mol, start, &component, upstream)? {
+        let mut rendered = RenderedSubstituentName {
             text,
             ..Default::default()
-        });
+        };
+        if rendered.text == "carboperoxoato"
+            && let Some((descriptor, cited)) =
+                super::isotope_naming::group_descriptor(mol, &component)
+        {
+            rendered.text = format!("{descriptor}{}", rendered.text);
+            rendered.isotope_atoms = cited;
+            rendered.isotope_descriptors.push(descriptor);
+        }
+        return Ok(rendered);
     }
     let sub_exclude: AtomSet = mol
         .atoms
@@ -517,7 +590,21 @@ fn name_subgraph_rendered_except_stereo(
         .filter(|n| !component.contains(n))
         .collect();
     let perceived = perceive_groups(mol);
+    // The fallback may cite a mixed peroxy acyl anion's individual ligands.
+    // Only the ordinary oxygen prefix form has been audited.
+    if perceived.iter().any(|g| {
+        is_peroxy_acyl_anion(g)
+            && g.atom_ids().is_subset(&component)
+            && g.descriptor
+                .as_ref()
+                .is_some_and(|d| d.ligands.iter().any(|l| l.element != "O"))
+    }) {
+        mol.mark_name(nazuchem_ir::NameStatus::Unverified(
+            nazuchem_ir::NameReason::AnionParent,
+        ));
+    }
     let principal_key = super::principal_groups::component_principal_key(mol, &perceived, false);
+    mol.spend_naming_work(0)?;
     let anionic_parent = principal_key.as_deref().map_or_else(
         || mol.atoms.values().map(|atom| atom.charge).sum::<i32>() < 0,
         |key| {
@@ -541,6 +628,7 @@ fn name_subgraph_rendered_except_stereo(
         .filter(|g| {
             g.atom_ids().is_subset(&component)
                 && (is_carboxylate_group(g)
+                    || can_cite_peroxycarboxylate_prefix(mol, g) && !g.atoms_involved.contains(&start)
                     // P-66.5.1.1.4: a chain-end –C≡N in a substituent is cyano.
                     // A charged nitrile N keeps its own heteroatom prefix.
                     || g.key == "nitrile"
@@ -629,7 +717,7 @@ fn name_subgraph_rendered_except_stereo(
         &plan.locant_map,
         upstream,
         excluded_stereo_bond,
-    );
+    )?;
     add_indicated_hydrogens(mol, &mut parts, &plan.numbered_path, &plan.locant_map)?;
     for (&idx, items) in &mapping {
         for item in items {
@@ -715,6 +803,11 @@ fn name_subgraph_rendered_except_stereo(
     Ok(RenderedSubstituentName {
         oxy_prefix: substituted_alkoxy_prefix(&text, &parts),
         outer_parentheses_optional: !parts.stereo_features.is_empty(),
+        prefix_kind: Some(if parts.substituents.is_empty() {
+            PrefixKind::Simple
+        } else {
+            PrefixKind::Substituted
+        }),
         isotope_atoms,
         isotope_descriptors,
         text,

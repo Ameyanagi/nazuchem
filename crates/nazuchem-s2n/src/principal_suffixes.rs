@@ -25,6 +25,10 @@ pub fn render_principal_suffix(rule: &FunctionalGroupRule, count: usize) -> Stri
     // whole suffix, so a letter locant stays with each group, as in
     // `butanebis(thioic S-acid)`.
     let complex = multipliers::complex_(count);
+    // P-73.1.2.1: enclose each amidium suffix, including chalcogen infixes.
+    if rule.has_capability("complex_suffix_multiplier") {
+        return format!("{complex}({suffix})");
+    }
     if let Some((stem, _)) = suffix.split_once(' ')
         && multipliers::suffix(count, stem) == format!("{complex}({stem})")
     {

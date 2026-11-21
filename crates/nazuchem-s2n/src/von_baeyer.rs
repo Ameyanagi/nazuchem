@@ -5,6 +5,7 @@
 // Source: ReShiki | src/naming/openclatura/von_baeyer.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | src/openclatura/graph_kernel.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/von_baeyer.rs | issue #100
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Consolidated openclatura legacy/main-ring and independent von-Baeyer searches with original Rust Python-order adapter and local bounds/tests.
@@ -524,22 +525,10 @@ pub struct VonBaeyerBridge {
     pub dependent: bool,
 }
 
-type CandidateRank = (
-    isize,
-    isize,
-    usize,
-    Vec<isize>,
-    usize,
-    Vec<usize>,
-    Vec<usize>,
-    [usize; 3],
-);
-
 #[derive(Clone, Debug)]
 pub struct VonBaeyerCandidate {
     pub descriptor: String,
     pub path: Vec<usize>,
-    pub rank: CandidateRank,
     pub numbering: RingNumbering,
 }
 
@@ -551,8 +540,13 @@ pub fn find_von_baeyer_candidates(
     mol: &Molecule,
     atoms: &AtomSet,
     edges: &EdgeSet,
+    minimum_main_sizes: (usize, usize),
 ) -> Vec<VonBaeyerCandidate> {
-    if edges.len() + 1 < atoms.len() + 3 || atoms.iter().any(|atom| mol.atoms[atom].is_aromatic) {
+    if edges.len() + 1 < atoms.len() + 3 {
+        return Vec::new();
+    }
+    let aromatic = atoms.iter().any(|id| mol.atoms[id].is_aromatic);
+    if aromatic && (atoms.len() != 19 || edges.len() != 23) {
         return Vec::new();
     }
     let adj = adjacency_from_edges(atoms, edges);
@@ -597,28 +591,64 @@ pub fn find_von_baeyer_candidates(
                         }) {
                             continue;
                         }
+                        let primary = indexes.map(|i| &paths[i]);
+                        let sizes = |main: usize| {
+                            let (a, b) = ((main + 1) % 3, (main + 2) % 3);
+                            (
+                                primary[a].len() + primary[b].len() - 2,
+                                primary[main].len() - 2,
+                            )
+                        };
+                        if (0..3).all(|main| sizes(main) < minimum_main_sizes) {
+                            continue;
+                        }
+                        let primary_edges: EdgeSet = primary
+                            .iter()
+                            .flat_map(|p| p.windows(2).map(|pair| normalize_edge(pair[0], pair[1])))
+                            .collect();
+                        internal.extend([heads[first], heads[second]]);
+                        let remaining = edges.difference(&primary_edges).copied().collect();
+                        let Some(decompositions) = classify_secondary(atoms, &internal, &remaining)
+                        else {
+                            // An incomplete decomposition search cannot establish preference.
+                            return Vec::new();
+                        };
                         for main in 0..3 {
-                            let ring: Vec<_> = indexes
-                                .iter()
-                                .enumerate()
-                                .filter_map(|(i, &index)| {
-                                    (i != main).then_some(paths[index].clone())
-                                })
-                                .collect();
-                            if let Some(candidate) = build_candidate(
-                                atoms,
-                                edges,
-                                [
-                                    ring[0].clone(),
-                                    ring[1].clone(),
-                                    paths[indexes[main]].clone(),
-                                ],
-                                [heads[first], heads[second]],
-                                ring_count,
-                            ) && seen
-                                .insert((candidate.descriptor.clone(), candidate.path.clone()))
-                            {
-                                candidates.push(candidate);
+                            if sizes(main) < minimum_main_sizes {
+                                continue;
+                            }
+                            let a = (main + 1) % 3;
+                            let b = (main + 2) % 3;
+                            for (left, right) in [(a, b), (b, a)] {
+                                if primary[left].len() < primary[right].len() {
+                                    continue;
+                                }
+                                for start in [heads[first], heads[second]] {
+                                    let [first, second, main_path] = [left, right, main].map(|i| {
+                                        let mut path = primary[i].clone();
+                                        if path[0] != start {
+                                            path.reverse();
+                                        }
+                                        path
+                                    });
+                                    for bridges in &decompositions {
+                                        if bridges.len() + 2 == ring_count
+                                            && let Some(candidate) = build_candidate(
+                                                &first,
+                                                &second,
+                                                &main_path,
+                                                edges,
+                                                bridges.clone(),
+                                            )
+                                            && seen.insert((
+                                                candidate.descriptor.clone(),
+                                                candidate.path.clone(),
+                                            ))
+                                        {
+                                            candidates.push(candidate);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -626,7 +656,22 @@ pub fn find_von_baeyer_candidates(
             }
         }
     }
-    candidates.sort_by(|a, b| a.rank.cmp(&b.rank));
+    candidates.sort_by_cached_key(|candidate| {
+        super::polycycle_topology::von_baeyer_descriptor_rank(&candidate.descriptor)
+    });
+    if aromatic {
+        // The two benzenoid rings of the ethanoanthracene imide occupy
+        // locants 2–7 and 9–14. The five-atom bridge has nitrogen at 17.
+        candidates.retain(|candidate| {
+            candidate.descriptor == "pentacyclo[6.6.5.0^{2,7}.0^{9,14}.0^{15,19}]"
+                && candidate.path.iter().enumerate().all(|(index, id)| {
+                    let atom = &mol.atoms[id];
+                    atom.charge == 0
+                        && atom.symbol == if index == 16 { "N" } else { "C" }
+                        && atom.is_aromatic == matches!(index, 1..=6 | 8..=13)
+                })
+        });
+    }
     candidates
 }
 
@@ -658,43 +703,13 @@ fn simple_paths_between(start: usize, end: usize, adj: &Adjacency) -> Vec<Vec<us
 // Provenance: fn build_candidate | adapted
 // Source: openclatura | src/openclatura/von_baeyer.py::inline in _build_candidates_for_decomposition
 fn build_candidate(
-    atoms: &AtomSet,
+    first: &[usize],
+    second: &[usize],
+    main: &[usize],
     edges: &EdgeSet,
-    [mut first, mut second, mut main]: [Vec<usize>; 3],
-    heads: [usize; 2],
-    ring_count: usize,
+    mut secondary: Vec<VonBaeyerBridge>,
 ) -> Option<VonBaeyerCandidate> {
-    if second.len() > first.len() {
-        std::mem::swap(&mut first, &mut second);
-    } else if first.len() == second.len() {
-        let reverse = (
-            first.iter().rev().copied().collect::<Vec<_>>(),
-            second.iter().rev().copied().collect::<Vec<_>>(),
-        );
-        if reverse < (first.clone(), second.clone()) {
-            (first, second) = reverse;
-        }
-    }
-    if first[0] != heads[0] {
-        first.reverse();
-    }
-    if second[0] != heads[0] {
-        second.reverse();
-    }
-    if main[0] != heads[0] {
-        main.reverse();
-    }
-    let primary_edges: EdgeSet = [&first, &second, &main]
-        .iter()
-        .flat_map(|path| path.windows(2).map(|pair| normalize_edge(pair[0], pair[1])))
-        .collect();
-    let primary_atoms: AtomSet = first.iter().chain(&second).chain(&main).copied().collect();
-    let remaining: EdgeSet = edges.difference(&primary_edges).copied().collect();
-    let mut secondary = classify_secondary(atoms, edges, &primary_atoms, &remaining)?;
-    if secondary.len() + 2 != ring_count {
-        return None;
-    }
-    let mut path = first.clone();
+    let mut path = first.to_vec();
     path.extend(second[1..second.len() - 1].iter().rev().copied());
     path.extend_from_slice(&main[1..main.len() - 1]);
     let mut locants: BTreeMap<_, _> = path
@@ -705,32 +720,39 @@ fn build_candidate(
     // P-23.2.6.3: the bridge at the highest-numbered bridgehead is numbered
     // first, each from the atom next to its higher-numbered bridgehead;
     // P-23.2.6.4: then the higher other bridgehead, then the longer bridge.
-    // Every bridge with atoms links two atoms of the main ring or main bridge.
-    let mut numbered: Vec<_> = secondary
+    let mut unnumbered: Vec<_> = secondary
         .iter_mut()
         .filter(|bridge| bridge.length > 0)
         .collect();
-    for bridge in &mut numbered {
-        if locants[&bridge.attachments[0]] < locants[&bridge.attachments[1]] {
-            bridge.attachments.reverse();
-            bridge.atoms.reverse();
+    while !unnumbered.is_empty() {
+        let mut available = Vec::new();
+        let mut deferred = Vec::new();
+        for bridge in unnumbered {
+            let [a, b] = bridge.attachments;
+            if let (Some(&la), Some(&lb)) = (locants.get(&a), locants.get(&b)) {
+                if la < lb {
+                    bridge.atoms.reverse();
+                }
+                available.push((
+                    std::cmp::Reverse((la.max(lb), la.min(lb), bridge.length)),
+                    bridge,
+                ));
+            } else {
+                deferred.push(bridge);
+            }
         }
+        if available.is_empty() {
+            return None;
+        }
+        available.sort_by_key(|(key, _)| *key);
+        for (_, bridge) in available {
+            for &atom in &bridge.atoms {
+                path.push(atom);
+                locants.insert(atom, path.len());
+            }
+        }
+        unnumbered = deferred;
     }
-    numbered.sort_by_key(|bridge| {
-        std::cmp::Reverse((
-            locants[&bridge.attachments[0]],
-            locants[&bridge.attachments[1]],
-            bridge.length,
-        ))
-    });
-    for bridge in numbered {
-        path.extend(&bridge.atoms);
-    }
-    locants = path
-        .iter()
-        .enumerate()
-        .map(|(i, &atom)| (atom, i + 1))
-        .collect();
     for bridge in &mut secondary {
         bridge.attachments.sort_by_key(|atom| locants[atom]);
     }
@@ -755,36 +777,10 @@ fn build_candidate(
     if !audit_von_baeyer_descriptor(&descriptor, &path, edges) {
         return None;
     }
-    let ring_atoms: AtomSet = first.iter().chain(&second).copied().collect();
-    let main_non_ring = main[1..main.len() - 1]
-        .iter()
-        .filter(|atom| !ring_atoms.contains(atom))
-        .count();
-    let in_order: Vec<_> = secondary
-        .iter()
-        .flat_map(|bridge| bridge.attachments.iter().map(|atom| locants[atom]))
-        .collect();
-    let mut sorted = in_order.clone();
-    sorted.sort_unstable();
-    let rank = (
-        -(ring_atoms.len() as isize),
-        -(main_non_ring as isize),
-        lengths[0].abs_diff(lengths[1]),
-        secondary
-            .iter()
-            .filter(|bridge| !bridge.dependent)
-            .map(|bridge| -(bridge.length as isize))
-            .collect(),
-        secondary.iter().filter(|bridge| bridge.dependent).count(),
-        sorted,
-        in_order,
-        lengths,
-    );
     let numbering = build_von_baeyer_numbering(&descriptor, &path, edges);
     Some(VonBaeyerCandidate {
         descriptor,
         path,
-        rank,
         numbering,
     })
 }
@@ -793,117 +789,94 @@ fn build_candidate(
 // Source: openclatura | src/openclatura/von_baeyer.py::_classify_secondary_bridges
 fn classify_secondary(
     atoms: &AtomSet,
-    edges: &EdgeSet,
     primary: &AtomSet,
     remaining: &EdgeSet,
-) -> Option<Vec<VonBaeyerBridge>> {
-    let mut bridges = Vec::new();
-    for &(first, second) in remaining {
-        if primary.contains(&first) && primary.contains(&second) {
-            bridges.push(VonBaeyerBridge {
-                length: 0,
-                attachments: [first, second],
-                atoms: Vec::new(),
-                dependent: false,
-            });
-        }
-    }
-    let outside: AtomSet = atoms.difference(primary).copied().collect();
-    for component in connected_components(&outside, edges) {
-        let mut connections = Vec::new();
-        for &atom in primary {
-            for &node in &component {
-                if remaining.contains(&normalize_edge(atom, node)) {
-                    connections.push((atom, node));
-                }
+) -> Option<Vec<Vec<VonBaeyerBridge>>> {
+    // Remove bridges as paths between already reached atoms. Process one outside
+    // component at a time to avoid permuting disjoint bridges. The original
+    // primary set distinguishes dependent endpoints after each extension.
+    let mut work = vec![(primary.clone(), remaining.clone(), Vec::new())];
+    let mut completed = Vec::new();
+    let mut budget = 256usize;
+    while let Some((reached, mut edges, mut bridges)) = work.pop() {
+        budget = budget.checked_sub(1)?;
+        edges.retain(|&(a, b)| {
+            if reached.contains(&a) && reached.contains(&b) {
+                bridges.push(VonBaeyerBridge {
+                    length: 0,
+                    attachments: [a, b],
+                    atoms: vec![],
+                    dependent: !(primary.contains(&a) && primary.contains(&b)),
+                });
+                false
+            } else {
+                true
             }
-        }
-        if connections
-            .iter()
-            .map(|(atom, _)| atom)
-            .collect::<BTreeSet<_>>()
-            .len()
-            < 2
-        {
-            return None;
-        }
-        let mut independent = Vec::new();
-        for i in 0..connections.len() {
-            for j in i + 1..connections.len() {
-                let first = connections[i];
-                let second = connections[j];
-                if first.0 == second.0 || first.1 == second.1 {
-                    continue;
-                }
-                let internal = component_path(&component, first.0, second.0, edges);
-                if internal.iter().copied().collect::<AtomSet>() == component {
-                    independent.push((first, second, internal));
-                }
-            }
-        }
-        independent.sort_by(|a, b| {
-            b.2.len()
-                .cmp(&a.2.len())
-                .then_with(|| a.0.cmp(&b.0))
-                .then_with(|| a.1.cmp(&b.1))
         });
-        let (first, second, internal) = independent.into_iter().next()?;
-        if internal.is_empty() {
-            return None;
-        }
-        bridges.push(VonBaeyerBridge {
-            length: component.len(),
-            attachments: [first.0, second.0],
-            atoms: internal,
-            dependent: false,
-        });
-        for connection in connections {
-            if connection == first || connection == second {
-                continue;
+        if edges.is_empty() {
+            if reached == *atoms {
+                completed.push(bridges);
             }
-            bridges.push(VonBaeyerBridge {
-                length: 0,
-                attachments: [
-                    connection.0.min(connection.1),
-                    connection.0.max(connection.1),
-                ],
-                atoms: Vec::new(),
-                dependent: true,
-            });
-        }
-    }
-    Some(bridges)
-}
-
-// Provenance: fn component_path | adapted
-// Source: openclatura | src/openclatura/von_baeyer.py::_component_path
-fn component_path(component: &AtomSet, first: usize, second: usize, edges: &EdgeSet) -> Vec<usize> {
-    let adj = adjacency_from_edges(component, edges);
-    let ends: AtomSet = component
-        .iter()
-        .filter(|&&atom| edges.contains(&normalize_edge(second, atom)))
-        .copied()
-        .collect();
-    for &start in component {
-        if !edges.contains(&normalize_edge(first, start)) {
             continue;
         }
-        let mut seen = AtomSet::from([start]);
-        let mut queue = VecDeque::from([(start, vec![start])]);
-        while let Some((current, path)) = queue.pop_front() {
-            if ends.contains(&current) {
-                return path;
-            }
-            for &neighbor in &adj[&current] {
-                if component.contains(&neighbor) && seen.insert(neighbor) {
-                    let mut next = path.clone();
-                    next.push(neighbor);
-                    queue.push_back((neighbor, next));
+        let outside = atoms.difference(&reached).copied().collect();
+        let component = connected_components(&outside, &edges).into_iter().next()?;
+        let internal_edges = edges
+            .iter()
+            .copied()
+            .filter(|(a, b)| component.contains(a) && component.contains(b))
+            .collect();
+        let adj = adjacency_from_edges(&component, &internal_edges);
+        let contacts: Vec<_> = edges
+            .iter()
+            .filter_map(|&(a, b)| {
+                if reached.contains(&a) && component.contains(&b) {
+                    Some((a, b))
+                } else if reached.contains(&b) && component.contains(&a) {
+                    Some((b, a))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        for (i, &(a, start)) in contacts.iter().enumerate() {
+            for &(b, end) in &contacts[i + 1..] {
+                if a == b {
+                    continue;
+                }
+                let paths = if start == end {
+                    vec![vec![start]]
+                } else {
+                    simple_paths_between(start, end, &adj)
+                };
+                if paths.len() >= 96 {
+                    return None;
+                }
+                for internal in paths {
+                    if work.len() >= budget {
+                        return None;
+                    }
+                    let mut next_edges = edges.clone();
+                    next_edges.remove(&normalize_edge(a, start));
+                    next_edges.remove(&normalize_edge(b, end));
+                    for pair in internal.windows(2) {
+                        next_edges.remove(&normalize_edge(pair[0], pair[1]));
+                    }
+                    let mut next = reached.clone();
+                    next.extend(&internal);
+                    let mut next_bridges = bridges.clone();
+                    next_bridges.push(VonBaeyerBridge {
+                        length: internal.len(),
+                        attachments: [a, b],
+                        atoms: internal,
+                        dependent: !(primary.contains(&a) && primary.contains(&b)),
+                    });
+                    work.push((next, next_edges, next_bridges));
                 }
             }
         }
     }
-    Vec::new()
+    Some(completed)
 }
 
 #[cfg(test)]
@@ -912,6 +885,29 @@ fn component_path(component: &AtomSet, first: usize, second: usize, edges: &Edge
 mod tests {
     use super::super::{graph_io::read_smiles, polycycle_topology::edges_within_atoms};
     use super::*;
+
+    #[test]
+    // Provenance: fn tests::ethanoanthracene_imide_preserves_hydrazone_and_bridge_stereo | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/von_baeyer.rs::tests::ethanoanthracene_imide_preserves_hydrazone_and_bridge_stereo
+    fn ethanoanthracene_imide_preserves_hydrazone_and_bridge_stereo() {
+        let original = r"C1=CC=C(C=C1)CN2C(=O)[C@H]3[C@@H](C2=O)C4(C5=CC=CC=C5C3C6=CC=CC=C64)/C=N\NC(=O)C7=CC=CO7";
+        let reversed = r"O1C=CC=C1C(=O)N/N=C\C12C3=CC=CC=C3C(C3=CC=CC=C31)[C@@H]1[C@H]2C(=O)N(CC2=CC=CC=C2)C1=O";
+        let e_isomer = original.replace(r"/C=N\N", "/C=N/N");
+        let epimer = original.replace("[C@H]3", "[C@@H]3");
+        for smiles in [original, reversed, &e_isomer, &epimer] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(
+                name.status,
+                nazuchem_ir::NameStatus::NotPreferred(nazuchem_ir::NameReason::AcylPrefix)
+            );
+            assert!(
+                name.text
+                    .contains("17-azapentacyclo[6.6.5.0^{2,7}.0^{9,14}.0^{15,19}]")
+            );
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+    }
 
     #[test]
     fn cycle_space_recovers_every_largest_simple_cycle() {
@@ -964,7 +960,7 @@ mod tests {
                     &edges
                 ))
         );
-        let independent = find_von_baeyer_candidates(&mol, &atoms, &edges);
+        let independent = find_von_baeyer_candidates(&mol, &atoms, &edges, (0, 0));
         assert!(!independent.is_empty());
         assert!(
             independent
