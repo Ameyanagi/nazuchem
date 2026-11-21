@@ -2,6 +2,7 @@
 // Origin: mixed
 // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | amide nitrogen charge follow-up
 // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | issue #121
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | issue #138
 // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | issue #186
 // Source: ReShiki | src/naming/openclatura/identity_validation.rs | 327d32fed63a5b3df15b7b8dc5ab84a7c36e0865
 // Copyright (c) 2026 lamalab-org
@@ -15,11 +16,12 @@
 
 //! Input states that the plain-name renderers cannot preserve.
 use super::molecule::Molecule;
-use super::perception::PerceivedGroup;
+use super::perception::{LigandRole, PerceivedGroup};
 use std::collections::BTreeSet;
 
 // Provenance: fn validate_principal_charge_roles | original
 // Source: ReShiki | src/naming/openclatura/identity_validation.rs::validate_principal_charge_roles
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::validate_principal_charge_roles
 pub fn validate_principal_charge_roles(
     mol: &Molecule,
     groups: &[PerceivedGroup],
@@ -39,25 +41,37 @@ pub fn validate_principal_charge_roles(
             "openclatura: mixed ester and anion principal citations are not supported".into(),
         );
     }
-    // The audited thioate equivalence covers R-C(=O)S(-) and R-C(=S)O(-)
-    // for carbon or hydrogen R. The same suffix attached to a heteroatom
-    // can still produce a draft name, but its round trip is unaudited.
+    // The parser localizes thioate charge on oxygen. For a heteroatom-bound
+    // thioate, the identity check cannot equate that graph to the S-anion.
     if matches!(
         key,
         Some("acyl_anion_O_S_chain" | "acyl_anion_O_S_external")
-    ) && selected().any(|g| {
-        g.descriptor.as_ref().is_some_and(|d| {
-            d.centers.iter().any(|&c| {
-                mol.get_neighbors(c).iter().any(|n| {
-                    !d.ligands.iter().any(|l| l.atom == *n)
-                        && !matches!(mol.atoms[n].symbol.as_str(), "C" | "H")
-                })
-            })
-        })
-    }) {
-        mol.mark_name(nazuchem_ir::NameStatus::Unverified(
-            nazuchem_ir::NameReason::AnionParent,
-        ));
+    ) {
+        for descriptor in selected().filter_map(|g| g.descriptor.as_ref()) {
+            for &center in &descriptor.centers {
+                let neighbors = mol.get_neighbors(center);
+                let heteroatom_bound = neighbors.iter().any(|atom| {
+                    !descriptor.ligands.iter().any(|ligand| ligand.atom == *atom)
+                        && !matches!(mol.atoms[atom].symbol.as_str(), "C" | "H")
+                });
+                if !heteroatom_bound {
+                    continue;
+                }
+                if descriptor.ligands.iter().any(|ligand| {
+                    ligand.role == LigandRole::Anionic
+                        && ligand.element == "S"
+                        && neighbors.contains(&ligand.atom)
+                }) {
+                    return Err(
+                        "openclatura: heteroatom-bound thioate charge on sulfur is not supported"
+                            .into(),
+                    );
+                }
+                mol.mark_name(nazuchem_ir::NameStatus::Unverified(
+                    nazuchem_ir::NameReason::AnionParent,
+                ));
+            }
+        }
     }
     // P-72.2.2.2.4: a neutral suffix such as amide would drop the charge of
     // its nitrogen (acetamide for acetylazanide).

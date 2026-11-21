@@ -9,7 +9,7 @@
 //! were generated from.
 
 use nazuchem::{
-    Budget, NameReason, NameStatus, name_to_smiles,
+    Budget, ErrorKind, NameReason, NameStatus, molecule_to_name, name_to_molecule, name_to_smiles,
     s2n::{canonical_smiles, verify_identity},
     smiles_to_name,
 };
@@ -174,27 +174,55 @@ fn thiocarboxylate_round_trip_preserves_other_features() {
 }
 
 #[test]
-fn heteroatom_bound_thioates_are_outside_the_preferred_audit() {
+fn heteroatom_bound_thioates_preserve_the_location_of_the_charge() {
     let budget = Budget::default();
-    let sulfur_anion = "NC(=O)[S-]";
-    let oxygen_anion = "NC(=S)[O-]";
-    let expected = "aminomethanethioate";
-    let parsed = name_to_smiles(expected).unwrap();
-    assert_eq!(
-        canonical_smiles(&parsed, &budget).unwrap(),
-        canonical_smiles(oxygen_anion, &budget).unwrap()
-    );
-    for input in [sulfur_anion, oxygen_anion] {
-        let name = smiles_to_name(input).unwrap();
-        assert_eq!(name.text, expected, "{input}");
-        assert_eq!(
-            name.status,
-            NameStatus::Unverified(NameReason::AnionParent),
-            "{input}"
-        );
+    for (sulfur_anion, sulfur_name, oxygen_anion, expected) in [
+        (
+            "NC(=O)[S-]",
+            "amino(oxo)methanethiolate",
+            "NC(=S)[O-]",
+            "aminomethanethioate",
+        ),
+        (
+            "N1(C(=O)[S-])CCCCC1",
+            "oxo(piperidin-1-yl)methanethiolate",
+            "N1(C(=S)[O-])CCCCC1",
+            "piperidine-1-carbothioate",
+        ),
+    ] {
+        let sulfur_molecule = name_to_molecule(sulfur_name).unwrap();
+        let parsed = name_to_smiles(sulfur_name).unwrap();
+        verify_identity(sulfur_anion, &parsed, &budget).unwrap();
+        for result in [
+            smiles_to_name(sulfur_anion),
+            molecule_to_name(&sulfur_molecule),
+        ] {
+            let error = result.unwrap_err();
+            assert_eq!(error.kind(), ErrorKind::Naming);
+            assert!(
+                error
+                    .to_string()
+                    .contains("heteroatom-bound thioate charge on sulfur")
+            );
+        }
+
+        let oxygen_molecule = name_to_molecule(expected).unwrap();
+        for result in [
+            smiles_to_name(oxygen_anion),
+            molecule_to_name(&oxygen_molecule),
+        ] {
+            let name = result.unwrap();
+            assert_eq!(name.text, expected);
+            assert_eq!(name.status, NameStatus::Unverified(NameReason::AnionParent));
+            let parsed = name_to_smiles(&name.text).unwrap();
+            assert_eq!(
+                canonical_smiles(&parsed, &budget).unwrap(),
+                canonical_smiles(oxygen_anion, &budget).unwrap()
+            );
+        }
+        assert!(verify_identity(sulfur_anion, oxygen_anion, &budget).is_err());
+        assert!(verify_identity(oxygen_anion, sulfur_anion, &budget).is_err());
     }
-    assert!(verify_identity(sulfur_anion, oxygen_anion, &budget).is_err());
-    assert!(verify_identity(oxygen_anion, sulfur_anion, &budget).is_err());
 }
 
 #[test]

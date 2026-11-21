@@ -5406,6 +5406,7 @@ origin = "mixed"
 license = "MIT AND (MIT OR Apache-2.0)"
 sources = [
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "issue #121", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "issue #138", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "amide nitrogen charge follow-up", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "issue #186", license = "MIT OR Apache-2.0" },
   { project = "ReShiki", path = "src/naming/openclatura/identity_validation.rs", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0" },
@@ -5422,6 +5423,7 @@ parts = [
   { items = ["fn supported_hydride_prefix_context"], origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "issue #121", license = "MIT OR Apache-2.0", symbol = "supported_hydride_prefix_context" }] },
   { items = ["fn validate_principal_charge_roles"], origin = "original", sources = [
     { project = "ReShiki", path = "src/naming/openclatura/identity_validation.rs", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0", symbol = "validate_principal_charge_roles" },
+    { project = "Nazuchem", path = "crates/nazuchem-s2n/src/identity_validation.rs", ref = "issue #138", license = "MIT OR Apache-2.0", symbol = "validate_principal_charge_roles" },
   ] },
   { items = ["fn validate_input"], origin = "original", sources = [
     { project = "ReShiki", path = "src/naming/openclatura/identity_validation.rs", ref = "327d32fed63a5b3df15b7b8dc5ab84a7c36e0865", license = "MIT OR Apache-2.0", symbol = "validate_input" },
