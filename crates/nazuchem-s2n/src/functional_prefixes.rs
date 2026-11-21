@@ -13,8 +13,11 @@
 use super::{
     assembly_parts::{RenderedSubstituentName, SubstituentItem},
     assembly_prefixes::substituent_sort_key,
-    component_group_rules::{amide_nitrogen, ester_or_peroxy_single_oxygen, is_carboxylate_group},
-    formatting::{format_center_ligands_by, format_multiplier, strip_outer_parentheses},
+    component_group_rules::{amide_nitrogen, ester_single_oxygen, is_carboxylate_group},
+    formatting::{
+        format_center_ligands_by, format_element_substituent, format_multiplier,
+        strip_outer_parentheses,
+    },
     molecule::{AtomSet, Molecule, bond_ids_within},
     namer::{name_subgraph_rendered, name_subgraph_with_upstream},
     nomenclature::{ChalcogenElement, NAMER_RULES, RULES},
@@ -104,6 +107,24 @@ fn descriptor_ester_prefix(
     let mut blocked = context.sub_exclude.clone();
     blocked.insert(terminal.atom);
     let branch = name_subgraph_rendered(context.mol, root, &blocked, Some(terminal.atom), false)?;
+    let base = if d.family == "central_acid" {
+        central_linkage_prefix(group).unwrap_or("")
+    } else {
+        chalcogen_term(&doubles[0].element, "acyl_center_prefix", |e| {
+            &e.acyl_center_prefix
+        })?
+    };
+    if d.family == "acyl"
+        && let [linker, _] = linkers.as_slice()
+        && linker.role == LigandRole::ChalcogenLink
+        && linker.element == "O"
+        && terminal.element == "O"
+    {
+        // P-63.3.1 and P-16.5.1.1: the organylperoxy group is a compound
+        // prefix when concatenated with carbonyl (P-65.2.1.5).
+        let peroxy = format_element_substituent("", &branch.text, "peroxy", false);
+        return Ok(Some(format_element_substituent("", &peroxy, base, false)));
+    }
     let mut ligand = element_ligand(branch, &terminal.element)?;
     for linker in linkers[..linkers.len() - 1].iter().rev() {
         ligand = element_ligand(
@@ -114,13 +135,17 @@ fn descriptor_ester_prefix(
             &linker.element,
         )?;
     }
-    let base = if d.family == "central_acid" {
-        central_linkage_prefix(group).unwrap_or("")
-    } else {
-        chalcogen_term(&doubles[0].element, "acyl_center_prefix", |e| {
-            &e.acyl_center_prefix
-        })?
-    };
+    if d.family == "acyl"
+        && doubles[0].element == "S"
+        && terminal.element == "S"
+        && linkers.len() == 1
+    {
+        // P-65.6.3.3.7.1: -(CS)-SR is cited as (organylsulfanyl)carbonothioyl.
+        return Ok(Some(format!(
+            "(({}){base})",
+            strip_outer_parentheses(&ligand)
+        )));
+    }
     Ok(Some(format!(
         "({}{base})",
         strip_outer_parentheses(&ligand)
@@ -200,19 +225,24 @@ fn nitrogen_group_prefix(
     group: &PerceivedGroup,
 ) -> Result<String, String> {
     let mol = context.mol;
-    let hydrazine = group.key == "hydrazine";
     let amidine = matches!(group.key.as_str(), "amidine" | "ring_amidine");
+    let hydrazide = !amidine && group.key != "hydrazine";
     let mut ns: Vec<_> = group
         .atoms_involved
         .iter()
         .copied()
         .filter(|i| mol.atoms[i].symbol == "N")
         .collect();
+    // The acyl centre of a hydrazide: carbon, or sulfur in hydrazinesulfonyl.
     let core = group
         .atoms_involved
         .iter()
         .copied()
-        .find(|i| mol.atoms[i].is_carbon() && ns.iter().any(|&n| mol.get_bond(*i, n).is_some()))
+        .find(|i| {
+            mol.atoms[i].symbol != "N"
+                && (hydrazide || mol.atoms[i].is_carbon())
+                && ns.iter().any(|&n| mol.get_bond(*i, n).is_some())
+        })
         .unwrap_or(group.attachment_carbon);
     ns.sort_by_key(|&n| {
         if amidine {
@@ -221,25 +251,35 @@ fn nitrogen_group_prefix(
             usize::from(mol.get_bond(n, core).is_none())
         }
     });
+    // P-68.3.1.2.1: hydrazinyl, its substituents numbered 1 and 2. P-66.3.2.2:
+    // a hydrazide ending the parent chain is hydrazinyl with oxo (cited by
+    // collect_component_prefix_substituents).
+    if group.key == "hydrazine" || hydrazide && context.parent_path.contains(&core) {
+        return name_subgraph_with_upstream(mol, ns[0], context.sub_exclude, Some(core));
+    }
     let stereo = if amidine {
         ns.last()
             .and_then(|&n| mol.get_bond(n, core))
             .and_then(|b| b.stereo.as_ref())
+            .filter(|_| !super::formatting::descriptors_omitted())
             .map(|s| format!("({s})-"))
             .unwrap_or_default()
     } else {
         String::new()
     };
-    let base = if hydrazine {
-        "hydrazinyl"
-    } else if amidine {
-        "carbamimidoyl"
+    // P-66.3.2.1: elsewhere a hydrazide is the acyl prefix of the hydrazine
+    // acid, as hydrazinecarbonyl, hydrazinecarbothioyl or hydrazinesulfonyl.
+    let acyl = group.prefix().unwrap_or("hydrazinecarbonyl");
+    let base = if amidine {
+        "carbamimidoyl".into()
     } else {
-        "hydrazinecarbonyl"
+        // P-16.5.1.4: it names the parent hydride hydrazine, so it is
+        // enclosed although simple.
+        format!("({acyl})")
     };
     let mut names: Vec<(String, Vec<String>)> = Vec::new();
     for (index, &n) in ns.iter().take(2).enumerate() {
-        let loc = if hydrazine || amidine {
+        let loc = if amidine {
             if index == 0 { "N" } else { "N'" }
         } else if index == 0 {
             "1"
@@ -256,6 +296,17 @@ fn nitrogen_group_prefix(
             let mut blocked = context.sub_exclude.clone();
             blocked.insert(n);
             let text = name_subgraph_with_upstream(mol, root, &blocked, Some(n))?;
+            // P-66.3.2.3, P-66.3.3.3: with a second acyl group the preferred
+            // prefix may be the hydrazido form of the other acid, as
+            // acetohydrazido; that choice is not made here.
+            if hydrazide
+                && mol.get_neighbors(root).iter().any(|&x| {
+                    mol.bond_order(root, x) == 2
+                        && matches!(mol.atoms[&x].symbol.as_str(), "O" | "S" | "Se" | "Te")
+                })
+            {
+                mol.mark_name(NameStatus::NotPreferred(NameReason::AminoPrefix));
+            }
             if let Some((_, locants)) = names.iter_mut().find(|(name, _)| name == &text) {
                 locants.push(loc.into());
             } else {
@@ -265,14 +316,12 @@ fn nitrogen_group_prefix(
     }
     if names.is_empty() {
         return Ok(if stereo.is_empty() {
-            base.into()
+            base
         } else {
             format!("({stereo}{base})")
         });
     }
-    if !hydrazine {
-        names.sort_by_key(|(name, _)| substituent_sort_key(name));
-    }
+    names.sort_by_key(|(name, _)| substituent_sort_key(name));
     let prefixes = names
         .into_iter()
         .map(|(name, locs)| {
@@ -288,8 +337,8 @@ fn nitrogen_group_prefix(
         })
         .collect::<Vec<_>>()
         .join("-");
-    let base = if !hydrazine && !amidine {
-        "hydrazine-1-carbonyl"
+    let base = if hydrazide {
+        acyl.replacen("hydrazine", "hydrazine-1-", 1)
     } else {
         base
     };
@@ -304,7 +353,7 @@ pub fn ester_prefix_from_group(
     exclude: &AtomSet,
     suffix: &str,
 ) -> Result<String, String> {
-    let Some(oxygen) = ester_or_peroxy_single_oxygen(mol, group) else {
+    let Some(oxygen) = ester_single_oxygen(mol, group) else {
         return Ok(String::new());
     };
     let Some(&root) = mol
@@ -317,12 +366,6 @@ pub fn ester_prefix_from_group(
     let mut blocked = exclude.clone();
     blocked.insert(oxygen);
     let branch = name_subgraph_rendered(mol, root, &blocked, Some(oxygen), false)?;
-    if RULES.prefixes.peroxy_ester_groups.contains(&group.key) {
-        return Ok(format!(
-            "({}peroxycarbonyl)",
-            format_multiplier(&strip_outer_parentheses(&branch.text), 1, false)
-        ));
-    }
     Ok(format!("({}{suffix})", branch.into_oxy_prefix()))
 }
 
@@ -333,6 +376,13 @@ pub fn amide_prefix_from_group(
     group: &PerceivedGroup,
     exclude: &AtomSet,
 ) -> Result<String, String> {
+    if group
+        .descriptor
+        .as_ref()
+        .is_some_and(|d| d.derivative == "amidium")
+    {
+        return Err("openclatura: amidium substituent prefix is not supported".into());
+    }
     let Some(nitrogen) = amide_nitrogen(mol, group) else {
         return Ok(String::new());
     };
@@ -381,6 +431,20 @@ pub fn prefix_from_group(
     if is_carboxylate_group(group) {
         return Ok("carboxylato".into());
     }
+    // P-65.1.4.1 and P-72.6.1: replace the external acid anion suffix
+    // carboperoxoate's ending with -ato for a singly bonded substituent.
+    if let Some(d) = &group.descriptor
+        && d.family == "acyl"
+        && d.derivative == "anion"
+        && d.ligands.len() == 3
+    {
+        if d.ligands.iter().any(|l| l.element != "O")
+            || d.centers.iter().any(|c| context.parent_path.contains(c))
+        {
+            return Err("openclatura: peroxy acid anion prefix not ported".into());
+        }
+        return Ok("carboperoxoato".into());
+    }
     if RULES.functional_groups.get(&group.key).is_none()
         && let Some(d) = &group.descriptor
         && d.family == "central_acid"
@@ -405,10 +469,9 @@ pub fn prefix_from_group(
             .cited_prefix_for(&group.key)
             .unwrap_or_default());
     }
-    if matches!(
-        group.key.as_str(),
-        "hydrazide" | "ring_hydrazide" | "amidine" | "ring_amidine" | "hydrazine"
-    ) {
+    if rule.has_capability("hydrazide")
+        || matches!(group.key.as_str(), "amidine" | "ring_amidine" | "hydrazine")
+    {
         return nitrogen_group_prefix(context, group);
     }
     if group.key == "imino_prefix" || group.key == "iminium" {
@@ -466,8 +529,10 @@ pub fn prefix_from_group(
     }
     if families.contains("sulfonyl") {
         let name = ester_prefix_from_group(context.mol, group, context.sub_exclude, "sulfonyl")?;
+        // P-72.6.1: without an ester group the registry prefix applies,
+        // `sulfo` for the acid and `sulfonato` for its anion.
         return Ok(if name.is_empty() {
-            "sulfo".into()
+            rule.prefix.clone().unwrap_or_default()
         } else {
             name
         });
@@ -522,7 +587,8 @@ pub fn prefix_from_group(
                 })?
             ));
         }
-        return Ok("hydroperoxycarbonyl".into());
+        // P-65.1.4.2 (1): 2-carbonoperoxoylbenzoic acid.
+        return Ok("carbonoperoxoyl".into());
     }
     if rule.has_capability("acyl_leaving_group") {
         return Ok(rule
@@ -535,15 +601,49 @@ pub fn prefix_from_group(
         return Ok("cyano".into());
     }
     if families.contains("carboxy_prefix") {
+        // P-65.2.1.6: a chalcogen analogue of carboxy names its own atoms,
+        // `sulfanylcarbonyl` (HS-CO-) and `hydroxycarbonothioyl` (HO-CS-);
+        // `dithiocarboxy` (HS-CS-) needs no position.
+        if let Some([double, single]) = group
+            .descriptor
+            .as_ref()
+            .filter(|d| d.derivative == "acid")
+            .map(|d| d.ligands.as_slice())
+            && (double.element != "O" || single.element != "O")
+        {
+            if double.element == single.element {
+                return Ok(format!("({})", rule.prefix.as_deref().unwrap_or_default()));
+            }
+            let hydride = if single.element == "O" {
+                "hydroxy"
+            } else {
+                chalcogen_term(&single.element, "substituent_suffix", |e| {
+                    &e.substituent_suffix
+                })?
+            };
+            return Ok(format!(
+                "({hydride}{})",
+                chalcogen_term(&double.element, "acyl_center_prefix", |e| {
+                    &e.acyl_center_prefix
+                })?
+            ));
+        }
+        // `carboxy` would drop the charge of a chalcogen analogue of
+        // carboxylato (all-oxygen carboxylato is handled above).
+        if group
+            .descriptor
+            .as_ref()
+            .is_some_and(|d| d.derivative == "anion")
+        {
+            return Err("openclatura: chalcogen carboxylate anion prefix not ported".into());
+        }
         return Ok("carboxy".into());
     }
     if families.contains("amide_like") || rule.has_capability("amide_like") {
         return amide_prefix_from_group(context.mol, group, context.sub_exclude);
     }
     if families.contains("ester_like") || rule.has_capability("ester_like") {
-        if !RULES.prefixes.peroxy_ester_groups.contains(&group.key)
-            && let Some(prefix) = descriptor_ester_prefix(context, group)?
-        {
+        if let Some(prefix) = descriptor_ester_prefix(context, group)? {
             return Ok(prefix);
         }
         return ester_prefix_from_group(context.mol, group, context.sub_exclude, "carbonyl");
@@ -593,8 +693,25 @@ pub fn collect_component_prefix_substituents(
             .as_ref()
             .is_some_and(|r| r.families.contains("prefix_skip"))
             || !parent.contains(&group.attachment_carbon)
+            // Branch collection names the separate ligands of a chain-end
+            // acyl group, or of an acyl carbon that is the whole parent.
+            // Hydrazides use their own prefix handling below.
+            || group.descriptor.as_ref().is_some_and(|d| {
+                d.family == "acyl"
+                    && (d.uses_chain_end_ligand_prefixes()
+                        || path.len() == 1 && d.derivative != "hydrazide")
+                    && d.centers.contains(&group.attachment_carbon)
+            })
         {
             continue;
+        }
+        // P-66.5.1.1.4: cyano is the whole -CN group as a substituent, so a
+        // nitrile carbon that is itself the whole parent cannot be cited
+        // that way; cyanomethane would count the carbon twice.
+        if group.key == "nitrile" && path.len() == 1 && group.atoms_involved.contains(&path[0]) {
+            return Err(
+                "openclatura: a nitrile carbon that is the whole parent has no cyano prefix".into(),
+            );
         }
         let name = prefix_from_group(&context, group)?;
         if name.is_empty() {
@@ -618,6 +735,15 @@ pub fn collect_component_prefix_substituents(
         let mut bond_atoms = atoms.clone();
         bond_atoms.insert(group.attachment_carbon);
         let mut item = SubstituentItem::new(name, vec![]);
+        // P-82.2.1: (131I)iodo, (13C)carboxy; not before an enclosed prefix.
+        if atoms == group.atoms_involved
+            && !item.name.starts_with('(')
+            && let Some((descriptor, cited)) = super::isotope_naming::group_descriptor(mol, &atoms)
+        {
+            item.name = format!("{descriptor}{}", item.name);
+            item.isotope_atoms = cited;
+            item.isotope_descriptors = vec![descriptor];
+        }
         // Cyano is a simple characteristic prefix even when its parent
         // locant is omitted and another substituent is cited beside it.
         item.outer_parentheses_optional = matches!(group.key.as_str(), "nitrile" | "ring_nitrile");
@@ -633,6 +759,39 @@ pub fn collect_component_prefix_substituents(
             .or_default()
             .push(item);
         handled.extend(&group.atoms_involved);
+        // P-66.3.2.2: a hydrazide carbonyl carbon ending the parent chain
+        // cites its chalcogen beside hydrazinyl, as in
+        // 3-hydrazinyl-3-oxopropanoic acid and
+        // 2-hydrazinyl-2-sulfanylideneacetohydrazide (P-66.3.4).
+        if let Some(double) = group
+            .descriptor
+            .as_ref()
+            .filter(|d| d.derivative == "hydrazide" && d.centers.contains(&group.attachment_carbon))
+            .and_then(|d| {
+                d.ligands
+                    .iter()
+                    .find(|l| l.role == LigandRole::DoubleBonded)
+            })
+        {
+            let name = if double.element == "O" {
+                "oxo".into()
+            } else {
+                format!(
+                    "{}idene",
+                    chalcogen_term(&double.element, "substituent_suffix", |e| {
+                        &e.substituent_suffix
+                    })?
+                )
+            };
+            let mut item = SubstituentItem::new(name, vec![]);
+            item.atom_ids = AtomSet::from([double.atom]);
+            item.bond_ids =
+                bond_ids_within(mol, &AtomSet::from([group.attachment_carbon, double.atom]));
+            mapping
+                .entry(group.attachment_carbon)
+                .or_default()
+                .push(item);
+        }
     }
     Ok((mapping, handled))
 }
@@ -673,6 +832,336 @@ mod tests {
                 expected
             );
         }
+    }
+
+    /// Issue #148: an amide cited as a prefix.
+    #[test]
+    fn amide_prefixes_follow_p_66_1_1_4_1() {
+        use nazuchem_ir::NameStatus;
+
+        for (smiles, expected) in [
+            // P-66.1.1.4.1.1 (1), P-65.1.6.1: -CO-NH2 ending a chain of two
+            // or more carbons is amino + oxo (4-amino-4-oxobutanoic acid,
+            // 3-amino-3-oxopropanoic acid).
+            ("OC(=O)CCC(N)=O", "4-amino-4-oxobutanoic acid"),
+            ("OC(=O)CC(N)=O", "3-amino-3-oxopropanoic acid"),
+            ("NC(=O)CCC(=O)OC", "methyl 4-amino-4-oxobutanoate"),
+            ("OS(=O)(=O)CC(N)=O", "2-amino-2-oxoethane-1-sulfonic acid"),
+            // P-103.1.1.1: asparagine and glutamine.
+            ("NC(=O)CC(N)C(O)=O", "2,4-diamino-4-oxobutanoic acid"),
+            ("NC(=O)CCC(N)C(O)=O", "2,5-diamino-5-oxopentanoic acid"),
+            // P-66.1.1.4.1.2: -CO-CO-NH2 (4-amino-3,4-dioxobutanoic acid).
+            ("OC(=O)CC(=O)C(N)=O", "4-amino-3,4-dioxobutanoic acid"),
+            // P-66.1.4.4: chalcogen analogues
+            // (3-amino-3-sulfanylidenepropanoic acid).
+            ("OC(=O)CC(N)=S", "3-amino-3-sulfanylidenepropanoic acid"),
+            ("OC(=O)CC(N)=[Se]", "3-amino-3-selanylidenepropanoic acid"),
+            ("NC(=O)CCC(N)=S", "4-amino-4-sulfanylidenebutanamide"),
+            // P-66.1.1.4.1.1, P-65.1.6.2: the amino group is substituted in
+            // the normal way (5-anilino-5-oxopentanoic acid,
+            // anilino(oxo)acetic acid).
+            ("OC(=O)CCCC(=O)Nc1ccccc1", "5-anilino-5-oxopentanoic acid"),
+            ("OC(=O)C(=O)Nc1ccccc1", "anilino(oxo)acetic acid"),
+            ("OC(=O)C(=O)NC1=CC=CC=C1", "anilino(oxo)acetic acid"),
+            ("OC(=O)CCC(=O)NC", "4-(methylamino)-4-oxobutanoic acid"),
+            ("OC(=O)CCC(=O)N(C)C", "4-(dimethylamino)-4-oxobutanoic acid"),
+            // P-45.2.1: of two chains of equal length, the one through the
+            // amide carbon has more substituents cited as prefixes, as in
+            // 2-methyl-3-(methylamino)-3-oxopropyl.
+            ("OC(=O)CC(C)C(N)=O", "4-amino-3-methyl-4-oxobutanoic acid"),
+            (
+                "OC(=O)c1ccc(cc1)CC(C)C(N)=O",
+                "4-(3-amino-2-methyl-3-oxopropyl)benzoic acid",
+            ),
+            (
+                "OC(=O)CC(CC(N)=O)CC(N)=O",
+                "5-amino-3-(2-amino-2-oxoethyl)-5-oxopentanoic acid",
+            ),
+            // P-66.1.1.4.1.1 (2): carbamoyl on a ring and on a nonterminal
+            // chain atom (2-carbamoylbenzoic acid,
+            // 3-(dimethylcarbamoyl)pentanedioic acid).
+            ("OC(=O)c1ccccc1C(N)=O", "2-carbamoylbenzoic acid"),
+            (
+                "OC(=O)CC(CC(O)=O)C(=O)N(C)C",
+                "3-(dimethylcarbamoyl)pentanedioic acid",
+            ),
+            ("OC(=O)CC(CC)C(N)=O", "3-carbamoylpentanoic acid"),
+            (
+                "OC(=O)CC(C(N)=O)C(N)=O",
+                "4-amino-3-carbamoyl-4-oxobutanoic acid",
+            ),
+            (
+                "OC(=O)c1ccc(o1)CC(N)=O",
+                "5-(2-amino-2-oxoethyl)furan-2-carboxylic acid",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                "{expected}"
+            );
+        }
+        // P-65.1.1.1, P-65.1.6.1: oxamic acid is retained, may be
+        // substituted and is not generated; its systematic names are not
+        // labelled preferred.
+        for (smiles, expected) in [
+            ("OC(=O)C(N)=O", "amino(oxo)acetic acid"),
+            ("COC(=O)C(N)=O", "methyl amino(oxo)acetate"),
+            ("OC(=O)C(=O)NC", "(methylamino)(oxo)acetic acid"),
+            ("OC(=O)C(=O)N(C)C", "(dimethylamino)(oxo)acetic acid"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(
+                name.status,
+                NameStatus::NotPreferred(nazuchem_ir::NameReason::UnretainedParent),
+                "{smiles}"
+            );
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                "{expected}"
+            );
+        }
+    }
+
+    /// Issue #153: an amide, ester or acid halide carbon that is the whole
+    /// parent of a sulfur acid.
+    #[test]
+    fn one_carbon_acyl_parents_cite_their_ligands() {
+        use nazuchem_ir::{NameReason, NameStatus};
+
+        for (smiles, expected) in [
+            // P-65.3.1: the sulfonic or sulfinic acid suffix sits on methane,
+            // whose carbon is the amide carbon, so carbamoyl (P-65.2.1.5)
+            // would cite that carbon twice. Amino with oxo is the remaining
+            // substitutive form; P-66.1.1.4.1.1 (1) states it only for chains
+            // of two or more carbons, so the names are not labelled preferred.
+            ("NC(=O)S(O)(=O)=O", "amino(oxo)methanesulfonic acid"),
+            ("NC(=O)S(=O)(=O)[O-]", "amino(oxo)methanesulfonate"),
+            ("NC(=O)S(=O)(=O)OC", "methyl amino(oxo)methanesulfonate"),
+            ("NC(=O)S(Cl)(=O)=O", "amino(oxo)methanesulfonyl chloride"),
+            ("NC(=O)S(O)=O", "amino(oxo)methanesulfinic acid"),
+            ("NC(=O)[Se](O)(=O)=O", "amino(oxo)methaneselenonic acid"),
+            // P-65.3.1.1: functional replacement in the suffix.
+            ("NC(=O)S(O)(=O)=S", "amino(oxo)methanesulfonothioic O-acid"),
+            // P-66.1.4.4: chalcogen analogues of the amide.
+            (
+                "NC(=S)S(O)(=O)=O",
+                "amino(sulfanylidene)methanesulfonic acid",
+            ),
+            // P-66.1.1.4.1.1: the amino group is substituted in the normal
+            // way.
+            (
+                "CNC(=O)S(O)(=O)=O",
+                "(methylamino)(oxo)methanesulfonic acid",
+            ),
+            (
+                "CN(C)C(=O)S(O)(=O)=O",
+                "(dimethylamino)(oxo)methanesulfonic acid",
+            ),
+            (
+                "O=C(Nc1ccccc1)S(O)(=O)=O",
+                "anilino(oxo)methanesulfonic acid",
+            ),
+            // Esters and acid halides share the cause: alkoxy or halo with
+            // oxo (P-65.6.3.2.3, P-65.5.4 (3)). Neither rule says whether a
+            // single carbon counts as a chain end, so these are not labelled
+            // preferred either.
+            ("COC(=O)S(O)(=O)=O", "methoxy(oxo)methanesulfonic acid"),
+            ("ClC(=O)S(O)(=O)=O", "chloro(oxo)methanesulfonic acid"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(
+                name.status,
+                NameStatus::Unverified(NameReason::UnauditedParent),
+                "{smiles}"
+            );
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                "{expected}"
+            );
+        }
+        // Unchanged neighbours: a chain of two carbons (P-66.1.1.4.1.1 (1))
+        // and a formamide parent.
+        for (smiles, expected) in [
+            ("NC(=O)CS(O)(=O)=O", "2-amino-2-oxoethane-1-sulfonic acid"),
+            ("NC(=O)S(N)(=O)=O", "1-sulfamoylformamide"),
+            ("NC(=O)S(=O)(=O)c1ccccc1", "1-(benzenesulfonyl)formamide"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+        }
+    }
+
+    /// Issue #141: a hydrazide cited as a prefix.
+    #[test]
+    fn hydrazide_prefixes_follow_p_66_3_2() {
+        use nazuchem_ir::NameStatus;
+
+        for (smiles, expected) in [
+            // P-66.3.2.2: -CO-NHNH2 ending a chain is hydrazinyl + oxo
+            // (3-hydrazinyl-3-oxopropanoic acid); in a substituent chain as
+            // the amide in 2-amino-2-oxoethyl (P-66.1.1.4.1.1).
+            ("OC(=O)CC(=O)NN", "3-hydrazinyl-3-oxopropanoic acid"),
+            ("OC(=O)CCC(=O)NN", "4-hydrazinyl-4-oxobutanoic acid"),
+            ("NC(=N)CCC(=O)NN", "4-hydrazinyl-4-oxobutanimidamide"),
+            ("NNC(=O)CCC(N)=O", "4-hydrazinyl-4-oxobutanamide"),
+            (
+                "OC(=O)c1ccc(cc1)CCC(=O)NN",
+                "4-(3-hydrazinyl-3-oxopropyl)benzoic acid",
+            ),
+            (
+                "NC(N)=NCCC(=O)NN",
+                "N''-(3-hydrazinyl-3-oxopropyl)guanidine",
+            ),
+            (
+                "OC(=O)CC(CC(=O)NN)CC(=O)NN",
+                "5-hydrazinyl-3-(2-hydrazinyl-2-oxoethyl)-5-oxopentanoic acid",
+            ),
+            // P-45.2.1: of two chains of equal length, the one through the
+            // hydrazide carbon has more substituents cited as prefixes.
+            (
+                "OC(=O)CC(C)C(=O)NN",
+                "4-hydrazinyl-3-methyl-4-oxobutanoic acid",
+            ),
+            (
+                "OC(=O)c1ccc(cc1)CC(C)C(=O)NN",
+                "4-(3-hydrazinyl-2-methyl-3-oxopropyl)benzoic acid",
+            ),
+            // P-66.3.4: 2-hydrazinyl-2-sulfanylideneacetohydrazide.
+            (
+                "NNC(=O)C(=S)NN",
+                "2-hydrazinyl-2-sulfanylideneacetohydrazide",
+            ),
+            (
+                "OC(=O)CCC(=S)NN",
+                "4-hydrazinyl-4-sulfanylidenebutanoic acid",
+            ),
+            // P-66.3.2.3 (2), P-66.3.6: a substituted hydrazinyl takes the
+            // locants 1 and 2, as in 2-(benzylidenehydrazinyl)-2-oxoacetamide.
+            (
+                "OC(=O)CCC(=O)NNC",
+                "4-(2-methylhydrazin-1-yl)-4-oxobutanoic acid",
+            ),
+            (
+                "OC(=O)CCC(=O)N(C)N",
+                "4-(1-methylhydrazin-1-yl)-4-oxobutanoic acid",
+            ),
+            // P-66.3.2.3: R-CO-N(NH2)- is a substituted hydrazinyl, as in
+            // 4-(1-acetyl-2-ethylhydrazin-1-yl)benzoic acid.
+            (
+                "OC(=O)CCC(=O)N(N)C(C)=O",
+                "4-(1-acetylhydrazin-1-yl)-4-oxobutanoic acid",
+            ),
+            // P-66.3.2.2 and P-66.3.2.3 (1): at a chain end the
+            // acetohydrazido prefix accompanies oxo.
+            (
+                "OC(=O)CCC(=O)NNC(C)=O",
+                "4-acetohydrazido-4-oxobutanoic acid",
+            ),
+            // P-66.3.2.1 (1), P-16.5.1.4: on a ring, a heteroatom or a
+            // nonterminal chain atom the acyl prefix of the hydrazine acid,
+            // enclosed because it names the parent hydride hydrazine, as in
+            // 2-(hydrazinecarbonyl)benzene-1-sulfonic acid,
+            // (hydrazinesulfonyl)acetic acid and
+            // 3-(hydrazinesulfinyl)naphthalene-2-carboxylic acid.
+            (
+                "OS(=O)(=O)c1ccccc1C(=O)NN",
+                "2-(hydrazinecarbonyl)benzene-1-sulfonic acid",
+            ),
+            ("OC(=O)CS(=O)(=O)NN", "(hydrazinesulfonyl)acetic acid"),
+            (
+                "OC(=O)c1cc2ccccc2cc1S(=O)NN",
+                "3-(hydrazinesulfinyl)naphthalene-2-carboxylic acid",
+            ),
+            (
+                "NC(=N)c1ccc(cc1)C(=O)NN",
+                "4-(hydrazinecarbonyl)benzene-1-carboximidamide",
+            ),
+            // P-66.3.5.2 illustrates the enclosed acyl group on O and N.
+            (
+                "NNC(=O)Oc1ccc(C(=O)O)cc1",
+                "4-[(hydrazinecarbonyl)oxy]benzoic acid",
+            ),
+            (
+                "OC(=O)c1ccc(NC(=O)NN)cc1",
+                "4-[(hydrazinecarbonyl)amino]benzoic acid",
+            ),
+            (
+                "OC(=O)CCOC(=O)NN",
+                "3-[(hydrazinecarbonyl)oxy]propanoic acid",
+            ),
+            (
+                "OC(=O)CCNC(=O)NN",
+                "3-[(hydrazinecarbonyl)amino]propanoic acid",
+            ),
+            (
+                "OC(=O)c1ccc(cc1)C(=S)NN",
+                "4-(hydrazinecarbothioyl)benzoic acid",
+            ),
+            (
+                "OC(=O)CC(CC(=O)O)C(=O)NN",
+                "3-(hydrazinecarbonyl)pentanedioic acid",
+            ),
+            (
+                "OC(=O)c1ccc(cc1)CC(C(=O)NN)CC",
+                "4-[2-(hydrazinecarbonyl)butyl]benzoic acid",
+            ),
+            (
+                "OC(=O)c1cc(C(=O)NN)cc(C(=O)NN)c1",
+                "3,5-di(hydrazinecarbonyl)benzoic acid",
+            ),
+            // Substituted acyl prefixes keep every substituent and its locant
+            // (2-methylhydrazine-1-carboxylic acid, P-68.3.1.2.1).
+            (
+                "OC(=O)c1ccc(cc1)C(=O)NNC",
+                "4-(2-methylhydrazine-1-carbonyl)benzoic acid",
+            ),
+            (
+                "OC(=O)c1ccc(cc1)C(=S)N(C)N",
+                "4-(1-methylhydrazine-1-carbothioyl)benzoic acid",
+            ),
+            (
+                "OC(=O)c1ccc(cc1)S(=O)(=O)NNC",
+                "4-(2-methylhydrazine-1-sulfonyl)benzoic acid",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                "{expected}"
+            );
+        }
+        // The diacylhydrazine attached to the ring through the acyl
+        // carbon still requires a choice under P-66.3.2.1 and P-66.3.3.3.
+        let smiles = "OC(=O)c1ccc(cc1)C(=O)NNC(C)=O";
+        let name = name_smiles(smiles, &Default::default()).unwrap();
+        assert_ne!(
+            name.status,
+            NameStatus::Preferred,
+            "{smiles}: {}",
+            name.text
+        );
+        let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+        assert_eq!(
+            crate::test_support::canonical_smiles(&parsed).unwrap(),
+            crate::test_support::canonical_smiles(smiles).unwrap(),
+            "{}",
+            name.text
+        );
     }
 
     #[test]
@@ -729,23 +1218,52 @@ mod tests {
     }
 
     #[test]
-    fn peroxy_ester_prefix_encloses_only_complex_ligands() {
-        for (smiles, expected) in [
-            ("COOC(=O)CC(=O)O", "(methylperoxycarbonyl)acetic acid"),
+    fn peroxy_ester_prefix_enclosure_is_independent_of_atom_order() {
+        for (expected, inputs) in [
             (
-                "CC(C)OOC(=O)CC(=O)O",
-                "[(propan-2-yl)peroxycarbonyl]acetic acid",
+                "2-[(methylperoxy)carbonyl]benzoic acid",
+                ["COOC(=O)c1ccccc1C(=O)O", "O=C(O)c1ccccc1C(=O)OOC"],
+            ),
+            (
+                "4-[(methylperoxy)carbonyl]benzoic acid",
+                ["O=C(O)c1ccc(C(=O)OOC)cc1", "COOC(=O)c1ccc(C(=O)O)cc1"],
+            ),
+            (
+                "2-{[(propan-2-yl)peroxy]carbonyl}benzoic acid",
+                ["CC(C)OOC(=O)c1ccccc1C(=O)O", "O=C(O)c1ccccc1C(=O)OOC(C)C"],
+            ),
+            (
+                "4-{[(chloromethyl)peroxy]carbonyl}benzoic acid",
+                ["O=C(O)c1ccc(C(=O)OOCCl)cc1", "ClCOOC(=O)c1ccc(C(=O)O)cc1"],
+            ),
+            (
+                "4-[(methylperoxy)carbonothioyl]benzoic acid",
+                ["O=C(O)c1ccc(C(=S)OOC)cc1", "COOC(=S)c1ccc(C(=O)O)cc1"],
+            ),
+            (
+                "4-[(methylsulfanyl)carbonothioyl]benzoic acid",
+                ["O=C(O)c1ccc(C(=S)SC)cc1", "CSC(=S)c1ccc(C(=O)O)cc1"],
+            ),
+            (
+                "4-(methoxycarbonyl)benzoic acid",
+                ["O=C(O)c1ccc(C(=O)OC)cc1", "COC(=O)c1ccc(C(=O)O)cc1"],
+            ),
+            (
+                "methyl benzenecarboperoxoate",
+                ["COOC(=O)c1ccccc1", "O=C(OOC)c1ccccc1"],
             ),
         ] {
-            let name = name_smiles(smiles, &Default::default()).unwrap();
-            assert_eq!(name.text, expected, "{smiles}");
-            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
-            assert_eq!(
-                crate::test_support::canonical_smiles(smiles).unwrap(),
-                crate::test_support::canonical_smiles(&parsed).unwrap(),
-                "{}",
-                name.text
-            );
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            let canonical = crate::test_support::canonical_smiles(&parsed).unwrap();
+            for smiles in inputs {
+                let name = name_smiles(smiles, &Default::default()).unwrap();
+                assert_eq!(name.text, expected, "{smiles}");
+                assert_eq!(
+                    crate::test_support::canonical_smiles(smiles).unwrap(),
+                    canonical,
+                    "{smiles} -> {expected}"
+                );
+            }
         }
     }
 

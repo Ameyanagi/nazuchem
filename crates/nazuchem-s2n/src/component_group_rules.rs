@@ -3,6 +3,8 @@
 // Source: openclatura | src/openclatura/group_atom_roles.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/component_group_rules.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/component_group_rules.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_group_rules.rs | issue #141
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_group_rules.rs | issue #180
 // Source: openclatura | tests/fixtures/diverse_corpus.csv | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
@@ -207,6 +209,14 @@ pub fn is_carboxylate_group(g: &PerceivedGroup) -> bool {
     })
 }
 
+// Provenance: fn is_peroxy_acyl_anion | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_group_rules.rs::is_peroxy_acyl_anion
+pub fn is_peroxy_acyl_anion(g: &PerceivedGroup) -> bool {
+    g.descriptor
+        .as_ref()
+        .is_some_and(|d| d.family == "acyl" && d.derivative == "anion" && d.ligands.len() == 3)
+}
+
 // Provenance: fn is_carboxylic_acid_group | original
 // Source: ReShiki | src/naming/openclatura/component_group_rules.rs::is_carboxylic_acid_group
 pub fn is_carboxylic_acid_group(g: &PerceivedGroup) -> bool {
@@ -239,20 +249,25 @@ pub fn ester_single_oxygen(m: &Molecule, g: &PerceivedGroup) -> Option<usize> {
         .copied()
         .find(|n| m.atoms[n].symbol == "O" && (m.degree(*n) == 2 || m.atoms[n].charge == -1))
 }
-// Provenance: fn peroxy_ester_single_oxygen | port
+// Provenance: fn peroxy_ester_single_oxygen | adapted
 // Source: openclatura | src/openclatura/group_atom_roles.py::peroxy_ester_single_oxygen
-pub fn peroxy_ester_single_oxygen(m: &Molecule, g: &PerceivedGroup) -> Option<usize> {
-    g.atoms_involved.iter().copied().find(|n| {
-        m.atoms[n].symbol == "O"
-            && m.get_bond(*n, g.attachment_carbon).is_none()
-            && m.degree(*n) == 2
-    })
+fn peroxy_ester_single_oxygen(group: &PerceivedGroup) -> Option<usize> {
+    // Either oxygen is outside the parent when the acyl center is on a ring.
+    // The CarbonLink role identifies the one that carries the organyl group.
+    group
+        .descriptor
+        .as_ref()?
+        .ligands
+        .iter()
+        .find_map(|ligand| {
+            (ligand.role == LigandRole::CarbonLink && ligand.element == "O").then_some(ligand.atom)
+        })
 }
 // Provenance: fn ester_or_peroxy_single_oxygen | port
 // Source: openclatura | src/openclatura/group_atom_roles.py::ester_or_peroxy_single_oxygen
 pub fn ester_or_peroxy_single_oxygen(m: &Molecule, g: &PerceivedGroup) -> Option<usize> {
     if RULES.prefixes.peroxy_ester_groups.contains(&g.key) {
-        peroxy_ester_single_oxygen(m, g)
+        peroxy_ester_single_oxygen(g)
     } else {
         ester_single_oxygen(m, g)
     }
@@ -273,6 +288,71 @@ pub fn amide_nitrogen(m: &Molecule, g: &PerceivedGroup) -> Option<usize> {
         .copied()
         .find(|n| m.atoms[n].symbol == "N")
 }
+
+/// The unsubstituted acyl group in the O- and N-linked prefixes of P-66.3.5.2.
+// Provenance: fn linked_hydrazinecarbonyl | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_group_rules.rs::linked_hydrazinecarbonyl
+pub(super) fn linked_hydrazinecarbonyl(
+    mol: &Molecule,
+    center: usize,
+    linker: usize,
+    parent_element: &str,
+) -> Option<[usize; 4]> {
+    let linker_hydrogens = match mol.atoms[&linker].symbol.as_str() {
+        "O" => 0,
+        "N" => 1,
+        _ => return None,
+    };
+    if !mol.atoms[&center].is_carbon()
+        || mol.degree(center) != 3
+        || mol.bond_order(center, linker) != 1
+        || mol.degree(linker) != 2
+        || !mol.get_neighbors(linker).iter().any(|&parent| {
+            parent != center
+                && mol.atoms[&parent].symbol == parent_element
+                && mol.bond_order(linker, parent) == 1
+        })
+    {
+        return None;
+    }
+    let &oxo = mol.get_neighbors(center).iter().find(|&&atom| {
+        mol.atoms[&atom].symbol == "O" && mol.bond_order(center, atom) == 2 && mol.degree(atom) == 1
+    })?;
+    let &near = mol.get_neighbors(center).iter().find(|&&atom| {
+        atom != linker
+            && mol.atoms[&atom].symbol == "N"
+            && mol.bond_order(center, atom) == 1
+            && mol.degree(atom) == 2
+    })?;
+    let &far = mol.get_neighbors(near).iter().find(|&&atom| {
+        mol.atoms[&atom].symbol == "N" && mol.bond_order(near, atom) == 1 && mol.degree(atom) == 1
+    })?;
+    let atoms = [center, oxo, near, far];
+    let unmodified = atoms
+        .into_iter()
+        .zip([0, 0, 1, 2])
+        .chain([(linker, linker_hydrogens)])
+        .all(|(id, hydrogens)| {
+            let atom = &mol.atoms[&id];
+            atom.charge == 0
+                && atom.radical_electrons == 0
+                && !atom.is_aromatic
+                && !atom.has_stereo()
+                && atom.isotope.is_none()
+                && atom.total_h_count == hydrogens
+        });
+    if unmodified
+        && !mol
+            .isotope_sites()
+            .iter()
+            .any(|site| site.anchor == linker || atoms.contains(&site.anchor))
+    {
+        Some(atoms)
+    } else {
+        None
+    }
+}
+
 // Provenance: fn hydrazone_characteristic_carbon | port
 // Source: openclatura | src/openclatura/group_atom_roles.py::hydrazone_characteristic_carbon
 pub fn hydrazone_characteristic_carbon(m: &Molecule, g: &PerceivedGroup) -> Option<usize> {
@@ -318,10 +398,21 @@ pub fn retarget_external_carbonyl_groups(
         .iter()
         .map(|g| is_suffix_class_variant(m, groups, principal_key, g))
         .collect();
+    // P-72.7(a), (b): another anionic suffix on carbon was chosen (aminide,
+    // or the class with more anionic centres), so a carboxylate beside it is
+    // the prefix carboxylato.
+    let selects_other_anion = groups.iter().any(|g| {
+        g.is_principal_candidate
+            && Some(g.key.as_str()) == principal_key
+            && super::perception::is_anionic_group_key(&g.key)
+            && !is_carboxylate_group(g)
+            && m.atoms[&g.attachment_carbon].is_carbon()
+    });
     for (g, variant) in groups.iter_mut().zip(variants) {
         // Only an established prefix excludes an acid-anion carbon. Other
         // carboxylates must remain available as parent candidates.
-        let prefix_carboxylate = principal_key.is_none() && is_carboxylate_group(g);
+        let prefix_carboxylate =
+            (principal_key.is_none() || selects_other_anion) && is_carboxylate_group(g);
         if g.is_principal_candidate
             && (Some(g.key.as_str()) == principal_key
                 || neutral_amides && is_neutral_amide(m, g)
@@ -345,8 +436,21 @@ pub fn retarget_external_carbonyl_groups(
             .filter(|n| m.atoms[n].is_carbon() && !g.atoms_involved.contains(n))
             .collect::<Vec<_>>();
         if adj.len() == 1 {
+            // The carbon remains a parent candidate when its characteristic
+            // group can cite separate ligands at the end of a chain.
+            if !cyclic.contains(&adj[0])
+                && g.descriptor.as_ref().is_some_and(|d| {
+                    d.uses_chain_end_ligand_prefixes()
+                        || d.family == "acyl" && d.derivative == "hydrazide"
+                })
+            {
+                continue;
+            }
             g.attachment_carbon = adj[0];
             g.atoms_involved.insert(c);
+            if prefix_carboxylate {
+                g.is_principal_candidate = false;
+            }
             exclude.insert(c);
         }
     }
@@ -365,7 +469,7 @@ pub fn exclude_nonparent_group_atoms(
         let selected = if g.key == "anhydride" {
             bridge_oxygen(m, g)
         } else if family("peroxy_ester") {
-            peroxy_ester_single_oxygen(m, g)
+            peroxy_ester_single_oxygen(g)
         } else if family("ester_like") {
             ester_single_oxygen(m, g)
         } else if family("sulfonyl") {

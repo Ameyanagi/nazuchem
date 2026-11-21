@@ -10,6 +10,7 @@
 // Source: openclatura | tests/unit/test_fused_bonds.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_locant_elision.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_audit_reconstruction.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_pipeline.rs | issue #15
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura parent planning adapted to native graph/CIP with original rendered-parent status policy and ring-face parity proof.
@@ -125,6 +126,7 @@ fn mark_fusion_plan_status(mol: &Molecule, plan: &super::fusion::model::FusionPa
     mark_retained_parent_status(mol, &plan.rendered_base_name);
     if super::fusion::registry::fusion_component_registry()
         .has_senior_unregistered_retained_component(mol, plan)
+        || bypasses_heterotricyclic_parent(mol, plan)
     {
         mol.mark_name(NameStatus::NotPreferred(
             NameReason::UnregisteredRetainedComponent,
@@ -161,6 +163,59 @@ fn mark_fusion_plan_status(mol: &Molecule, plan: &super::fusion::model::FusionPa
     if repeats_base {
         mol.mark_name(NameStatus::Unverified(NameReason::FusionMultiparent));
     }
+}
+
+// P-25.2.2.2 and P-25.2.2.3 define a single three-ring component
+// when two benzene rings flank a 1,4-diheterabenzene. By P-25.3.2.4(b),
+// it is senior to a smaller parent containing the same heteroatoms.
+// Provenance: fn bypasses_heterotricyclic_parent | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/parent_pipeline.rs::bypasses_heterotricyclic_parent
+fn bypasses_heterotricyclic_parent(
+    mol: &Molecule,
+    plan: &super::fusion::model::FusionParentPlan,
+) -> bool {
+    let faces = &plan.numbering.selected_face_model.faces;
+    for parent in &plan.ast.component_occurrences {
+        if !plan.ast.parent_occurrences.contains(&parent.occurrence_id)
+            || parent.covered_face_ids.len() >= 3
+        {
+            continue;
+        }
+        for middle in faces
+            .iter()
+            .filter(|face| face.size == 6 && parent.covered_face_ids.contains(&face.id))
+        {
+            let hetero: Vec<_> = middle
+                .atom_cycle
+                .iter()
+                .enumerate()
+                .filter(|&(_, a)| mol.atoms[a].symbol != "C")
+                .collect();
+            let [(i, first), (j, second)] = hetero.as_slice() else {
+                continue;
+            };
+            if j - i != 3
+                || (mol.atoms[first].symbol == mol.atoms[second].symbol
+                    && !matches!(
+                        mol.atoms[first].symbol.as_str(),
+                        "N" | "O" | "S" | "Se" | "Te" | "P" | "As" | "Si" | "B"
+                    ))
+            {
+                continue;
+            }
+            let has_carbon_face_at = |edge: usize| {
+                faces.iter().any(|face| {
+                    face.size == 6
+                        && face.edge_cycle.contains(&middle.edge_cycle[edge])
+                        && face.atom_cycle.iter().all(|a| mol.atoms[a].symbol == "C")
+                })
+            };
+            if has_carbon_face_at((i + 1) % 6) && has_carbon_face_at((j + 1) % 6) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 // Provenance: fn mark_retained_parent_status | original
@@ -221,7 +276,21 @@ pub fn resolve_parent_hydride_plan(
     {
         return Ok(Some(plan.parent));
     }
-    super::fusion::wrappers::plan_bridged_fusion_wrapper(mol, &atoms)?
+    // A speculative bridge cut can expose a localized pi state on its smaller
+    // core. The already numbered complete block can still cite all its bonds.
+    super::fusion::wrappers::plan_bridged_fusion_wrapper(mol, &atoms)
+        .or_else(|error| {
+            if super::fusion::planner::fallback_descriptors(&error).is_some_and(|descriptors| {
+                selection
+                    .polycycle_descriptor
+                    .as_deref()
+                    .is_some_and(|d| descriptors.contains(&d))
+            }) {
+                Ok(None)
+            } else {
+                Err(error)
+            }
+        })?
         .map(RingParent::from_fusion_wrapper)
         .transpose()
 }
@@ -409,20 +478,24 @@ pub fn build_parent_assembly_plan_with_parent(
             .is_some_and(RingParent::is_systematic_fusion)
         && !variants.is_empty()
     {
-        let ketones: AtomSet = super::perception::perceive_groups(mol)
-            .into_iter()
-            .filter(|group| group.key == "ketone")
-            .map(|group| group.attachment_carbon)
-            .collect();
+        let groups = super::perception::perceive_groups(mol);
         let suffix: AtomSet = principal_carbons.iter().copied().collect();
-        if suffix.is_subset(&ketones) {
+        if let Some(key) = ["ketone", "alcohol"].into_iter().find(|key| {
+            suffix.iter().all(|id| {
+                groups
+                    .iter()
+                    .any(|group| group.key == *key && group.attachment_carbon == *id)
+            })
+        }) {
             for plan in &variants {
                 for map in plan.numbering.string_input_locant_maps() {
                     if !suffix.iter().all(|atom| map.contains_key(atom)) {
                         continue;
                     }
                     if let Some((indicated, _, state)) =
-                        super::additive::systematic_suffix_hydrogen_state(mol, plan, &suffix, &map)?
+                        super::additive::systematic_suffix_hydrogen_state(
+                            mol, plan, key, &suffix, &map,
+                        )?
                     {
                         let hydro = state
                             .hydro_operations
@@ -454,7 +527,16 @@ pub fn build_parent_assembly_plan_with_parent(
     }
     let names = substituents
         .iter()
-        .map(|(&idx, items)| (idx, items.iter().map(|item| item.name.clone()).collect()))
+        .map(|(&idx, items)| {
+            // P-82.5.1: nuclides are considered last in numbering.
+            let names = items.iter().map(|item| {
+                super::isotope_naming::numbering_citation_name(
+                    &item.name,
+                    &item.isotope_descriptors,
+                )
+            });
+            (idx, names.collect())
+        })
         .collect();
     // A von Baeyer descriptor and its accepted numbering paths are one
     // topology proof. Upstream consumes those paths as locant maps, whose
@@ -1505,6 +1587,14 @@ mod tests {
                 "OC[C@@H]1C=C2C[C@H](Cl)[C@H]1CC[C@@H]1CCCCCC[C@@H]2CCCCC1",
                 "[(1R,4R,5S,8R,20S)-20-chlorotricyclo[6.6.5.2^{2,5}]henicos-2-en-4-yl]methanol",
             ),
+            (
+                "C12C3CCCCCCC(C(CCCCCC1)CCCCCC2)C2CCC(C3)C2",
+                "tetracyclo[8.6.6.5^{2,9}.1^{23,26}]octacosane",
+            ),
+            (
+                "C12CC3CCCCC4CCCCC(CC(CCC5CC5CC1)CCCC2)CC(C4)C3",
+                "pentacyclo[13.7.4.3^{3,8}.0^{18,20}.1^{13,28}]triacontane",
+            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap().text;
             assert_eq!(name, expected, "{smiles}");
@@ -1513,19 +1603,6 @@ mod tests {
                 crate::test_support::canonical_smiles(smiles).unwrap(),
                 crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{name}",
-            );
-        }
-        // P-23.2.1 and P-23.2.4: the preferred descriptors, tetracyclo[8.6.6.5^{2,9}.1^{23,26}]
-        // and pentacyclo[13.7.4.3^{3,8}.0^{18,20}.1^{13,28}], need a dependent bridge with
-        // atoms; a smaller main bridge or main ring is not offered instead.
-        for smiles in [
-            "C12C3CCCCCCC(C(CCCCCC1)CCCCCC2)C2CCC(C3)C2",
-            "C12CC3CCCCC4CCCCC(CC(CCC5CC5CC1)CCCC2)CC(C4)C3",
-        ] {
-            assert_eq!(
-                name_smiles(smiles, &Default::default()).unwrap_err(),
-                "openclatura: polycyclic parent has no audited descriptor",
-                "{smiles}",
             );
         }
         assert_eq!(

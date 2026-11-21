@@ -18,15 +18,40 @@ pub struct RenderedSubstituentName {
     pub text: String,
     pub outer_parentheses_optional: bool,
     pub oxy_prefix: Option<String>,
+    pub prefix_kind: Option<PrefixKind>,
+    /// Atoms whose isotope labels the text already cites (P-82.2.1).
+    pub isotope_atoms: AtomSet,
+    /// The isotope descriptors that the text contains.
+    pub isotope_descriptors: Vec<String>,
 }
 // Provenance: impl RenderedSubstituentName | original
 // Source: ReShiki | src/naming/openclatura/assembly_parts.rs::RenderedSubstituentName
 impl RenderedSubstituentName {
     pub fn into_oxy_prefix(self) -> String {
+        // P-82.2.1: the descriptor precedes the contracted prefix, (2H3)methoxy.
+        let descriptor =
+            super::isotope_naming::leading_descriptor(&self.text, &self.isotope_descriptors);
+        if !descriptor.is_empty()
+            && let Some(oxy) = self.text.strip_prefix(descriptor).and_then(|alkyl| {
+                super::nomenclature::RULES
+                    .heteroatoms
+                    .alkyl_oxy_prefixes
+                    .get(alkyl)
+            })
+        {
+            return format!("{descriptor}{oxy}");
+        }
         self.oxy_prefix
             .unwrap_or_else(|| super::formatting::oxy_prefix_from_branch(&self.text))
     }
 }
+/// Classification from the assembly of a substituent prefix (P-29.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PrefixKind {
+    Simple,
+    Substituted,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct SubstituentItem {
     pub name: String,
@@ -35,7 +60,12 @@ pub struct SubstituentItem {
     pub bond_ids: AtomSet,
     pub charge_atom_ids: AtomSet,
     pub outer_parentheses_optional: bool,
+    pub prefix_kind: Option<PrefixKind>,
     pub spiro: Option<Box<super::assembly_spiro::SpiroAssembly>>,
+    /// Atoms whose isotope labels the prefix name already cites (P-82.2.1).
+    pub isotope_atoms: AtomSet,
+    /// The isotope descriptors that the name contains.
+    pub isotope_descriptors: Vec<String>,
 }
 impl SubstituentItem {
     // Provenance: fn SubstituentItem::new | adapted
@@ -147,6 +177,10 @@ pub struct AssemblyParts {
     pub parent_derivative_state: Option<super::fusion::mancude::ParentDerivativeState>,
     pub front_modifiers: Vec<String>,
     pub front_modifier_locants: Vec<Option<String>>,
+    /// Atoms whose isotope labels the front modifiers cite (P-82.2.4).
+    pub front_modifier_isotopes: AtomSet,
+    /// The isotope descriptors that the front modifiers contain.
+    pub front_modifier_descriptors: Vec<String>,
     pub ester_site_exchange_proven: bool,
     pub principal_suffix_modifiers: Vec<SubstituentItem>,
     pub a_prefixes: Vec<SubstituentItem>,
@@ -178,6 +212,8 @@ pub struct AssemblyParts {
     pub omit_redundant_locants: bool,
     /// P-82.6.1.1: positional isotopes require the constitutional locants too.
     pub isotope_explicit_locants: bool,
+    /// P-82.2.1: the isotope descriptor cited before this substituent's parent.
+    pub isotope_descriptor: String,
     pub elided_substituent_locants: BTreeSet<String>,
     pub elided_unsaturation_locants: BTreeSet<String>,
     pub elide_principal_group_locants: bool,
@@ -185,6 +221,7 @@ pub struct AssemblyParts {
     pub is_spiro_side_projection: bool,
     pub spiro_prefix_composition: bool,
     pub spiro_same_size_components: bool,
+    pub lambda_prefix_order_tie: bool,
     /// The renderer cited locants on hydro prefixes of a fully hydrogenated parent.
     pub locanted_total_hydrogenation: bool,
 }
@@ -234,6 +271,8 @@ impl AssemblyParts {
             parent_derivative_state: None,
             front_modifiers: vec![],
             front_modifier_locants: vec![],
+            front_modifier_isotopes: AtomSet::new(),
+            front_modifier_descriptors: vec![],
             ester_site_exchange_proven: false,
             principal_suffix_modifiers: vec![],
             a_prefixes: vec![],
@@ -263,6 +302,7 @@ impl AssemblyParts {
             proof_locant_map: false,
             omit_redundant_locants: true,
             isotope_explicit_locants: false,
+            isotope_descriptor: String::new(),
             elided_substituent_locants: BTreeSet::new(),
             elided_unsaturation_locants: BTreeSet::new(),
             elide_principal_group_locants: false,
@@ -270,6 +310,7 @@ impl AssemblyParts {
             is_spiro_side_projection: false,
             spiro_prefix_composition: false,
             spiro_same_size_components: false,
+            lambda_prefix_order_tie: false,
             locanted_total_hydrogenation: false,
         }
     }
@@ -293,9 +334,12 @@ impl AssemblyParts {
     // Provenance: fn AssemblyParts::stereochemical_locant | original
     // Source: ReShiki | src/naming/openclatura/assembly_parts.rs::AssemblyParts::stereochemical_locant
     pub(super) fn stereochemical_locant(&self, locant: &str) -> String {
-        self.endo_exo_descriptors.get(locant).map_or_else(
-            || locant.to_owned(),
-            |descriptor| format!("{locant}-{descriptor}"),
-        )
+        self.endo_exo_descriptors
+            .get(locant)
+            .filter(|_| !super::formatting::descriptors_omitted())
+            .map_or_else(
+                || locant.to_owned(),
+                |descriptor| format!("{locant}-{descriptor}"),
+            )
     }
 }

@@ -203,7 +203,7 @@ dependencies = [
 
 [[package]]
 name = "nazuchem"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "nazuchem-ir",
  "nazuchem-kernel",
@@ -214,7 +214,7 @@ dependencies = [
 
 [[package]]
 name = "nazuchem-ir"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "schemars",
  "serde",
@@ -224,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "nazuchem-kernel"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -235,7 +235,7 @@ dependencies = [
 
 [[package]]
 name = "nazuchem-n2s"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "flate2",
  "nazuchem-ir",
@@ -248,7 +248,7 @@ dependencies = [
 
 [[package]]
 name = "nazuchem-python"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "nazuchem",
  "pyo3",
@@ -257,7 +257,7 @@ dependencies = [
 
 [[package]]
 name = "nazuchem-s2n"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "flate2",
  "nazuchem-ir",
@@ -269,7 +269,7 @@ dependencies = [
 
 [[package]]
 name = "nazuchem-wasm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "js-sys",
  "nazuchem",

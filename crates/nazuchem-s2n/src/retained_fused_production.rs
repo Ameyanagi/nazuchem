@@ -4,6 +4,7 @@
 // Source: ReShiki | src/naming/openclatura/retained_fused_production.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | src/openclatura/namer_config.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/retained_fused_production.rs | issue #178
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Adapted openclatura retained-parent production/derivative gate with native suffix-H integration and local regression tests.
@@ -23,7 +24,7 @@ use super::{
     perception::PerceivedGroup,
     retained_derivative_hydrogen::prove_retained_oxo_carbon_hydrogen,
     retained_fused_templates::{
-        GRAPH_DATA, MatchOptions, is_saturated_site,
+        GRAPH_DATA, MatchOptions, is_ium_nitrogen, is_retained_oxo_site, is_saturated_site,
         match_retained_graph_template_maps_with_options,
         match_retained_graph_templates_with_options,
     },
@@ -66,7 +67,9 @@ pub fn production_retained_fused_parent(
     let parent_atoms: AtomSet = parent_path.iter().copied().collect();
     if component_atoms.iter().any(|a| {
         let atom = &mol.atoms[a];
-        atom.charge != 0 && (!parent_atoms.contains(a) || atom.symbol != "C" || atom.charge != -1)
+        atom.charge != 0
+            && (!parent_atoms.contains(a)
+                || !(atom.symbol == "C" && atom.charge == -1 || is_ium_nitrogen(mol, *a)))
     }) || parent_atoms.iter().any(|a| {
         mol.get_neighbors(*a).iter().any(|n| {
             parent_atoms.contains(n)
@@ -275,6 +278,14 @@ pub fn production_retained_fused_parent(
                 .filter(|(rank, _)| *rank == best)
                 .map(|(_, m)| m)
                 .collect();
+        } else if parent_atoms
+            .iter()
+            .all(|&a| is_saturated_site(mol, a, &parent_atoms))
+        {
+            // The indicated hydrogen that an N-H of the template carries
+            // (indazole, carbazole, purine) is not relocated to the ketone
+            // here; a ring without double bonds then stays with the planner.
+            return Ok(None);
         }
     }
     let first = &matches[0];
@@ -284,9 +295,13 @@ pub fn production_retained_fused_parent(
         .filter(|m| {
             &m.template.name == parent_name
                 && features.iter().all(|a| {
-                    m.atom_to_locant
-                        .get(a)
-                        .is_some_and(|l| !l.chars().any(char::is_alphabetic))
+                    // A fusion atom carries a group only as a hydro position
+                    // ('8a-methyloctahydronaphthalen-1(2H)-one').
+                    m.atom_to_locant.get(a).is_some_and(|l| {
+                        !l.chars().any(char::is_alphabetic)
+                            || principal_key == Some("ketone")
+                                && is_saturated_site(mol, *a, &parent_atoms)
+                    })
                 })
         })
         .map(|m| m.atom_to_locant.clone())
@@ -343,7 +358,9 @@ fn eligible(
     for m in matches {
         if !listed("production_parent_names", &m.template.name)
             || !m.template.derivative_production_enabled
-            || (parent_atoms.iter().any(|a| mol.atoms[a].charge != 0)
+            || (parent_atoms
+                .iter()
+                .any(|a| mol.atoms[a].charge != 0 && !is_ium_nitrogen(mol, *a))
                 && m.template.charge_policy != "deprotonated_indicated_h")
             || (principal_key == Some("ketone")
                 && !has_mancude_unsaturation(mol, parent_atoms, &m)
@@ -379,7 +396,11 @@ pub fn added_hydrogen_is_citable(mol: &Molecule, m: &RetainedGraphTemplateMatch)
     let mut positions = 0usize;
     let mut saturated = 0usize;
     for (&a, l) in &m.atom_to_locant {
-        if !by[l].aromatic {
+        // A position that gave its indicated hydrogen to another one is an
+        // ordinary position of the relocated parent ('2H-indene').
+        if !by[l].aromatic
+            && (m.indicated_h.contains(l) || !m.template.default_indicated_h.contains(l))
+        {
             continue;
         }
         positions += 1;
@@ -392,21 +413,20 @@ pub fn added_hydrogen_is_citable(mol: &Molecule, m: &RetainedGraphTemplateMatch)
             saturated += 1;
         }
     }
-    if saturated > 0 && saturated >= positions {
+    if saturated > 0 && saturated >= positions && !neutral_ring_ketone(mol, m) {
         return false;
     }
     let excluded = m.indicated_h.iter().filter(|l| !by[*l].aromatic).count();
     let surplus =
         saturated as isize - (m.template.indicated_hydrogen_count() as isize - excluded as isize);
-    // A pheno...ine parent (P-25.2.2.3) cites its indicated hydrogen like
+    // A parent whose name states its indicated hydrogen cites it like
     // carbazole, so a ketone can take it ('2,10-dihydro-3H-phenoxazin-3-one',
     // P-58.2.3.1.1).
     surplus <= 0
         || surplus % 2 == 0
         || indicated_h_retained_name(&m.template.name)
-        || super::fusion::registry::fusion_component_registry()
-            .get(&m.template.name)
-            .is_some_and(|c| c.spec.parent_hydride_only)
+        || (m.template.default_indicated_h.is_empty()
+            && !super::additive::name_indicated_hydrogen_locants(Some(&m.template.name)).is_empty())
 }
 // Provenance: fn indicated_h_retained_name | adapted
 // Source: openclatura | src/openclatura/namer_config.py::_indicated_h_retained_names
@@ -472,7 +492,19 @@ fn saturation_is_hydro_citable(mol: &Molecule, m: &RetainedGraphTemplateMatch) -
                 && is_saturated_site(mol, **a, &m.matched_atoms)
         })
         .count();
-    saturated > 0 && saturated < m.atom_to_locant.len()
+    saturated > 0 && (saturated < m.atom_to_locant.len() || neutral_ring_ketone(mol, m))
+}
+/// A ring without double bonds is named from its retained template elsewhere,
+/// unless a ring C=O leaves it short of total hydrogenation
+/// ('octahydronaphthalen-1(2H)-one', P-58.2.2). Ions keep their own
+/// composition (P-73.1.2.1).
+// Provenance: fn neutral_ring_ketone | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/retained_fused_production.rs::neutral_ring_ketone
+fn neutral_ring_ketone(mol: &Molecule, m: &RetainedGraphTemplateMatch) -> bool {
+    m.matched_atoms.iter().all(|a| mol.atoms[a].charge == 0)
+        && m.matched_atoms
+            .iter()
+            .any(|&a| is_retained_oxo_site(mol, a))
 }
 
 #[cfg(test)]

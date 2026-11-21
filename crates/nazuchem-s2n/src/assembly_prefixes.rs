@@ -2,6 +2,7 @@
 // Origin: mixed
 // Source: openclatura | src/openclatura/assembly_prefixes.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/assembly_prefixes.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
+// Source: Nazuchem | crates/nazuchem-s2n/src/assembly_prefixes.rs | issue #121
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura prefix grouping/elision renderer with local alphanumeric and cage descriptor handling.
@@ -9,11 +10,10 @@
 
 //! Prefix grouping, alphabetization and protective parentheses.
 use super::{
-    assembly_parts::AssemblyParts,
+    assembly_parts::{AssemblyParts, SubstituentItem},
     assembly_utils::{is_fully_enclosed, needs_hyphen, parse_locant},
-    formatting::{
-        is_complex_prefix, is_compound_prefix, needs_complex_multiplier, starts_with_multiplier,
-    },
+    formatting::{is_complex_prefix, is_compound_prefix, multiply_prefix, starts_with_multiplier},
+    isotope_naming::{citation_name, leading_descriptor},
     locant_elision::{retained_parent_attachment_is_ambiguous, substituent_locant_set_is_unique},
     nomenclature::RULES,
     rules::multipliers,
@@ -28,6 +28,14 @@ fn ignored_prefix_len(text: &str) -> usize {
         return 0;
     };
     let prefix = &text[..end];
+    // A lambda descriptor represents Greek λ (P-14.5). Neither the
+    // letter nor its superscript bonding number is an alphabetizing term.
+    if prefix
+        .strip_prefix("lambda^")
+        .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+    {
+        return end + 1;
+    }
     let words = [
         "sec", "tert", "t", "s", "d", "l", "m", "o", "p", "alpha", "beta", "gamma",
     ];
@@ -80,13 +88,42 @@ pub fn substituent_sort_key(name: &str) -> (String, String) {
             _ => ignored_prefix_len(text),
         };
         if n == 0 {
+            // P-45.3: the expanded diphosphan-1-yl and contracted
+            // diphosphanyl have the same alphabetizing term.
+            if let Some(tail) = text.strip_prefix("diphosphan-1-yl") {
+                return (
+                    format!("diphosphanyl{}", tail.trim_start_matches(')')),
+                    initial,
+                );
+            }
             return (text.to_owned(), initial);
         }
-        if !text[..n].contains(')') {
+        if !text[..n].contains(')') && !text.starts_with("lambda^") {
             initial.push_str(&text[..n]);
         }
         text = &text[n..];
     }
+}
+/// The R and S descriptors of a name in order of appearance, S as `true`:
+/// when names are otherwise the same, R precedes S (P-45.6.3).
+// Provenance: fn rs_descriptors | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/assembly_prefixes.rs::rs_descriptors
+pub fn rs_descriptors(name: &str) -> Vec<bool> {
+    name.split('(')
+        .skip(1)
+        .filter_map(|rest| rest.split_once(')'))
+        .flat_map(|(inner, _)| inner.split(','))
+        .filter_map(|item| {
+            let (locant, is_s) = item
+                .strip_suffix('R')
+                .map(|locant| (locant, false))
+                .or_else(|| item.strip_suffix('S').map(|locant| (locant, true)))?;
+            locant
+                .chars()
+                .all(|c| c.is_ascii_digit() || c.is_ascii_lowercase() || c == '\'')
+                .then_some(is_s)
+        })
+        .collect()
 }
 // Provenance: fn group_offers_second_position | adapted
 // Source: openclatura | src/openclatura/assembly_prefixes.py::_groups_offering_a_second_position
@@ -118,7 +155,6 @@ fn substituent_locant_string(
     }
     let imino_beside = grouped_count > 1 && parts.substituents.iter().any(|s| s.name == "imino");
     if parts.parent_length == 1
-        && parts.retained_name.as_deref() != Some("guanidine")
         && !imino_beside
         && locs.iter().all(|l| l.chars().all(|c| c.is_ascii_digit()))
         && parts.a_prefixes.is_empty()
@@ -219,12 +255,15 @@ fn outer_parentheses_are_redundant(name: &str) -> bool {
     };
     only_locants && !starts_with_multiplier(&inner[end + 1..])
 }
-// Provenance: fn format_substituent_prefixes | adapted
+/// Group identical prefixes in the order used by the name renderer.
+// Provenance: fn cited_substituent_groups | adapted
 // Source: openclatura | src/openclatura/assembly_prefixes.py::format_substituent_prefixes
-pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
+pub(super) fn cited_substituent_groups(
+    substituents: &[SubstituentItem],
+) -> (Vec<(&str, Vec<&SubstituentItem>)>, bool) {
     let mut grouped: BTreeMap<&str, Vec<_>> = BTreeMap::new();
     let mut names = Vec::new();
-    for sub in &parts.substituents {
+    for sub in substituents {
         let items = grouped.entry(sub.name.as_str()).or_default();
         if items.is_empty() {
             names.push(sub.name.as_str());
@@ -232,11 +271,108 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
         items.push(sub);
     }
     // Python's dict preserves first citation order when alphabetical keys tie.
-    names.sort_by_key(|s| substituent_sort_key(s));
-    let groups: Vec<_> = names
+    // P-82.5.1: isotope descriptors take no part in the order. P-82.2.2.1:
+    // the isotopically modified prefix precedes its unmodified twin.
+    // P-45.6.3: then R precedes S.
+    let mut ranked: Vec<_> = names
         .into_iter()
-        .map(|name| {
-            let items = &grouped[name];
+        .map(|s| {
+            let item = grouped[s][0];
+            let plain = citation_name(s, &item.isotope_descriptors);
+            // The protective wrapper around a simple lambda prefix is not
+            // part of the group name (P-14.4(h), lambda^5-phosphanyl).
+            let citation = plain
+                .strip_prefix('(')
+                .and_then(|inner| inner.strip_suffix(')'))
+                .filter(|inner| inner.starts_with("lambda^") && !inner.contains(['(', ')']))
+                .unwrap_or(&plain);
+            let mut segments = citation.split("lambda^");
+            let mut normalized = segments.next().unwrap_or_default().to_owned();
+            let mut lambda = Vec::new();
+            for segment in segments {
+                normalized.push_str("lambda^");
+                let digits = segment
+                    .find(|ch: char| !ch.is_ascii_digit())
+                    .unwrap_or(segment.len());
+                let (number, rest) = segment.split_at(digits);
+                if rest.starts_with(['-', ','])
+                    && let Ok(number) = number.parse::<usize>()
+                {
+                    lambda.push(number);
+                    normalized.push('0');
+                    normalized.push_str(rest);
+                } else {
+                    normalized.push_str(segment);
+                }
+            }
+            let (name, initial) = substituent_sort_key(&normalized);
+            let key = (
+                (name, initial, rs_descriptors(&plain)),
+                item.isotope_atoms.is_empty(),
+            );
+            (key, lambda, s)
+        })
+        .collect();
+    // Keep the ordinary isotope and stereo ranking. Also detect mixed lambda
+    // numbers across isotope flags so equally bonded isotope siblings in this
+    // same constitutional comparison have a stable spelling order.
+    ranked.sort_by(|a, b| {
+        let ((a_name, a_initial, a_stereo), a_unmodified) = &a.0;
+        let ((b_name, b_initial, b_stereo), b_unmodified) = &b.0;
+        (a_name, a_unmodified, a_initial, a_stereo).cmp(&(
+            b_name,
+            b_unmodified,
+            b_initial,
+            b_stereo,
+        ))
+    });
+    let mut lambda_by_citation = BTreeMap::new();
+    for ((citation, _), numbers, _) in &ranked {
+        if !numbers.is_empty() {
+            let (first, mixed) = lambda_by_citation
+                .entry(citation.clone())
+                .or_insert_with(|| (numbers.clone(), false));
+            *mixed |= first != numbers;
+        }
+    }
+    let mut lambda_tie = false;
+    for tied in ranked.chunk_by_mut(|a, b| a.0 == b.0) {
+        let ((citation, _), _, _) = &tied[0];
+        if lambda_by_citation
+            .get(citation)
+            .is_some_and(|(_, mixed)| *mixed)
+        {
+            let mut numbers = tied.iter().map(|entry| &entry.1).filter(|n| !n.is_empty());
+            if let Some(first) = numbers.next() {
+                lambda_tie |= numbers.any(|n| n != first);
+            }
+            // P-14.5.4 compares internal locants. A lambda superscript is a
+            // bonding number, and P-45.3 ranks parents. For this unresolved
+            // citation only, present higher bonding numbers first and use the
+            // full prefix spelling to stabilize equal-number isotope variants.
+            tied.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.2.cmp(b.2)));
+        } else if tied.iter().any(|entry| !entry.1.is_empty())
+            && tied.iter().any(|entry| entry.1.is_empty())
+        {
+            // P-14.4(h) cites lambda^5-phosphanyl before phosphanyl.
+            tied.sort_by_key(|entry| entry.1.is_empty());
+        }
+    }
+    let groups = ranked
+        .into_iter()
+        .filter_map(|(_, _, name)| grouped.remove(name).map(|items| (name, items)))
+        .collect();
+    (groups, lambda_tie)
+}
+
+// Provenance: fn format_substituent_prefixes | adapted
+// Source: openclatura | src/openclatura/assembly_prefixes.py::format_substituent_prefixes
+pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool, bool) {
+    let (groups, lambda_tie) = cited_substituent_groups(&parts.substituents);
+    let group_count = groups.len();
+    let groups: Vec<_> = groups
+        .into_iter()
+        .map(|(name, items)| {
             let mut locs: Vec<_> = items
                 .iter()
                 .flat_map(|item| item.locants.iter().cloned())
@@ -245,7 +381,7 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
             let loc = if parts.elided_substituent_locants.contains(name) {
                 String::new()
             } else {
-                substituent_locant_string(parts, &locs, grouped.len())
+                substituent_locant_string(parts, &locs, group_count)
             };
             (name, items, locs, loc)
         })
@@ -257,7 +393,7 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
     let mut cites_numeric_locants = false;
     for (i, (name, items, locs, mut loc)) in groups.into_iter().enumerate() {
         if cites_locants && parts.elided_substituent_locants.contains(name) {
-            loc = substituent_locant_string(parts, &locs, grouped.len());
+            loc = substituent_locant_string(parts, &locs, group_count);
         }
         cites_numeric_locants |= loc
             .split(',')
@@ -274,55 +410,78 @@ pub fn format_substituent_prefixes(parts: &AssemblyParts) -> (String, bool) {
             locs.len()
         } / per)
             .max(1);
-        let complex = is_complex_prefix(name) || (count > 1 && needs_complex_multiplier(name));
-        let mult = if count > 1 {
-            if complex {
-                multipliers::complex_(count)
-            } else {
-                multipliers::basic(count)
-            }
-        } else {
-            String::new()
-        };
+        // P-82.2.1: a leading isotope descriptor leaves a simple prefix simple,
+        // 3-(2H3)methyl, though a multiplied one is enclosed: di[(13C)methyl].
+        let descriptor = leading_descriptor(name, &items[0].isotope_descriptors);
+        let plain = name.strip_prefix(descriptor).unwrap_or(name);
+        let complex = is_complex_prefix(plain);
         let mut used = name.to_owned();
         if !parts.is_substituent
             && parts.principal_group.is_none()
             && count == 1
             && loc.is_empty()
-            && grouped.len() == 1
+            && group_count == 1
             && optional
             && is_fully_enclosed(name)
             && outer_parentheses_are_redundant(name)
         {
             used = name[1..name.len() - 1].into();
         }
-        if complex && !is_fully_enclosed(&used) {
+        if count == 1 && complex && !is_fully_enclosed(&used) {
             // Upstream divergence: bracket a diazenyl sibling to preserve its attachment to the parent.
-            if count > 1 || !loc.is_empty() || (grouped.len() > 1 && name == "diazenyl") {
+            // P-16.5.1.2: a prefix with its own locants is enclosed even when
+            // its attachment locant is omitted: (naphthalen-2-yl)acetic acid.
+            // P-16.5.1.3.2: so is a later unlocanted prefix that begins with
+            // a multiplying term, chloro(disulfanyl)acetic acid; unenclosed,
+            // the chlorine would be read as a substituent of disulfanyl.
+            if !loc.is_empty()
+                || (group_count > 1 && (i > 0 || name == "diazenyl"))
+                || used.contains(|c: char| c.is_ascii_digit())
+            {
                 used = format!("({used})");
             }
-        } else if loc.is_empty()
-            && grouped.len() > 1
+        } else if count == 1
+            && loc.is_empty()
+            && group_count > 1
             // P-16.5.1.3.1/P-16.5.1.3.2: the first cited unlocanted prefix is
             // enclosed only when compound: hydroxy(phenyl)acetic acid.
             && (i > 0 || is_compound_prefix(name))
             && !optional
             && !is_fully_enclosed(&used)
-            && !["fluoro", "chloro", "bromo", "iodo"].contains(&name)
         {
             used = format!("({used})");
         }
+        if count > 1 {
+            let kind = items.iter().find_map(|item| item.prefix_kind);
+            // P-16.5.1.3.1 and .2: a later unlocanted prefix stays enclosed.
+            let enclose = loc.is_empty() && i > 0 && !optional;
+            used = multiply_prefix(&used, plain, count, kind, enclose);
+        }
+        // P-45.3.1: a single lambda hydride attached to methyl forms one
+        // complex prefix, e.g. (lambda^4-sulfanylmethyl).
+        if parts.is_substituent
+            && parts.parent_length == 1
+            && count == 1
+            && group_count == 1
+            && loc.is_empty()
+            && matches!(
+                used.as_str(),
+                "(lambda^4-sulfanyl)" | "(lambda^6-sulfanyl)" | "(lambda^5-phosphanyl)"
+            )
+        {
+            used = used[1..used.len() - 1].to_owned();
+        }
         let piece = if loc.is_empty() {
-            format!("{mult}{used}")
+            used
         } else {
-            format!("{loc}-{mult}{used}")
+            format!("{loc}-{used}")
         };
         if needs_hyphen(&rendered, &piece) {
             rendered.push('-');
         }
         rendered.push_str(&piece);
     }
-    (rendered, cites_numeric_locants)
+    (rendered, cites_numeric_locants, lambda_tie)
 }
 // Provenance: fn format_replacement_prefixes | adapted
 // Source: openclatura | src/openclatura/assembly_prefixes.py::format_replacement_prefixes

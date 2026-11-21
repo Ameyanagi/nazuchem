@@ -4,6 +4,7 @@
 // Source: ReShiki | src/naming/openclatura/principal_groups.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/roundtrip/test_acids.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs | issue 10
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs | issue #180
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura principal-group partition/suffix attachment with original skeletal-anion demotion, neutral-amide and chain/ring suffix-class candidate policies.
@@ -17,7 +18,8 @@ use super::{
     locants::parse_locant,
     molecule::{AtomSet, Molecule, bond_ids_within},
     nomenclature::RULES,
-    perception::{PerceivedGroup, perceive_groups},
+    perception::{PerceivedGroup, is_anionic_group_key, perceive_groups},
+    ring_assembly::{candidate_ring_assemblies, cyclic_units},
 };
 use std::collections::BTreeMap;
 
@@ -216,12 +218,274 @@ pub fn candidate_principal_attachments(
         .collect()
 }
 
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+struct AnionicScore {
+    centres: usize,
+    ide_or_uide: usize,
+}
+
+impl AnionicScore {
+    // Provenance: fn AnionicScore::plus | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::AnionicScore::plus
+    fn plus(self, other: Self) -> Self {
+        Self {
+            centres: self.centres + other.centres,
+            ide_or_uide: self.ide_or_uide + other.ide_or_uide,
+        }
+    }
+}
+
+// Provenance: fn score_suffix | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::score_suffix
+fn score_suffix(
+    mol: &Molecule,
+    parent: &AtomSet,
+    groups: &[&PerceivedGroup],
+    key: &str,
+) -> AnionicScore {
+    let skeletal = parent.iter().filter(|i| mol.atoms[i].charge < 0).count();
+    let suffix: AtomSet = groups
+        .iter()
+        .filter(|g| g.key == key && parent.contains(&g.attachment_carbon))
+        .flat_map(|g| g.atoms_involved.iter().copied())
+        .filter(|i| mol.atoms[i].charge < 0 && !parent.contains(i))
+        .collect();
+    AnionicScore {
+        centres: skeletal + suffix.len(),
+        ide_or_uide: skeletal
+            + if matches!(key, "aminide" | "iminide") {
+                suffix.len()
+            } else {
+                0
+            },
+    }
+}
+
+/// P-72.7(a), (b): find the most anionic centres, then the most 'ide' and
+/// 'uide' centres, on one parent with the given suffix class.
+// Provenance: fn parent_anionic_centres | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::parent_anionic_centres
+fn parent_anionic_centres<'a>(
+    mol: &Molecule,
+    groups: &[&'a PerceivedGroup],
+) -> Result<BTreeMap<&'a str, AnionicScore>, String> {
+    // Fused and spiro rings can share a parent. A bond joining two ring
+    // units does not belong to either unit.
+    let mut rings = cyclic_units(mol);
+    let cyclic: AtomSet = rings.iter().flatten().copied().collect();
+    let mut classes: BTreeMap<&str, Vec<&PerceivedGroup>> = BTreeMap::new();
+    for &group in groups
+        .iter()
+        .filter(|g| mol.atoms[&g.attachment_carbon].is_carbon())
+    {
+        classes.entry(&group.key).or_default().push(group);
+    }
+
+    if classes
+        .values()
+        .flatten()
+        .any(|g| cyclic.contains(&g.attachment_carbon))
+    {
+        rings.extend(
+            candidate_ring_assemblies(mol, &rings)?
+                .into_iter()
+                .map(|assembly| assembly.locant_maps[0].keys().copied().collect()),
+        );
+    }
+
+    let has_skeletal_chain_anion = mol
+        .atoms
+        .iter()
+        .any(|(id, atom)| atom.is_carbon() && atom.charge < 0 && !cyclic.contains(id));
+    // A class with one acyclic attachment and no skeletal chain anions
+    // has the same score on every path containing that attachment.
+    let needs_path_score =
+        |sites: &AtomSet| sites.len() > 1 || has_skeletal_chain_anion && !sites.is_empty();
+    let chain_sites = classes
+        .iter()
+        .map(|(&key, groups)| {
+            let sites: AtomSet = groups
+                .iter()
+                .map(|g| g.attachment_carbon)
+                .filter(|id| !cyclic.contains(id))
+                .collect();
+            (key, sites)
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    // Removing cyclic and non-carbon atoms leaves a forest. Number the
+    // vertices so every child comes after its parent.
+    let mut forest = Vec::new();
+    let mut seen = AtomSet::new();
+    if chain_sites.values().any(needs_path_score) {
+        for (&root, atom) in &mol.atoms {
+            if !atom.is_carbon() || cyclic.contains(&root) || seen.contains(&root) {
+                continue;
+            }
+            let mut pending = vec![(root, None)];
+            while let Some((atom, parent)) = pending.pop() {
+                seen.insert(atom);
+                let index = forest.len();
+                forest.push((atom, parent));
+                pending.extend(mol.get_neighbors(atom).iter().filter_map(|&n| {
+                    (mol.atoms[&n].is_carbon() && !cyclic.contains(&n) && !seen.contains(&n))
+                        .then_some((n, Some(index)))
+                }));
+            }
+        }
+    }
+
+    let mut scores = BTreeMap::new();
+    for (key, groups) in classes {
+        let sites = &chain_sites[key];
+        let needs_path = needs_path_score(sites);
+        mol.spend_naming_work(if needs_path {
+            forest.len()
+        } else {
+            sites.len()
+        })?;
+        let ring_score = rings
+            .iter()
+            .filter(|ring| groups.iter().any(|g| ring.contains(&g.attachment_carbon)))
+            .map(|ring| score_suffix(mol, ring, &groups, key))
+            .max()
+            .unwrap_or_default();
+        let chain_score = if needs_path {
+            score_anionic_chains(mol, &forest, &groups, key)
+        } else {
+            score_suffix(mol, sites, &groups, key)
+        };
+        scores.insert(key, ring_score.max(chain_score));
+    }
+    Ok(scores)
+}
+
+/// Each arm runs from a vertex down to one of its descendants. Keep the
+/// highest-scoring arm and the highest containing a suffix of this class,
+/// then join arms from distinct children to score paths through the vertex.
+// Provenance: fn score_anionic_chains | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::score_anionic_chains
+fn score_anionic_chains(
+    mol: &Molecule,
+    forest: &[(usize, Option<usize>)],
+    groups: &[&PerceivedGroup],
+    key: &str,
+) -> AnionicScore {
+    let mut suffix_atoms: BTreeMap<usize, AtomSet> = BTreeMap::new();
+    for g in groups {
+        suffix_atoms.entry(g.attachment_carbon).or_default().extend(
+            g.atoms_involved
+                .iter()
+                .copied()
+                .filter(|i| mol.atoms[i].charge < 0 && !mol.atoms[i].is_carbon()),
+        );
+    }
+    // The same off-chain atom can be perceived at multiple attachments,
+    // such as an aminide nitrogen. Its attachments are in distinct carbon
+    // trees: a carbon path joining them would put that atom on a cycle.
+    let weights: Vec<_> = forest
+        .iter()
+        .map(|(atom, _)| {
+            let skeletal = usize::from(mol.atoms[atom].charge < 0);
+            let suffix = suffix_atoms.get(atom);
+            let count = suffix.map_or(0, AtomSet::len);
+            let ide = if matches!(key, "aminide" | "iminide") {
+                count
+            } else {
+                0
+            };
+            (
+                AnionicScore {
+                    centres: skeletal + count,
+                    ide_or_uide: skeletal + ide,
+                },
+                suffix.is_some(),
+            )
+        })
+        .collect();
+    let mut arms: Vec<_> = weights
+        .iter()
+        .map(|&(weight, has_suffix)| (weight, has_suffix.then_some(weight)))
+        .collect();
+    let mut best = AnionicScore::default();
+    for (index, &(_, parent)) in forest.iter().enumerate().rev() {
+        let (arm, with_suffix) = arms[index];
+        best = best.max(with_suffix.unwrap_or_default());
+        let Some(parent) = parent else {
+            continue;
+        };
+
+        let (weight, has_suffix) = weights[parent];
+        let (old_arm, old_with_suffix) = arms[parent];
+        // The previously visited arms include the parent weight. The new
+        // child arm does not include it, so it can be added directly.
+        if let Some(previous) = old_with_suffix {
+            best = best.max(previous.plus(arm));
+        }
+        if let Some(child) = with_suffix {
+            best = best.max(old_arm.plus(child));
+        }
+
+        let extended = weight.plus(arm);
+        let suffix_arm = if has_suffix {
+            Some(extended)
+        } else {
+            with_suffix.map(|child| weight.plus(child))
+        };
+        arms[parent] = (old_arm.max(extended), old_with_suffix.max(suffix_arm));
+    }
+    best
+}
+
 // Provenance: fn component_principal_key | adapted
 // Source: openclatura | src/openclatura/principal_groups.py::component_principal_key
 pub fn component_principal_key(
     mol: &Molecule,
     groups: &[PerceivedGroup],
     is_substituent: bool,
+) -> Option<String> {
+    principal_key(mol, groups, is_substituent, AnionicParentScope::Component)
+}
+
+/// The characteristic suffix is chosen from the groups still available on
+/// the selected parent. Skeletal anions contribute equally to all of them.
+// Provenance: fn principal_key_on_parent | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::principal_key_on_parent
+pub(super) fn principal_key_on_parent(
+    mol: &Molecule,
+    groups: &[PerceivedGroup],
+    is_substituent: bool,
+    parent: &AtomSet,
+) -> Option<String> {
+    principal_key(
+        mol,
+        groups,
+        is_substituent,
+        AnionicParentScope::Selected(parent),
+    )
+}
+
+/// Anion parent scores only order anions. Fusion numbering can ask whether
+/// ketone is the principal suffix while ring candidates are being found.
+// Provenance: fn ketone_is_principal | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/principal_groups.rs::ketone_is_principal
+pub(super) fn ketone_is_principal(mol: &Molecule, groups: &[PerceivedGroup]) -> bool {
+    principal_key(mol, groups, false, AnionicParentScope::Ignore).as_deref() == Some("ketone")
+}
+
+enum AnionicParentScope<'a> {
+    Component,
+    Selected(&'a AtomSet),
+    Ignore,
+}
+
+// Provenance: fn principal_key | adapted
+// Source: openclatura | src/openclatura/principal_groups.py::component_principal_key
+fn principal_key(
+    mol: &Molecule,
+    groups: &[PerceivedGroup],
+    is_substituent: bool,
+    scope: AnionicParentScope<'_>,
 ) -> Option<String> {
     if is_substituent {
         return None;
@@ -235,6 +499,27 @@ pub fn component_principal_key(
                     .is_some_and(|r| r.has_capability("promotes_member_groups"))
         })
         .collect();
+    let anionic_groups: Vec<_> = groups
+        .iter()
+        .filter(|g| g.is_principal_candidate && is_anionic_group_key(&g.key))
+        .collect();
+    let competing_anionic_classes = anionic_groups
+        .first()
+        .is_some_and(|first| anionic_groups.iter().any(|g| g.key != first.key));
+    let anionic_scores = match scope {
+        AnionicParentScope::Component if competing_anionic_classes => {
+            // The callers check the shared naming budget before using the key.
+            parent_anionic_centres(mol, &anionic_groups).ok()?
+        }
+        AnionicParentScope::Selected(parent) if competing_anionic_classes => anionic_groups
+            .iter()
+            .map(|g| g.key.as_str())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .map(|key| (key, score_suffix(mol, parent, &anionic_groups, key)))
+            .collect(),
+        _ => BTreeMap::new(),
+    };
     let effective = |group: &PerceivedGroup, seniority: &[i64]| {
         let mut best = seniority.to_vec();
         if let Some(descriptor) = &group.descriptor {
@@ -253,6 +538,14 @@ pub fn component_principal_key(
             }
         }
         let charge: i32 = group.atom_ids().iter().map(|i| mol.atoms[i].charge).sum();
+        // P-72.7(a): the suffix class that gives one parent the most anionic
+        // centres, as in 1-(borinan-1-uid-4-yl)ethane-1,2-bis(olate).
+        // P-72.7(b): then `ide` centres, so aminide precedes an acid anion
+        // (diide is senior to idoate).
+        let centres = anionic_scores
+            .get(group.key.as_str())
+            .copied()
+            .unwrap_or_default();
         // P-72.7(e): anionic suffixes rank as their neutral counterparts, so
         // carboxylate precedes olate.
         if matches!(
@@ -264,9 +557,16 @@ pub fn component_principal_key(
         }
         // P-70.2: ions precede neutral classes, including charge-separated
         // neutral groups such as azides and nitrile oxides.
-        (charge == 0, best, seniority.to_vec())
+        // Classes the rules leave level (the hydrazone spellings) fall back
+        // to the group key, so the choice does not follow the atom order.
+        (
+            charge == 0,
+            std::cmp::Reverse(centres),
+            best,
+            seniority.to_vec(),
+            group.key.clone(),
+        )
     };
-    // min_by keeps the first minimum, as Python's min does.
     groups
         .iter()
         .filter(|g| g.is_principal_candidate)
@@ -420,6 +720,46 @@ mod tests {
             assert_eq!(
                 candidate_principal_attachments(&mol, &groups, key.as_deref()).len(),
                 2,
+                "{smiles}"
+            );
+        }
+    }
+
+    /// P-41 classes 11 and 12 with P-43 Table 4.4: amides in the order of
+    /// their acids (carboxamides and chalcogen analogues, carboximidamides,
+    /// sulfonamides, then urea and guanidine from carbonic acid, class 7b;
+    /// P-66.1.6.1.1.5, P-66.4.1.2.1.3), all senior to hydrazides. P-41 class
+    /// 15: aldehydes before their chalcogen analogues.
+    #[test]
+    fn principal_class_follows_the_blue_book_suffix_order() {
+        use super::super::graph_io::read_smiles;
+        for (smiles, expected) in [
+            ("NC(=N)c1ccc(cc1)C(=O)NN", "ring_amidine"),
+            ("NC(=N)CCC(=O)NN", "amidine"),
+            ("NC(=N)CCS(=O)(=O)NN", "amidine"),
+            ("NC(=N)c1ccc(cc1)S(N)(=O)=O", "ring_amidine"),
+            ("NC(=N)c1ccc(cc1)C(N)=S", "ring_thioamide"),
+            ("NC(=N)c1ccc(cc1)C(N)=O", "ring_amide"),
+            ("NC(N)=NCCC(=O)NN", "guanidine"),
+            ("NC(N)=NCCS(N)(=O)=O", "sulfonamide"),
+            ("NC(N)=NCCC(N)=N", "amidine"),
+            ("NC(N)=NCCNC(N)=O", "urea"),
+            ("NC(=O)NCCS(N)(=O)=O", "sulfonamide"),
+            ("NC(=O)NCCC(N)=S", "thioamide"),
+            ("NC(=O)NCCC(N)=N", "amidine"),
+            ("NC(=O)NCCC(N)=O", "amide"),
+            ("NC(=O)NCCC(=O)NN", "urea"),
+            ("NC(=S)NCCS(N)(=O)=O", "sulfonamide"),
+            ("NC(=[Se])NCCS(N)(=O)=O", "sulfonamide"),
+            ("NC(N)=NCCNC(N)=[Se]", "selenourea"),
+            ("NC(N)=NCCNC(N)=[Te]", "tellurourea"),
+            ("O=CCCC=S", "aldehyde"),
+            ("S=Cc1ccc(C=O)cc1", "ring_aldehyde"),
+        ] {
+            let mol = read_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(
+                component_principal_key(&mol, &perceive_groups(&mol), false).as_deref(),
+                Some(expected),
                 "{smiles}"
             );
         }

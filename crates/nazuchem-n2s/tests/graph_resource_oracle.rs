@@ -13,9 +13,14 @@
 //! Captured with package-local SMILESFragmentBuilder.build(value,type,labels),
 //! then FragmentTools.convertSpareValenciesToDoubleBonds. Tests invoke no Java.
 use nazuchem_n2s::{
+    ParseOptions,
+    build_state::BuildState,
+    component_processor::ComponentProcessor,
     fragment_tools,
     graph::{FragmentId, Graph},
+    parse_tree::Arena,
     smiles::build_fragment,
+    suffix_rules::SuffixRules,
 };
 use std::collections::BTreeSet;
 fn snapshot(graph: &Graph, fragment: FragmentId) -> String {
@@ -59,10 +64,15 @@ fn snapshot(graph: &Graph, fragment: FragmentId) -> String {
 #[test]
 fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulization() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/xml");
-    // Native simpleSubstituents.xml acid-anion prefixes (issue #83, P-72.6.1)
+    // Native simpleSubstituents.xml acid-anion prefixes (issue #83, P-72.6.1;
+    // issue #145, P-65.6.2.3.1 for selenium and tellurium, and issue #180,
+    // P-65.1.4.1 for peroxycarboxylate) and the
+    // simpleGroups.xml cyanohydrazide (issue #113, P-66.3.1.2.1)
     // postdate the frozen Java oracle; they are acyclic, so they must build
     // without spare valencies or cycles and kekulization must leave them as is.
-    const NATIVE: [&str; 12] = [
+    const NATIVE: [&str; 18] = [
+        "N#CNN",
+        "-C(=O)O[O-]",
         "-S(=S)[O-]",
         "-S(=[Se])[O-]",
         "-S(=[Te])[O-]",
@@ -75,8 +85,52 @@ fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulizatio
         "-S(=S)(=[Se])[O-]",
         "-S(=[Se])(=[Te])[O-]",
         "-S(=S)(=[Te])[O-]",
+        "-[Se](=O)(=O)[O-]",
+        "-[Se](=O)[O-]",
+        "-[Te](=O)(=O)[O-]",
+        "-[Te](=O)[O-]",
+    ];
+    // Native fused ring tokens (P-25.2.2.2 and P-25.2.2.3) postdate the
+    // oracle. Their graph construction and Kekulé patterns match a pinned
+    // counterpart with the same arrangement of single and double bonds.
+    const NATIVE_FUSED: [&str; 34] = [
+        "c1cccc2sc3ccccc3[siH2]c12",
+        "c1cccc2sc3ccccc3[geH2]c12",
+        "c1cccc2sc3ccccc3[snH2]c12",
+        "c1cccc2sc3ccccc3[biH]c12",
+        "c1cccc2sc3ccccc3[bH]c12",
+        "c1cccc2[se]c3ccccc3[siH2]c12",
+        "c1cccc2[se]c3ccccc3[geH2]c12",
+        "c1cccc2[se]c3ccccc3[snH2]c12",
+        "c1cccc2[se]c3ccccc3[biH]c12",
+        "c1cccc2[se]c3ccccc3[bH]c12",
+        "c1cccc2[te]c3ccccc3[siH2]c12",
+        "c1cccc2[te]c3ccccc3[geH2]c12",
+        "c1cccc2[te]c3ccccc3[snH2]c12",
+        "c1cccc2[te]c3ccccc3[biH]c12",
+        "c1cccc2[te]c3ccccc3[bH]c12",
+        "c1cccc2pc3ccccc3[sb]c12",
+        "c1cccc2[as]c3ccccc3[sb]c12",
+        "c1cccc2oc3ccccc3[geH2]c12",
+        "c1cccc2oc3ccccc3[snH2]c12",
+        "c1cccc2oc3ccccc3[biH]c12",
+        "c1cccc2oc3ccccc3[bH]c12",
+        "c1cccc2pc3ccccc3[as]c12",
+        "c1cccc2[b]c3ccccc3[b]c12",
+        "c1cccc2sc3ccccc3[se]c12",
+        "c1cccc2sc3ccccc3[te]c12",
+        "c1cccc2[se]c3ccccc3[te]c12",
+        "c1cccc2sc3ccccc3[pH]c12",
+        "c1cccc2sc3ccccc3[sbH]c12",
+        "c1cccc2[se]c3ccccc3[pH]c12",
+        "c1cccc2[se]c3ccccc3[asH]c12",
+        "c1cccc2[se]c3ccccc3[sbH]c12",
+        "c1cccc2[te]c3ccccc3[pH]c12",
+        "c1cccc2[te]c3ccccc3[asH]c12",
+        "c1cccc2[te]c3ccccc3[sbH]c12",
     ];
     let mut native = Vec::new();
+    let mut native_fused = BTreeSet::new();
     let mut inputs = BTreeSet::new();
     let mut literals = 0;
     for entry in std::fs::read_dir(root).unwrap() {
@@ -104,6 +158,10 @@ fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulizatio
                 };
                 if NATIVE.contains(&value) {
                     native.push(value.to_owned());
+                    continue;
+                }
+                if NATIVE_FUSED.contains(&value) {
+                    native_fused.insert(value.to_owned());
                     continue;
                 }
                 inputs.insert((
@@ -141,7 +199,42 @@ fn every_distinct_literal_resource_has_source_cycles_indicated_h_and_kekulizatio
         fragment_tools::convert_spare_valencies_to_double_bonds(&mut graph, fragment).unwrap();
         assert_eq!(snapshot(&graph, fragment), before, "{value}");
     }
-    assert_eq!(literals, 3183);
+    assert_eq!(native_fused, NATIVE_FUSED.map(String::from).into());
+    let rules = SuffixRules::new().unwrap();
+    let snapshots = |value: &str| {
+        let mut state = BuildState::new(ParseOptions::default());
+        let mut arena = Arena::default();
+        let group = arena.token("group", "");
+        arena[group].set_attribute("type", "ring");
+        arena[group].set_attribute("value", value);
+        arena[group].set_attribute("labels", "1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a");
+        let fragment = ComponentProcessor::new(&mut state, &rules)
+            .resolve_group(&mut arena, group)
+            .unwrap();
+        let graph = &mut state.fragment_manager.graph;
+        let before = snapshot(graph, fragment);
+        fragment_tools::convert_spare_valencies_to_double_bonds(graph, fragment).unwrap();
+        (before, snapshot(graph, fragment))
+    };
+    for value in NATIVE_FUSED {
+        let sibling = if value.contains("[b]") || value.contains("[as]") || value.contains("[sb]") {
+            "c1cccc2pc3ccccc3pc12"
+        } else if value.contains("H]") || value.contains("H2]") {
+            "c1cccc2sc3ccccc3[asH]c12"
+        } else {
+            "c1cccc2oc3ccccc3[se]c12"
+        };
+        assert_eq!(snapshots(value), snapshots(sibling), "{value}");
+    }
+    assert_eq!(literals, 3181);
+    // Boranthrene is now an aromatic resource so hydro prefixes can act on
+    // its spare valences. Keep testing the former literal against the
+    // frozen oracle, even though both dictionary occurrences were replaced.
+    inputs.insert((
+        "C1=CC=CC=2B=C3C=CC=CC3=BC12".into(),
+        "ring".into(),
+        "1/2/3/4/4a/5/5a/6/7/8/9/9a/10/10a".into(),
+    ));
     assert_eq!(inputs.len(), 2643);
     let actual_inputs: String = inputs
         .iter()

@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | amide nitrogen charge follow-up
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | issue #121
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | issue #138
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs | issue #186
 // Source: ReShiki | src/naming/openclatura/identity_validation.rs | 327d32fed63a5b3df15b7b8dc5ab84a7c36e0865
 // Copyright (c) 2026 lamalab-org
 // Source: openclatura | tests/data/parser_xml_resources/heteroAtoms.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -12,12 +16,14 @@
 
 //! Input states that the plain-name renderers cannot preserve.
 use super::molecule::Molecule;
-use super::perception::PerceivedGroup;
+use super::perception::{LigandRole, PerceivedGroup};
 use std::collections::BTreeSet;
 
 // Provenance: fn validate_principal_charge_roles | original
 // Source: ReShiki | src/naming/openclatura/identity_validation.rs::validate_principal_charge_roles
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::validate_principal_charge_roles
 pub fn validate_principal_charge_roles(
+    mol: &Molecule,
     groups: &[PerceivedGroup],
     key: Option<&str>,
 ) -> Result<(), String> {
@@ -35,12 +41,145 @@ pub fn validate_principal_charge_roles(
             "openclatura: mixed ester and anion principal citations are not supported".into(),
         );
     }
+    // The parser localizes thioate charge on oxygen. For a heteroatom-bound
+    // thioate, the identity check cannot equate that graph to the S-anion.
+    if matches!(
+        key,
+        Some("acyl_anion_O_S_chain" | "acyl_anion_O_S_external")
+    ) {
+        for descriptor in selected().filter_map(|g| g.descriptor.as_ref()) {
+            for &center in &descriptor.centers {
+                let neighbors = mol.get_neighbors(center);
+                let heteroatom_bound = neighbors.iter().any(|atom| {
+                    !descriptor.ligands.iter().any(|ligand| ligand.atom == *atom)
+                        && !matches!(mol.atoms[atom].symbol.as_str(), "C" | "H")
+                });
+                if !heteroatom_bound {
+                    continue;
+                }
+                if descriptor.ligands.iter().any(|ligand| {
+                    ligand.role == LigandRole::Anionic
+                        && ligand.element == "S"
+                        && neighbors.contains(&ligand.atom)
+                }) {
+                    return Err(
+                        "openclatura: heteroatom-bound thioate charge on sulfur is not supported"
+                            .into(),
+                    );
+                }
+                mol.mark_name(nazuchem_ir::NameStatus::Unverified(
+                    nazuchem_ir::NameReason::AnionParent,
+                ));
+            }
+        }
+    }
+    // P-72.2.2.2.4: a neutral suffix such as amide would drop the charge of
+    // its nitrogen (acetamide for acetylazanide).
+    if selected().any(|g| {
+        g.is_principal_candidate
+            && !super::perception::is_anionic_group_key(&g.key)
+            && g.atoms_involved
+                .iter()
+                .any(|i| mol.atoms[i].symbol == "N" && mol.atoms[i].charge < 0)
+            && g.atom_ids()
+                .iter()
+                .map(|i| mol.atoms[i].charge)
+                .sum::<i32>()
+                < 0
+    }) {
+        return Err("openclatura: anionic nitrogen in a neutral suffix is not supported".into());
+    }
     Ok(())
+}
+
+/// Hydrogens at each end identify the bonding numbers in R-P-PHn.
+// Provenance: fn diphosphanyl_hydrogens | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::diphosphanyl_hydrogens
+pub(super) fn diphosphanyl_hydrogens(mol: &Molecule, root: usize) -> Option<(usize, usize)> {
+    let atom = &mol.atoms[&root];
+    let neighbors = mol.get_neighbors(root);
+    if atom.symbol != "P" || neighbors.len() != 2 {
+        return None;
+    }
+    let &tip = neighbors.iter().find(|n| mol.atoms[n].symbol == "P")?;
+    let terminal = &mol.atoms[&tip];
+    let &carbon = neighbors.iter().find(|n| mol.atoms[n].is_carbon())?;
+    if mol
+        .get_neighbors(carbon)
+        .iter()
+        .any(|&n| mol.bond_order(n, carbon) != 1)
+        || neighbors.iter().any(|&n| mol.bond_order(root, n) != 1)
+        || mol.degree(tip) != 1
+        || [atom, terminal].iter().any(|a| {
+            a.charge != 0 || a.isotope.is_some() || a.has_stereo() || a.radical_electrons != 0
+        })
+    {
+        return None;
+    }
+    let pair = (atom.total_h_count, terminal.total_h_count);
+    matches!(pair, (1, 2 | 4) | (3, 2)).then_some(pair)
+}
+
+/// Admit terminal hydride prefixes on saturated alkanoic acids and the
+/// diphosphanyl prefixes on alkanenitriles in P-45.3.1–2.
+// Provenance: fn supported_hydride_prefix_context | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::supported_hydride_prefix_context
+pub(super) fn supported_hydride_prefix_context(mol: &Molecule) -> bool {
+    if mol.bonds.len() + 1 != mol.atoms.len() {
+        return false;
+    }
+    let mut oxygens = Vec::new();
+    let mut nitriles = 0;
+    let mut paired = false;
+    for atom in mol.atoms.values() {
+        let adj = mol.get_neighbors(atom.idx);
+        if atom.charge != 0 {
+            return false;
+        }
+        match atom.symbol.as_str() {
+            "O" if adj.len() == 1 && mol.atoms[&adj[0]].is_carbon() => {
+                oxygens.push((adj[0], mol.bond_order(atom.idx, adj[0]), atom.total_h_count));
+            }
+            "N" if adj.len() == 1
+                && mol.atoms[&adj[0]].is_carbon()
+                && mol.bond_order(atom.idx, adj[0]) == 3
+                && atom.total_h_count == 0 =>
+            {
+                nitriles += 1;
+            }
+            "P" if diphosphanyl_hydrogens(mol, atom.idx).is_some()
+                || (adj.len() == 1 && diphosphanyl_hydrogens(mol, adj[0]).is_some()) =>
+            {
+                paired = true;
+            }
+            "P" | "S"
+                if adj.len() == 1
+                    && mol.atoms[&adj[0]].is_carbon()
+                    && mol.bond_order(atom.idx, adj[0]) == 1
+                    && mol
+                        .get_neighbors(adj[0])
+                        .iter()
+                        .all(|&n| mol.bond_order(adj[0], n) == 1)
+                    && matches!(
+                        (atom.symbol.as_str(), atom.total_h_count),
+                        ("P", 2 | 4) | ("S", 1 | 3 | 5)
+                    ) => {}
+            "C" if adj.iter().all(|&n| {
+                matches!(mol.atoms[&n].symbol.as_str(), "O" | "N")
+                    || mol.bond_order(atom.idx, n) == 1
+            }) => {}
+            _ => return false,
+        }
+    }
+    oxygens.sort();
+    (nitriles == 0 && matches!(oxygens.as_slice(), [(a, 1, 1), (b, 2, 0)] if a == b))
+        || (paired && nitriles == 1 && oxygens.is_empty())
 }
 
 // Provenance: fn validate_input | original
 // Source: ReShiki | src/naming/openclatura/identity_validation.rs::validate_input
 pub fn validate_input(mol: &Molecule) -> Result<(), String> {
+    let admitted_hydrides = std::cell::LazyCell::new(|| supported_hydride_prefix_context(mol));
     for (&idx, atom) in &mol.atoms {
         // Upstream divergence: elemental ion shortcuts require their exact charge and hydrogen state.
         if mol.atoms.len() == 1
@@ -100,6 +239,7 @@ pub fn validate_input(mol: &Molecule) -> Result<(), String> {
         // Upstream divergence: ordinary terminal hydride/group names require their exact bonding number and H count.
         if (bond.order == 1 || mol.atoms[&neighbor].is_carbon())
             && bond.order + atom.total_h_count != expected
+            && !*admitted_hydrides
         {
             return Err(format!(
                 "openclatura: terminal {} atom {idx} with {} hydrogens and bonding number {} is not supported",
@@ -207,6 +347,397 @@ pub fn validate_mancude_duplicate_ranking(mol: &Molecule) -> Result<(), String> 
 #[cfg(test)]
 mod tests {
     use crate::name_smiles;
+
+    #[test]
+    // Provenance: fn tests::charged_characteristic_groups_preserve_identity | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::charged_characteristic_groups_preserve_identity
+    fn charged_characteristic_groups_preserve_identity() {
+        let budget = Default::default();
+        for (smiles, expected) in [
+            (
+                "CC[N+](C)=C=S",
+                "N-ethyl-N-methyl-1-sulfanylidenemethaniminium",
+            ),
+            ("CC[N+](C)=C=O", "N-ethyl-N-methyl-1-oxomethaniminium"),
+            (
+                "C1CCC[N+]1=C=S",
+                "1-(sulfanylidenemethylidene)pyrrolidin-1-ium",
+            ),
+            (
+                "[O-]C(=O)CC[N+](C)=C=S",
+                "3-[methyl(sulfanylidenemethylidene)ammonio]propanoate",
+            ),
+            (
+                "C[NH+](C)[N+](C)=C=S",
+                "N-methyl-N-[methyl(sulfanylidenemethylidene)ammonio]methanaminium",
+            ),
+            (
+                "CC[N+](C)=C=S.[Cl-]",
+                "N-ethyl-N-methyl-1-sulfanylidenemethaniminium chloride",
+            ),
+            ("CCN=C=[OH+]", "N-ethyl-1-oxidaniumylidenemethanimine"),
+            ("CCN=C=S", "isothiocyanatoethane"),
+            ("CNNC(C)=O", "N'-methylacetohydrazide"),
+            ("[NH-]C(=O)C", "acetylazanide"),
+            ("CN[N-]C(C)=O", "1-acetyl-2-methylhydrazin-1-ide"),
+        ] {
+            let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+            let result = [
+                name_smiles(smiles, &budget),
+                crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+            ];
+            for name in result {
+                assert_eq!(name.unwrap().text, expected, "{smiles}");
+            }
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        for smiles in ["CCN=C=[SH+]", "C[NH+](C)N=C=[SH+]"] {
+            let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+            assert!(name_smiles(smiles, &budget).is_err(), "{smiles}");
+            assert!(
+                crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget).is_err(),
+                "{smiles}"
+            );
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::amidium_names_preserve_charge_in_both_public_naming_paths | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::amidium_names_preserve_charge_in_both_public_naming_paths
+    fn amidium_names_preserve_charge_in_both_public_naming_paths() {
+        use crate::test_support::{canonical_smiles, parse_strict};
+
+        let budget = Default::default();
+        for (smiles, expected) in [
+            // P-73.1.2.1 and Table 7.4: use amidium for positive nitrogen.
+            ("C[NH+](C)C=S", "N,N-dimethylmethanethioamidium"),
+            (
+                "C[NH+](C)C=S.[Cl-]",
+                "N,N-dimethylmethanethioamidium chloride",
+            ),
+            ("C[NH+](C)C=O", "N,N-dimethylformamidium"),
+            ("C[NH+](C)C=O.[Cl-]", "N,N-dimethylformamidium chloride"),
+            (
+                "O=C(O)CC=[N+](C)C=S",
+                "N-(3-hydroxy-3-oxopropylidene)-N-methylmethanethioamidium",
+            ),
+            (
+                "C[NH+](C)C(=S)c1ccccc1",
+                "N,N-dimethylbenzenecarbothioamidium",
+            ),
+            ("C[N+](C)(C)C=S", "N,N,N-trimethylmethanethioamidium"),
+            ("C[NH+](C)C=[Se]", "N,N-dimethylmethaneselenoamidium"),
+            ("C[NH+](C)C=[Te]", "N,N-dimethylmethanetelluroamidium"),
+            ("CC(=[OH+])N", "1-oxidaniumylideneethan-1-amine"),
+            (
+                "CC(=[OH+])N.[Cl-]",
+                "1-oxidaniumylideneethan-1-amine chloride",
+            ),
+            (
+                "C[NH+](C)C(=S)CC(=O)[O-]",
+                "3-(N-methylmethanaminiumyl)-3-sulfanylidenepropanoate",
+            ),
+            (
+                "[NH3+]C(=S)CC(=O)[O-]",
+                "3-azaniumyl-3-sulfanylidenepropanoate",
+            ),
+            ("[NH3+]C(=O)CC(=O)[O-]", "3-azaniumyl-3-oxopropanoate"),
+            ("[NH3+]C(=S)C(=O)[O-]", "azaniumyl(sulfanylidene)acetate"),
+            ("[NH3+]C(=O)C(=O)[O-]", "azaniumyl(oxo)acetate"),
+            ("CN(C)C=S", "N,N-dimethylmethanethioamide"),
+            ("CC(=S)NN=C(C)C", "N'-(propan-2-ylidene)ethanethiohydrazide"),
+            ("C[N+]([O-])(C)C=S", "N,N-dimethyl-N-oxidomethanethioamide"),
+        ] {
+            let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+            for result in [
+                name_smiles(smiles, &budget),
+                crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+            ] {
+                let name = result.unwrap_or_else(|error| panic!("{smiles}: {error}"));
+                assert_eq!(name.text, expected, "{smiles}");
+                let reconstructed = parse_strict(&name.text).unwrap();
+                assert_eq!(
+                    canonical_smiles(&reconstructed).unwrap(),
+                    canonical_smiles(smiles).unwrap(),
+                    "{smiles} -> {} -> {reconstructed}",
+                    name.text,
+                );
+            }
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::charged_amidium_variants_preserve_protons_and_charge_pairs | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::charged_amidium_variants_preserve_protons_and_charge_pairs
+    fn charged_amidium_variants_preserve_protons_and_charge_pairs() {
+        use crate::test_support::{canonical_smiles, parse_strict};
+        use nazuchem_ir::{NameReason, NameStatus};
+
+        let budget = Default::default();
+        let fallback = NameStatus::Unverified(NameReason::CationParent);
+        for (smiles, expected, status) in [
+            // The retained uronium names parse as C=N+ tautomers.
+            ("NC(=O)[NH3+]", "aminoformamidium", fallback),
+            ("[NH3+]C(=O)N", "aminoformamidium", fallback),
+            ("NC(=S)[NH3+]", "aminomethanethioamidium", fallback),
+            ("[NH3+]C(=S)N", "aminomethanethioamidium", fallback),
+            (
+                "[NH3+]C(=O)C(=O)[NH3+]",
+                "ethanebis(amidium)",
+                NameStatus::Preferred,
+            ),
+            (
+                "[NH3+]C(=S)CC(=S)[NH3+]",
+                "propanebis(thioamidium)",
+                NameStatus::Preferred,
+            ),
+            ("[NH2+]([O-])C(=O)C", "N-oxidoacetamidium", fallback),
+            ("[NH2+]([S-])C(=S)C", "N-sulfidoethanethioamidium", fallback),
+            (
+                "[NH2+]([Se-])C(=[Se])C",
+                "N-selenidoethaneselenoamidium",
+                fallback,
+            ),
+            (
+                "[NH2+]([Te-])C(=[Te])C",
+                "N-telluridoethanetelluroamidium",
+                fallback,
+            ),
+            (
+                "C[NH+]([O-])C(=O)C",
+                "N-methyl-N-oxidoacetamidium",
+                fallback,
+            ),
+        ] {
+            let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+            let reconstructed = parse_strict(expected).unwrap();
+            assert_eq!(
+                canonical_smiles(&reconstructed).unwrap(),
+                canonical_smiles(smiles).unwrap(),
+                "{smiles} -> {expected} -> {reconstructed}",
+            );
+            for result in [
+                name_smiles(smiles, &budget),
+                crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+            ] {
+                let name = result.unwrap_or_else(|error| panic!("{smiles}: {error}"));
+                assert_eq!(name.text, expected, "{smiles}");
+                assert_eq!(name.status, status, "{smiles}");
+            }
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::amide_nitrogen_chalcogenides_keep_the_neutral_amide_suffix | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::amide_nitrogen_chalcogenides_keep_the_neutral_amide_suffix
+    fn amide_nitrogen_chalcogenides_keep_the_neutral_amide_suffix() {
+        use crate::test_support::{canonical_smiles, parse_strict};
+        use nazuchem_ir::{NameReason, NameStatus};
+
+        let budget = Default::default();
+        for (element, prefix) in [
+            ("O", "oxido"),
+            ("S", "sulfido"),
+            ("Se", "selenido"),
+            ("Te", "tellurido"),
+        ] {
+            let expected = format!("N,N,N',N'-tetramethyl-N-{prefix}ethanediamide");
+            let reconstructed = parse_strict(&expected).unwrap();
+            let canonical = canonical_smiles(&reconstructed).unwrap();
+            for smiles in [
+                format!("C[N+]([{element}-])(C)C(=O)C(=O)N(C)C"),
+                format!("CN(C)C(=O)C(=O)[N+](C)(C)[{element}-]"),
+            ] {
+                let ir = crate::ir_input::from_smiles(&smiles, &budget).unwrap();
+                assert_eq!(canonical_smiles(&smiles).unwrap(), canonical, "{smiles}");
+                for result in [
+                    name_smiles(&smiles, &budget),
+                    crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+                ] {
+                    let name = result.unwrap_or_else(|error| panic!("{smiles}: {error}"));
+                    assert_eq!(name.text, expected, "{smiles}");
+                    assert_eq!(
+                        name.status,
+                        NameStatus::NotPreferred(NameReason::UnretainedParent),
+                        "{smiles}",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::ring_external_amidium_suffixes_round_trip | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::ring_external_amidium_suffixes_round_trip
+    fn ring_external_amidium_suffixes_round_trip() {
+        use crate::test_support::{canonical_smiles, parse_strict};
+        use nazuchem_ir::{NameReason, NameStatus};
+
+        let budget = Default::default();
+        for (smiles, expected, status) in [
+            (
+                "[NH3+]C(=O)c1ccc(C(=O)[NH3+])cc1",
+                "benzene-1,4-bis(carboxamidium)",
+                NameStatus::Preferred,
+            ),
+            (
+                "[NH3+]C(=O)C1CCC(C(=O)[NH3+])CC1",
+                "cyclohexane-1,4-bis(carboxamidium)",
+                NameStatus::Preferred,
+            ),
+            (
+                "[NH3+]C(=O)c1cc(C(=O)[NH3+])cc(C(=O)[NH3+])c1",
+                "benzene-1,3,5-tris(carboxamidium)",
+                NameStatus::Preferred,
+            ),
+            (
+                "C[NH2+]C(=O)c1ccc(C(=O)[NH3+])cc1",
+                "N-methylbenzene-1,4-bis(carboxamidium)",
+                NameStatus::NotPreferred(NameReason::DiamideLocants),
+            ),
+            (
+                "[NH3+]C(=O)c1ccc(C(=O)[NH2+]C)cc1",
+                "N-methylbenzene-1,4-bis(carboxamidium)",
+                NameStatus::NotPreferred(NameReason::DiamideLocants),
+            ),
+            ("[NH3+]C(=O)c1ccccc1", "benzamidium", NameStatus::Preferred),
+            (
+                "[NH3+]C(=O)C1CCCCC1",
+                "cyclohexanecarboxamidium",
+                NameStatus::Preferred,
+            ),
+            (
+                "[NH3+]C(=S)c1ccc(C(=S)[NH3+])cc1",
+                "benzene-1,4-bis(carbothioamidium)",
+                NameStatus::Preferred,
+            ),
+            (
+                "[NH3+]C(=[Se])c1ccc(C(=[Se])[NH3+])cc1",
+                "benzene-1,4-bis(carboselenoamidium)",
+                NameStatus::Preferred,
+            ),
+            (
+                "[NH3+]C(=[Te])c1ccc(C(=[Te])[NH3+])cc1",
+                "benzene-1,4-bis(carbotelluroamidium)",
+                NameStatus::Preferred,
+            ),
+        ] {
+            let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+            let reconstructed = parse_strict(expected).unwrap();
+            assert_eq!(
+                canonical_smiles(&reconstructed).unwrap(),
+                canonical_smiles(smiles).unwrap(),
+                "{smiles} -> {expected} -> {reconstructed}",
+            );
+            for result in [
+                name_smiles(smiles, &budget),
+                crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+            ] {
+                let name = result.unwrap_or_else(|error| panic!("{smiles}: {error}"));
+                assert_eq!(name.text, expected, "{smiles}");
+                assert_eq!(name.status, status, "{smiles}");
+            }
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::multiplied_amidium_n_locants_are_independent_of_atom_order | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::multiplied_amidium_n_locants_are_independent_of_atom_order
+    fn multiplied_amidium_n_locants_are_independent_of_atom_order() {
+        use crate::test_support::{canonical_smiles, parse_strict};
+
+        let budget = Default::default();
+        for (smiles_pair, expected) in [
+            (
+                ["C[NH2+]C(=O)C(=O)[NH3+]", "[NH3+]C(=O)C(=O)[NH2+]C"],
+                "N-methylethanebis(amidium)",
+            ),
+            (
+                ["C[NH2+]C(=S)C(=S)[NH3+]", "[NH3+]C(=S)C(=S)[NH2+]C"],
+                "N-methylethanebis(thioamidium)",
+            ),
+            (
+                ["C[NH2+]C(=S)C(=S)[NH2+]CC", "CC[NH2+]C(=S)C(=S)[NH2+]C"],
+                "N-ethyl-N'-methylethanebis(thioamidium)",
+            ),
+            (
+                ["C[NH2+]C(=O)C(=S)[NH2+]CC", "CC[NH2+]C(=S)C(=O)[NH2+]C"],
+                "2-(ethanaminiumyl)-N-methyl-2-sulfanylideneacetamidium",
+            ),
+        ] {
+            let reconstructed = parse_strict(expected).unwrap();
+            let canonical = canonical_smiles(&reconstructed).unwrap();
+            for smiles in smiles_pair {
+                let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+                assert_eq!(canonical_smiles(smiles).unwrap(), canonical, "{smiles}");
+                for result in [
+                    name_smiles(smiles, &budget),
+                    crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+                ] {
+                    let name = result.unwrap_or_else(|error| panic!("{smiles}: {error}"));
+                    assert_eq!(name.text, expected, "{smiles}");
+                    assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::shared_nitrogen_amidium_parent_is_independent_of_atom_order | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::shared_nitrogen_amidium_parent_is_independent_of_atom_order
+    fn shared_nitrogen_amidium_parent_is_independent_of_atom_order() {
+        use crate::test_support::{canonical_smiles, parse_strict};
+
+        let budget = Default::default();
+        for (smiles_pair, expected) in [
+            (
+                ["CC(=O)[NH+](C)C(=O)CC", "CCC(=O)[NH+](C)C(=O)C"],
+                "N-acetyl-N-methylpropanamidium",
+            ),
+            (
+                ["CC(=S)[NH+](C)C(=S)CC", "CCC(=S)[NH+](C)C(=S)C"],
+                "N-(ethanethioyl)-N-methylpropanethioamidium",
+            ),
+            (
+                ["CC(=O)[NH+](C)C(=S)CC", "CCC(=S)[NH+](C)C(=O)C"],
+                "N-methyl-N-(propanethioyl)acetamidium",
+            ),
+        ] {
+            let reconstructed = parse_strict(expected).unwrap();
+            let canonical = canonical_smiles(&reconstructed).unwrap();
+            for smiles in smiles_pair {
+                let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+                assert_eq!(canonical_smiles(smiles).unwrap(), canonical, "{smiles}");
+                for result in [
+                    name_smiles(smiles, &budget),
+                    crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+                ] {
+                    let name = result.unwrap_or_else(|error| panic!("{smiles}: {error}"));
+                    assert_eq!(name.text, expected, "{smiles}");
+                    assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::amidium_substituent_prefixes_without_a_charge_citation_are_declined | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/identity_validation.rs::tests::amidium_substituent_prefixes_without_a_charge_citation_are_declined
+    fn amidium_substituent_prefixes_without_a_charge_citation_are_declined() {
+        let budget = Default::default();
+        let smiles = "C[NH+](C)C(=S)c1ccc(C(=O)[O-])cc1";
+        let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+        for result in [
+            name_smiles(smiles, &budget),
+            crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+        ] {
+            assert_eq!(
+                result.unwrap_err(),
+                "openclatura: amidium substituent prefix is not supported",
+            );
+        }
+    }
 
     #[test]
     // Provenance: fn tests::public_entry_declines_kekule_dependent_cip_ranks | original

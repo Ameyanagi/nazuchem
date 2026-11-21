@@ -86,7 +86,7 @@
       "hydroxy": 2,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "dihydroxyphosphoryl"
+      "prefix": "phosphono"
     },
     {
       "symbol": "P",
@@ -95,7 +95,7 @@
       "hydroxy": 1,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "phosphonato"
+      "prefix": "(hydroxy(oxido)phosphoryl)"
     },
     {
       "symbol": "P",
@@ -113,7 +113,7 @@
       "hydroxy": 0,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "dioxophosphanyl"
+      "prefix": "dioxo-lambda^5-phosphanyl"
     },
     {
       "symbol": "S",
@@ -212,7 +212,7 @@
       "hydroxy": 2,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "dihydroxyarsoryl"
+      "prefix": "arsono"
     },
     {
       "symbol": "Sb",
@@ -221,7 +221,7 @@
       "hydroxy": 2,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "dihydroxystiboryl"
+      "prefix": "stibono"
     },
     {
       "symbol": "As",
@@ -230,7 +230,7 @@
       "hydroxy": 1,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "arsonato"
+      "prefix": "(hydroxy(oxido)arsoryl)"
     },
     {
       "symbol": "Sb",
@@ -239,7 +239,7 @@
       "hydroxy": 1,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "stibonato"
+      "prefix": "(hydroxy(oxido)stiboryl)"
     },
     {
       "symbol": "As",
@@ -266,7 +266,7 @@
       "hydroxy": 0,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "dioxoarsanyl"
+      "prefix": "dioxo-lambda^5-arsanyl"
     },
     {
       "symbol": "Sb",
@@ -275,7 +275,7 @@
       "hydroxy": 0,
       "alkoxy": 0,
       "peroxy": 0,
-      "prefix": "dioxostibanyl"
+      "prefix": "dioxo-lambda^5-stibanyl"
     },
     {
       "symbol": "P",

@@ -8,6 +8,7 @@
 // Source: openclatura | tests/roundtrip/test_fused_hydrocarbon_retained.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/fixtures/diverse_corpus.csv | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/data/parser_xml_resources/arylGroups.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/ion_spelling_tests.rs | issue #96
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 
 use super::name_smiles;
@@ -288,10 +289,11 @@ fn ion_spelling_matrix() {
             "3-(1-methylpyrrolidin-1-ium-1-yl)propanoate",
             NameStatus::Preferred,
         ),
+        // P-16.5.1.2: enclosed although its attachment locant is omitted (#127).
         (
             "azetidine cation prefix",
             "C1C[NH+](C1)CC(=O)[O-]",
-            "azetidin-1-ium-1-ylacetate",
+            "(azetidin-1-ium-1-yl)acetate",
             NameStatus::Preferred,
         ),
         (
@@ -411,6 +413,101 @@ fn ion_spelling_matrix() {
             "5-chloro-2-methyl-2,3-dihydro-1H-isoindol-2-ium",
             NameStatus::Preferred,
         ),
+        // The preselected -N2+ prefix is diazyn-1-ium-1-yl, not diazonio
+        // (P-73.6 method (1); P-12.2 preselected prefixes in PINs).
+        (
+            "#127 diazonium prefix",
+            "[O-]C(=O)c1ccc(cc1)[N+]#N",
+            "4-(diazyn-1-ium-1-yl)benzoate",
+            NameStatus::Preferred,
+        ),
+        // P-16.5.1.2: enclosed although its attachment locant is omitted.
+        (
+            "#127 diazonium prefix on a chain",
+            "N#[N+]CC(=O)[O-]",
+            "(diazyn-1-ium-1-yl)acetate",
+            NameStatus::Preferred,
+        ),
+        // P-73.1.1.2, P-25.2.1: a cation is the name of its neutral parent hydride
+        // (hydro prefixes and indicated hydrogen included) plus -ium, so it
+        // keeps a retained parent name such as naphthyridine.
+        (
+            "#96 retained hydro parent",
+            "N1CCCC2C1CC[NH2+]C2",
+            "decahydro-1,6-naphthyridin-6-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 retained hydro parent, other N",
+            "[NH2+]1CCCC2C1CCNC2",
+            "decahydro-1,6-naphthyridin-1-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 retained hydro parent, diium",
+            "[NH2+]1CCCC2C1CC[NH2+]C2",
+            "decahydro-1,6-naphthyridine-1,6-diium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 retained partly hydro parent",
+            "n1cccc2C[NH2+]CCc12",
+            "5,6,7,8-tetrahydro-1,6-naphthyridin-6-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 retained parent, lowest indicated hydrogen",
+            "C1C[NH2+]Cc2[nH]c3ccccc3c12",
+            "2,3,4,9-tetrahydro-1H-pyrido[3,4-b]indol-2-ium",
+            NameStatus::Preferred,
+        ),
+        // P-73.1.1.2 (1,1,3,3-tetraphenyl-4,5-dihydro-1H-1,2,3λ5-triphosphol-1-ium):
+        // a quaternary ring N is the same cation with its hydrogen substituted.
+        (
+            "#96 quaternary N, indicated hydrogen elsewhere",
+            "C[N+]1(C)Cc2ccccc2C1",
+            "2,2-dimethyl-2,3-dihydro-1H-isoindol-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 quaternary N, hydro parent",
+            "C[N+]1(C)CCc2ccccc2C1",
+            "2,2-dimethyl-1,2,3,4-tetrahydroisoquinolin-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 quaternary N, saturated parent",
+            "C[N+]1(C)CCC2CCCCC2C1",
+            "2,2-dimethyldecahydroisoquinolin-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 quaternary fusion N",
+            "C1CC[N+]2(C)CCCCC2C1",
+            "5-methyloctahydro-2H-quinolizin-5-ium",
+            NameStatus::Preferred,
+        ),
+        // P-73.1.2.1 (2,2-dimethyl-1,3-dioxo-2,3-dihydro-1H-isoindol-2-ium): a ring
+        // C=O of the cationic parent hydride is cited as oxo.
+        (
+            "#96 ring oxo on a protonated retained parent",
+            "[NH2+]1CCc2cc[nH]c(=O)c2C1",
+            "8-oxo-1,2,3,4,7,8-hexahydro-2,7-naphthyridin-2-ium",
+            NameStatus::Preferred,
+        ),
+        (
+            "#96 ring oxo beside the hydro positions",
+            "O=C1C[NH2+]Cc2ccccc12",
+            "4-oxo-1,2,3,4-tetrahydroisoquinolin-2-ium",
+            NameStatus::Preferred,
+        ),
+        // P-73.1.1.2: a hydron at a fusion N preserves the neutral parent.
+        (
+            "#96 protonated fusion N",
+            "C1CC[NH+]2CCCCC2C1",
+            "octahydro-2H-quinolizin-5-ium",
+            NameStatus::Preferred,
+        ),
         (
             "control nitrobenzene",
             "[O-][N+](=O)c1ccccc1",
@@ -444,4 +541,45 @@ fn ion_spelling_matrix() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+// Provenance: fn fused_cation_aliases_preserve_charge_and_hydrogen_at_the_ring_junction | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/ion_spelling_tests.rs::fused_cation_aliases_preserve_charge_and_hydrogen_at_the_ring_junction
+fn fused_cation_aliases_preserve_charge_and_hydrogen_at_the_ring_junction() {
+    // Strict structures from the baseline reader. Both retained spellings
+    // keep the same carbon tautomer and the same valence at the junction N.
+    for (root, junction, indicated, expected) in [
+        ("indolizin", 4, 1, "C1C=C[N+]2=CC=CC=C12"),
+        ("indolizin", 4, 2, "C=1CC=[N+]2C=CC=CC12"),
+        ("indolizin", 4, 3, "C1=CC[N+]2=CC=CC=C12"),
+        ("indolizin", 4, 4, "C=1C=C[NH+]2C=CC=CC12"),
+        ("indolizin", 4, 5, "C1=CC=[N+]2CC=CC=C12"),
+        ("indolizin", 4, 6, "C=1C=C[N+]2=CCC=CC12"),
+        ("indolizin", 4, 7, "C1=CC=[N+]2C=CCC=C12"),
+        ("indolizin", 4, 8, "C=1C=C[N+]2=CC=CCC12"),
+        ("quinolizin", 5, 1, "C1C=CC[N+]2=CC=CC=C12"),
+        ("quinolizin", 5, 3, "C1=CCC[N+]2=CC=CC=C12"),
+        ("quinolizin", 5, 4, "C1=CCC[N+]2=CC=CC=C12"),
+        ("quinolizin", 5, 5, "C=1C=CC[NH+]2C=CC=CC12"),
+        ("quinolizin", 5, 7, "C=1C=CC[N+]2=CCC=CC12"),
+        ("quinolizin", 5, 9, "C=1C=CC[N+]2=CC=CCC12"),
+        ("pyrrolizin", 4, 1, "C1CC=[N+]2C=CC=C12"),
+        ("pyrrolizin", 4, 2, "C1CC=[N+]2C=CC=C12"),
+        ("pyrrolizin", 4, 4, "C1C=C[NH+]2C=CC=C12"),
+        ("pyrrolizin", 4, 5, "C1C=C[N+]=2CC=CC12"),
+        ("pyrrolizin", 4, 6, "C1C=C[N+]2=CCC=C12"),
+        ("pyrrolizin", 4, 7, "C1C=C[N+]=2C=CCC12"),
+    ] {
+        for name in [
+            format!("{indicated}H-{root}-{junction}-ium"),
+            format!("{indicated}H-{root}ium"),
+        ] {
+            let parsed = crate::test_support::parse_strict(&name).unwrap();
+            crate::test_support::verify_identity(expected, &parsed)
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
+        }
+    }
+    let parsed = crate::test_support::parse_strict("2,3-dihydro-1H-indolizin-4-ium").unwrap();
+    crate::test_support::verify_identity("C1CC[N+]2=CC=CC=C12", &parsed).unwrap();
 }

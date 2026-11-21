@@ -313,9 +313,10 @@ mod tests {
                 "(1H-1,3-benzimidazol-2-yl)acetic acid",
                 NameStatus::Preferred,
             ),
+            // P-16.5.1.2: a prefix with its own locants is enclosed.
             (
                 "O=C(O)Cn1nnc2ccccc21",
-                "1H-1,2,3-benzotriazol-1-ylacetic acid",
+                "(1H-1,2,3-benzotriazol-1-yl)acetic acid",
                 NameStatus::Preferred,
             ),
             // Sulfonic acid uses the retained fallback outside the production

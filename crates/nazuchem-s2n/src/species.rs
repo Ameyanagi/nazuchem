@@ -3,6 +3,7 @@
 // Source: Nazuchem | crates/nazuchem-s2n/src/species.rs | issue #25
 // Source: ReShiki | src/naming/openclatura/species.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: Nazuchem | crates/nazuchem-s2n/src/species.rs | issue #32
+// Source: Nazuchem | crates/nazuchem-s2n/src/species.rs | issue #11
 // Copyright (c) 2026 lamalab-org
 // Source: openclatura | tests/exploratory/test_charge_representation_gaps.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/data/parser_xml_resources/simpleGroups.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -15,9 +16,15 @@
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 
 //! Binary salt names and monatomic metal cations, outside the organic parent engine.
-use super::{Name, component_namer::Derivation, molecule::Molecule, name_smiles_with_style};
+use super::{
+    Name,
+    component_namer::Derivation,
+    molecule::Molecule,
+    name_smiles_with_style,
+    special_cases::{AlphanumericalKey, alphanumerical_order_key},
+};
 use nazuchem_ir::{IsotopeStyle, NameReason, NameStatus};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 // Provenance: fn monatomic_cation | original
 // Source: ReShiki | src/naming/openclatura/species.rs::monatomic_cation
@@ -130,8 +137,36 @@ pub(super) fn assess_anion_parent(mol: &Molecule, derivation: &Derivation) {
             && !parent_atoms.contains(i)
             && principal_atoms.is_none_or(|atoms| !atoms.contains(i))
     });
-    let unresolved_parent = external_centre
-        && !super::parent_selection::anion_parent_is_senior(mol, parent_atoms, principal_atoms);
+    // P-72.7(a): the acid anions cited as prefixes of an aminide are not
+    // parent candidates. Where they outnumber the aminide nitrogens, a parent
+    // built on them, keeping any skeletal anion, has more anionic centres.
+    let outnumbered_aminide = principal_group.as_ref().is_some_and(|(key, atoms)| {
+        key == "aminide"
+            && mol
+                .atoms
+                .keys()
+                .filter(|i| anionic_centre(i) && !parent_atoms.contains(i) && !atoms.contains(i))
+                .count()
+                > atoms.iter().filter(|i| anionic_centre(i)).count()
+    });
+    // P-72.2.2.2.4, P-72.7(b): an amide nitrogen anion is an azanide centre,
+    // so its azanidyl prefix beside another anion is not audited.
+    let acyl_azanidyl = mol.atoms.keys().any(|&n| {
+        mol.atoms[&n].symbol == "N"
+            && anionic_centre(&n)
+            && !parent_atoms.contains(&n)
+            && mol.get_neighbors(n).iter().any(|&c| {
+                mol.atoms[&c].is_carbon()
+                    && mol.get_neighbors(c).iter().any(|&x| {
+                        mol.bond_order(c, x) == 2
+                            && matches!(mol.atoms[&x].symbol.as_str(), "O" | "S" | "Se" | "Te")
+                    })
+            })
+    });
+    let unresolved_parent = outnumbered_aminide
+        || acyl_azanidyl
+        || external_centre
+            && !super::parent_selection::anion_parent_is_senior(mol, parent_atoms, principal_atoms);
     if parent_atoms.iter().any(anionic_centre)
         && principal_group
             .as_ref()
@@ -177,6 +212,59 @@ pub(super) fn assess_cation_parent(mol: &Molecule, derivation: &Derivation) {
     if !centres.is_empty() && !centres.iter().any(cited) {
         mol.mark_name(NameStatus::Unverified(NameReason::CationParent));
     }
+    // P-73.1.2.2: uronium and its chalcogen analogues are the preferred
+    // parents of protonated ureas. The amidium fallback preserves the
+    // N-bound hydron when the retained uronium name parses as a tautomer.
+    // An H-bearing N-chalcogenide likewise uses an explicit amidium suffix
+    // to preserve the charge pair when the functional-class name cannot.
+    if principal_group.as_ref().is_some_and(|(key, atoms)| {
+        key.starts_with("acyl_amidium_")
+            && atoms.iter().any(|&id| {
+                let atom = &mol.atoms[&id];
+                atom.symbol == "N"
+                    && atom.charge == 1
+                    && (atom.total_h_count > 0
+                        && super::perception::has_terminal_chalcogenide(mol, id)
+                        || mol.get_neighbors(id).iter().any(|&c| {
+                            atoms.contains(&c)
+                                && mol.atoms[&c].is_carbon()
+                                && mol.degree(c) == 3
+                                && mol.get_neighbors(c).iter().any(|&x| {
+                                    x != id
+                                        && mol.atoms[&x].symbol == "N"
+                                        && mol.bond_order(c, x) == 1
+                                })
+                                && mol.get_neighbors(c).iter().any(|&x| {
+                                    atoms.contains(&x)
+                                        && matches!(
+                                            mol.atoms[&x].symbol.as_str(),
+                                            "O" | "S" | "Se" | "Te"
+                                        )
+                                        && mol.bond_order(c, x) == 2
+                                })
+                        }))
+            })
+    }) {
+        mol.mark_name(NameStatus::Unverified(NameReason::CationParent));
+    }
+    // P-73.1.2 takes the largest neutral parent: an aminium or iminium
+    // nitrogen on a substituent nitrogen belongs to a hydrazinium or
+    // hydrazidium parent, as in pentamethylhydrazinium (P-73.1.1.2) and
+    // N',N',N'-trimethylbenzohydrazid-N'-ium (P-73.1.2.1), or under a nitro
+    // or nitroso group to an amidium parent (P-67.1.2.6.3), which this name
+    // does not choose.
+    if principal_group.as_ref().is_some_and(|(key, atoms)| {
+        matches!(key.as_str(), "aminium" | "iminium")
+            && atoms.iter().any(|n| {
+                centres.contains(n)
+                    && mol
+                        .get_neighbors(*n)
+                        .iter()
+                        .any(|x| mol.atoms[x].symbol == "N" && !parent_atoms.contains(x))
+            })
+    }) {
+        mol.mark_name(NameStatus::Unverified(NameReason::CationParent));
+    }
 }
 
 /// P-70.2, P-73.7(a): the cationic centres of a cation, leaving out
@@ -216,105 +304,23 @@ fn neutral_group_atoms(mol: &Molecule) -> std::collections::BTreeSet<usize> {
                     | "isocyano"
                     | "acid_isocyanide"
                     | "ring_acid_isocyanide"
-            ) || group
-                .descriptor
-                .as_ref()
-                .is_some_and(|descriptor| descriptor.derivative == "zwitterion"))
-                && group
-                    .atoms_involved
-                    .iter()
-                    .map(|i| mol.atoms[i].charge)
-                    .sum::<i32>()
-                    == 0
+            ) || group.descriptor.as_ref().is_some_and(|descriptor| {
+                descriptor.derivative == "zwitterion"
+                    // A sulfonyl azide (P-65.5.2.1).
+                    || descriptor.family == "central_acid"
+                        && descriptor
+                            .leaving_group
+                            .as_ref()
+                            .is_some_and(|l| l.kind == "N3")
+            })) && group
+                .atoms_involved
+                .iter()
+                .map(|i| mol.atoms[i].charge)
+                .sum::<i32>()
+                == 0
         })
         .flat_map(|group| group.atoms_involved)
         .collect()
-}
-
-/// Nonitalic Roman letters, italic descriptors, then primary locants (italic
-/// element locants before numerals).
-type SaltIonKey = (String, Vec<String>, Option<Vec<(bool, usize, String)>>);
-
-/// P-14.5 key of an ion name cited without stereo or isotope descriptors:
-/// Roman letters first, then the italic tert, sec, s/as of indacene and fusion
-/// letters (P-14.5.3) and the primary locants, those outside every enclosing
-/// mark (P-14.5.4). `None` for lambda, superscripts, composite locants and
-/// marks other than hyphens, commas, primes, periods and enclosing marks. The
-/// locants are `None` beside a descriptor bracket (fusion, von Baeyer, spiro
-/// or ring assembly), whose own locants are not ranked here.
-// Provenance: fn salt_ion_sort_key | original
-// Source: ReShiki | src/naming/openclatura/species.rs::salt_ion_sort_key
-fn salt_ion_sort_key(name: &str) -> Option<SaltIonKey> {
-    // Enclosing brackets always hold parentheses; other brackets are descriptors.
-    let descriptor_bracket = name
-        .split('[')
-        .skip(1)
-        .any(|rest| !rest.split(']').next().unwrap_or(rest).contains('('));
-    if !name
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || " ,.-'()[]{}".contains(c))
-        || name.contains("lambda")
-    {
-        return None;
-    }
-    let (mut letters, mut italics, mut locants) = (String::new(), Vec::new(), Vec::new());
-    let (mut token, mut depth) = (String::new(), 0usize);
-    // Inside a descriptor bracket: its short letter runs are fusion letters
-    // such as f or ghi (P-16.2.1), a longer one is a ring-assembly parent.
-    let mut descriptor = false;
-    for (i, c) in name.char_indices().chain([(name.len(), ' ')]) {
-        if c.is_ascii_alphanumeric() || c == '\'' {
-            token.push(c);
-            continue;
-        }
-        let digits = token
-            .find(|c: char| !c.is_ascii_digit())
-            .unwrap_or(token.len());
-        if digits > 0 {
-            // 1H and 4aH cite indicated hydrogen at locants 1 and 4a.
-            let rest = token[digits..]
-                .strip_suffix('H')
-                .unwrap_or(&token[digits..]);
-            let letter = rest.trim_end_matches('\'');
-            if letter.len() > 1 || !letter.bytes().all(|b| b.is_ascii_lowercase()) {
-                return None;
-            }
-            if depth == 0 {
-                locants.push((true, token[..digits].parse().ok()?, rest.to_owned()));
-            }
-        } else if matches!(
-            token.trim_end_matches('\''),
-            "N" | "O" | "S" | "Se" | "Te" | "P"
-        ) {
-            if depth == 0 {
-                locants.push((false, 0, token.clone()));
-            }
-        } else if token.starts_with(|c: char| c.is_ascii_uppercase()) || token.contains('\'') {
-            return None;
-        } else if token.len() == 1
-            || descriptor && token.len() <= 4
-            || matches!(token.as_str(), "tert" | "sec" | "as")
-        {
-            italics.push(token.clone());
-        } else {
-            letters.push_str(&token);
-        }
-        token.clear();
-        match c {
-            '[' => {
-                depth += 1;
-                descriptor = !name[i..].split(']').next().unwrap_or(name).contains('(');
-            }
-            ']' => {
-                depth = depth.saturating_sub(1);
-                descriptor = false;
-            }
-            '(' | '{' => depth += 1,
-            ')' | '}' => depth = depth.saturating_sub(1),
-            _ => {}
-        }
-    }
-    Some((letters, italics, (!descriptor_bracket).then_some(locants)))
 }
 
 // Provenance: fn name_salt | original
@@ -340,12 +346,18 @@ pub(super) fn name_salt(
             return Err("Salt naming requires charged components without zwitterions or radicals; neutral components and mixtures are unsupported".into());
         }
         charge += q;
+        let mut rendered = super::NameRenderMetadata::default();
         let name = match monatomic_cation(component, true, budget)? {
             Some(name) => name,
-            None => name_smiles_with_style(component, style, budget)?,
+            None => super::finish_name(super::name_routes(
+                component,
+                style,
+                budget,
+                Some(&mut rendered),
+            )?)?,
         };
-        let labelled = state.graph.atoms.iter().any(|a| a.isotope != 0)
-            || state.metadata.atoms.iter().any(|a| a.chiral_tag != 0)
+        let has_isotopes = state.graph.atoms.iter().any(|a| a.isotope != 0);
+        let has_stereo = state.metadata.atoms.iter().any(|a| a.chiral_tag != 0)
             || state.metadata.bonds.iter().any(|b| b.stereo != 0);
         // A mononuclear oxoanion with two or more oxido or hydroxy groups on
         // its central atom, such as carbonate, sulfate or phosphate. Its acid
@@ -376,6 +388,17 @@ pub(super) fn name_salt(
             && atoms.len() == 1
             && atoms[0].explicit_hydrogens == 0
             && state.valences[0].implicit_hydrogens == 0;
+        // P-16.3.6 (a): two NC-SO2-O(-) or NC-S(O)-O(-) ions are
+        // `bis(sulfurocyanidate)`; `disulfuro...` would be read as a
+        // derivative of disulfuric acid (P-67.2.1), and `diphosphoro...` as
+        // one of diphosphoric acid.
+        let mut elements: Vec<_> = central.iter().map(|&i| atoms[i].atomic_number).collect();
+        elements.sort_unstable();
+        let oxoanion = oxoanion
+            || q < 0
+                && matches!(elements[..], [6, 7, 15 | 16])
+                && atoms.len() >= 5
+                && bonds.iter().any(|b| b.order == 3);
         let bis_from = if oxoanion || monatomic && q <= -2 {
             2
         } else if monatomic {
@@ -383,108 +406,59 @@ pub(super) fn name_salt(
         } else {
             usize::MAX
         };
-        ions.push((q < 0, name, component, labelled, bis_from));
+        ions.push((
+            q < 0,
+            name,
+            component,
+            has_isotopes,
+            has_stereo,
+            bis_from,
+            rendered.parent,
+        ));
     }
-    // The name without its stereodescriptor and isotopic descriptor groups, such
-    // as `(2R,3R)-`, `(4aS)-`, `(2E)-`, `(2H3)` and `(1-13C)`, with every
-    // enclosing mark written as a parenthesis. P-14.5 leaves both kinds of
-    // descriptor out of alphanumerical order. The result only counts once it
-    // equals the name of the same ion without stereo and isotope labels.
-    let without_descriptor_groups = |name: &str| {
-        let locant = |t: &str| {
-            let t = t
-                .trim_end_matches('\'')
-                .trim_start_matches(|c: char| c.is_ascii_digit());
-            t.len() <= 1 && t.bytes().all(|b| b.is_ascii_lowercase())
-        };
-        let descriptor = |t: &str| {
-            // 2R, 4aS, E or a nuclide with its count: 2H3, 13C.
-            t.strip_suffix(['R', 'S', 'E', 'Z', 'M', 'P', 'r', 's'])
-                .is_some_and(locant)
-                || {
-                    let symbol = t.trim_start_matches(|c: char| c.is_ascii_digit());
-                    symbol.len() < t.len() && symbol.starts_with(|c: char| c.is_ascii_uppercase())
-                }
-        };
-        let mut out = String::new();
-        let mut rest = name;
-        while let Some(open) = rest.find(['(', '[', '{']) {
-            out.push_str(&rest[..open]);
-            rest = &rest[open + 1..];
-            let end = rest
-                .find(['(', '[', '{', ')', ']', '}'])
-                .unwrap_or(rest.len());
-            let tokens: Vec<&str> = rest[..end].split([',', '-']).collect();
-            if rest[end..].starts_with(')')
-                && tokens.last().is_some_and(|t| descriptor(t))
-                && tokens
-                    .iter()
-                    .all(|t| descriptor(t) || locant(t) && !t.is_empty())
-            {
-                rest = &rest[end + 1..];
-                rest = rest.strip_prefix('-').unwrap_or(rest);
-            } else {
-                out.push('(');
-            }
-        }
-        out.push_str(rest);
-        out.replace([']', '}'], ")")
-    };
+    // P-14.5: alphanumerical order leaves out stereo and isotope descriptors,
+    // so a labelled ion is keyed by its cited name rendered without them: the
+    // same parent, prefixes and locants. Removing the labels from the
+    // structure instead can change the parent, as for a gonane ion.
     let keys: Vec<_> = ions
         .iter()
-        .map(|(negative, name, component, labelled, _)| {
-            if !labelled {
-                return salt_ion_sort_key(&name.text);
-            }
-            // Nothing to order against.
-            if !ions
-                .iter()
-                .any(|o| o.0 == *negative && o.1.text != name.text)
-            {
-                return None;
-            }
-            // P-14.5 leaves out stereo and isotope descriptors: the key comes
-            // from the name of the unlabelled ion, when the cited name is that
-            // name plus descriptor groups (same parent, prefixes and locants).
-            let mut mass = false;
-            let mut plain = String::new();
-            for c in component.chars() {
-                if matches!(c, '@' | '/' | '\\') || mass && c.is_ascii_digit() {
-                    continue;
+        .map(
+            |(negative, name, component, has_isotopes, has_stereo, _, rendered_parent)| {
+                if !has_isotopes && !has_stereo {
+                    return Some(SaltOrderKey::new(
+                        name.text.clone(),
+                        rendered_parent.as_deref(),
+                        true,
+                    ));
                 }
-                mass = c == '[';
-                plain.push(c);
-            }
-            let bare = name_smiles_with_style(&plain, style, budget).ok()?.text;
-            (without_descriptor_groups(&name.text) == without_descriptor_groups(&bare))
-                .then(|| salt_ion_sort_key(&bare))
-                .flatten()
-        })
+                // Nothing to order against.
+                if !ions
+                    .iter()
+                    .any(|o| o.0 == *negative && o.1.text != name.text)
+                {
+                    return None;
+                }
+                let mut rendered = super::NameRenderMetadata::default();
+                let bare = super::formatting::without_descriptors(|| {
+                    super::name_routes(component, style, budget, Some(&mut rendered))
+                })
+                .ok()?
+                .text;
+                // The isotope writer omits the parent descriptor before
+                // inserting it. A prefix descriptor or stereo omission may
+                // also affect the enclosing marks of the cited prefixes.
+                let punctuation_comparable =
+                    !has_stereo && rendered.parent.is_some() && !rendered.has_isotope_prefixes;
+                let key =
+                    SaltOrderKey::new(bare, rendered.parent.as_deref(), punctuation_comparable);
+                // Leaving out stereo can regroup previously distinct prefixes.
+                // Keep the fallback if the cited nonitalic letters have changed.
+                (key.order.0 == alphanumerical_order_key(&name.text).0).then_some(key)
+            },
+        )
         .collect();
-    // Ions of one sign are ordered by the key; when any of them has no key or
-    // two different names are not told apart by it, main's character order
-    // stays and is unverified. With identical Roman letters, locant sets of
-    // one length decide when the italic descriptors agree, and the italic
-    // descriptors decide when the locants agree; other ties are not ranked.
-    let ordered = ions.iter().zip(&keys).all(|((negative, name, ..), key)| {
-        ions.iter().zip(&keys).all(|(other, other_key)| {
-            other.0 != *negative
-                || other.1.text == name.text
-                || match (key, other_key) {
-                    (Some(a), Some(b)) => {
-                        a.0 != b.0
-                            || match (&a.2, &b.2) {
-                                (Some(x), Some(y)) if a.1 == b.1 => x.len() == y.len() && x != y,
-                                (Some(x), Some(y)) => x == y,
-                                _ => false,
-                            }
-                    }
-                    _ => false,
-                }
-        })
-    });
     let mut grouped = BTreeMap::new();
-    for ((negative, name, component, _, bis_from), key) in ions.into_iter().zip(keys) {
+    for ((negative, name, component, _, _, bis_from, _), key) in ions.into_iter().zip(keys) {
         let plain: String = name
             .text
             .chars()
@@ -492,15 +466,15 @@ pub(super) fn name_salt(
             .map(|c| c.to_ascii_lowercase())
             .collect();
         let entry = grouped
-            .entry((
+            .entry((negative, plain, name.text.clone(), component))
+            .or_insert(SaltIonGroup {
                 negative,
-                key.filter(|_| ordered),
-                plain,
-                name.text.clone(),
-                component,
-            ))
-            .or_insert((name, bis_from, 0));
-        entry.2 += 1;
+                name,
+                key,
+                bis_from,
+                count: 0,
+            });
+        entry.count += 1;
     }
     if charge != 0 {
         return Err(
@@ -508,9 +482,17 @@ pub(super) fn name_salt(
                 .into(),
         );
     }
+    let groups: Vec<_> = grouped.into_values().collect();
+    let (citation_order, order_verified) = salt_ion_citation_order(&groups);
     let mut status = NameStatus::Preferred;
     let mut words = Vec::new();
-    for (_, (name, bis_from, count)) in grouped {
+    for index in citation_order {
+        let SaltIonGroup {
+            name,
+            bis_from,
+            count,
+            ..
+        } = &groups[index];
         // The strongest ion downgrade wins; ties keep the first ion's reason.
         if name.status.severity() > status.severity() {
             status = name.status;
@@ -522,13 +504,13 @@ pub(super) fn name_salt(
             || name.text.chars().any(|c| !c.is_ascii_alphabetic())
             || super::formatting::starts_with_multiplier(&name.text)
             || name.text.ends_with("aminium");
-        let word = if count == 1 {
-            name.text
+        let word = if *count == 1 {
+            name.text.clone()
         } else {
             let prefix = if complex {
-                super::rules::multipliers::complex_(count)
+                super::rules::multipliers::complex_(*count)
             } else {
-                super::rules::multipliers::basic(count)
+                super::rules::multipliers::basic(*count)
             };
             if complex {
                 format!("{prefix}({})", name.text)
@@ -538,7 +520,7 @@ pub(super) fn name_salt(
         };
         words.push(word);
     }
-    if !ordered && status == NameStatus::Preferred {
+    if !order_verified && status == NameStatus::Preferred {
         status = NameStatus::Unverified(NameReason::SaltIonOrder);
     }
     Ok(Name {
@@ -549,6 +531,218 @@ pub(super) fn name_salt(
         omitted_units: 0,
         verification: None,
     })
+}
+
+struct SaltIonGroup {
+    negative: bool,
+    name: Name,
+    key: Option<SaltOrderKey>,
+    bis_from: usize,
+    count: usize,
+}
+
+// Provenance: fn salt_ion_citation_order | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::salt_ion_citation_order
+fn salt_ion_citation_order(groups: &[SaltIonGroup]) -> (Vec<usize>, bool) {
+    let mut verified = true;
+    let mut predecessors = vec![0; groups.len()];
+    let mut successors = vec![Vec::new(); groups.len()];
+    for (i, first) in groups.iter().enumerate() {
+        for (j, second) in groups.iter().enumerate().skip(i + 1) {
+            if first.negative != second.negative || first.name.text == second.name.text {
+                continue;
+            }
+            if let (Some(a), Some(b)) = (&first.key, &second.key)
+                && a.text != b.text
+                && a.compares(b)
+            {
+                // Every verified edge advances the same alphanumerical key.
+                // This leaves the graph acyclic even when some pairs tie.
+                let (earlier, later) = if a.order < b.order { (i, j) } else { (j, i) };
+                successors[earlier].push(later);
+                predecessors[later] += 1;
+            } else {
+                verified = false;
+            }
+        }
+    }
+
+    // The groups begin in the former spelling order, with cations first.
+    // Use that order only among groups whose proved predecessors are cited.
+    let mut ready: BTreeSet<_> = (0..groups.len())
+        .filter(|&i| predecessors[i] == 0)
+        .collect();
+    let mut order = Vec::with_capacity(groups.len());
+    while let Some(i) = ready.pop_first() {
+        order.push(i);
+        for &j in &successors[i] {
+            predecessors[j] -= 1;
+            if predecessors[j] == 0 {
+                ready.insert(j);
+            }
+        }
+    }
+    (order, verified)
+}
+
+struct SaltOrderKey {
+    order: AlphanumericalKey,
+    text: String,
+    locant_skeleton: String,
+    has_superscript_locants: bool,
+    punctuation_comparable: bool,
+}
+
+impl SaltOrderKey {
+    // Provenance: fn SaltOrderKey::new | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::SaltOrderKey::new
+    fn new(text: String, parent: Option<&str>, punctuation_comparable: bool) -> Self {
+        let mut order = alphanumerical_order_key(&text);
+        if let Some(prefixes) = parent
+            .map(super::nest_enclosing_marks)
+            .and_then(|parent| text.strip_suffix(&parent))
+        {
+            // P-14.5: only initial primary prefix locants take precedence.
+            // Parent locants are compared in normal citation order with the
+            // remaining locants when the primary prefix locants tie.
+            order.2 = alphanumerical_order_key(prefixes).2;
+        }
+        let has_superscript_locants = text.replace("lambda^", "").contains('^');
+        let locant_skeleton = salt_locant_skeleton(&text);
+        Self {
+            order,
+            text,
+            locant_skeleton,
+            has_superscript_locants,
+            punctuation_comparable,
+        }
+    }
+
+    // Provenance: fn SaltOrderKey::compares | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::SaltOrderKey::compares
+    fn compares(&self, other: &Self) -> bool {
+        let (a, b) = (&self.order, &other.order);
+        if (&a.0, &a.1) != (&b.0, &b.1) {
+            return true;
+        }
+        if self.has_superscript_locants || other.has_superscript_locants {
+            return false;
+        }
+        if a.2 != b.2 {
+            return true;
+        }
+        if a.3 != b.3 {
+            return self.locant_skeleton == other.locant_skeleton;
+        }
+        // P-14.6 compares marks after equal alphanumerical characters. Do
+        // not rank an enclosing mark that descriptor omission may have moved.
+        self.punctuation_comparable
+            && other.punctuation_comparable
+            && a.4 != b.4
+            && self
+                .text
+                .chars()
+                .filter(|c| !salt_punctuation(*c))
+                .eq(other.text.chars().filter(|c| !salt_punctuation(*c)))
+    }
+}
+
+// Provenance: fn salt_punctuation | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::salt_punctuation
+fn salt_punctuation(c: char) -> bool {
+    matches!(
+        c,
+        '{' | '}' | '[' | ']' | '(' | ')' | '.' | ',' | ';' | ':' | '-'
+    )
+}
+
+// Provenance: fn salt_locant_skeleton | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::salt_locant_skeleton
+fn salt_locant_skeleton(name: &str) -> String {
+    // Match enclosing marks before distinguishing lexical grouping from
+    // bracket descriptors. Preserve the text of descriptors such as [2.2.1],
+    // [1,2-a] and [1,1'-bi(bicyclo[2.2.1]heptan)]. Outside them, compare
+    // positions of ordinary locants before punctuation that only encloses
+    // prefixes.
+    let mut stack = Vec::new();
+    let mut protected = Vec::<std::ops::Range<usize>>::new();
+    let mut ignored_marks = vec![false; name.len()];
+    for (offset, c) in name.char_indices() {
+        match c {
+            '(' | '[' | '{' => {
+                if let Some((_, _, nested)) = stack.last_mut() {
+                    *nested = true;
+                }
+                stack.push((offset, c, false));
+            }
+            ')' | ']' | '}' => {
+                let Some((open, mark, nested)) = stack.pop() else {
+                    return name.into();
+                };
+                if !matches!((mark, c), ('(', ')') | ('[', ']') | ('{', '}')) {
+                    return name.into();
+                }
+                let contents = &name[open + 1..offset];
+                let topology = mark == '['
+                    && ((!nested && contents.bytes().any(|b| b.is_ascii_digit()))
+                        || name[..open].ends_with("cyclo")
+                        || name[..open].ends_with("spiro")
+                        || contents.split_once('-').is_some_and(|(junctions, parent)| {
+                            junctions.as_bytes().first().is_some_and(u8::is_ascii_digit)
+                                && junctions.contains(',')
+                                && junctions.contains(['\'', '^'])
+                                && junctions.bytes().all(|b| {
+                                    b.is_ascii_digit()
+                                        || b.is_ascii_lowercase()
+                                        || matches!(b, b',' | b':' | b'\'' | b'^')
+                                })
+                                && ["bi(", "ter(", "quater(", "quinque(", "sexi("]
+                                    .iter()
+                                    .any(|multiplier| parent.starts_with(multiplier))
+                        }));
+                if topology {
+                    while protected.last().is_some_and(|range| range.start > open) {
+                        protected.pop();
+                    }
+                    protected.push(open..offset + 1);
+                } else if nested
+                    || contents
+                        .as_bytes()
+                        .windows(2)
+                        .any(|pair| pair.iter().all(u8::is_ascii_lowercase))
+                {
+                    ignored_marks[open] = true;
+                    ignored_marks[offset] = true;
+                }
+            }
+            _ => {}
+        }
+    }
+    if !stack.is_empty() {
+        return name.into();
+    }
+
+    let mut skeleton = String::new();
+    let mut protected = protected.into_iter().peekable();
+    let mut last_was_digit = false;
+    for (offset, c) in name.char_indices() {
+        if protected.peek().is_some_and(|range| offset == range.end) {
+            protected.next();
+        }
+        let digit = c.is_ascii_digit();
+        if protected
+            .peek()
+            .is_some_and(|range| range.contains(&offset))
+        {
+            skeleton.push(c);
+        } else if digit && !last_was_digit {
+            skeleton.push('0');
+        } else if !digit && !ignored_marks[offset] {
+            skeleton.push(c);
+        }
+        last_was_digit = digit;
+    }
+    skeleton
 }
 
 /// P-14.8, P-77.1.3 (1): a set with neutral components, such as a base drawn
@@ -779,98 +973,349 @@ mod tests {
     use super::*;
 
     #[test]
-    // Provenance: fn tests::salt_ion_key_orders_letters_then_locants_and_declines_uncovered_spellings | adapted
-    // Source: ReShiki | src/naming/openclatura/species.rs::tests::salt_ion_key_orders_letters_then_locants_and_declines_uncovered_spellings
-    // Source: openclatura | tests/exploratory/test_charge_representation_gaps.py::test_wrong_charge_single_atoms_fail_honestly_instead_of_mislabeling
-    // Source: openclatura | tests/data/parser_xml_resources/simpleGroups.json::<fixture data>
-    // Test provenance: upstream inputs/expected names with local assertions and extensions;
-    // exact matches are conservatively adapted; independent ancestry is not established.
-    fn salt_ion_key_orders_letters_then_locants_and_declines_uncovered_spellings() {
-        for (first, second) in [
-            ("acetate", "4-methylbenzoate"),
-            ("2-methylundecanoate", "10-methylundecanoate"),
-            ("N-methylanilinium", "2-methylanilinium"),
-            ("sodium", "N,N,N-trimethylmethanaminium"),
-            ("1H-inden-1-ide", "2H-inden-2-ide"),
+    // Provenance: fn tests::descriptor_free_rendering_keeps_the_cited_name | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::tests::descriptor_free_rendering_keeps_the_cited_name
+    fn descriptor_free_rendering_keeps_the_cited_name() {
+        // P-14.5: alphanumerical order leaves out stereochemical and isotopic
+        // descriptors. One case per descriptor writer: the parent, prefixes
+        // and locants are those of the cited name.
+        for (smiles, cited, bare) in [
+            (
+                "C[C@H](O)C(=O)[O-]",
+                "(2S)-2-hydroxypropanoate",
+                "2-hydroxypropanoate",
+            ),
+            (
+                "C[C@H]1CC[C@@H](C)CC1",
+                "(1s,4s)-1,4-dimethylcyclohexane",
+                "1,4-dimethylcyclohexane",
+            ),
+            // Without its stereo the structure is named from another parent.
+            (
+                "C[C@]12CC[C@H]3[C@@H](CCC4CC(CC[C@]34C)[NH3+])[C@@H]1CCC2",
+                "(8S,9S,10S,13S,14S)-10,13-dimethylgonan-3-aminium",
+                "10,13-dimethylgonan-3-aminium",
+            ),
+            (
+                "C/C=C/SS/C=C/C",
+                "1,2-di[(1E)-prop-1-en-1-yl]disulfane",
+                "1,2-di(prop-1-en-1-yl)disulfane",
+            ),
+            (
+                "C[S@](=O)CC",
+                "(S)-ethyl methyl sulfoxide",
+                "ethyl methyl sulfoxide",
+            ),
+            (
+                "C[S@](=O)c1ccc(C(=O)O)cc1",
+                "4-[(S)-methanesulfinyl]benzoic acid",
+                "4-(methanesulfinyl)benzoic acid",
+            ),
+            (
+                "OC(=O)c1ccc(/N=N/c2ccccc2)cc1",
+                "4-[(E)-phenyldiazenyl]benzoic acid",
+                "4-(phenyldiazenyl)benzoic acid",
+            ),
+            (
+                "OC(=O)c1ccc(N/C(N)=N/C)cc1",
+                "4-[(E)-2-methylguanidino]benzoic acid",
+                "4-(2-methylguanidino)benzoic acid",
+            ),
+            (
+                "OC(=O)c1ccc(cc1)/C(N)=N/C",
+                "4-[(Z)-N'-methylcarbamimidoyl]benzoic acid",
+                "4-(N'-methylcarbamimidoyl)benzoic acid",
+            ),
+            (
+                "C/C(CC)=N/N",
+                "(2Z)-butan-2-one hydrazone",
+                "butan-2-one hydrazone",
+            ),
+            (
+                "C/C(/CC)=N\\N=C(/C)\\CC",
+                "(1E,2E)-di(butan-2-ylidene)hydrazine",
+                "di(butan-2-ylidene)hydrazine",
+            ),
+            ("[2H]C([2H])([2H])C(=O)[O-]", "(2H3)acetate", "acetate"),
+            (
+                "[13CH3]Cc1ccc(C(=O)[O-])cc1",
+                "4-(2-13C)ethylbenzoate",
+                "4-ethylbenzoate",
+            ),
+            (
+                "[13CH3]C(Cl)c1ccc(cc1)C(=O)[O-]",
+                "4-[1-chloro(2-13C)ethyl]benzoate",
+                "4-(1-chloroethyl)benzoate",
+            ),
+            (
+                "[37Cl]c1ccc(C(=O)[O-])cc1",
+                "4-(37Cl)chlorobenzoate",
+                "4-chlorobenzoate",
+            ),
+            (
+                "[13CH3]c1c(C)cc(C(=O)[O-])cc1",
+                "4-(13C)methyl-3-methylbenzoate",
+                "4-methyl-3-methylbenzoate",
+            ),
+            (
+                "[2H]C([2H])([2H])[C@H](O)C(=O)[O-]",
+                "(2S)-2-hydroxy(3,3,3-2H3)propanoate",
+                "2-hydroxypropanoate",
+            ),
         ] {
-            assert!(
-                salt_ion_sort_key(first).unwrap() < salt_ion_sort_key(second).unwrap(),
-                "{first} before {second}"
+            let name =
+                |smiles| name_smiles_with_style(smiles, IsotopeStyle::Iupac, &Default::default());
+            assert_eq!(name(smiles).unwrap().text, cited, "{smiles}");
+            let rendered = crate::formatting::without_descriptors(|| name(smiles));
+            assert_eq!(rendered.unwrap().text, bare, "{smiles}");
+            // The mode ends with the render.
+            assert_eq!(name(smiles).unwrap().text, cited, "{smiles}");
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::salt_ions_follow_alphanumerical_order | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::tests::salt_ions_follow_alphanumerical_order
+    fn salt_ions_follow_alphanumerical_order() {
+        for (smiles, expected) in [
+            // P-14.5: nonitalic Roman letters first; the stereodescriptors of
+            // the gonane ion take no part, and its cited parent stays gonane.
+            (
+                "[Cl-].[Cl-].C[C@]12CC[C@H]3[C@@H](CCC4CC(CC[C@]34C)[NH3+])[C@@H]1CCC2.CC[NH3+]",
+                "(8S,9S,10S,13S,14S)-10,13-dimethylgonan-3-aminium ethanaminium dichloride",
+            ),
+            (
+                "[Cl-].[Cl-].C[C@]12CC[C@H]3[C@@H](CCC4CC(CC[C@]34C)[NH3+])[C@@H]1CCC2.CCCC[NH3+]",
+                "butan-1-aminium (8S,9S,10S,13S,14S)-10,13-dimethylgonan-3-aminium dichloride",
+            ),
+            // P-14.5: locants of the primary substituents; no locant precedes
+            // a locant, so the single prefix at 2 precedes the two at 2,2.
+            (
+                "[Na+].[Na+].O=C([O-])C(CCCCl)CCCCCC.O=C([O-])C(Cl)(CCC)CCCCCC",
+                "disodium 2-(3-chloropropyl)octanoate 2-chloro-2-propyloctanoate",
+            ),
+            // P-14.5.4: equal primary locants, then the lowest internal
+            // locant at the first point of difference (1 before 2).
+            (
+                "[Na+].[Na+].[O-]C(=O)c1ccc(cc1)[C@H](C)Cl.[O-]C(=O)c1ccc(cc1)CCCl",
+                "disodium 4-[(1S)-1-chloroethyl]benzoate 4-(2-chloroethyl)benzoate",
+            ),
+            // P-14.5.3: italic letters are considered once the Roman letters
+            // tie, ahead of the locants of P-14.5.4.
+            (
+                "CC(=O)[O-].CC(=O)[O-].CC(C)(C)[NH2+]c1ccccc1.[NH3+]c1ccccc1CCCC",
+                "2-butylanilinium N-(tert-butyl)anilinium diacetate",
+            ),
+            // P-14.5.4: the numerals of a von Baeyer descriptor are no locants.
+            (
+                "[Na+].[Na+].[O-]C(=O)C12CCC(CC1)C2.[O-]C(=O)C1CC2CCC1C2",
+                "disodium bicyclo[2.2.1]heptane-1-carboxylate bicyclo[2.2.1]heptane-2-carboxylate",
+            ),
+            // P-14.5: stereodescriptors take no part; the locants decide.
+            (
+                "[Na+].[Na+].CC[C@@H](C)[C@@H](O)C([O-])=O.CC[C@H](O)[C@H](C)C([O-])=O",
+                "disodium (2R,3R)-2-hydroxy-3-methylpentanoate (2S,3S)-3-hydroxy-2-methylpentanoate",
+            ),
+        ] {
+            let name = name_salt(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_ne!(
+                name.status,
+                NameStatus::Unverified(NameReason::SaltIonOrder),
+                "{smiles}"
             );
         }
-        for name in [
-            "(2H3)acetate",
-            "1lambda^5-phosphinin-1-ylium",
-            "N1-methylbutanediamide",
-            "(2R)-butan-2-olate",
-        ] {
-            assert_eq!(salt_ion_sort_key(name), None, "{name}");
-        }
-        // P-14.5.3: italic letters (tert, s/as, fusion letters) are left out of
-        // the Roman letters and only break a tie; none comes first.
-        // P-14.5: enclosing marks and descriptor brackets hold no Roman letters.
-        for (first, second) in [
-            ("tert-butoxide", "methoxide"),
-            ("butoxide", "tert-butoxide"),
-            ("4-butylbenzoate", "4-(tert-butyl)benzoate"),
-            ("as-indacen-1-ide", "s-indacen-1-ide"),
-            ("3-chloro-s-indacen-1-olate", "4-chloronaphthalen-1-olate"),
-            ("acetate", "[1,1'-biphenyl]-4-carboxylate"),
-            (
-                "benzo[c]phenanthrene-3-carboxylate",
-                "phenanthrene-3-carboxylate",
-            ),
-            // P-16.2.1: the letters of a peri-fusion descriptor are italic too.
-            (
-                "1H-benzo[e]indole-2-carboxylate",
-                "benzo[ghi]perylene-1-carboxylate",
-            ),
-            ("cyclopenta[cd]pentalen-1-ide", "cyclopentathiophen-1-ide"),
-            // P-14.5.4: primary locants, outside every enclosing mark.
-            ("2-(chloromethyl)heptanoate", "3-(chloromethyl)heptanoate"),
-        ] {
-            assert!(
-                salt_ion_sort_key(first).unwrap() < salt_ion_sort_key(second).unwrap(),
-                "{first} before {second}"
-            );
-        }
-        // The locants of a descriptor bracket are not ranked.
-        assert_eq!(
-            salt_ion_sort_key("bicyclo[2.2.1]heptane-2-carboxylate"),
-            Some(("bicycloheptanecarboxylate".into(), vec![], None))
+        // P-14.5: isotopic descriptors take no part either, so the labelled
+        // acetate keeps its place before butanoate.
+        let name = name_salt(
+            "[Na+].[Na+].[2H]C([2H])([2H])C(=O)[O-].CCCC(=O)[O-]",
+            IsotopeStyle::Iupac,
+            &Default::default(),
+        )
+        .unwrap();
+        assert_eq!(name.text, "disodium (2H3)acetate butanoate");
+        assert_ne!(
+            name.status,
+            NameStatus::Unverified(NameReason::SaltIonOrder)
         );
+    }
+
+    #[test]
+    // Provenance: fn tests::salt_locants_and_enclosing_marks_preserve_ionic_identity | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::tests::salt_locants_and_enclosing_marks_preserve_ionic_identity
+    fn salt_locants_and_enclosing_marks_preserve_ionic_identity() {
+        for (smiles, expected, status) in [
+            // P-14.5.4: equal primary locants, then the first internal
+            // locant of a prefix before the lower parent suffix locant.
+            (
+                "[Na+].[Na+].O=C([O-])C12CC(CCCl)C(CC1)C2.O=C([O-])C1C(C(C)Cl)C2CCC1C2",
+                "disodium 3-(1-chloroethyl)bicyclo[2.2.1]heptane-2-carboxylate 3-(2-chloroethyl)bicyclo[2.2.1]heptane-1-carboxylate",
+                NameStatus::Preferred,
+            ),
+            // P-14.6: the 'a' of 'amino' is preferred to '('.
+            (
+                "[Na+].[Na+].O=C([O-])C1CC([SiH2]CN)CC1.O=C([O-])C1CC([SiH](C)N)CC1",
+                "disodium 3-[amino(methyl)silyl]cyclopentane-1-carboxylate 3-[(aminomethyl)silyl]cyclopentane-1-carboxylate",
+                NameStatus::Preferred,
+            ),
+            // With equal prefix locants, the ordinary parent suffix locant
+            // decides before the different enclosing marks of the prefixes.
+            (
+                "[Na+].[Na+].O=C([O-])C12CC([SiH2]CN)C(CC1)C2.O=C([O-])C1C([SiH](C)N)C2CCC1C2",
+                "disodium 3-[(aminomethyl)silyl]bicyclo[2.2.1]heptane-1-carboxylate 3-[amino(methyl)silyl]bicyclo[2.2.1]heptane-2-carboxylate",
+                NameStatus::Preferred,
+            ),
+            // An isotope descriptor on the parent leaves the actual prefix
+            // punctuation intact, so P-14.6 still applies.
+            (
+                "[Na+].[Na+].O=C([O-])[13CH]1CC([SiH2]CN)CC1.O=C([O-])[13CH]1CC([SiH](C)N)CC1",
+                "disodium 3-[amino(methyl)silyl](1-13C)cyclopentane-1-carboxylate 3-[(aminomethyl)silyl](1-13C)cyclopentane-1-carboxylate",
+                NameStatus::Unverified(NameReason::IsotopePlacement),
+            ),
+            // The two nested von Baeyer descriptors differ in structural
+            // numerals. Those numerals cannot be compared as suffix locants.
+            (
+                "[Na+].[Na+].O=C([O-])C1CC([SiH](N)C2CC3CCC2CC3)CC1.O=C([O-])C1CC([SiH](N)C2CCC3CCC2C3)CC1",
+                "disodium 3-[amino(bicyclo[2.2.2]octan-2-yl)silyl]cyclopentane-1-carboxylate 3-[amino(bicyclo[3.2.1]octan-2-yl)silyl]cyclopentane-1-carboxylate",
+                NameStatus::Unverified(NameReason::SaltIonOrder),
+            ),
+            // Distinct ring assembly junctions also leave the ion order open.
+            (
+                "[Na+].[Na+].N[SiH](C1CC(CC1)C(=O)[O-])C1C2(CCC(C1)C2)C21CCC(CC2)C1.N[SiH](C1CC(CC1)C(=O)[O-])C1C2(CCC(C1)C2)C2C1CCC(C2)C1",
+                "disodium 3-[amino([1,1'-bi(bicyclo[2.2.1]heptan)]-2-yl)silyl]cyclopentane-1-carboxylate 3-[amino([1,2'-bi(bicyclo[2.2.1]heptan)]-2-yl)silyl]cyclopentane-1-carboxylate",
+                NameStatus::Unverified(NameReason::SaltIonOrder),
+            ),
+            // The undecided pair still follows the proved rank of acetate.
+            // Identical acetate ions are grouped using their full identity.
+            (
+                "[Na+].[Na+].[Na+].[Na+].O=C([O-])C1CC([SiH](N)C2CC3CCC2CC3)CC1.O=C([O-])C1CC([SiH](N)C2CCC3CCC2C3)CC1.CC(=O)[O-].[O-]C(=O)C",
+                "tetrasodium diacetate 3-[amino(bicyclo[2.2.2]octan-2-yl)silyl]cyclopentane-1-carboxylate 3-[amino(bicyclo[3.2.1]octan-2-yl)silyl]cyclopentane-1-carboxylate",
+                NameStatus::Unverified(NameReason::SaltIonOrder),
+            ),
+            // A prefix isotope descriptor does not replace its internal
+            // locant or affect the order against an unlabelled ion.
+            (
+                "[Na+].[Na+].O=C([O-])C12CC(CCCl)C(CC1)C2.O=C([O-])C1C(C([13CH3])Cl)C2CCC1C2",
+                "disodium 3-[1-chloro(2-13C)ethyl]bicyclo[2.2.1]heptane-2-carboxylate 3-(2-chloroethyl)bicyclo[2.2.1]heptane-1-carboxylate",
+                NameStatus::Unverified(NameReason::IsotopePlacement),
+            ),
+            // The amount and position of the isotope stay in the cited name.
+            (
+                "[Na+].[Na+].[13CH3]Cc1ccc(C(=O)[O-])cc1.Cc1ccc(C(=O)[O-])cc1",
+                "disodium 4-(2-13C)ethylbenzoate 4-methylbenzoate",
+                NameStatus::Unverified(NameReason::IsotopePlacement),
+            ),
+        ] {
+            let reversed = smiles.split('.').rev().collect::<Vec<_>>().join(".");
+            for input in [smiles, &reversed] {
+                let name = crate::name_smiles(input, &Default::default()).unwrap();
+                assert_eq!(name.text, expected, "{input}");
+                assert_eq!(name.status, status, "{input}");
+            }
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::salt_locants_preserve_nested_descriptor_numerals | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::tests::salt_locants_preserve_nested_descriptor_numerals
+    fn salt_locants_preserve_nested_descriptor_numerals() {
+        for (name, skeleton) in [
+            (
+                "3-[amino(spiro[4.5]decan-2-yl)silyl]cyclopentane-1-carboxylate",
+                "0-aminospiro[4.5]decan-0-ylsilylcyclopentane-0-carboxylate",
+            ),
+            (
+                "3-[amino(naphtho[1,2-a]azulen-2-yl)silyl]cyclopentane-1-carboxylate",
+                "0-aminonaphtho[1,2-a]azulen-0-ylsilylcyclopentane-0-carboxylate",
+            ),
+            (
+                "3-[amino([1,1'-biphenyl]-2-yl)silyl]cyclopentane-1-carboxylate",
+                "0-amino[1,1'-biphenyl]-0-ylsilylcyclopentane-0-carboxylate",
+            ),
+            (
+                "3-[amino([1,1'-bi(bicyclo[2.2.1]heptan)]-2-yl)silyl]cyclopentane-1-carboxylate",
+                "0-amino[1,1'-bi(bicyclo[2.2.1]heptan)]-0-ylsilylcyclopentane-0-carboxylate",
+            ),
+            (
+                "3-[amino([1^1,2^1:2^2,3^1-ter(bicyclo[2.2.1]heptan)]-2^2-yl)silyl]cyclopentane-1-carboxylate",
+                "0-amino[1^1,2^1:2^2,3^1-ter(bicyclo[2.2.1]heptan)]-0^0-ylsilylcyclopentane-0-carboxylate",
+            ),
+        ] {
+            assert_eq!(salt_locant_skeleton(name), skeleton);
+        }
+        for (assembly, different_junction) in [
+            ("[1,1'-biphenyl]", "[1,2'-biphenyl]"),
+            (
+                "[1,1'-bi(bicyclo[2.2.1]heptan)]",
+                "[1,2'-bi(bicyclo[2.2.1]heptan)]",
+            ),
+        ] {
+            let key = |assembly, locant| {
+                SaltOrderKey::new(
+                    format!("3-[amino({assembly}-{locant}-yl)silyl]cyclopentane-1-carboxylate"),
+                    Some("cyclopentane-1-carboxylate"),
+                    true,
+                )
+            };
+            let first = key(assembly, 2);
+            let different_junction = key(different_junction, 2);
+            let different_locant = key(assembly, 3);
+            assert!(!first.compares(&different_junction), "{assembly}");
+            assert!(first.compares(&different_locant), "{assembly}");
+            assert!(first.order < different_locant.order, "{assembly}");
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::salt_stereo_ties_preserve_order_and_stoichiometry | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/species.rs::tests::salt_stereo_ties_preserve_order_and_stoichiometry
+    fn salt_stereo_ties_preserve_order_and_stoichiometry() {
+        for smiles in [
+            "[Na+].[Na+].[Na+].[Na+].C/C=C/C(=O)[O-].C/C=C\\C(=O)[O-].[O-]C(=O)/C=C/C.CC(=O)[O-]",
+            "CC(=O)[O-].[O-]C(=O)/C=C/C.[Na+].C/C=C\\C(=O)[O-].[Na+].[Na+].C/C=C/C(=O)[O-].[Na+]",
+        ] {
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(
+                name.text,
+                "tetrasodium acetate bis[(2E)-but-2-enoate] (2Z)-but-2-enoate"
+            );
+            assert_eq!(
+                name.status,
+                NameStatus::Unverified(NameReason::SaltIonOrder)
+            );
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
     }
 
     #[test]
     // Provenance: fn tests::salt_ion_order_falls_back_for_uncovered_ions | original
     // Source: ReShiki | src/naming/openclatura/species.rs::tests::salt_ion_order_falls_back_for_uncovered_ions
     fn salt_ion_order_falls_back_for_uncovered_ions() {
-        // Identical Roman letters (P-14.5) that these keys do not rank.
+        // Identical Roman letters (P-14.5) that the key does not rank.
         for (smiles, expected) in [
-            // Primary locant sets of different lengths (P-14.5.4, P-14.6).
-            (
-                "[Na+].[Na+].O=C([O-])C(CCCCl)CCCCCC.O=C([O-])C(Cl)(CCC)CCCCCC",
-                "disodium 2-(3-chloropropyl)octanoate 2-chloro-2-propyloctanoate",
-            ),
-            // Equal primary locants; only internal locants differ (P-14.6).
-            (
-                "[Na+].[Na+].[O-]C(=O)c1ccc(cc1)[C@H](C)Cl.[O-]C(=O)c1ccc(cc1)CCCl",
-                "disodium 4-[(1S)-1-chloroethyl]benzoate 4-(2-chloroethyl)benzoate",
-            ),
-            // An italic descriptor beside differing locants (P-14.5.3, P-14.5.4).
-            (
-                "CC(=O)[O-].CC(=O)[O-].CC(C)(C)[NH2+]c1ccccc1.[NH3+]c1ccccc1CCCC",
-                "2-butylanilinium N-(tert-butyl)anilinium diacetate",
-            ),
-            // Locants beside a von Baeyer descriptor.
-            (
-                "[Na+].[Na+].[O-]C(=O)C12CCC(CC1)C2.[O-]C(=O)C1CC2CCC1C2",
-                "disodium bicyclo[2.2.1]heptane-1-carboxylate bicyclo[2.2.1]heptane-2-carboxylate",
-            ),
             // Ions that differ only in stereodescriptors, which P-14.5 leaves out.
             (
                 "[Na+].[Na+].C/C=C/C(=O)[O-].C/C=C\\C(=O)[O-]",
                 "disodium (2E)-but-2-enoate (2Z)-but-2-enoate",
+            ),
+            // Composite locants with superscripts are not ranked (P-14.3.5).
+            (
+                "[Na+].[Na+].Clc1ccccc1-c1c([O-])c(C)c(-c2ccccc2)cc1.[O-]c1c(Cl)c(C)ccc1-c1ccc(-c2ccccc2)cc1",
+                "disodium 1^2-chloro-2^3-methyl[1^1,2^1:2^4,3^1-terphenyl]-2^2-olate 1^3-chloro-1^4-methyl[1^1,2^1:2^4,3^1-terphenyl]-1^2-olate",
+            ),
+            // Without descriptors the two ligands of the first ion are
+            // rendered as one multiplied prefix, which is not the cited name.
+            (
+                "[Na+].[Na+].O=C([O-])CN([C@H](Br)CN=C=O)[C@@H](Br)CN=C=O.BrCC(=O)[O-]",
+                "disodium {[(1R)-1-bromo-2-isocyanatoethyl][(1S)-1-bromo-2-isocyanatoethyl]amino}acetate bromoacetate",
+            ),
+            // Only the numerals of the von Baeyer descriptors differ.
+            (
+                "[Na+].[Na+].[O-]C(=O)C1CC2CCC1CC2.[O-]C(=O)C1CCC2CCC1C2",
+                "disodium bicyclo[2.2.2]octane-2-carboxylate bicyclo[3.2.1]octane-2-carboxylate",
             ),
         ] {
             let name = name_salt(smiles, IsotopeStyle::Iupac, &Default::default()).unwrap();
@@ -881,19 +1326,6 @@ mod tests {
                 "{smiles}"
             );
         }
-        // Without its stereo the gonane ion is named from another parent, so
-        // its cited name has no stereo-free key and the character order stays.
-        let name = name_salt(
-            "[Cl-].[Cl-].C[C@]12CC[C@H]3[C@@H](CCC4CC(CC[C@]34C)[NH3+])[C@@H]1CCC2.CC[NH3+]",
-            IsotopeStyle::Iupac,
-            &Default::default(),
-        )
-        .unwrap();
-        assert_eq!(
-            name.text,
-            "(8S,9S,10S,13S,14S)-10,13-dimethylgonan-3-aminium ethanaminium dichloride"
-        );
-        assert_ne!(name.status, NameStatus::Preferred);
         // One stereospecified ion per sign leaves nothing to order.
         let name = name_salt(
             "C[C@@H](CC)[NH3+].CC(=O)[O-]",
@@ -1201,7 +1633,7 @@ mod tests {
                 NameStatus::Unverified(NameReason::UnauditedPath),
             ),
         ] {
-            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected);
             assert_eq!(name.status, status, "{smiles}");
         }
@@ -1213,7 +1645,7 @@ mod tests {
     fn unsupported_anionic_parent_examples_still_decline() {
         for smiles in ["[Na+].Oc1ccccc1-[n-]1cccc1", "[Na+].Oc1ccccc1-n1cccc1"] {
             assert!(
-                super::super::name_smiles(smiles, &Default::default()).is_err(),
+                crate::name_smiles(smiles, &Default::default()).is_err(),
                 "{smiles}"
             );
         }
@@ -1373,7 +1805,7 @@ mod tests {
                 NameStatus::Preferred,
             ),
         ] {
-            let name = super::super::name_smiles(smiles, &Default::default())
+            let name = crate::name_smiles(smiles, &Default::default())
                 .unwrap_or_else(|error| panic!("{smiles}: {error}"));
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, status, "{smiles}");
@@ -1466,7 +1898,7 @@ mod tests {
             ("C[NH3+]", "methanaminium", NameStatus::Preferred),
             ("CC(=O)O", "acetic acid", NameStatus::Preferred),
         ] {
-            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, status, "{smiles}");
         }
@@ -1650,7 +2082,7 @@ mod tests {
                 NameStatus::Unverified(NameReason::UnauditedPath),
             ),
         ] {
-            let name = super::super::name_smiles(smiles, &Default::default())
+            let name = crate::name_smiles(smiles, &Default::default())
                 .unwrap_or_else(|e| panic!("{smiles}: {e}"));
             assert_eq!(name.text, expected);
             assert_eq!(name.status, status, "{smiles}");
@@ -1838,7 +2270,7 @@ mod tests {
                 None,
             ),
         ] {
-            let name = super::super::name_smiles(smiles, &Default::default())
+            let name = crate::name_smiles(smiles, &Default::default())
                 .unwrap_or_else(|e| panic!("{smiles}: {e}"));
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, status, "{smiles}");
@@ -1872,7 +2304,7 @@ mod tests {
             "ClCCl.c1ccncc1",
             "Oc1cccc(O)c1O.Oc1cccc2cccnc12",
         ] {
-            assert!(super::super::name_smiles(smiles, &Default::default()).is_err());
+            assert!(crate::name_smiles(smiles, &Default::default()).is_err());
         }
     }
 
@@ -2037,7 +2469,7 @@ mod tests {
     fn mixtures_unbalanced_sets_and_zwitterions_are_refused() {
         for smiles in ["C.C", "[Na+].[Na+].[Cl-]", "[NH3+]CC(=O)[O-].[Na+].[Cl-]"] {
             assert!(
-                super::super::name_smiles(smiles, &Default::default()).is_err(),
+                crate::name_smiles(smiles, &Default::default()).is_err(),
                 "{smiles}"
             );
         }
@@ -2095,7 +2527,7 @@ mod tests {
                 "1-methyl-4-[(1-methylmorpholin-1-ium-3-yl)methyl]piperidin-1-ium",
             ),
         ] {
-            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            let name = crate::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
             assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
         }

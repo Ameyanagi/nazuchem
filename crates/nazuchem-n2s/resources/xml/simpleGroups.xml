@@ -78,6 +78,7 @@
 		<token value="C=C(C)CCCC(C)CC=O">alpha-citronellal</token>
 		<token value="CC#CC" labels="1/2/3/4">crotonylene|crotonylen</token>
 		<token value="N#CN" functionalIDs="3">cyanamide</token>
+		<token value="N#CNN" labels="//N/N'">cyanohydrazide|cyanohydrazid</token>
 		<token value="N#CO" functionalIDs="3">cyanic|cyanicacid|cyanic acid</token>
 		<token value="N#CC#N">cyanogen</token>
 		<token value="N#CN=[N+]=[N-]">cyanogen azide|cyanogen azid</token>

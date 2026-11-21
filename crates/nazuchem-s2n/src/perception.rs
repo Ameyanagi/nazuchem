@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | issue #128
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | amide nitrogen charge follow-up
 // Source: openclatura | src/openclatura/perception.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/chalcogen_roles.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/chalcogen_vocabulary.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/nitrogen_roles.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/perception.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | issue #94
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | issue #138
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs | issue #27
 // Source: openclatura | src/openclatura/chains.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/molecule.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_polycyclic_descriptors.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -88,6 +92,26 @@ impl FunctionalGroupDescriptor {
     // Source: openclatura | src/openclatura/chalcogen_roles.py::FunctionalGroupDescriptor.ligands_with_role
     pub fn ligands_with_role(&self, role: LigandRole) -> Vec<&ChalcogenLigand> {
         self.ligands.iter().filter(|l| l.role == role).collect()
+    }
+    // Provenance: fn FunctionalGroupDescriptor::uses_chain_end_ligand_prefixes | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs::FunctionalGroupDescriptor::uses_chain_end_ligand_prefixes
+    /// At the end of a carbon chain these groups cite the carbonyl and
+    /// single-bonded ligands directly (P-65.5.4, P-65.6.3.2.3, P-66.1.1.4.1.1).
+    /// The same applies to peroxy and mixed chalcogen acids (P-65.1.4.2,
+    /// P-65.1.5.1, P-65.1.5.3).
+    pub fn uses_chain_end_ligand_prefixes(&self) -> bool {
+        self.family == "acyl"
+            && match self.derivative.as_str() {
+                "amide" | "amidium" | "ester" | "acid_halide" => true,
+                "acid" => match self.ligands.as_slice() {
+                    // -COOH stays carboxy and -CS-SH dithiocarboxy.
+                    [double, single] => double.element != single.element,
+                    // -Te-OH is not rendered separately as hydroxytellanyl.
+                    [_, link, terminal] => !(link.element == "Te" && terminal.element == "O"),
+                    _ => false,
+                },
+                _ => false,
+            }
     }
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -429,11 +453,16 @@ fn resolve_acyl(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGrou
     }) {
         return (row.key.clone(), None);
     }
-    let mut sites = double.element.clone();
+    let mut es = vec![double.element.clone()];
     if let Some(s) = single {
-        sites.push('_');
-        sites.push_str(&s.element);
+        es.push(s.element.clone());
     }
+    // P-72.2.2.2.1.1: the two terminal O/S contributors have one suffix.
+    // Give them one key and rank so either drawing counts toward that suffix.
+    if d.derivative == "anion" && es.as_slice() == ["S", "O"] {
+        es.swap(0, 1);
+    }
+    let mut sites = es.join("_");
     if let Some(l) = leaving {
         sites.push('_');
         sites.push_str(&l.kind);
@@ -450,13 +479,17 @@ fn resolve_acyl(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGrou
         .get(&d.derivative)
         .cloned()
         .unwrap_or_default();
-    let mut es = vec![double.element.clone()];
-    if let Some(s) = single {
-        es.push(s.element.clone());
-    }
     let mut seniority = vec![policy.seniority.unwrap_or(60)];
     if policy.ranked_seniority {
         seniority[0] += rank(&double.element);
+    } else if d.derivative == "acid"
+        && let Some(single) = single
+    {
+        // P-43.1 (a), (c), Table 4.3: after every peroxy acid; the most
+        // oxygen, then S, Se, Te; then -OH before -SH (-CS-OH, -CO-SH,
+        // -CS-SH, -CSe-SH, -CS-SeH).
+        let (a, b) = (rank(&double.element), rank(&single.element));
+        seniority.extend([1, a.min(b), a.max(b), b]);
     } else {
         seniority.extend(es.iter().map(|e| rank(e)));
         if leaving.is_some() {
@@ -489,7 +522,9 @@ fn resolve_acyl(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGrou
     let vals = [
         (
             "carbo",
-            if d.is_external {
+            if d.is_external && d.derivative == "amidium" && double.element == "O" {
+                "carbox".into()
+            } else if d.is_external {
                 "carbo".into()
             } else {
                 "".into()
@@ -585,7 +620,23 @@ fn resolve_peroxy(d: &FunctionalGroupDescriptor) -> (String, Option<FunctionalGr
         .cloned()
         .unwrap_or_default();
     let mut seniority = vec![policy.seniority.unwrap_or(45)];
-    seniority.extend(es.iter().map(|e| rank(e)));
+    let ranks: Vec<i64> = es.iter().map(|e| rank(e)).collect();
+    if d.derivative == "acid" {
+        // P-43.1 (a)-(c), Table 4.3: every peroxy acid precedes the acids
+        // without -OO-; among them the most oxygen, then the -OO- group
+        // (OO, OS, OSe, SS), then =O, =S, =Se, then -OH before -SH
+        // (-CS-OOH, -CSe-OOH, -CO-SOH, -CO-OSH, ..., -CS-SSH).
+        seniority.extend([
+            0,
+            -(es.iter().filter(|e| *e == "O").count() as i64),
+            ranks[1].min(ranks[2]),
+            ranks[1].max(ranks[2]),
+            ranks[0],
+            ranks[2],
+        ]);
+    } else {
+        seniority.extend(ranks);
+    }
     let vals = [
         (
             "carbo",
@@ -656,7 +707,18 @@ fn hydrazide_ns(m: &Molecule, c: usize, n: usize, cyclic: &AtomSet) -> Option<Ve
     if cyclic.contains(&t)
         || m.atoms[&t].charge != 0
         || m.get_neighbors(t).iter().any(|&x| {
-            x != n && (!matches!(m.atoms[&x].symbol.as_str(), "C" | "H") || m.bond_order(t, x) != 1)
+            // P-66.3.3.1: an ylidene on N' is a substituent of the hydrazide,
+            // as in N'-[(phenyldiazenyl)methylidene]acetohydrazide
+            // (P-68.3.1.3.5.1). No Blue Book example places the descriptor of a
+            // configured N'=C bond, so that case is not a hydrazide here.
+            // A cumulated carbon such as =C=S is not named as an ylidene.
+            x != n
+                && (!matches!(m.atoms[&x].symbol.as_str(), "C" | "H")
+                    || m.get_bond(t, x).is_some_and(|b| {
+                        b.order > 2
+                            || b.stereo.is_some()
+                            || b.order == 2 && has_multiple(m, x, &AtomSet::from([t]))
+                    }))
         })
     {
         return None;
@@ -671,15 +733,21 @@ fn hydrazide_ns(m: &Molecule, c: usize, n: usize, cyclic: &AtomSet) -> Option<Ve
             .count()
     };
     let oxygen = |x: usize, order: usize| m.atoms[&x].symbol == "O" && m.bond_order(c, x) == order;
+    // P-65.7.2: with a second acyl group on that oxygen, a substituted
+    // hydrazinecarboxylic acid is one half of an anhydride.
+    let acyl = |y: usize| {
+        m.atoms[&y].is_carbon()
+            && m.get_neighbors(y)
+                .iter()
+                .any(|&z| m.atoms[&z].symbol == "O" && m.bond_order(y, z) == 2)
+    };
     if !m.is_isotope_parent()
-        && heavy(n) == 2
-        && heavy(t) == 1
         && m.get_neighbors(c).iter().any(|&x| oxygen(x, 2))
         && m.get_neighbors(c).iter().any(|&x| {
+            let beyond = m.get_neighbors(x);
             oxygen(x, 1)
-                && m.get_neighbors(x)
-                    .iter()
-                    .all(|&y| y == c || m.atoms[&y].is_carbon())
+                && beyond.iter().all(|&y| y == c || m.atoms[&y].is_carbon())
+                && (heavy(n) == 2 && heavy(t) == 1 || beyond.iter().any(|&y| y != c && acyl(y)))
         })
     {
         return None;
@@ -703,10 +771,33 @@ fn is_nitro_n(m: &Molecule, n: usize, parent: usize) -> bool {
             .iter()
             .all(|&x| m.atoms[&x].symbol == "O" && m.degree(x) == 1)
 }
+/// A neutral organosulfonyl group linked to the shared amide nitrogen.
+// Provenance: fn is_organosulfonyl | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs::is_organosulfonyl
+fn is_organosulfonyl(m: &Molecule, s: usize, n: usize) -> bool {
+    if m.atoms[&s].symbol != "S" || m.atoms[&s].charge != 0 || m.degree(s) != 4 {
+        return false;
+    }
+    let neighbors = m.get_neighbors(s).iter().copied().filter(|&a| a != n);
+    neighbors
+        .clone()
+        .filter(|&a| m.atoms[&a].is_carbon() && m.bond_order(s, a) == 1)
+        .count()
+        == 1
+        && neighbors
+            .filter(|&a| {
+                m.atoms[&a].symbol == "O"
+                    && classify_chalcogen_ligand(m, s, a)
+                        .is_some_and(|l| l.role == LigandRole::DoubleBonded)
+            })
+            .count()
+            == 2
+}
+
 // Provenance: fn urea_ns | adapted
 // Source: openclatura | src/openclatura/perception.py::_urea_nitrogens
 fn urea_ns(m: &Molecule, c: usize, ns: &[usize], cyclic: &AtomSet) -> Option<Vec<usize>> {
-    if cyclic.contains(&c) || ns.len() != 2 || m.degree(c) != 3 {
+    if cyclic.contains(&c) || m.atoms[&c].charge != 0 || ns.len() != 2 || m.degree(c) != 3 {
         return None;
     }
     if ns.iter().any(|&n| {
@@ -714,9 +805,13 @@ fn urea_ns(m: &Molecule, c: usize, ns: &[usize], cyclic: &AtomSet) -> Option<Vec
             || m.atoms[&n].charge != 0
             || m.get_neighbors(n).iter().any(|&x| {
                 x != c
-                    && ((matches!(m.atoms[&x].symbol.as_str(), "N" | "O" | "S")
-                        && !is_nitro_n(m, x, n))
-                        || m.bond_order(n, x) != 1)
+                    && (m.bond_order(n, x) != 1
+                        || match m.atoms[&x].symbol.as_str() {
+                            "N" => !is_nitro_n(m, x, n),
+                            "O" => true,
+                            "S" => !is_organosulfonyl(m, x, n),
+                            _ => false,
+                        })
             })
     }) {
         return None;
@@ -1020,7 +1115,13 @@ fn nitrogen_chain_roles(m: &Molecule, cyclic: &AtomSet, consumed: &AtomSet) -> V
                 x != c && !blocked.contains(&x) && !cyclic.contains(&x) && m.atoms[&x].symbol == "N"
             })
             .collect::<Vec<_>>();
-        if tails.len() != 1 || m.bond_order(n, tails[0]) != 1 {
+        // A hydrazone name describes the neutral N-N; a charged nitrogen
+        // is left to the ion namers.
+        if tails.len() != 1
+            || m.bond_order(n, tails[0]) != 1
+            || atom.charge != 0
+            || m.atoms[&tails[0]].charge != 0
+        {
             continue;
         }
         let t = tails[0];
@@ -1111,6 +1212,27 @@ fn carbonyl_group(
         ),
     ))
 }
+// Provenance: fn has_terminal_chalcogenide | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs::has_terminal_chalcogenide
+pub(super) fn has_terminal_chalcogenide(m: &Molecule, n: usize) -> bool {
+    m.get_neighbors(n).iter().any(|&neighbor| {
+        classify_chalcogen_ligand(m, n, neighbor).is_some_and(|ligand| {
+            ligand.role == LigandRole::Anionic
+                && matches!(ligand.element.as_str(), "O" | "S" | "Se" | "Te")
+        })
+    })
+}
+
+// P-73.1.2.1 and Table 7.4: amidium cites positive nitrogen. With a terminal
+// chalcogenide, the neutral suffix preserves both charges only when the
+// nitrogen has no hydrogens. H-bearing sites need an explicit amidium suffix.
+// Provenance: fn is_amidium_n | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs::is_amidium_n
+fn is_amidium_n(m: &Molecule, n: usize) -> bool {
+    let atom = &m.atoms[&n];
+    atom.charge == 1 && (atom.total_h_count > 0 || !has_terminal_chalcogenide(m, n))
+}
+
 // Provenance: fn acyl_group | adapted
 // Source: openclatura | src/openclatura/perception.py::_acyl_chalcogen_group
 fn acyl_group(
@@ -1325,6 +1447,7 @@ fn acyl_group(
     ns.sort_by_key(|&n| {
         std::cmp::Reverse((
             !cyclic.contains(&n),
+            is_amidium_n(m, n),
             m.get_neighbors(n)
                 .iter()
                 .any(|&x| x != c && m.atoms[&x].symbol != "H"),
@@ -1335,7 +1458,9 @@ fn acyl_group(
         return carbonyl_group(c, attachment, double, "ketone").map(|g| vec![g]);
     }
     let (mut attachment, mut external) = (attachment, external);
-    let (derivative, group_ns) = if let Some(v) = hydrazide_ns(m, c, n, cyclic) {
+    let (derivative, group_ns) = if !cyclic.contains(&n) && is_amidium_n(m, n) {
+        ("amidium", vec![n])
+    } else if let Some(v) = hydrazide_ns(m, c, n, cyclic) {
         ("hydrazide", v)
     } else if let Some(v) = urea_ns(m, c, &ns, cyclic) {
         attachment = c;
@@ -1370,6 +1495,63 @@ fn leaving_descriptor(kind: &str, atoms: Vec<usize>) -> LeavingGroupDescriptor {
         atom_ids: atoms,
     }
 }
+// Provenance: fn pseudohalide_leaving | adapted
+// Source: openclatura | src/openclatura/perception.py::_acyl_pseudohalide_group
+/// The pseudohalide group (P-65.5.2.1) that `first` starts on the acyl
+/// centre `c`: cyanide, isocyanide, azide or an isocyanate.
+fn pseudohalide_leaving(m: &Molecule, c: usize, first: usize) -> Option<LeavingGroupDescriptor> {
+    if m.bond_order(c, first) != 1 {
+        return None;
+    }
+    let side = m
+        .get_neighbors(first)
+        .iter()
+        .copied()
+        .filter(|n| *n != c)
+        .collect::<Vec<_>>();
+    let &[second] = &side[..] else {
+        return None;
+    };
+    let bond = m.bond_order(first, second);
+    if m.atoms[&first].symbol == "C"
+        && m.atoms[&second].symbol == "N"
+        && bond == 3
+        && m.degree(second) == 1
+    {
+        return Some(leaving_descriptor("CN", vec![first, second]));
+    }
+    if m.atoms[&first].symbol != "N" {
+        return None;
+    }
+    if m.atoms[&second].symbol == "C" && bond == 3 && m.degree(second) == 1 {
+        return Some(leaving_descriptor("NC", vec![first, second]));
+    }
+    let tails = m
+        .get_neighbors(second)
+        .iter()
+        .copied()
+        .filter(|n| *n != first)
+        .collect::<Vec<_>>();
+    let &[third] = &tails[..] else {
+        return None;
+    };
+    let kind = if m.atoms[&second].symbol == "N"
+        && m.atoms[&third].symbol == "N"
+        && m.atoms[&second].charge > 0
+        && m.atoms[&third].charge < 0
+    {
+        "N3".to_owned()
+    } else if m.atoms[&second].symbol == "C"
+        && bond == 2
+        && m.bond_order(second, third) == 2
+        && matches!(m.atoms[&third].symbol.as_str(), "O" | "S" | "Se" | "Te")
+    {
+        format!("NC{}", m.atoms[&third].symbol.as_str())
+    } else {
+        return None;
+    };
+    Some(leaving_descriptor(&kind, vec![first, second, third]))
+}
 // Provenance: fn pseudohalide_group | adapted
 // Source: openclatura | src/openclatura/perception.py::_acyl_pseudohalide_group
 fn pseudohalide_group(
@@ -1379,65 +1561,11 @@ fn pseudohalide_group(
     cyclic: &AtomSet,
 ) -> Option<PerceivedGroup> {
     let double = terminal_double(m, c, used)?;
-    let mut leaving = None;
-    for &first in m.get_neighbors(c) {
-        if first == double.atom || used.contains(&first) || m.bond_order(c, first) != 1 {
-            continue;
-        }
-        let side = m
-            .get_neighbors(first)
-            .iter()
-            .copied()
-            .filter(|n| *n != c)
-            .collect::<Vec<_>>();
-        if side.len() != 1 {
-            continue;
-        }
-        let second = side[0];
-        let bond = m.bond_order(first, second);
-        if m.atoms[&first].symbol == "C"
-            && m.atoms[&second].symbol == "N"
-            && bond == 3
-            && m.degree(second) == 1
-        {
-            leaving = Some(leaving_descriptor("CN", vec![first, second]));
-            break;
-        }
-        if m.atoms[&first].symbol != "N" {
-            continue;
-        }
-        if m.atoms[&second].symbol == "C" && bond == 3 && m.degree(second) == 1 {
-            leaving = Some(leaving_descriptor("NC", vec![first, second]));
-            break;
-        }
-        let tails = m
-            .get_neighbors(second)
-            .iter()
-            .copied()
-            .filter(|n| *n != first)
-            .collect::<Vec<_>>();
-        if tails.len() != 1 {
-            continue;
-        }
-        let third = tails[0];
-        let kind = if m.atoms[&second].symbol == "N"
-            && m.atoms[&third].symbol == "N"
-            && m.atoms[&second].charge > 0
-            && m.atoms[&third].charge < 0
-        {
-            "N3".to_owned()
-        } else if m.atoms[&second].symbol == "C"
-            && bond == 2
-            && m.bond_order(second, third) == 2
-            && matches!(m.atoms[&third].symbol.as_str(), "O" | "S" | "Se" | "Te")
-        {
-            format!("NC{}", m.atoms[&third].symbol.as_str())
-        } else {
-            continue;
-        };
-        leaving = Some(leaving_descriptor(&kind, vec![first, second, third]));
-        break;
-    }
+    let leaving = m
+        .get_neighbors(c)
+        .iter()
+        .filter(|&&first| first != double.atom && !used.contains(&first))
+        .find_map(|&first| pseudohalide_leaving(m, c, first));
     let leaving = leaving?;
     if m.get_neighbors(c)
         .iter()
@@ -1547,6 +1675,16 @@ fn is_complete_acyl_end(m: &Molecule, center: usize, double: usize, linkage: usi
     if m.atoms[&substituent].is_carbon() {
         return true;
     }
+    // P-65.7.2: carbamic and hydrazinecarboxylic acids are monobasic acids
+    // and form anhydrides, as in acetic hydrazinecarboxylic anhydride.
+    if m.atoms[&substituent].symbol == "N" && m.atoms[&substituent].charge == 0 {
+        return true;
+    }
+    // A distal ring or multiple bond in the S-organyl group does not
+    // determine how the acyl carbonotrithioate is cited.
+    if is_organyl_carbonotrithioate_end(m, center, linkage) {
+        return false;
+    }
     let mut component = AtomSet::from([substituent]);
     let mut frontier = vec![substituent];
     while let Some(current) = frontier.pop() {
@@ -1564,14 +1702,61 @@ fn is_complete_acyl_end(m: &Molecule, center: usize, double: usize, linkage: usi
     edges.len() >= component.len() || edges.iter().any(|b| b.order > 1)
 }
 
+/// Identify the ester-bearing end of R-C(=X)-S-C(=S)-S-organyl.
+// Provenance: fn is_organyl_carbonotrithioate_end | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/perception.rs::is_organyl_carbonotrithioate_end
+pub(super) fn is_organyl_carbonotrithioate_end(
+    m: &Molecule,
+    center: usize,
+    linkage: usize,
+) -> bool {
+    if !m.atoms[&center].is_carbon() || m.degree(center) != 3 {
+        return false;
+    }
+    let Some(acyl) = classify_chalcogen_ligand(m, center, linkage)
+        .filter(|l| l.element == "S" && l.role == LigandRole::CarbonLink)
+        .and_then(|l| l.attachment_atom)
+    else {
+        return false;
+    };
+    let empty = AtomSet::new();
+    if m.bond_order(linkage, acyl) != 1 || terminal_double(m, acyl, &empty).is_none() {
+        return false;
+    }
+    let Some(double) = terminal_double(m, center, &empty).filter(|l| l.element == "S") else {
+        return false;
+    };
+    m.get_neighbors(center)
+        .iter()
+        .copied()
+        .find(|&id| id != linkage && id != double.atom)
+        .and_then(|id| classify_chalcogen_ligand(m, center, id))
+        .filter(|l| l.element == "S" && l.role == LigandRole::CarbonLink)
+        .is_some_and(|l| {
+            l.attachment_atom.is_some_and(|root| {
+                m.bond_order(l.atom, root) == 1 && terminal_double(m, root, &empty).is_none()
+            })
+        })
+}
+
 /// Characteristic groups named with an anionic suffix or prefix (P-72.2.2).
 // Provenance: fn is_anionic_group_key | adapted
 // Source: openclatura | src/openclatura/perception.py::ANIONIC_SUFFIX_GROUP_KEYS module constant
 pub(super) fn is_anionic_group_key(key: &str) -> bool {
     matches!(
         key,
-        "olate" | "thiolate" | "aminide" | "carboxylate" | "ring_carboxylate" | "sulfonate"
-    )
+        "olate"
+            | "thiolate"
+            | "aminide"
+            | "iminide"
+            | "carboxylate"
+            | "ring_carboxylate"
+            | "sulfonate"
+            | "acyl_anion_O_S_chain"
+            | "acyl_anion_O_S_external"
+            | "acyl_anion_O_O_O_chain"
+            | "acyl_anion_O_O_O_external"
+    ) || key.starts_with("peroxolate_")
 }
 
 // An acid residue bonded to `link`: an acyl carbon, or the sulfur of a
@@ -1579,7 +1764,7 @@ pub(super) fn is_anionic_group_key(key: &str) -> bool {
 // Returns the atom the group attaches to and the doubly bonded ligands.
 // Provenance: fn anhydride_end | adapted
 // Source: openclatura | src/openclatura/perception.py::_chalcogen_anhydride_groups
-fn anhydride_end(
+pub(super) fn anhydride_end(
     m: &Molecule,
     x: usize,
     link: usize,
@@ -1598,7 +1783,7 @@ fn anhydride_end(
         .iter()
         .filter(|n| !used.contains(n))
         .filter_map(|&n| classify_chalcogen_ligand(m, x, n))
-        .filter(|l| l.role == LigandRole::DoubleBonded && l.element == "O")
+        .filter(|l| l.role == LigandRole::DoubleBonded && matches!(l.element.as_str(), "O" | "S"))
         .collect::<Vec<_>>();
     let rest = m
         .get_neighbors(x)
@@ -1776,11 +1961,45 @@ fn central_group(
     {
         return None;
     }
-    let anchors = m
+    let carbons = m
         .get_neighbors(c)
         .iter()
         .copied()
         .filter(|&n| m.atoms[&n].is_carbon() && m.bond_order(c, n) == 1)
+        .collect::<Vec<_>>();
+    // P-65.5.2.1, P-66.5.1.3.2: a pseudohalide on the sulfonyl or sulfinyl
+    // group is cited like a halide, methanesulfonyl cyanide, and its cyanide
+    // carbon is not the carbon the acid group is attached to. A group with no other carbon
+    // is perceived as before. An isocyanide keeps its charged carbon, and a
+    // group with a hydrogen or another charge is not the one the class name
+    // stands for; these are left to the other routes.
+    let mut pseudo = m
+        .get_neighbors(c)
+        .iter()
+        .filter(|n| !used.contains(n))
+        .filter_map(|&n| pseudohalide_leaving(m, c, n))
+        .filter(|l| {
+            let charges = l.atom_ids.iter().map(|a| m.atoms[a].charge);
+            l.kind != "NC"
+                && l.atom_ids.iter().all(|a| m.atoms[a].total_h_count == 0)
+                && if l.kind == "N3" {
+                    charges.eq([0, 1, -1])
+                        && l.atom_ids.windows(2).all(|w| m.bond_order(w[0], w[1]) == 2)
+                } else {
+                    charges.eq(std::iter::repeat_n(0, l.atom_ids.len()))
+                }
+        })
+        .collect::<Vec<_>>();
+    if carbons
+        .iter()
+        .all(|n| pseudo.iter().any(|l| l.attachment_atom == *n))
+    {
+        pseudo.clear();
+    }
+    let leaves = |n: &usize| pseudo.iter().any(|l| l.attachment_atom == *n);
+    let anchors = carbons
+        .into_iter()
+        .filter(|n| !leaves(n))
         .collect::<Vec<_>>();
     if anchors.len() != 1 {
         return None;
@@ -1790,7 +2009,7 @@ fn central_group(
         .get_neighbors(c)
         .iter()
         .copied()
-        .filter(|n| *n != anchor && !used.contains(n))
+        .filter(|n| *n != anchor && !used.contains(n) && !leaves(n))
         .filter_map(|n| classify_chalcogen_ligand(m, c, n))
         .collect::<Vec<_>>();
     let doubles = ligands
@@ -1823,6 +2042,7 @@ fn central_group(
                 && m.atoms[n].symbol == "N"
                 && m.atoms[n].charge == 0
                 && m.bond_order(c, *n) == 1
+                && !leaves(n)
         })
         .collect::<Vec<_>>();
     let hs = m
@@ -1834,7 +2054,17 @@ fn central_group(
     let mut group_atoms: AtomSet = doubles.iter().map(|l| l.atom).chain([c]).collect();
     let mut dligands = doubles.clone();
     let mut leaving = None;
-    let derivative = if terminals.len() == 1 && ns.is_empty() && hs.is_empty() {
+    let derivative = if let [l] = &pseudo[..]
+        && terminals.is_empty()
+        && ns.is_empty()
+        && hs.is_empty()
+    {
+        group_atoms.extend(&l.atom_ids);
+        leaving = Some(l.clone());
+        "acid_halide"
+    } else if !pseudo.is_empty() {
+        return None;
+    } else if terminals.len() == 1 && ns.is_empty() && hs.is_empty() {
         let t = terminals[0].clone();
         group_atoms.insert(t.atom);
         dligands.push(t.clone());
@@ -2020,6 +2250,12 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
         .leaving_group
         .as_ref()
         .and_then(|l| NAMER_RULES.chalcogen_acyl_leaving_groups.get(&l.kind));
+    // Groups that differ in the halide or pseudohalide are different
+    // characteristic groups: only like ones share a multiplied suffix.
+    let key = match &d.leaving_group {
+        Some(l) => format!("{key}_{}", l.kind),
+        None => key,
+    };
     let infix = infix(&es);
     let suffix_stem = if infix.is_empty() {
         stem.into()
@@ -2072,9 +2308,11 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
                 // P-72.6.1: the acid-anion prefix is the anion suffix with
                 // "ate" changed to "ato", so it keeps the replacement infix
                 // (sulfinothioato, like the suffix sulfinothioate).
+                // An acyl group likewise keeps it (P-65.3.2.2.2), so the
+                // halide prefix of -S(O)(S)-Cl is chlorosulfonothioyl.
                 (
                     "stem",
-                    if d.derivative == "anion" {
+                    if matches!(d.derivative.as_str(), "anion" | "acid_halide") {
                         suffix_stem.clone()
                     } else {
                         stem.into()
@@ -2096,6 +2334,10 @@ fn resolve_central(d: &FunctionalGroupDescriptor) -> Option<(String, Option<Func
         seniority,
         true,
     );
+    // P-65.5.1: ethane-1,2-disulfonyl dibromide multiplies the class name too.
+    if d.derivative == "acid_halide" {
+        rule.suffix_multiplier_positions = vec![0, 1];
+    }
     if let Some(t) = &policy.citation_suffix {
         rule.citation_suffixes
             .insert("anhydride_half".into(), format_template(t, &vals));
@@ -2290,9 +2532,39 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
     }
     groups.extend(hydrazides);
     consumed.extend(claimed);
+    // P-66.1.2 and P-73.1.2.1: each acyl centre on a shared nitrogen stays
+    // a suffix candidate until the senior amide or amidium parent is selected.
+    let mut amide_nitrogens = AtomSet::new();
     for &c in m.atoms.keys() {
         if let Some(g) = central_group(m, c, &consumed, &cyclic) {
-            consumed.extend(g.atoms_without_attachment());
+            // Leave a shared nitrogen available to recognize both acyl
+            // centers before the senior amide takes ownership of it.
+            let shared = g
+                .descriptor
+                .as_ref()
+                .filter(|d| d.derivative == "amide")
+                .and_then(|_| {
+                    g.atoms_involved.iter().copied().find(|&n| {
+                        m.atoms[&n].symbol == "N"
+                            && m.get_neighbors(n).iter().any(|&other| {
+                                m.atoms[&other].is_carbon()
+                                    && acyl_group(m, other, &consumed, &cyclic).is_some_and(
+                                        |groups| {
+                                            groups.iter().any(|g| {
+                                                g.resolved_rule
+                                                    .as_ref()
+                                                    .is_some_and(|r| r.has_capability("urea"))
+                                            })
+                                        },
+                                    )
+                            })
+                    })
+                });
+            consumed.extend(
+                g.atoms_without_attachment()
+                    .filter(|&atom| Some(atom) != shared),
+            );
+            amide_nitrogens.extend(shared);
             groups.push(g);
         }
     }
@@ -2526,7 +2798,10 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
             .copied()
             .find(|&n| m.bond_order(c, n) == 2 && m.degree(n) == 1);
         if let Some(n) = dn {
+            // P-61.8: the neutral prefix cannot carry a charge on the
+            // cumulene or cite extra ligands on a cationic nitrogen.
             if let Some(e) = double_s.or(double_o)
+                && [c, n, e].iter().all(|x| m.atoms[x].charge == 0)
                 && let Some(attach) = m.get_neighbors(n).iter().copied().find(|x| *x != c)
             {
                 let key = if double_s.is_some() {
@@ -2658,14 +2933,9 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
             consumed.insert(n);
         }
     }
-    // P-66.1.6.1.1.5: a carboxylic amide is senior to urea, so a nitrogen
-    // shared with another acyl centre belongs to that centre, whatever the
-    // atom order: N-carbamoylacetamide, not N-acetylurea.
+    // An amide of a carboxylic, thiocarboxylic or sulfonic acid is senior
+    // to urea (P-66.1.6.1.1.3 and P-66.1.6.1.1.5).
     let mut ureas = Vec::new();
-    // P-66.1.2: (R-CO)2NH is an N-acyl derivative of the senior amide, so
-    // every acyl centre on a shared nitrogen stays an amide candidate until
-    // the parent is selected.
-    let mut amide_nitrogens = AtomSet::new();
     for (&c, a) in &m.atoms {
         if a.is_carbon()
             && let Some(acyl_groups) = acyl_group(m, c, &consumed, &cyclic)
@@ -2675,7 +2945,7 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                     .as_ref()
                     .is_some_and(|r| r.has_capability("urea"))
             }) {
-                ureas.push(c);
+                ureas.extend(acyl_groups);
                 continue;
             }
             for g in acyl_groups {
@@ -2683,7 +2953,7 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                     let amide = g
                         .descriptor
                         .as_ref()
-                        .is_some_and(|d| d.derivative == "amide");
+                        .is_some_and(|d| matches!(d.derivative.as_str(), "amide" | "amidium"));
                     for atom in g.atoms_without_attachment() {
                         if amide && m.atoms[&atom].symbol == "N" {
                             amide_nitrogens.insert(atom);
@@ -2696,9 +2966,15 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
             }
         }
     }
-    consumed.extend(amide_nitrogens);
-    for c in ureas {
-        for g in acyl_group(m, c, &consumed, &cyclic).into_iter().flatten() {
+    consumed.extend(&amide_nitrogens);
+    for urea in ureas {
+        if !urea.atoms_involved.is_disjoint(&amide_nitrogens) {
+            continue;
+        }
+        for g in acyl_group(m, urea.attachment_carbon, &consumed, &cyclic)
+            .into_iter()
+            .flatten()
+        {
             if g.is_principal_candidate {
                 consumed.extend(g.atoms_without_attachment());
             }
@@ -2739,6 +3015,8 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
         }
         if let Some(&n2) = ns.first()
             && m.bond_order(n, n2) == 1
+            && a.charge == 0
+            && m.atoms[&n2].charge == 0
         {
             let tail = amidino_tail(m, n2, &AtomSet::from([n]));
             if has_multiple(m, n2, &AtomSet::from([n])) && tail.is_empty() {
@@ -2756,12 +3034,13 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                 continue;
             }
         }
-        groups.push(PerceivedGroup::new(
-            if a.charge > 0 { "iminium" } else { "imine" },
-            true,
-            c,
-            [n],
-        ));
+        // P-72.2.2.2.3: an imine with one negative charge on its nitrogen.
+        let key = match a.charge {
+            1.. => "iminium",
+            -1 if m.degree(n) == 1 => "iminide",
+            _ => "imine",
+        };
+        groups.push(PerceivedGroup::new(key, true, c, [n]));
         consumed.insert(n);
     }
     for (&n, a) in &m.atoms {
@@ -2805,7 +3084,7 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                 || cyclic.contains(&end)
                 || !is_chalcogen(&a.symbol)
                 || m.degree(end) != 1
-                || a.total_h_count == 0
+                || a.total_h_count == 0 && a.charge != -1
                 || a.radical_electrons != 0
             {
                 continue;
@@ -2837,12 +3116,15 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
             ) else {
                 continue;
             };
-            if l.role != LigandRole::ChalcogenLink || t.role != LigandRole::HydrogenBearing {
+            let anion = t.role == LigandRole::Anionic;
+            if l.role != LigandRole::ChalcogenLink
+                || !anion && t.role != LigandRole::HydrogenBearing
+            {
                 continue;
             }
             let mut d = descriptor(
                 "peroxol",
-                "alcohol",
+                if anion { "anion" } else { "alcohol" },
                 vec![anchor],
                 vec![l, t],
                 anchor,
@@ -2855,17 +3137,25 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
                 .find(|r| r.first == m.atoms[&first].symbol && r.terminal == m.atoms[&end].symbol);
             if let Some(policy) = policy {
                 let key = format!(
-                    "peroxol_{}_{}",
+                    "peroxol{}_{}_{}",
+                    if anion { "ate" } else { "" },
                     m.atoms[&first].symbol.as_str(),
                     m.atoms[&end].symbol.as_str()
                 );
+                // P-72.2.2.2.2: `methaneperoxolate`, and the letter locant
+                // inside the brackets in `ethane(SO-thioperoxolate)`.
+                let suffix = match (anion, policy.suffix.contains('-')) {
+                    (false, _) => policy.suffix.clone(),
+                    (true, false) => format!("{}ate", policy.suffix),
+                    (true, true) => format!("({}ate)", policy.suffix),
+                };
                 let fp = &NAMER_RULES.chalcogen_rule_policies.peroxol;
                 let mut rule = dynamic_rule(
                     &key,
                     &fp.families,
                     &fp.capabilities,
                     None,
-                    Some(policy.suffix.clone()),
+                    Some(suffix),
                     vec![105, policy.rank],
                     true,
                 );
@@ -2980,7 +3270,11 @@ pub fn perceive_groups(m: &Molecule) -> Vec<PerceivedGroup> {
         };
         let principal = key != "aminium" || adj.iter().all(|&x| m.bond_order(n, x) == 1);
         for &c in adj {
-            groups.push(PerceivedGroup::new(key, principal, c, [n]));
+            // A nitro nitrogen is a substituent of the amine (P-61.5.1), not
+            // a parent atom; its formal charge would rank the group as an ion.
+            if !is_nitro_n(m, c, n) {
+                groups.push(PerceivedGroup::new(key, principal, c, [n]));
+            }
         }
         consumed.insert(n);
     }
@@ -3237,7 +3531,8 @@ mod tests {
             ("CC(=O)OS(=O)(=O)C", "anhydride"),
             ("CS(=O)(=O)OS(C)=O", "anhydride"),
             ("COO", "peroxol_O_O"),
-            ("Cc1ccc(C(=O)SC(=S)SCC#N)cc1", "anhydride_O_S_S"),
+            // The S-organyl nitrile leaves the acyl ester linkage intact.
+            ("Cc1ccc(C(=O)SC(=S)SCC#N)cc1", "acyl_ester_O_S_external"),
             ("C1CCCCC1C(=O)O", "ring_carboxylic_acid"),
             ("C1CCCCC1C#N", "ring_nitrile"),
             ("C1CCCCC1C=O", "ring_aldehyde"),

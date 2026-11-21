@@ -1505,6 +1505,52 @@ impl Assembly<'_> {
             && self.attr(group, "isAMultiRadical").is_some()
             && enough)
     }
+    // P-67.1.4.1.1.5: a chalcogen prefix fills a free acyl valence,
+    // even if the pnictogen also has a substitutable hydrogen.
+    fn concatenated_acyl_parent(
+        &self,
+        node: NodeId,
+        fragment: FragmentId,
+        count: usize,
+    ) -> Result<Option<FragmentId>> {
+        let [out] = self.graph().fragment(fragment).out_atoms.as_slice() else {
+            return Ok(None);
+        };
+        if out.valency != 1
+            || !matches!(
+                self.graph().atom(out.atom).element,
+                Element::O | Element::S | Element::Se | Element::Te
+            )
+        {
+            return Ok(None);
+        }
+        let Some(next) = self.arena.next_sibling(node) else {
+            return Ok(None);
+        };
+        if !matches!(self.arena[next].name.as_str(), "bracket" | "substituent")
+            || self.attr(next, "locant").is_some()
+            || self.attr(next, "multiplier").is_some()
+        {
+            return Ok(None);
+        }
+        let group = self.group(next)?;
+        if self.attr(group, "type").as_deref() != Some("nonCarboxylicAcid")
+            || self.attr(group, "acceptsAdditiveBonds").is_none()
+        {
+            return Ok(None);
+        }
+        let parent = self.fragment(group)?;
+        let outs = &self.graph().fragment(parent).out_atoms;
+        Ok((outs.len() > count
+            && matches!(
+                self.graph().atom(outs[0].atom).element,
+                Element::P | Element::As | Element::Sb
+            )
+            && outs
+                .iter()
+                .all(|out| out.atom == outs[0].atom && out.valency == 1))
+        .then_some(parent))
+    }
     fn perform_additive_operations(&mut self, node: NodeId) -> Result<()> {
         if self.attr(node, "locant").is_some() {
             return Ok(());
@@ -1586,6 +1632,16 @@ impl Assembly<'_> {
                 }
                 return Ok(());
             }
+        }
+        if let Some(parent) =
+            self.concatenated_acyl_parent(node, fragment, multiplier.unwrap_or(1))?
+        {
+            self.arena[group].set_attribute("resolved", "yes");
+            return if multiplier.is_some() {
+                self.multiply_out_and_additively_bond(node, parent)
+            } else {
+                self.join_fragments_additively(fragment, parent)
+            };
         }
         let siblings = self.find_alternative_fragments(node)?;
         let Some(&last) = siblings.last() else {

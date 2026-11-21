@@ -4,6 +4,7 @@
 // Source: ReShiki | src/naming/openclatura/ionic_naming.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Source: openclatura | tests/unit/test_audit_reconstruction.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/ionic_naming.rs | issue #160
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura ionic spelling logic reworked as structured anion preparation with local identity guards.
@@ -27,23 +28,73 @@ struct ChargeSite {
 }
 
 /// Admit oxo protonation only where the naming grammar preserves its charge.
+/// Check formal P=O and P-O(-) ligands while their isotope labels are intact.
+// Provenance: fn validate_phosphorus_stereo | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/ionic_naming.rs::validate_phosphorus_stereo
+pub(super) fn validate_phosphorus_stereo(mol: &Molecule) -> Result<(), String> {
+    for (&id, atom) in &mol.atoms {
+        // P-93.2.4: P=O and P-O(-) of the same isotope are equivalent
+        // terminal ligands, so the formal bond orders cannot support R/S.
+        if atom.symbol == "P" && atom.has_stereo() && atom.charge == 0 {
+            let neighbours = mol.get_neighbors(id);
+            if neighbours.iter().any(|&oxo| {
+                let oxygen = &mol.atoms[&oxo];
+                oxygen.symbol == "O"
+                    && oxygen.charge == 0
+                    && oxygen.total_h_count == 0
+                    && mol.degree(oxo) == 1
+                    && mol.bond_order(id, oxo) == 2
+                    && neighbours.iter().any(|&oxido| {
+                        let anion = &mol.atoms[&oxido];
+                        anion.symbol == "O"
+                            && anion.charge == -1
+                            && anion.isotope == oxygen.isotope
+                            && anion.total_h_count == 0
+                            && mol.degree(oxido) == 1
+                            && mol.bond_order(id, oxido) == 1
+                    })
+            }) {
+                return Err("openclatura: equivalent oxygens at stereospecified phosphorus".into());
+            }
+        }
+    }
+    Ok(())
+}
+
 // Provenance: fn validate_heteroatom_oxo_charge_states | original
 // Source: ReShiki | src/naming/openclatura/ionic_naming.rs::validate_heteroatom_oxo_charge_states
 pub(super) fn validate_heteroatom_oxo_charge_states(mol: &Molecule) -> Result<(), String> {
     for (&id, atom) in &mol.atoms {
-        // Upstream divergence: neutral imine suffixes do not encode a terminal
-        // imine anion. Decline before parent selection can lose its N charge.
+        // P-72.2.2.2.3: the suffix iminide names a terminal imine anion.
+        // Upstream divergence: decline where that suffix would not carry the
+        // charge: beside another anionic centre, on a heterocumulene carbon
+        // (cyanate), or when another characteristic group claims the nitrogen.
         if atom.symbol == "N"
             && atom.charge < 0
             && mol.degree(id) == 1
-            && mol.get_neighbors(id).iter().any(|&neighbor| {
-                mol.atoms[&neighbor].is_carbon()
-                    && mol
-                        .get_bond(id, neighbor)
-                        .is_some_and(|bond| bond.order == 2)
+            && let Some(&carbon) = mol.get_neighbors(id).iter().find(|&&neighbor| {
+                mol.atoms[&neighbor].is_carbon() && mol.bond_order(id, neighbor) == 2
             })
         {
-            return Err("openclatura: anionic terminal imine charge state is not supported".into());
+            if atom.charge != -1
+                || mol
+                    .atoms
+                    .values()
+                    .any(|other| other.charge < 0 && other.idx != id)
+                || mol.get_neighbors(carbon).iter().any(|&neighbor| {
+                    neighbor != id
+                        && !mol.atoms[&neighbor].is_carbon()
+                        && mol.bond_order(carbon, neighbor) == 2
+                })
+                || !super::perception::perceive_groups(mol)
+                    .iter()
+                    .any(|group| group.key == "iminide" && group.atoms_involved.contains(&id))
+            {
+                return Err(
+                    "openclatura: anionic terminal imine charge state is not supported".into(),
+                );
+            }
+            mol.mark_name(NameStatus::Unverified(NameReason::AnionParent));
         }
         // Upstream divergence: oxido on an H-bearing chalcogen can be read as
         // neutral oxo, consuming both its anionic charge and the chalcogen H.
@@ -154,20 +205,31 @@ pub(super) fn prepare_anion_parent(
             && !(hydro("added_hydrogen")
                 && (!parts.substituents.is_empty() || hydro("additive_hydrogen")))
     });
-    // A saturated substituent that cites its stem and attachment (`propan-2-yl`).
-    let saturated_attachment = parts.is_substituent
+    let saturated_substituent = parts.is_substituent
         && !parts.is_acyl_substituent
         && parts.attachment_order == 1
         && parts.retained_name.is_none()
         && parts.unsaturations.is_empty()
-        && parts.parent_length > 1
+        && parts.parent_length > 1;
+    // A saturated substituent that cites its stem and attachment (`propan-2-yl`).
+    let saturated_attachment = saturated_substituent
         && (parts.attachment_locant != "1"
             || super::assembly_parent::always_print_substituent_locant(parts));
+    // P-72.6.3: a terminal -CH2(-) on a saturated carbon-chain prefix
+    // takes a locanted -id- before the free valence, as in butan-4-id-1-yl.
+    let terminal_chain_anion = saturated_substituent
+        && !parts.is_ring
+        && parts.a_prefixes.is_empty()
+        && negative.len() == 1;
     let supported = |site: &&ChargeSite| {
         zwitterion
             || retained_supported
             || parts.retained_name.is_none() && site.symbol == "C" && !parts.is_substituent
             || site.symbol == "C" && site.locant == parts.attachment_locant && saturated_attachment
+            || site.symbol == "C"
+                && site.locant != parts.attachment_locant
+                && terminal_chain_anion
+                && mol.atoms[&site.atom].total_h_count == 2
     };
     if !negative.iter().all(supported) {
         return Ok(());
@@ -562,6 +624,15 @@ mod tests {
                 "[B-](C1=CC=C(C=C1)Cl)(C2=CC=C(C=C2)Cl)(C3=CC=C(C=C3)Cl)C4=CC=C(C=C4)Cl.CCCCCCCCCCCC[NH+]=C(N)N",
                 "1,1-diamino-N-dodecylmethaniminium tetrakis(4-chlorophenyl)boranuide",
             ),
+            // P-72.3: diphenyliodanuide. P-41: the anion is senior to the
+            // characteristic groups of its ligands (CID 147780734).
+            ("c1ccccc1[I-]c1ccccc1", "diphenyliodanuide"),
+            ("C[I-]C.[Na+]", "sodium dimethyliodanuide"),
+            (
+                "CCC([C@](C)(CC)N)[I-]CN/C(=C/N)/C",
+                "[(4S)-4-amino-4-methylhexan-3-yl]({[(1E)-1-aminoprop-1-en-2-yl]amino}methyl)iodanuide",
+            ),
+            ("C[B-](C)(C)CCN", "(2-aminoethyl)tri(methyl)boranuide"),
             // P-72.2.2.1: hydron loss keeps "ide".
             ("C[CH-]C", "propan-2-ide"),
         ] {
@@ -569,6 +640,18 @@ mod tests {
             assert_eq!(name.text, expected, "{smiles}");
             let parsed = crate::test_support::parse_strict(&name.text).unwrap();
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        // An anion cited over a characteristic group is not a certified form.
+        for smiles in ["C[B-](C)(C)CCN", "CCC(C(C)(CC)N)[I-]C"] {
+            let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
+            assert_ne!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+        }
+        // Iodine keeps its other charge states and bonding numbers declined.
+        for smiles in ["C[I+]C", "F[I-](F)(F)(F)(F)F", "C[Br-]C"] {
+            assert!(
+                super::super::name_smiles(smiles, &Default::default()).is_err(),
+                "{smiles}"
+            );
         }
         // P-72.4: these need a lambda parent, and mixed ide/uide is not composed.
         for smiles in [
@@ -639,7 +722,14 @@ mod tests {
     // exact matches are conservatively adapted; independent ancestry is not established.
     fn external_ligands_cannot_lose_charge_or_chalcogen_hydrogen() {
         use super::super::graph_io::read_smiles;
-        for smiles in ["[O-][SH]1c2ccc3cc1ccc3c2", "[N-]=C1CCCCC1"] {
+        // An iminide beside another anionic centre, or on a heterocumulene
+        // carbon, has no suffix that carries its charge.
+        for smiles in [
+            "[O-][SH]1c2ccc3cc1ccc3c2",
+            "[N-]=CCC(=O)[O-]",
+            "[N-]=CCCC=[N-]",
+            "[N-]=C=O",
+        ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
             assert!(
                 validate_heteroatom_oxo_charge_states(&mol).is_err(),
@@ -649,6 +739,7 @@ mod tests {
         for smiles in [
             "C[S+](C)[O-]",
             "N=C1CCCCC1",
+            "[N-]=C1CCCCC1",
             "[NH2+]=C1CCCCC1",
             "[SH2]1c2ccc3cc1ccc3c2",
         ] {
@@ -657,6 +748,45 @@ mod tests {
                 validate_heteroatom_oxo_charge_states(&mol).is_ok(),
                 "{smiles}"
             );
+        }
+    }
+
+    #[test]
+    fn terminal_imine_anions_take_the_iminide_suffix() {
+        // Issue #27. P-72.2.2.2.3: an imine with one negative charge on its
+        // nitrogen takes the suffix iminide (butaniminide). Anions are senior
+        // to every neutral class (P-41), so the ketone and the ester of the
+        // PubChem row (CID 149515574) are cited as prefixes.
+        // Enclose the substituted ethoxy ligand inside the carbonyl prefix
+        // under P-16.5.1.1 and P-65.6.3.2.3.
+        let parser = nazuchem_n2s::Parser::new().unwrap();
+        for (smiles, expected) in [
+            ("CCCC=[N-]", "butan-1-iminide"),
+            ("CCC(C)=[N-]", "butan-2-iminide"),
+            ("[N-]=C1CCCCC1", "cyclohexaniminide"),
+            ("C=C=[N-]", "etheniminide"),
+            ("CC(=O)CC=[N-]", "3-oxobutan-1-iminide"),
+            ("OCCC=[N-]", "3-hydroxypropan-1-iminide"),
+            ("[Na+].CCC=[N-]", "sodium propan-1-iminide"),
+            (
+                "CC(=O)C(=C=[N-])C(=O)OCCC1=CC=C(C=C1)NC(=O)C",
+                "2-{[2-(4-acetamidophenyl)ethoxy]carbonyl}-3-oxobut-1-en-1-iminide",
+            ),
+        ] {
+            let name = super::super::name_smiles(smiles, &Default::default())
+                .unwrap_or_else(|e| panic!("{smiles}: {e}"));
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(
+                name.status,
+                NameStatus::Unverified(NameReason::AnionParent),
+                "{smiles}"
+            );
+            let parsed = parser
+                .parse(&name.text, &nazuchem_n2s::ParseOptions::strict())
+                .structure
+                .unwrap_or_else(|| panic!("{}", name.text));
+            crate::test_support::verify_identity(smiles, &parsed.semantic_cxsmiles().unwrap())
+                .unwrap();
         }
     }
 

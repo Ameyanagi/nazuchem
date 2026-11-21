@@ -4,6 +4,7 @@
 // Source: ReShiki | src/naming/openclatura/phane/tests.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Copyright (c) 2026 lamalab-org
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/phane/tests.rs | issue #4
 // Copyright 2017 Daniel Lowe
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Original Rust phane test harness with explicit OPSIN phane-oracle fixture selectors and assertions. Adapted openclatura control cases are marked below.
@@ -74,7 +75,9 @@ fn cyclic_phane_names_reconstruct_exactly() -> Result<(), String> {
         ),
     ] {
         assert_eq!(
-            name(&graph_io::read_smiles(smiles, &Default::default())?).as_deref(),
+            name(&graph_io::read_smiles(smiles, &Default::default())?)
+                .map(|p| p.0)
+                .as_deref(),
             Some(expected),
             "{smiles}"
         );
@@ -82,7 +85,9 @@ fn cyclic_phane_names_reconstruct_exactly() -> Result<(), String> {
         // Input order and aromatic/Kekule spelling cannot change the result.
         let canonical = crate::test_support::canonical_smiles(smiles)?;
         assert_eq!(
-            name(&graph_io::read_smiles(&canonical, &Default::default())?).as_deref(),
+            name(&graph_io::read_smiles(&canonical, &Default::default())?)
+                .map(|p| p.0)
+                .as_deref(),
             Some(expected)
         );
     }
@@ -133,7 +138,9 @@ fn mixed_attachment_sets_follow_amplificant_seniority() -> Result<(), String> {
     let smiles = "C1c2cc(ccn2)Cc2cccc(c2)Cc2ccc(cn2)Cc2cc(ccn2)Cc2cccc(c2)Cc2cc1ccn2";
     let expected = "1(2,4),3,7(4,2),9(5,2)-tetrapyridina-5,11(1,3)-dibenzenacyclododecaphane";
     assert_eq!(
-        name(&graph_io::read_smiles(smiles, &Default::default())?).as_deref(),
+        name(&graph_io::read_smiles(smiles, &Default::default())?)
+            .map(|p| p.0)
+            .as_deref(),
         Some(expected)
     );
     round_trip(smiles, expected)
@@ -158,6 +165,147 @@ fn ordinary_names_with_phane_alternatives_are_never_preferred() -> Result<(), St
             );
             round_trip(smiles, &alternative.name)?;
         }
+    }
+    Ok(())
+}
+
+#[test]
+// Provenance: fn linear_phanes_number_from_the_end_with_the_lower_locants | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/phane/tests.rs::linear_phanes_number_from_the_end_with_the_lower_locants
+fn linear_phanes_number_from_the_end_with_the_lower_locants() -> Result<(), String> {
+    for (smiles, expected) in [
+        // P-52.2.5.3 Example 2.
+        (
+            "c1ccccc1Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2",
+            "2,4,6-trioxa-1,7(1),3,5(1,4)-tetrabenzenaheptaphane",
+        ),
+        (
+            "Oc1ccc(Oc2ccc(-c3ccc(CCc4ccccc4)cc3)cc2)cc1",
+            "2-oxa-1,7(1),3,4(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+        ),
+        (
+            "Oc1ccc(Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
+            "2,4,6-trioxa-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+        ),
+        (
+            "Oc1ccc(Cc2ccc(Cc3ccc(Cc4ccccc4)cc3)cc2)cc1",
+            "1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+        ),
+        (
+            "Oc1ccc(Oc2ccc(Sc3ccc(Oc4ccccc4)cc3)cc2)cc1",
+            "2,6-dioxa-4-thia-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+        ),
+        (
+            "c1ccccc1SCc1ccc(cc1)Nc1ccc(cc1)CCc1ccccc1",
+            "2-thia-5-aza-1,9(1),4,6(1,4)-tetrabenzenanonaphane",
+        ),
+        (
+            "c1ccccc1Cc1ccc(Cc2ccc(Oc3ccccc3)cn2)cn1",
+            "6-oxa-3,5(2,5)-dipyridina-1,7(1)-dibenzenaheptaphane",
+        ),
+        (
+            "c1ccccc1Cc1ccc(Cc2cc(Cc3ccc(Cc4ccccc4)cn3)oc2)cn1",
+            "3,7(5,2)-dipyridina-5(2,4)-furana-1,9(1)-dibenzenanonaphane",
+        ),
+        (
+            "c1ccccc1CC1CCC(CCc2ccccc2Cc2ccccc2)CC1",
+            "1,8(1),3(1,2)-tribenzena-6(1,4)-cyclohexanaoctaphane",
+        ),
+        (
+            "c1ccccc1CCCc1ccc(Cc2ccc(CCc3ccccc3)cc2)cc1",
+            "1,10(1),4,6(1,4)-tetrabenzenadecaphane",
+        ),
+        (
+            "Clc1ccc(Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
+            "1⁴-chloro-2,4,6-trioxa-1,7(1),3,5(1,4)-tetrabenzenaheptaphane",
+        ),
+        (
+            "Oc1ccc(-c2ccnc(-c3ccc(-c4ccnc(-c5ccc(-c6ccnc(-c7ccccc7)c6)cc5)c4)cc3)c2)cc1",
+            "2,4,6(2,4)-tripyridina-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-7⁴-ol",
+        ),
+        (
+            "O=C(O)c1ccc(Oc2ccc(OC(=O)Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
+            "5-oxo-2,4,6,8-tetraoxa-1,9(1),3,7(1,4)-tetrabenzenanonaphane-1⁴-carboxylic acid",
+        ),
+        (
+            "Oc1cocc1SCCSc1cocc1SCCSc1c(SCCSc2ccoc2)coc1",
+            "2,5,7,10,12,15-hexathia-1,16(3),6,11(3,4)-tetrafuranahexadecaphan-1⁴-ol",
+        ),
+        // P-26.4.2.4, final example: all three pyridine rings share an
+        // attachment set, so compare their locants in skeletal order.
+        (
+            "c1ccccc1Cc1ccc(Cc2ccc(Cc3ccc(Cc4ccccc4)nc3)cn2)cn1",
+            "3,5(2,5),7(5,2)-tripyridina-1,9(1)-dibenzenanonaphane",
+        ),
+        // P-51.3.2.2.
+        (
+            "c1ccccc1Oc1cccc(c1)Oc1cccc(c1)Oc1ccccc1",
+            "2,4,6-trioxa-1,7(1),3,5(1,3)-tetrabenzenaheptaphane",
+        ),
+        // P-52.2.5.3 Example 1.
+        (
+            "c1ccccc1-c1cccc(c1)-c1cccc(c1)-c1cc(cnc1)-c1cccc(c1)-c1cccc(c1)-c1ccccc1",
+            "4(3,5)-pyridina-1,7(1),2,3,5,6(1,3)-hexabenzenaheptaphane",
+        ),
+        // P-26.4.1.3: the senior amplificant takes the lower superatom locant.
+        (
+            "c1ccccc1Cc1ccc(cn1)Cc1ccc(cc1)Cc1ccccc1",
+            "3(2,5)-pyridina-1,7(1),5(1,4)-tribenzenaheptaphane",
+        ),
+        // P-26.4.1.4: the lower attachment locant is next to the lower
+        // skeletal locant.
+        (
+            "c1ccccc1Cc1ccc(o1)Cc1ccc(cc1)Cc1ccccc1",
+            "3(2,5)-furana-1,7(1),5(1,4)-tribenzenaheptaphane",
+        ),
+        // P-26.4.2.2: the lower attachment set takes the lower superatom locant.
+        (
+            "c1ccccc1Cc1ccc(cn1)Cc1cccc(n1)Cc1ccccc1",
+            "3(2,5),5(2,6)-dipyridina-1,7(1)-dibenzenaheptaphane",
+        ),
+        (
+            "c1ccccc1-c1ccc(-c2ccc(Oc3cccc(-c4cccc(-c5ccccn5)n4)n3)cc2)cc1",
+            "4-oxa-1(2),2,3(2,6)-tripyridina-5,6(1,4),7(1)-tribenzenaheptaphane",
+        ),
+        (
+            "c1ccccc1-c2ccc(-c3ccc(-c4ccc(-c5ccc(-c6ccc(-c7ccccc7)cc6)cc5)cc4)cc3)cc2",
+            "1,7(1),2,3,4,5,6(1,4)-heptabenzenaheptaphane",
+        ),
+    ] {
+        assert_eq!(
+            name(&graph_io::read_smiles(smiles, &Default::default())?),
+            Some((expected.to_owned(), true)),
+            "{smiles}"
+        );
+        round_trip(smiles, expected)?;
+        let named = crate::name_smiles(smiles, &Default::default())?;
+        assert_eq!(named.text, expected, "{smiles}");
+        assert_eq!(named.status, NameStatus::Preferred, "{smiles}");
+        let [alternative] = &named.alternatives[..] else {
+            panic!("{smiles}: {:?}", named.alternatives);
+        };
+        assert_eq!(
+            alternative.status,
+            NameStatus::NotPreferred(NameReason::LinearPhane),
+            "{smiles}"
+        );
+        verify_identity(
+            smiles,
+            &crate::test_support::parse_strict(&alternative.name)?,
+        )?;
+    }
+    // P-52.2.5.1 (2) requires four rings and seven nodes. The
+    // sixteen-node example has ambiguous flattened replacement locants.
+    for smiles in [
+        "c1cocc1SCCSc1cocc1SCCSc1c(SCCSc2ccoc2)coc1",
+        "c1ccccc1Oc2ccc(Oc3ccccc3)cc2",
+        "c1ccccc1-c1cc(cnc1)-c1cccc(c1)-c1cccc(c1)-c1ccccc1",
+        "c1ccccc1Oc1ccc(cc1)C(C)(C)c1ccc(Oc2ccccc2)cc1",
+    ] {
+        assert!(
+            name(&graph_io::read_smiles(smiles, &Default::default())?).is_none(),
+            "{smiles}"
+        );
     }
     Ok(())
 }

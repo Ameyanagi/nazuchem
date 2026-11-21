@@ -20,7 +20,6 @@ use super::polycycle_topology::{
     RingNumbering, audit_ring_numbering, bicyclo_proof, build_ring_numbering,
     build_von_baeyer_numbering, dedupe_paths, edges_within_atoms, has_multiple_spiro_centers,
     linear_dispiro_descriptor_and_paths, monospiro_proof, von_baeyer_descriptor_rank,
-    von_baeyer_main_sizes,
 };
 use super::python_int_set::PythonIntSet;
 use super::ring_renderer::is_von_baeyer_descriptor;
@@ -169,15 +168,9 @@ pub fn polyspiro_or_von_baeyer_candidate(
         }
     }
     if !atoms.iter().any(|atom| mol.atoms[atom].symbol == "Si") {
-        let candidates = super::von_baeyer::find_von_baeyer_candidates(mol, atoms, edges);
-        // P-23.2.1 and P-23.2.4: the main ring and main bridge are as large as
-        // possible. The main-ring search found a largest ring and its longest
-        // unbranched bridge; anything smaller here means the preferred descriptor
-        // needs a dependent bridge with atoms, which is not ported.
-        if let Some(first) = candidates
-            .first()
-            .filter(|first| von_baeyer_main_sizes(&first.descriptor) >= Some(legacy_main_sizes))
-        {
+        let candidates =
+            super::von_baeyer::find_von_baeyer_candidates(mol, atoms, edges, legacy_main_sizes);
+        if let Some(first) = candidates.first() {
             let descriptor = first.descriptor.clone();
             let mut numberings = if legacy_descriptor.as_deref() == Some(&descriptor) {
                 audited_von_baeyer_numberings(&descriptor, &legacy_paths, edges)
@@ -791,7 +784,7 @@ fn ranking_order(mol: &Molecule, u: usize, v: usize) -> usize {
 
 // Provenance: fn rank_invariants | port
 // Source: openclatura | src/openclatura/canonical_ranks.py::_ranks_from_invariants
-fn rank_invariants<T: Ord>(invariants: BTreeMap<usize, T>) -> BTreeMap<usize, usize> {
+pub(super) fn rank_invariants<T: Ord>(invariants: BTreeMap<usize, T>) -> BTreeMap<usize, usize> {
     let ordering: BTreeMap<&T, usize> = invariants
         .values()
         .collect::<BTreeSet<_>>()

@@ -376,6 +376,15 @@ fn source_odd_spare_valency_and_invalid_pairing_boundaries() {
     let mut graph = Graph::default();
     assert!(build_fragment(&mut graph, "[bH]1ccccc1", "", "none").is_err());
     assert!(graph.atoms.is_empty());
+    for input in [
+        "[bH]1ccccc1",
+        "[geH2]1ccccc1",
+        "[snH2]1ccccc1",
+        "[biH]1ccccc1",
+    ] {
+        assert!(build_fragment(&mut graph, input, "ring", "none").is_err());
+        assert!(graph.atoms.is_empty());
+    }
 }
 
 // Frozen dev oracle: pinned OPSIN 2.9.0 Maven jar SHA256

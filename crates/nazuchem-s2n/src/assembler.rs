@@ -32,7 +32,8 @@ use super::{
         format_replacement_prefixes, format_substituent_prefixes, substituent_sort_key,
     },
     assembly_utils::{needs_hyphen, parse_locant},
-    formatting::format_multiplier,
+    component_group_rules::linked_hydrazinecarbonyl,
+    formatting::{format_multiplier, multiply_prefix},
     fused_ion_templates::{consume_fused_ion_operation, select_fused_ion_operation},
     nomenclature::NAMER_RULES,
 };
@@ -43,6 +44,9 @@ use std::collections::{BTreeMap, BTreeSet};
 // Provenance: fn mark_assembled_name | original
 // Source: ReShiki | src/naming/openclatura/assembler.rs::mark_assembled_name
 pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &AssemblyParts) {
+    if parts.lambda_prefix_order_tie {
+        mol.mark_name(NameStatus::Unverified(NameReason::LambdaPrefixOrder));
+    }
     if parts.spiro_same_size_components {
         mol.mark_name(NameStatus::Unverified(NameReason::UnauditedParent));
     }
@@ -63,7 +67,7 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
         // P-68.3.1.2.6). The hydrazine names come from
         // special_cases::hydrazine_carbonyl_parent_name; whatever is assembled
         // here for such a carbon is a fallback: a formohydrazide, formamide or
-        // methanone parent, or an unlocanted hydrazinyl prefix.
+        // methanone parent, or a hydrazinyl prefix the Blue Book does not show.
         if !parts.is_substituent
             && !parts
                 .retained_name
@@ -86,22 +90,70 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
                             .any(|&o| symbol(o) == "O" && mol.bond_order(t, o) == 2)
                 })
             };
+            // Under a class senior to amides (P-41), allow the documented
+            // substituent forms (P-66.3.5.2, P-68.3.1.2.4).
+            let senior = rule
+                .and_then(|rule| rule.seniority.as_ref())
+                .is_some_and(|seniority| seniority[0] < 60);
+            let heavy = |a: usize| {
+                let around = mol.get_neighbors(a);
+                around.iter().filter(|&&x| symbol(x) != "H").count()
+            };
+            let carbamoyl = |c: usize, n: usize| {
+                let around = mol.get_neighbors(c);
+                senior
+                    && heavy(n) == 2
+                    && around
+                        .iter()
+                        .any(|&x| symbol(x) == "O" && mol.bond_order(c, x) == 2)
+                    && around
+                        .iter()
+                        .any(|&y| y != n && symbol(y) == "N" && heavy(y) == 1)
+                    && mol.get_neighbors(n).iter().all(|&m| {
+                        m == c
+                            || symbol(m) == "H"
+                            || mol
+                                .get_neighbors(m)
+                                .iter()
+                                .all(|&z| single(m, z) && (z == n || symbol(z) != "N"))
+                    })
+            };
             let hydrazine_carbonyl = mol.atoms.keys().any(|&c| {
                 let around = mol.get_neighbors(c);
+                let on_hydrazine = |n: usize| {
+                    symbol(n) == "N" && single(c, n) && !cyclic.contains(&n) && hydrazino(n)
+                };
                 symbol(c) == "C"
                     && !cyclic.contains(&c)
-                    && around.iter().any(|&x| {
+                    && (around.iter().any(|&x| {
                         mol.bond_order(c, x) == 2 && matches!(symbol(x), "O" | "S" | "Se" | "Te")
+                    }) && around.iter().any(|&n| {
+                        on_hydrazine(n)
+                            && !carbamoyl(c, n)
+                            && !parts.substituents.iter().any(|item| {
+                                item.atom_ids.contains(&c)
+                                    && item.atom_ids.contains(&n)
+                                    && item.name.contains("hydrazinecarbohydrazido")
+                            })
+                            && around.iter().any(|&y| {
+                                y != n
+                                    && single(c, y)
+                                    && !matches!(symbol(y), "C" | "H")
+                                    && !(senior
+                                        && linked_hydrazinecarbonyl(mol, c, y, "C").is_some()
+                                        && parts.substituents.iter().any(|item| {
+                                            item.atom_ids.contains(&c)
+                                                && item.atom_ids.contains(&y)
+                                                && item.name.contains("(hydrazinecarbonyl)")
+                                        }))
+                            })
                     })
-                    && around.iter().any(|&n| {
-                        symbol(n) == "N"
-                            && single(c, n)
-                            && !cyclic.contains(&n)
-                            && hydrazino(n)
-                            && around
-                                .iter()
-                                .any(|&y| y != n && single(c, y) && !matches!(symbol(y), "C" | "H"))
-                    })
+                        // P-66.3.1.2.1: NC-NH-NH2 is cyanohydrazide, named by
+                        // special_cases::cyanohydrazide_name.
+                        || around
+                            .iter()
+                            .any(|&x| symbol(x) == "N" && mol.bond_order(c, x) == 3)
+                            && around.iter().any(|&n| on_hydrazine(n)))
             });
             if hydrazine_carbonyl {
                 mol.mark_name(NameStatus::NotPreferred(NameReason::UnretainedParent));
@@ -136,13 +188,82 @@ pub(super) fn mark_assembled_name(mol: &super::molecule::Molecule, parts: &Assem
                 mol.mark_name(NameStatus::NotPreferred(NameReason::UnretainedParent));
             }
         }
+        // Oxamic acid, H2N-CO-COOH, is retained and may be substituted;
+        // amino(oxo)acetic acid is its systematic name (P-65.1.1.1,
+        // P-65.1.6.1). Only the N-phenyl derivatives are shown with a
+        // systematic preferred name: anilino(oxo)acetic acid (P-65.1.6.2).
+        if !parts.is_ring
+            && parts.parent_length == 2
+            && matches!(
+                group.key.as_str(),
+                "carboxylic_acid" | "ester" | "carboxylate"
+            )
+            && group.locants.len() == 1
+            && parts.parent_atom_ids_by_locant.get("2").is_some_and(|&c| {
+                let around = mol.get_neighbors(c);
+                around
+                    .iter()
+                    .any(|&x| mol.atoms[&x].symbol == "O" && mol.bond_order(c, x) == 2)
+                    && around.iter().any(|&x| {
+                        mol.atoms[&x].symbol == "N"
+                            && !mol
+                                .get_neighbors(x)
+                                .iter()
+                                .any(|a| mol.atoms[a].is_aromatic)
+                    })
+            })
+        {
+            mol.mark_name(NameStatus::NotPreferred(NameReason::UnretainedParent));
+        }
+        // An amide, ester or acid halide carbon that is the whole parent,
+        // as in H2N-CO-SO3H, is cited as amino(oxo)methanesulfonic acid.
+        // The Blue Book states amino with oxo only for chains of two or
+        // more carbons, and carbamoyl would need another carbon to sit on
+        // (P-66.1.1.4.1.1). Alkoxy or halo with oxo is given for a chain
+        // end without saying whether one carbon is a chain (P-65.6.3.2.3,
+        // P-65.5.4), so no preferred name is claimed.
+        if !parts.is_ring
+            && parts.parent_length == 1
+            && let Some(&c) = parts.parent_atom_ids_by_locant.get("1")
+        {
+            let cited = |x: &usize| parts.substituents.iter().any(|i| i.atom_ids.contains(x));
+            let around = mol.get_neighbors(c);
+            let chalcogen =
+                |x: &usize| matches!(mol.atoms[x].symbol.as_str(), "O" | "S" | "Se" | "Te");
+            if around
+                .iter()
+                .any(|x| mol.bond_order(c, *x) == 2 && chalcogen(x) && cited(x))
+                && around.iter().any(|x| {
+                    mol.bond_order(c, *x) == 1
+                        && !matches!(mol.atoms[x].symbol.as_str(), "C" | "H")
+                        && cited(x)
+                })
+                // P-65.2.1.2: a carbon holding only chalcogens, as in
+                // HO-CO-OSH, is a carbonic acid analogue or its ester, not a
+                // methanone. special_cases::carbonic_replacement_acid_name
+                // names the acids the Blue Book shows.
+                || around.len() == 3
+                    && around.iter().all(chalcogen)
+                    && around.iter().any(|x| mol.bond_order(c, *x) == 2)
+            {
+                mol.mark_name(NameStatus::Unverified(NameReason::UnauditedParent));
+            }
+        }
     }
     // Formic acids, formyl halides and formamides substituted on carbon are
-    // carbamic or carbonic acid derivatives (P-65.1.8.1).
+    // carbamic or carbonic acid derivatives (P-65.1.8.1). Anhydrides cite
+    // the formic acid parent as "formic" (P-65.7).
     let formyl_parent = parts.retained_name.as_deref().is_some_and(|name| {
-        matches!(name, "formic acid" | "formate" | "formamide") || name.starts_with("formyl ")
+        matches!(name, "formic" | "formic acid" | "formate" | "formamide")
+            || name.starts_with("formyl ")
     });
+    // P-65.1.8.2 lists nitroformic acid as a PIN.
+    let nitroformic = matches!(
+        parts.retained_name.as_deref(),
+        Some("formic" | "formic acid")
+    ) && matches!(parts.substituents.as_slice(), [item] if item.name == "nitro");
     if formyl_parent
+        && !nitroformic
         && parts
             .substituents
             .iter()
@@ -185,7 +306,8 @@ fn apply_data_postprocessing(name: &str) -> String {
 pub fn post_process_name(name: &str) -> String {
     let name = apply_data_postprocessing(name)
         .replace("iminoamino", "diazenyl")
-        .replace("aminoimino", "hydrazono");
+        // P-68.3.1.2.1: H2N-N= is hydrazinylidene, not hydrazono.
+        .replace("aminoimino", "hydrazinylidene");
     apply_data_postprocessing(&name)
 }
 struct IndicatedHydrogenRun<'a> {
@@ -413,6 +535,34 @@ fn add_indicated_hydrogen_prefix(parts: &mut AssemblyParts, core: &str) -> (Stri
     indicated.dedup();
     additive.sort_by_key(|l| parse_locant(l));
     additive.dedup();
+    // P-72.2.2.1.1: a hydron removed from one of the two N-H
+    // sites of the dihydro parent leaves the other as added hydrogen.
+    if let [charge] = parts.parent_charges.as_slice()
+        && charge.symbol == "N"
+        && charge.charge == -1
+        && let Some(plan) = parts.fusion_plan.as_ref().or_else(|| {
+            parts
+                .parent_hydride
+                .as_ref()
+                .and_then(|p| p.fusion_plan.as_ref())
+        })
+        && let [a, b] = plan.indicated_hydrogens.as_slice()
+        && super::fusion::registry::has_parent_hydride_component(plan)
+        && [a, b].iter().all(|l| {
+            additive.contains(l)
+                && parts
+                    .parent_atom_symbols_by_locant
+                    .get(*l)
+                    .is_some_and(|s| s == "N")
+        })
+        && (a == &charge.locant || b == &charge.locant)
+        && let Some(parent) = core.strip_suffix(&format!("-{}-ide", charge.locant))
+    {
+        let added = if a == &charge.locant { b } else { a };
+        core = format!("{parent}-{}({added}H)-ide", charge.locant);
+        additive.retain(|l| l != a && l != b);
+        cites_locants = true;
+    }
     if !indicated.is_empty() {
         cites_locants = true;
         let added: BTreeSet<_> = parts
@@ -469,18 +619,30 @@ fn add_indicated_hydrogen_prefix(parts: &mut AssemblyParts, core: &str) -> (Stri
             && parts
                 .parent_bond_orders_by_locants
                 .values()
-                .all(|&order| order == 1)
-            && !parts
-                .hydro_operations
-                .iter()
-                .any(|operation| operation.key == "added_hydrogen");
+                .all(|&order| order == 1);
         let charged = parts
             .parent_atom_charges_by_locant
             .values()
             .any(|&charge| charge != 0);
+        // A fusion N has no hydrogen to cite, so a retained parent is fully
+        // hydrogenated once every other position is cited
+        // (octahydro-2H-quinolizin-5-ium).
+        let fusion_nitrogens = parts.retained_parent_metadata.as_ref().map_or(0, |m| {
+            m.fusion_locants
+                .iter()
+                .filter(|&locant| {
+                    !additive.contains(locant)
+                        && parts
+                            .parent_atom_symbols_by_locant
+                            .get(locant)
+                            .is_some_and(|symbol| symbol == "N")
+                })
+                .count()
+        });
         if !parts.spiro_prefix_composition
             && (fully_hydrogenated_fusion
-                || additive.len() + indicated.len().max(stated) == parts.parent_length
+                || additive.len() + indicated.len().max(stated) + fusion_nitrogens
+                    == parts.parent_length
                 || saturated && !charged)
         {
             return (format!("{hydro}{sep}{core}"), cites_locants);
@@ -561,6 +723,9 @@ fn move_added_hydrogen(parts: &AssemblyParts, core: &str, suffix: &str) -> (Stri
 // Provenance: fn add_stereo | adapted
 // Source: openclatura | src/openclatura/assembler.py::_add_stereo_prefix
 fn add_stereo(parts: &AssemblyParts, word: &str, cites_locants: bool) -> String {
+    if super::formatting::descriptors_omitted() {
+        return word.into();
+    }
     let mut features = vec![];
     for feature in &parts.stereo_features {
         if !features.contains(&feature) {
@@ -610,11 +775,31 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
         name.split_once('-')
             .filter(|(site, _)| !site.is_empty() && site.chars().all(|c| "OSeT".contains(c)))
     };
+    // P-82.5.1, P-82.2.2.1: alphanumerical order ignores the descriptors; of
+    // otherwise equal groups the isotopically modified one is cited first.
+    let citation_key = |name: &str| {
+        let citation =
+            super::isotope_naming::citation_name(name, &parts.front_modifier_descriptors);
+        (substituent_sort_key(&citation), citation == name)
+    };
+    // P-82.2.1: a leading descriptor leaves a simple group simple, though a
+    // multiplied one is enclosed, as in di[(13C)methyl].
+    let multiplied = |name: &str, count: usize, safe_enclose: bool| {
+        let descriptor =
+            super::isotope_naming::leading_descriptor(name, &parts.front_modifier_descriptors);
+        let plain = &name[descriptor.len()..];
+        if count > 1 {
+            multiply_prefix(name, plain, count, None, false)
+        } else if descriptor.is_empty() || super::formatting::is_complex_prefix(plain) {
+            format_multiplier(name, count, safe_enclose)
+        } else {
+            name.to_owned()
+        }
+    };
     let have = parts.front_modifier_locants.len() == parts.front_modifiers.len()
         && parts.front_modifier_locants.iter().all(Option::is_some);
     let distinct = parts.front_modifiers.iter().collect::<BTreeSet<_>>().len();
-    let redundant = parts.front_modifiers.len() == 2 && parts.ester_site_exchange_proven;
-    if have && distinct > 1 && !redundant {
+    if have && distinct > 1 && !parts.ester_site_exchange_proven {
         let mut by_name: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
         for (m, l) in parts
             .front_modifiers
@@ -625,7 +810,7 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
             by_name.entry(m).or_default().push(l);
         }
         let mut modifiers: Vec<_> = by_name.into_iter().collect();
-        modifiers.sort_by_key(|(name, _)| substituent_sort_key(name));
+        modifiers.sort_by_key(|(name, _)| citation_key(name));
         let mods = modifiers
             .into_iter()
             .map(|(name, mut locs)| {
@@ -634,11 +819,7 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
                 if locs.len() == 1 && letter_locant(name).is_some() {
                     return format!("{}-{name}", locs[0]);
                 }
-                format!(
-                    "{}-{}",
-                    locs.join(","),
-                    format_multiplier(name, locs.len(), false)
-                )
+                format!("{}-{}", locs.join(","), multiplied(name, locs.len(), false))
             })
             .collect::<Vec<_>>()
             .join(" ");
@@ -649,27 +830,19 @@ fn add_front_modifiers(parts: &AssemblyParts, word: &str) -> String {
         *counts.entry(m).or_insert(0_usize) += 1;
     }
     let mut modifiers: Vec<_> = counts.into_iter().collect();
-    modifiers.sort_by_key(|(name, _)| substituent_sort_key(name));
+    modifiers.sort_by_key(|(name, _)| citation_key(name));
     let mods = modifiers
         .into_iter()
         .map(|(m, c)| {
             if let Some((site, organyl)) = letter_locant(m).filter(|_| c > 1) {
-                // P-65.6.3.3.7.1: `S,S-dimethyl ethanebis(thioate)`. A
-                // compound organyl group takes bis (P-16.3.5 (a)).
-                let organyl = if !super::formatting::is_complex_prefix(organyl)
-                    && super::formatting::is_compound_prefix(organyl)
-                {
-                    format!("({organyl})")
-                } else {
-                    organyl.into()
-                };
+                // P-65.6.3.3.7.1: `S,S-dimethyl ethanebis(thioate)`.
                 format!(
                     "{}-{}",
                     vec![site; c].join(","),
-                    format_multiplier(&organyl, c, false)
+                    multiplied(organyl, c, false)
                 )
             } else if c > 1 {
-                format_multiplier(m, c, true)
+                multiplied(m, c, true)
             } else {
                 m.clone()
             }
@@ -695,8 +868,11 @@ pub(super) fn assemble_name_with_parent(
     if let Some(candidate) = &fused_ion_candidate {
         consume_fused_ion_operation(parts, candidate);
     }
-    promote_acyl_substituent_name(parts);
-    promote_retained_substituent_name(parts);
+    // P-82.6.3.2: a labelled prefix keeps its numbered parent, phenyl(13C)methyl.
+    if parts.isotope_descriptor.is_empty() {
+        promote_acyl_substituent_name(parts);
+        promote_retained_substituent_name(parts);
+    }
     promote_retained_hydride_name(parts);
     select_retained_anion_name(parts);
     promote_retained_functional_parent(parts)?;
@@ -775,7 +951,8 @@ fn finish_name_with_parent(
     if cites_locants {
         parts.elided_substituent_locants.clear();
     }
-    let (prefix, prefix_cites_locants) = format_substituent_prefixes(parts);
+    let (prefix, prefix_cites_locants, lambda_tie) = format_substituent_prefixes(parts);
+    parts.lambda_prefix_order_tie = lambda_tie;
     cites_locants |= prefix_cites_locants;
     if prefix_cites_locants {
         parts.elided_substituent_locants.clear();
@@ -784,7 +961,16 @@ fn finish_name_with_parent(
         && !positive_parent_n_charges(parts).is_empty()
         && parts.retained_name.is_some()
         && !parts.indicated_hydrogens.is_empty();
-    let word = if !prefix.is_empty() && (needs_hyphen(&prefix, &core) || charged_hyphen) {
+    let word = if !parts.isotope_descriptor.is_empty() {
+        // P-82.2.1: the descriptor follows the prefixes, with a hyphen only
+        // before a locant, as in 4-[(3-14C)thiolan-2-yl]pyridine.
+        let hyphen = if core.starts_with(|c: char| c.is_ascii_digit()) {
+            "-"
+        } else {
+            ""
+        };
+        format!("{prefix}{}{hyphen}{core}", parts.isotope_descriptor)
+    } else if !prefix.is_empty() && (needs_hyphen(&prefix, &core) || charged_hyphen) {
         format!("{prefix}-{core}")
     } else {
         format!("{prefix}{core}")
@@ -796,7 +982,7 @@ fn finish_name_with_parent(
             relative.push(p.as_str());
         }
     }
-    if !relative.is_empty() {
+    if !relative.is_empty() && !super::formatting::descriptors_omitted() {
         word = format!("{}-{word}", relative.join("-"));
     }
     Ok((add_front_modifiers(parts, &word), core))
@@ -836,6 +1022,7 @@ mod tests {
         );
         parts.front_modifiers.push("methyl".into());
         parts.front_modifier_locants.push(Some("2".into()));
+        parts.ester_site_exchange_proven = false;
         assert_eq!(
             add_front_modifiers(&parts, "parent"),
             "1-ethyl 4-(2-methoxyethyl) 2-methyl parent"
@@ -931,25 +1118,26 @@ mod tests {
             ("C1CCCC/C=C/CC1", "(E)-cyclononene"),
             ("C1CCCC/C=C\\CC1", "(Z)-cyclononene"),
             ("C1CCCCC/C=C/CC1", "(E)-cyclodecene"),
-            ("F[C@H](Cl)Br", "(R)-bromochlorofluoromethane"),
-            ("F[C@@H](Cl)Br", "(S)-bromochlorofluoromethane"),
-            ("F[C@H](Cl)I", "(R)-chlorofluoroiodomethane"),
-            ("F[C@H](Cl)c1ccccc1", "[(R)-chlorofluoromethyl]benzene"),
+            // P-16.5.1.3, P-91.3: (R)-bromo(chloro)(fluoro)methane.
+            ("F[C@H](Cl)Br", "(R)-bromo(chloro)(fluoro)methane"),
+            ("F[C@@H](Cl)Br", "(S)-bromo(chloro)(fluoro)methane"),
+            ("F[C@H](Cl)I", "(R)-chloro(fluoro)(iodo)methane"),
+            ("F[C@H](Cl)c1ccccc1", "[(R)-chloro(fluoro)methyl]benzene"),
             (
                 "F[C@@H](Cl)c1ccc([C@H](F)Br)cc1",
-                "1-[(R)-bromofluoromethyl]-4-[(S)-chlorofluoromethyl]benzene",
+                "1-[(R)-bromo(fluoro)methyl]-4-[(S)-chloro(fluoro)methyl]benzene",
             ),
             (
                 "O[C@H](F)c1ccc(Cl)cc1",
-                "(R)-(4-chlorophenyl)fluoromethanol",
+                "(R)-(4-chlorophenyl)(fluoro)methanol",
             ),
-            ("O=C(O)C(F)Cl", "chlorofluoroacetic acid"),
+            ("O=C(O)C(F)Cl", "chloro(fluoro)acetic acid"),
             ("O=C(O)C(Cl)Cl", "dichloroacetic acid"),
             ("O=C(O)C(Cl)CCl", "2,3-dichloropropanoic acid"),
             ("O=C(N)CF", "2-fluoroacetamide"),
             ("O=C(NC)CF", "2-fluoro-N-methylacetamide"),
-            ("O=C(O)[C@H](F)Cl", "(R)-chlorofluoroacetic acid"),
-            ("O=C(O)[C@@H](F)Cl", "(S)-chlorofluoroacetic acid"),
+            ("O=C(O)[C@H](F)Cl", "(R)-chloro(fluoro)acetic acid"),
+            ("O=C(O)[C@@H](F)Cl", "(S)-chloro(fluoro)acetic acid"),
             (
                 "C1CCC[C@H]2C3CCCCC3CCC12",
                 "(4aR)-tetradecahydrophenanthrene",
@@ -1029,7 +1217,9 @@ mod tests {
             (
                 "CC1=CC=C(C=C1)N2C(=O)C3=C(N=C2SCC(=O)N/N=C\\C4=CC(=C(C=C4)OC(=O)C)OC)SC5=C3CCCC5",
                 // #16/#29: as for the N-H parent, 4-oxo needs 3,4-dihydro (P-31.2.2, P-32.2).
-                "2-methoxy-4-{(Z)-[(2-{[3-(4-methylphenyl)-4-oxo-3,4,5,6,7,8-hexahydro[1]benzothieno[2,3-d]pyrimidin-2-yl]sulfanyl}acetamido)imino]methyl}phenyl acetate",
+                // #168: =N-NH- is hydrazinylidene (P-68.3.1.2.1), substituted
+                // by the acyl group as in carbamoylhydrazinylidene (P-68.3.1.2.5).
+                "2-methoxy-4-{(Z)-[(2-{[3-(4-methylphenyl)-4-oxo-3,4,5,6,7,8-hexahydro[1]benzothieno[2,3-d]pyrimidin-2-yl]sulfanyl}acetyl)hydrazinylidene]methyl}phenyl acetate",
             ),
         ] {
             let input = crate::test_support::canonical_smiles(smiles).unwrap();
@@ -1249,9 +1439,10 @@ mod tests {
         for (smiles, expected) in [
             (
                 "CCCC1=NN(C2=C1N=C(NC2=O)C3=C(C=CC(=C3)S(=O)(=O)N4CCN(CC4)C)OCC)C",
-                // #16/#29: the substituted N-1 keeps the parent's indicated hydrogen,
-                // which takes the low locant before added hydrogen (P-31.0, P-58.2.1.1).
-                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-1H-pyrazolo[4,3-d]pyrimidin-7(6H)-one",
+                // #95: one indicated hydrogen and one ketone, so the ketone takes
+                // it and the N-H positions are hydro positions (P-58.2.3.1.1;
+                // P-64.3.1 '1,2-dihydro-3H-indol-3-one, not 1H-indol-3(2H)-one').
+                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-1,6-dihydro-7H-pyrazolo[4,3-d]pyrimidin-7-one",
             ),
             (
                 "CCCCCN1C(=O)COC2=C1C=C(C(=C2)F)N3C(=O)C4=CC=CC=C4N=N3",
@@ -1347,54 +1538,45 @@ mod tests {
         // it leaves to this assembler keeps its fallback name, which is not
         // preferred.
         for (smiles, expected) in [
-            // N^1,N^2-dimethylhydrazine-1,2-dicarboxamide (P-66.1.1.3.1.1)
-            (
-                "CNC(=O)NNC(=O)NC",
-                "N-methyl-1-[N'-(methylcarbamoyl)hydrazinyl]formamide",
-            ),
-            // hydrazine-1,1-dicarboxylic acid
-            (
-                "NN(C(=O)O)C(=O)O",
-                "1-hydroxy-N-(hydroxycarbonyl)formohydrazide",
-            ),
-            // methyl hydrazinecarboperoxoate (P-65.1.4.1)
-            ("NNC(=O)OOC", "1-(methylperoxy)formohydrazide"),
-            // A semicarbazone with a configured C=N bond (P-68.3.1.2.5).
-            (
-                "c1ccccc1/C=N/NC(N)=O",
-                "1-({[(E)-phenylmethylidene]amino}amino)formamide",
-            ),
-            // The parent is right, but the preferred prefix numbers the
-            // hydrazine: 2-carbamoylhydrazin-1-yl (P-68.3.1.2.4).
+            // The parent is right and the hydrazinyl prefix is numbered
+            // (P-68.3.1.2.1), but the Blue Book shows no acid or ester
+            // prefix on it. The acyl prefix is enclosed (P-16.5.1.1).
             (
                 "OC(=O)CC(C(=O)O)NNC(=O)O",
-                "(hydroxycarbonylhydrazinyl)butanedioic acid",
+                "[2-(hydroxycarbonyl)hydrazin-1-yl]butanedioic acid",
             ),
             (
                 "OC(=O)c1ccncc1NNC(=O)O",
-                "3-(hydroxycarbonylhydrazinyl)pyridine-4-carboxylic acid",
+                "3-[2-(hydroxycarbonyl)hydrazin-1-yl]pyridine-4-carboxylic acid",
             ),
             (
                 "OC(=O)CCNNC(=O)OC",
-                "3-(methoxycarbonylhydrazinyl)propanoic acid",
+                "3-[2-(methoxycarbonyl)hydrazin-1-yl]propanoic acid",
+            ),
+            // A substituted carbamoyl, a thio analogue and an amide parent
+            // that wins by its count (P-44.1.1) are not decided here.
+            (
+                "OC(=O)CCNNC(=O)NC",
+                "3-[2-(methylcarbamoyl)hydrazin-1-yl]propanoic acid",
             ),
             (
-                "OC(=O)CCNNC(N)=O",
-                "3-(N'-carbamoylhydrazinyl)propanoic acid",
+                "OC(=O)CCNNC(N)=S",
+                "3-(2-carbamothioylhydrazin-1-yl)propanoic acid",
             ),
             (
                 "NC(=O)C(NNC(=O)N)C(N)=O",
-                "2-(N'-carbamoylhydrazinyl)propanediamide",
+                "2-(2-carbamoylhydrazin-1-yl)propanediamide",
             ),
             // 2-(2-sulfoethyl)hydrazine-1-carboxylic acid (P-41, class 7a)
             (
                 "OS(=O)(=O)CCNNC(=O)O",
-                "2-(hydroxycarbonylhydrazinyl)ethane-1-sulfonic acid",
+                "2-[2-(hydroxycarbonyl)hydrazin-1-yl]ethane-1-sulfonic acid",
             ),
-            // 3-(hydrazinecarbohydrazido)propanamide (P-68.3.1.2.6)
+            // P-68.3.1.2.5: carbamoylhydrazinylidene is the preferred prefix;
+            // the label is not decided here.
             (
-                "NC(=O)CCNNC(=O)NN",
-                "3-(N'-aminocarbamoylhydrazinyl)propanamide",
+                "OC(=O)CCC(=NNC(N)=O)CCC",
+                "4-(carbamoylhydrazinylidene)heptanoic acid",
             ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
@@ -1406,8 +1588,22 @@ mod tests {
             );
         }
         // Ordinary acylhydrazides stay preferred, and a nitroso nitrogen is
-        // not a hydrazine nitrogen (P-61.5.2).
+        // not a hydrazine nitrogen (P-61.5.2). Under a class senior to amides
+        // H2N-CO-NH-NH- is the preferred prefix 2-carbamoylhydrazin-1-yl
+        // (P-68.3.1.2.4).
         for (smiles, expected) in [
+            (
+                "OC(=O)CCNNC(N)=O",
+                "3-(2-carbamoylhydrazin-1-yl)propanoic acid",
+            ),
+            (
+                "COC(=O)CCNNC(N)=O",
+                "methyl 3-(2-carbamoylhydrazin-1-yl)propanoate",
+            ),
+            (
+                "OS(=O)(=O)CCNNC(N)=O",
+                "2-(2-carbamoylhydrazin-1-yl)ethane-1-sulfonic acid",
+            ),
             ("CC(=O)NNC(C)=O", "N'-acetylacetohydrazide"),
             ("NNC=O", "formohydrazide"),
             ("NC(=O)N(C)N=O", "N-methyl-N-nitrosourea"),

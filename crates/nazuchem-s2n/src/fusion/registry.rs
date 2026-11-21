@@ -22,6 +22,7 @@
 // Source: openclatura | tests/unit/test_retained_parent_precedence_and_order.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_fused_parents.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_fusion_candidate_budget.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/registry.rs | issue #24
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura retained/generated registry and HW-component machinery, substantially extended with generated benzoheterocycles, retained-component status and Table 2.8 registration.
@@ -608,7 +609,7 @@ impl FusionComponentRegistry {
         mol: &Molecule,
         model: &FaceModel,
     ) -> Result<Vec<FusionComponentMatch>, String> {
-        self.match_faces(mol, mol, &model.faces, None)
+        self.match_faces(mol, mol, &model.faces, None, false)
     }
     /// P-25.3.2.4: assess the rendered parent without adding planning candidates.
     // Provenance: fn FusionComponentRegistry::has_senior_unregistered_retained_component | original
@@ -691,6 +692,7 @@ impl FusionComponentRegistry {
         matching_parent: &Molecule,
         faces: &[Face],
         skeleton: Option<&BTreeMap<usize, usize>>,
+        benzo_lambda_h: bool,
     ) -> Result<Vec<FusionComponentMatch>, String> {
         if faces.is_empty() {
             return Ok(Vec::new());
@@ -807,7 +809,9 @@ impl FusionComponentRegistry {
                 if explicit.contains(&f.id) {
                     continue;
                 }
-                for (component, local) in self.generated_for_ring(mol, &f.atom_cycle)? {
+                for (component, local) in
+                    self.generated_for_ring(mol, &f.atom_cycle, benzo_lambda_h)?
+                {
                     let spec = &component.spec;
                     let face_ids = BTreeSet::from([f.id]);
                     let identity = (
@@ -1193,12 +1197,13 @@ impl FusionComponentRegistry {
         &self,
         mol: &Molecule,
         path: &[usize],
+        benzo_lambda_h: bool,
     ) -> Result<Vec<GeneratedRingMatch>, String> {
-        if !(3..=10).contains(&path.len())
-            || path.iter().copied().collect::<AtomSet>().len() != path.len()
-        {
+        let ring_atoms: AtomSet = path.iter().copied().collect();
+        if !(3..=10).contains(&path.len()) || ring_atoms.len() != path.len() {
             return Ok(Vec::new());
         }
+        let mut lambda_sites = AtomSet::new();
         let mut all_carbon = true;
         for &i in path {
             let Some(a) = mol.atoms.get(&i) else {
@@ -1229,7 +1234,11 @@ impl FusionComponentRegistry {
                         .map(|b| b.order)
                         .sum::<usize>();
                 if bonding != e.standard_valence {
-                    return Ok(Vec::new());
+                    if !benzo_lambda_h || !super::valence::endocyclic_lambda_h(mol, &ring_atoms, i)
+                    {
+                        return Ok(Vec::new());
+                    }
+                    lambda_sites.insert(i);
                 }
             }
         }
@@ -1241,13 +1250,6 @@ impl FusionComponentRegistry {
             return Ok(Vec::new());
         };
         let symbols: Vec<_> = first.iter().map(|i| mol.atoms[i].symbol.clone()).collect();
-        let expected = retained::mancude_bond_orders(&symbols)
-            .iter()
-            .filter(|&&n| n == 2)
-            .count();
-        if expected == 0 {
-            return Ok(Vec::new());
-        }
         let mut actual = 0;
         let mut unavailable: Vec<_> = path
             .iter()
@@ -1255,8 +1257,20 @@ impl FusionComponentRegistry {
                 mol.atoms[i]
                     .element()
                     .is_some_and(|e| e.mancude_forced_single)
+                    && !lambda_sites.contains(i)
             })
             .collect();
+        let expected = if lambda_sites.is_empty() {
+            retained::mancude_bond_orders(&symbols)
+                .iter()
+                .filter(|&&n| n == 2)
+                .count()
+        } else {
+            maximum_cycle_matching(&unavailable)
+        };
+        if expected == 0 {
+            return Ok(Vec::new());
+        }
         for p in 0..path.len() {
             let next = (p + 1) % path.len();
             let Some(b) = mol.get_bond(path[p], path[next]) else {
@@ -1316,21 +1330,42 @@ impl FusionComponentRegistry {
             .collect())
     }
 }
+// Provenance: fn has_parent_hydride_component | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/fusion/registry.rs::has_parent_hydride_component
+pub(crate) fn has_parent_hydride_component(plan: &FusionParentPlan) -> bool {
+    plan.ast.component_occurrences.iter().any(|m| {
+        fusion_component_registry()
+            .spec_for_match(m)
+            .is_ok_and(|s| s.parent_hydride_only)
+    })
+}
+
 // Provenance: fn is_fused_ring_derivative | adapted
 fn is_fused_ring_derivative(mol: &Molecule, faces: &[&Face]) -> bool {
     let atoms: AtomSet = faces
         .iter()
         .flat_map(|f| f.atom_cycle.iter().copied())
         .collect();
-    // A ring ketone cited by the '-one' suffix keeps a pheno...ine parent: the
-    // suffix composes its indicated and added hydrogen (P-58.2.2, P-58.2.3.1).
-    let ketone_suffix = std::cell::OnceCell::new();
-    let ketone_suffix = || {
-        *ketone_suffix.get_or_init(|| {
-            let groups = crate::perception::perceive_groups(mol);
-            crate::principal_groups::component_principal_key(mol, &groups, false).as_deref()
-                == Some("ketone")
-        })
+    // A ketone or terminal imine suffix on a pheno...ine parent can
+    // accommodate indicated or added hydrogen (P-58.2.2, P-58.2.3.1).
+    let suffix = std::cell::OnceCell::new();
+    let admitted = |ligand: usize| {
+        let atom = &mol.atoms[&ligand];
+        let groups = || crate::perception::perceive_groups(mol);
+        match atom.symbol.as_str() {
+            "O" => crate::principal_groups::ketone_is_principal(mol, suffix.get_or_init(groups)),
+            "N" if atom.total_h_count == 1 && mol.degree(ligand) == 1 => {
+                crate::principal_groups::principal_key_on_parent(
+                    mol,
+                    suffix.get_or_init(groups),
+                    false,
+                    &atoms,
+                )
+                .as_deref()
+                    == Some("imine")
+            }
+            _ => false,
+        }
     };
     atoms.iter().any(|&a| {
         let atom = &mol.atoms[&a];
@@ -1338,10 +1373,7 @@ fn is_fused_ring_derivative(mol: &Molecule, faces: &[&Face]) -> bool {
             || mol.get_neighbors(a).iter().any(|&n| {
                 !atoms.contains(&n)
                     && (mol.get_bond(a, n).is_some_and(|b| b.order == 2)
-                        && !(atom.symbol == "C"
-                            && mol.atoms[&n].symbol == "O"
-                            && mol.atoms[&n].charge == 0
-                            && ketone_suffix())
+                        && !(atom.symbol == "C" && mol.atoms[&n].charge == 0 && admitted(n))
                         || atom.symbol == "N" && mol.atoms[&n].symbol != "H")
             })
     })
@@ -1998,7 +2030,7 @@ mod tests {
                 .iter()
                 .filter(|c| c.spec.parent_hydride_only)
                 .count(),
-            15
+            55
         );
         // P-25.2.2.2 and P-25.2.2.3 PINs; P-25.3.2.2.2 turns the final 'e'
         // into 'o' for the fusion prefix.
@@ -2034,6 +2066,71 @@ mod tests {
             ("thianthrene", "thianthrene", "thianthreno"),
             ("selenanthrene", "selenanthrene", "selenanthreno"),
             ("telluranthrene", "telluranthrene", "telluranthreno"),
+            (
+                "phenothiaselenine",
+                "phenothiaselenine",
+                "phenothiaselenino",
+            ),
+            (
+                "phenothiatellurine",
+                "phenothiatellurine",
+                "phenothiatellurino",
+            ),
+            (
+                "phenoselenatellurine",
+                "phenoselenatellurine",
+                "phenoselenatellurino",
+            ),
+            (
+                "10H-phenothiaphosphinine",
+                "phenothiaphosphinine",
+                "phenothiaphosphinino",
+            ),
+            (
+                "10H-phenothiastibinine",
+                "phenothiastibinine",
+                "phenothiastibinino",
+            ),
+            (
+                "10H-phenoselenaphosphinine",
+                "phenoselenaphosphinine",
+                "phenoselenaphosphinino",
+            ),
+            (
+                "10H-phenoselenarsinine",
+                "phenoselenarsinine",
+                "phenoselenarsinino",
+            ),
+            (
+                "10H-phenoselenastibinine",
+                "phenoselenastibinine",
+                "phenoselenastibinino",
+            ),
+            (
+                "10H-phenotelluraphosphinine",
+                "phenotelluraphosphinine",
+                "phenotelluraphosphinino",
+            ),
+            (
+                "10H-phenotellurarsinine",
+                "phenotellurarsinine",
+                "phenotellurarsinino",
+            ),
+            (
+                "10H-phenotellurastibinine",
+                "phenotellurastibinine",
+                "phenotellurastibinino",
+            ),
+            ("boranthrene", "boranthrene", "boranthreno"),
+            ("phosphanthrene", "phosphanthrene", "phosphanthreno"),
+            ("arsanthrene", "arsanthrene", "arsanthreno"),
+            ("silanthrene", "silanthrene", "silanthreno"),
+            (
+                "phenazaphosphinine",
+                "phenazaphosphinine",
+                "phenazaphosphinino",
+            ),
+            ("phenazarsinine", "phenazarsinine", "phenazarsinino"),
         ] {
             let spec = r.get(name).unwrap().spec;
             assert!(spec.pin_component && spec.usable_as_parent && spec.usable_as_attached);
@@ -2059,6 +2156,16 @@ mod tests {
         assert!(key("oxanthrene") < key("thianthrene"));
         assert!(key("thianthrene") < key("selenanthrene"));
         assert!(key("selenanthrene") < key("telluranthrene"));
+        assert!(key("phenoxatellurine") < key("phenothiaselenine"));
+        assert!(key("phenothiaselenine") < key("thianthrene"));
+        assert!(key("phenothiatellurine") < key("phenoselenatellurine"));
+        assert!(key("phenothiaselenine") < key("10H-phenothiarsinine"));
+        assert!(key("phenazaphosphinine") < key("phenazine"));
+        assert!(key("phenazaphosphinine") < key("phenazarsinine"));
+        assert!(key("telluranthrene") < key("phosphanthrene"));
+        assert!(key("phosphanthrene") < key("arsanthrene"));
+        assert!(key("arsanthrene") < key("silanthrene"));
+        assert!(key("silanthrene") < key("boranthrene"));
     }
     #[test]
     fn parent_hydride_components_are_unregistered_for_fused_ring_derivatives() {
@@ -2072,7 +2179,7 @@ mod tests {
             ("c1ccc2c(c1)Nc1cc3c[nH+]c4ccccc4c3cc1O2", true),
             // #24: a neutral ketone keeps the pheno...ine parent (P-58.2.3.1).
             ("O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", false),
-            ("N=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", true),
+            ("N=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", false),
         ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
             let plan = junior_parent_plan(&mol, "phenanthridine");
@@ -2267,7 +2374,7 @@ mod tests {
                     size: 6,
                     edge_cycle: Vec::new(),
                 };
-                let matches = r.match_faces(&mol, &mol, &[face], None).unwrap();
+                let matches = r.match_faces(&mol, &mol, &[face], None, false).unwrap();
                 assert!(!matches.is_empty(), "{smiles}");
                 assert!(matches.iter().all(|m| m.spec_key == name), "{smiles}");
             }
@@ -2285,7 +2392,7 @@ mod tests {
             size: 6,
             edge_cycle: Vec::new(),
         };
-        let matches = r.match_faces(&mol, &mol, &[f], None).unwrap();
+        let matches = r.match_faces(&mol, &mol, &[f], None, false).unwrap();
         assert_eq!(matches.len(), 6);
         for m in &matches {
             let spec = r.spec_for_match(m).unwrap();
@@ -2295,6 +2402,27 @@ mod tests {
         }
         let rebuilt = r.get(&matches[0].spec_key).unwrap();
         assert_eq!(rebuilt.spec.template.atoms.len(), 6);
+
+        // The general cover search cannot prove a lambda-H parent. For a
+        // larger fused system, never seed that search with the sulfur face.
+        let mol = read_smiles(
+            "[SH]1=CC=CSC2=C1C=C3C=CC=C4C=CC=C4C3=C2",
+            &Default::default(),
+        )
+        .unwrap();
+        let atoms = mol.atoms.keys().copied().collect();
+        let bounded = super::super::faces::cached_bounded_face_model(&mol, &atoms)
+            .unwrap()
+            .unwrap();
+        let model = super::super::faces::typed_face_model(&mol, &bounded);
+        assert_eq!(model.faces.len(), 4);
+        let matches = r.match_face_model(&mol, &model).unwrap();
+        assert!(matches.iter().any(|m| m.spec_key == "benzene"));
+        assert!(
+            matches
+                .iter()
+                .all(|m| !m.spec_key.starts_with("generated-hw:"))
+        );
     }
     fn benzo_test_pair(
         source: &str,
@@ -2623,7 +2751,8 @@ mod tests {
             ),
             (
                 "CC1=C2C(=CC=C1)C3=C(N2)N=C(N=N3)NN=C4C5=C(C=CC(=C5)[N+](=O)[O-])N(C4=O)C",
-                "1-methyl-3-{[(6-methyl-5H-[1,2,4]triazino[5,6-b]indol-3-yl)amino]imino}-5-nitro-1,3-dihydro-2H-indol-2-one",
+                // P-68.3.1.2.2: as 4-(phenylhydrazinylidene)cyclohexane-1-carboxylic acid.
+                "1-methyl-3-[(6-methyl-5H-[1,2,4]triazino[5,6-b]indol-3-yl)hydrazinylidene]-5-nitro-1,3-dihydro-2H-indol-2-one",
             ),
         ] {
             let name = super::super::super::name_smiles(smiles, &Default::default()).unwrap();

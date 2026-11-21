@@ -136,6 +136,9 @@ sense of this -->
 		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
 		<addgroup SMILES="[*]C(=O)N" functionalIDs="4,4" />
 	</rule>
+	<rule value="carboxamidium">
+		<addgroup SMILES="[*]C(=O)[NH3+]" functionalIDs="4,4"/>
+	</rule>
 	<rule value="dicarboximide">
 		<addgroup SMILES="[*]C(=O)NC(=O)[*]"/>
 	</rule>
@@ -169,6 +172,14 @@ sense of this -->
 	<rule value="hydrazide">
 		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
 		<addgroup SMILES="[*](=O)NN" labels="//1'/2'"/>
+	</rule>
+	<rule value="hydrazid_N_ium">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)[NH2+]N" labels="//N/N'"/>
+	</rule>
+	<rule value="hydrazid_N_prime_ium">
+		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
+		<addgroup SMILES="[*](=O)N[NH3+]" labels="//N/N'"/>
 	</rule>
 	<rule value="hydrazido">
 		<addSuffixPrefixIfNonePresentAndCyclic SMILES="C"/>
@@ -484,6 +495,42 @@ sense of this -->
 	</rule>
 	<rule value="peroxol_SeTe">
 		<addgroup SMILES="[*][Se|2][Te|2]"/>
+	</rule>
+	<rule value="peroxolate_SO">
+		<addgroup SMILES="[*]S[O-]"/>
+	</rule>
+	<rule value="peroxolate_SeO">
+		<addgroup SMILES="[*][Se|2][O-]"/>
+	</rule>
+	<rule value="peroxolate_TeO">
+		<addgroup SMILES="[*][Te|2][O-]"/>
+	</rule>
+	<rule value="peroxolate_OS">
+		<addgroup SMILES="[*]O[S-]"/>
+	</rule>
+	<rule value="peroxolate_OSe">
+		<addgroup SMILES="[*]O[Se-]"/>
+	</rule>
+	<rule value="peroxolate_OTe">
+		<addgroup SMILES="[*]O[Te-]"/>
+	</rule>
+	<rule value="peroxolate_SeS">
+		<addgroup SMILES="[*][Se|2][S-]"/>
+	</rule>
+	<rule value="peroxolate_TeS">
+		<addgroup SMILES="[*][Te|2][S-]"/>
+	</rule>
+	<rule value="peroxolate_SSe">
+		<addgroup SMILES="[*]S[Se-]"/>
+	</rule>
+	<rule value="peroxolate_STe">
+		<addgroup SMILES="[*]S[Te-]"/>
+	</rule>
+	<rule value="peroxolate_TeSe">
+		<addgroup SMILES="[*][Te|2][Se-]"/>
+	</rule>
+	<rule value="peroxolate_SeTe">
+		<addgroup SMILES="[*][Se|2][Te-]"/>
 	</rule>
 	<rule value="olate">
 		<addgroup SMILES="[*][O-]" />

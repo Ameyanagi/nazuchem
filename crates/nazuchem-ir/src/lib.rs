@@ -104,6 +104,7 @@ pub enum NameReason {
     RadicalIon,
     AnionParent,
     CationParent,
+    FusionNitrogenHydron,
     IonicSuffixOrder,
     SaltIonOrder,
     Adduct,
@@ -112,6 +113,8 @@ pub enum NameReason {
     EndoExoStereo,
     UnknownConfiguration,
     AxialAlternative,
+    ParentConfiguration,
+    LambdaPrefixOrder,
 }
 
 /// All naming reason values, serialized by binding declaration checks.
@@ -150,6 +153,7 @@ pub const NAME_REASONS: &[NameReason] = &[
     NameReason::RadicalIon,
     NameReason::AnionParent,
     NameReason::CationParent,
+    NameReason::FusionNitrogenHydron,
     NameReason::IonicSuffixOrder,
     NameReason::SaltIonOrder,
     NameReason::Adduct,
@@ -158,6 +162,8 @@ pub const NAME_REASONS: &[NameReason] = &[
     NameReason::EndoExoStereo,
     NameReason::UnknownConfiguration,
     NameReason::AxialAlternative,
+    NameReason::ParentConfiguration,
+    NameReason::LambdaPrefixOrder,
 ];
 
 impl NameReason {
@@ -170,7 +176,7 @@ impl NameReason {
                 "Uses a concatenated sulfonyl or sulfinyl prefix such as N-methyltosylamino or (methylsulfinyl)amino; preferred IUPAC names use acid-derived forms such as N,4-dimethylbenzene-1-sulfonamido or methanesulfinamido (P-65.3.2.2.2, P-66.1.1.4.3)."
             }
             Self::AminoPrefix => {
-                "Uses an acylamino prefix instead of the preferred acid-derived amido form (P-66.1.1.4.3), or a guanidino prefix substituted on its outer nitrogens or with an E/Z descriptor, such as 3-methylguanidino; preferred IUPAC names cite carbamimidoyl inside an amino prefix, as in (N-methylcarbamimidoyl)amino (P-66.4.1.2.1.3)."
+                "Uses an acylamino prefix instead of the preferred acid-derived amido form (P-66.1.1.4.3), an acylated hydrazinyl or hydrazinecarbonyl prefix such as 2-acetylhydrazin-1-yl where the acid-derived hydrazido form acetohydrazido may be preferred (P-66.3.2.3), or a guanidino prefix substituted on its outer nitrogens or with an E/Z descriptor, such as 3-methylguanidino; preferred IUPAC names cite carbamimidoyl inside an amino prefix, as in (N-methylcarbamimidoyl)amino (P-66.4.1.2.1.3)."
             }
             Self::CationPrefix => {
                 "Uses the accepted ammonio/iminio alternative for a substituted cationic nitrogen prefix because the preferred N,N-dimethylmethanaminiumyl-type form is not generated yet (P-73.6 and the 2020 corrections to P-74.1.3)."
@@ -203,7 +209,7 @@ impl NameReason {
                 "Names identical senior parent units joined by a linking group substitutively; the preferred IUPAC name is multiplicative. The units include identical substituents and suffix groups at identical locants, while the central linking group need not be symmetric, as in 1,1'-oxydibenzene or 2,2'-sulfanediyldiacetic acid (P-15.3, P-51.1.5, P-51.3.1)."
             }
             Self::AcylPrefix => {
-                "Uses an acyl prefix built from a substituent, such as (4-methylphenyl)carbonyl, cyclohexylcarbonothioyl, (dimethyloxophosphanyl) or (dimethyloxoarsanyl), or an oxophosphanyl prefix on a parent, as in (methyloxophosphanyl)methane; preferred IUPAC names use the acid-derived forms 4-methylbenzoyl, cyclohexanecarbothioyl, dimethylphosphinoyl, dimethylarsinoyl and dimethyl-lambda5-phosphanone (P-65.1.7.4.2, P-67.1.4.1.1.3, P-68.3.2.3.1)."
+                "Uses an acyl prefix built from a substituent, such as (4-methylphenyl)carbonyl, cyclohexylcarbonothioyl, hydroxy(methyl)phosphoryl, (hydroxyphosphinoyl) or (dichlorooxophosphanyl), or a phosphinoyl prefix on a parent with no characteristic group senior to ketones, as in (methylphosphinoyl)methane; preferred IUPAC names use the acid-derived forms 4-methylbenzoyl, cyclohexanecarbothioyl, hydroxy(methylphosphonoyl), hydroxyphosphonoyl, phosphorodichloridoyl and dimethyl-lambda5-phosphanone (P-64.7.1, P-65.1.7.4.2, P-67.1.4.1.1.3, P-67.1.4.1.1.4, P-67.1.4.1.1.5, P-68.3.2.3.1)."
             }
             Self::RingAssembly => {
                 "Uses a substitutive or ring-assembly name where the preferred name is not yet supported. This includes double-bond junctions and assemblies requiring skeletal-replacement or hydro prefixes (P-28, P-31.2.3.3.5, P-52.2.7)."
@@ -227,7 +233,7 @@ impl NameReason {
                 "The preferred parent choice for this bridged-fused system has not been verified."
             }
             Self::UnauditedParent => {
-                "Uses a parent hydride family whose preferred-name choice has not been audited: porphyrin, corrin and gonane have no PIN designation (P-10/P-12); the von Baeyer versus fusion choice for polycycles of three or more rings has not been checked (P-52.2.4.3, P-31.1.4.3.4); skeletal-replacement chains and monocycles have unchecked conditions (P-15.4.3, P-22.2.3), as do skeletal-replacement fusion hydrides and chains requiring replacement with four heterounits (P-51.4.1, P-15.4.3.2); spiro compounds of identical components need spirobi names (P-24.3)."
+                "Uses a parent hydride family whose preferred-name choice has not been audited: porphyrin, corrin and gonane have no PIN designation (P-10/P-12); the von Baeyer versus fusion choice for polycycles of three or more rings has not been checked (P-52.2.4.3, P-31.1.4.3.4); skeletal-replacement chains and monocycles have unchecked conditions (P-15.4.3, P-22.2.3), as do skeletal-replacement fusion hydrides and chains requiring replacement with four heterounits (P-51.4.1, P-15.4.3.2); spiro compounds of identical components need spirobi names (P-24.3); an amide, ester or acid halide carbon that is the whole parent, as in amino(oxo)methanesulfonic acid, is cited by its ligands with oxo, a form the rules give for the end of a carbon chain, for amides one of two or more carbons (P-66.1.1.4.1.1, P-65.6.3.2.3, P-65.5.4)."
             }
             Self::SpiroHydrogen => {
                 "The completed spiro parent’s indicated, added or hydro hydrogen state and suffix composition have not been verified (P-24.5, P-31.2, P-58.2)."
@@ -255,6 +261,12 @@ impl NameReason {
             }
             Self::UnknownConfiguration => {
                 "Omits a descriptor for unknown configuration; preferred IUPAC names indicate unknown configuration with Ξ or ξ (P-91.2.1.2.1)."
+            }
+            Self::LambdaPrefixOrder => {
+                "Equally ranked substituent prefixes have different lambda bonding numbers. Their preferred order of citation has not been verified (P-14.5, P-45.3)."
+            }
+            Self::ParentConfiguration => {
+                "Equally senior parents differ in configuration that needs CIP sequence rules 4 and 5; the senior parent (P-44.4.1.12) has not been verified."
             }
             Self::PrincipalGroupTie => {
                 "Equally senior principal groups, such as a chain and a ring carboxylic acid, were chosen by atom order; the preferred parent (P-44.1) has not been verified."
@@ -284,7 +296,10 @@ impl NameReason {
                 "The anionic parent, suffix or retained-name choice for this anion has not been verified (P-72.7, P-72.2.2.2.1, P-72.2.2.2.2); for example, methoxide is preferred to methanolate."
             }
             Self::CationParent => {
-                "Cites the cationic centre only in a substituent prefix, as in (1-methylpyridin-1-ium-4-yl)methanol. A cation is senior to neutral classes, so the preferred IUPAC name takes a cationic parent, as in 4-(hydroxymethyl)-1-methylpyridin-1-ium (P-41, P-73.1); this name does not choose that parent yet."
+                "Cites the cationic centre only in a substituent prefix, as in (1-methylpyridin-1-ium-4-yl)methanol. A cation is senior to neutral classes, so the preferred IUPAC name takes a cationic parent, as in 4-(hydroxymethyl)-1-methylpyridin-1-ium (P-41, P-73.1); this name does not choose that parent yet. Also marks an aminium or iminium name whose cationic nitrogen is on another nitrogen: the preferred name takes the largest neutral parent (P-73.1.2), a hydrazinium, hydrazidium or amidium cation, as in pentamethylhydrazinium (P-73.1.1.2) and N′,N′,N′-trimethylbenzohydrazid-N′-ium (P-73.1.2.1)."
+            }
+            Self::FusionNitrogenHydron => {
+                "A hydron at a ring-fusion nitrogen is named on the neutral parent hydride (P-73.1.1.2). Traditional mancude cation names can imply an additional skeletal bond at that nitrogen (P-73.3.1). Where the neutral-parent spelling is ambiguous, explicit hydro prefixes on the cation can distinguish the structures."
             }
             Self::Phane => {
                 "The structure is a cyclophane: at least six nodes, two or more rings and a mancude ring. Cyclic phane names rank above fused, bridged fused and von Baeyer names, so the preferred IUPAC name is a phane name (P-52.2.5.1, P-52.2.5.2). The numbering and citation order of this phane name have not been verified."

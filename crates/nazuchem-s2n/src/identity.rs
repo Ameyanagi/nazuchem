@@ -26,13 +26,13 @@ pub(crate) fn canonical_state(
     state: &chemistry::stereo::perception::State,
     budget: &Budget,
 ) -> Result<String, String> {
-    canonical(state, false, budget)
+    canonical(state, &[], budget)
 }
 
-/// `cumulenes` keeps the odd-cumulene E/Z markers of a state read from SMILES.
+/// Odd-cumulene geometry is supplied separately by the SMILES reader.
 fn canonical(
     state: &chemistry::stereo::perception::State,
-    cumulenes: bool,
+    cumulenes: &[chemistry::stereo::CumuleneEz],
     budget: &Budget,
 ) -> Result<String, String> {
     if state.graph.atoms.is_empty() || state.graph.atoms.len() > MAX_NAMING_ATOMS {
@@ -40,12 +40,7 @@ fn canonical(
     }
     // The kernel checks chemical semantics; this adapter retains the naming
     // bounds, diagnostics and admission order.
-    if cumulenes {
-        molecule_names::canonical_smiles_identity(state, budget)
-    } else {
-        molecule_names::canonical_identity(state, budget)
-    }
-    .map_err(|error| match error {
+    molecule_names::canonical_smiles_identity(state, cumulenes, budget).map_err(|error| match error {
         IdentityRejection::UnsupportedAtomsOrBonds => {
             "Naming does not support query atoms, radicals, exotic bonds or relative stereo groups"
                 .into()
@@ -62,6 +57,11 @@ fn canonical(
 /// stereo. Reserved axis markers carry biaryl configuration; other maps and
 /// atom order are not molecular identity.
 pub fn canonical_smiles(text: &str, budget: &Budget) -> Result<String, String> {
+    let prepared = prepare_identity(text, budget)?;
+    canonical(&prepared.state, &prepared.cumulene_ez, budget)
+}
+
+fn prepare_identity(text: &str, budget: &Budget) -> Result<chemistry::smiles::Prepared, String> {
     if text.len() > MAX_SMILES_BYTES || text.contains('|') || text.contains('>') {
         return Err(
             "Naming requires ordinary molecular SMILES without reaction or CX extensions".into(),
@@ -82,9 +82,7 @@ pub fn canonical_smiles(text: &str, budget: &Budget) -> Result<String, String> {
         .filter(|m| is_tetrahedral(m.chiral_tag))
         .count();
     let mut imported = chemistry::smiles::read(text, budget).map_err(|e| e.to_string())?;
-    if imported.dropped_cumulene_ez
-        || molecule_names::mark_cumulenes(&mut imported.prepared).is_err()
-    {
+    if imported.dropped_cumulene_ez {
         return Err("Naming does not support this cumulene E/Z configuration yet; no less specific name was substituted".into());
     }
     if specified_atoms
@@ -99,9 +97,9 @@ pub fn canonical_smiles(text: &str, budget: &Budget) -> Result<String, String> {
     {
         return Err("Native import could not retain every specified tetrahedral center; no name or graph was assigned".into());
     }
-    let state = molecule_names::apply_axis_markers(&imported.prepared.state, budget)
+    imported.prepared.state = molecule_names::apply_axis_markers(&imported.prepared.state, budget)
         .map_err(|_| "Naming received invalid biaryl axis markers".to_owned())?;
-    canonical(&state, true, budget)
+    Ok(imported.prepared)
 }
 
 /// Reject oversized output before native sanitization/ranking can allocate or
@@ -139,12 +137,104 @@ fn bound_atom_tokens(text: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Require exact connectivity, charge, isotope, tautomer and stereo identity.
+/// Verify a nomenclature round trip. P-72.2.2.2.1.1 gives a thiocarboxylate
+/// the same name for C(=O)S− and C(=S)O−. The graph, including isotope,
+/// hydrogen placement, stereo and charges outside those groups, must match.
 pub fn verify_identity(expected: &str, actual: &str, budget: &Budget) -> Result<(), String> {
-    if canonical_smiles(expected, budget)? != canonical_smiles(actual, budget)? {
-        return Err("The source structure differs in connectivity, charge, isotope, tautomer or stereochemistry. No name was assigned".into());
+    let mut expected = prepare_identity(expected, budget)?;
+    let expected_exact = canonical(&expected.state, &expected.cumulene_ez, budget)?;
+    let mut actual = prepare_identity(actual, budget)?;
+    let actual_exact = canonical(&actual.state, &actual.cumulene_ez, budget)?;
+    if expected_exact == actual_exact {
+        return Ok(());
     }
-    Ok(())
+    let expected_normalized = normalize_thiocarboxylates(&mut expected, budget)?;
+    let actual_normalized = normalize_thiocarboxylates(&mut actual, budget)?;
+    if (expected_normalized.is_some() || actual_normalized.is_some())
+        && expected_normalized.as_ref().unwrap_or(&expected_exact)
+            == actual_normalized.as_ref().unwrap_or(&actual_exact)
+    {
+        return Ok(());
+    }
+    Err("The source structure differs in connectivity, charge, isotope, tautomer or stereochemistry. No name was assigned".into())
+}
+
+fn normalize_thiocarboxylates(
+    prepared: &mut chemistry::smiles::Prepared,
+    budget: &Budget,
+) -> Result<Option<String>, String> {
+    let state = &mut prepared.state;
+    let graph = &mut state.graph;
+    if !graph
+        .atoms
+        .iter()
+        .any(|atom| atom.atomic_number == 16 && atom.charge == -1)
+    {
+        return Ok(None);
+    }
+    let mut adjacent = vec![Vec::new(); graph.atoms.len()];
+    for (id, bond) in graph.bonds.iter().enumerate() {
+        adjacent[bond.a].push((bond.b, id));
+        adjacent[bond.b].push((bond.a, id));
+    }
+    let mut groups = Vec::new();
+    for (carbon, atom) in graph.atoms.iter().enumerate() {
+        if atom.atomic_number != 6
+            || atom.charge != 0
+            || atom.aromatic
+            || atom.radical_electrons != 0
+        {
+            continue;
+        }
+        let hydrogens = |id: usize| {
+            u32::from(graph.atoms[id].explicit_hydrogens) + state.valences[id].implicit_hydrogens
+        };
+        // R is carbon or hydrogen in methanethioate. Isotopic hydrogen
+        // survives preparation as a separate vertex.
+        if !matches!((adjacent[carbon].len(), hydrogens(carbon)), (2, 1) | (3, 0)) {
+            continue;
+        }
+        let terminal = |element, charge, order| {
+            adjacent[carbon].iter().copied().find(|&(id, bond)| {
+                let other = &graph.atoms[id];
+                other.atomic_number == element
+                    && other.charge == charge
+                    && other.radical_electrons == 0
+                    && !other.aromatic
+                    && adjacent[id].len() == 1
+                    && hydrogens(id) == 0
+                    && graph.bonds[bond].order == order
+                    && state.metadata.bonds[bond].stereo == 0
+                    && state.directions[bond] == chemistry::kekulize::Direction::None
+            })
+        };
+        if let (Some(oxygen), Some(sulfur)) = (terminal(8, 0, 2), terminal(16, -1, 1))
+            && adjacent[carbon].iter().all(|&(id, bond)| {
+                let other = &graph.atoms[id];
+                id == oxygen.0
+                    || id == sulfur.0
+                    || graph.bonds[bond].order == 1
+                        && (other.atomic_number == 6
+                            || other.atomic_number == 1
+                                && other.charge == 0
+                                && other.radical_electrons == 0
+                                && adjacent[id].len() == 1)
+            })
+        {
+            groups.push((oxygen, sulfur));
+        }
+    }
+    if groups.is_empty() {
+        return Ok(None);
+    }
+    for ((oxygen, co), (sulfur, cs)) in groups {
+        graph.atoms[oxygen].charge = -1;
+        graph.atoms[sulfur].charge = 0;
+        graph.bonds[co].order = 1;
+        graph.bonds[cs].order = 2;
+    }
+    state.valences = graph.valences()?;
+    canonical(state, &prepared.cumulene_ez, budget).map(Some)
 }
 
 /// Verify a generated alternative, allowing either enantiomer only for a
@@ -289,11 +379,9 @@ mod tests {
     #[test]
     fn radical_identity_retains_isotopic_h_while_folding_ordinary_h() {
         let budget = Budget::default();
-        let expected_error = crate::name_smiles("[2H][CH2]", &budget).unwrap_err();
-        assert_eq!(
-            expected_error,
-            "openclatura: combined isotope and radical nomenclature is not supported"
-        );
+        // Issue #27, P-82.2.1: the radical cites its label as the prefix does.
+        let expected = crate::name_smiles("[2H][CH2]", &budget).unwrap();
+        assert_eq!(expected.text, "(2H1)methyl");
         for isotopes in [vec![Some(2)], vec![None, Some(2)]] {
             let molecule = methyl_radical_with_hydrogen_vertices(&isotopes);
             let original = molecule.clone();
@@ -315,10 +403,12 @@ mod tests {
             assert_eq!(graph.atoms[&isotope].isotope, Some(2));
             assert_eq!(graph.atoms[&carbon].total_h_count, 2);
             assert_eq!(graph.atoms[&carbon].radical_electrons, 1);
-            assert_eq!(
+            let actual =
                 crate::name_molecule(&molecule, nazuchem_ir::IsotopeStyle::default(), &budget)
-                    .unwrap_err(),
-                expected_error
+                    .unwrap();
+            assert_eq!(
+                serde_json::to_value(actual).unwrap(),
+                serde_json::to_value(&expected).unwrap()
             );
             assert_eq!(molecule, original);
         }

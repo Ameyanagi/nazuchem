@@ -242,6 +242,28 @@ fn group_metadata_elementary_homology_functional_and_default_ids() {
     assert_eq!(state.graph().atom(AtomId(3)).element, Element::O);
 }
 #[test]
+fn added_group_smiles_cannot_use_the_ring_resource_dialect() {
+    let rules = SuffixRules::new().unwrap();
+    let boranthrene = "c1cccc2[b]c3ccccc3[b]c12";
+    for (parent, added, atom_count) in [
+        ("c1ccccc1", "[bH]1ccccc1", 6),
+        (boranthrene, boranthrene, 14),
+    ] {
+        let mut state = BuildState::new(ParseOptions::default());
+        let mut arena = Arena::default();
+        let group = arena.token("group", "");
+        arena[group].set_attribute("type", "ring");
+        arena[group].set_attribute("value", parent);
+        arena[group].set_attribute("labels", "numeric");
+        arena[group].set_attribute("addGroup", format!("{added} locant 1"));
+        let err = ComponentProcessor::new(&mut state, &rules)
+            .resolve_group(&mut arena, group)
+            .unwrap_err();
+        assert!(err.to_string().contains("b is not an aromatic Element"));
+        assert_eq!(state.graph().atoms.len(), atom_count);
+    }
+}
+#[test]
 fn multiplier_suffix_order_and_locants_are_preserved() {
     let rules = SuffixRules::new().unwrap();
     let mut state = BuildState::new(ParseOptions::default());

@@ -43,6 +43,7 @@ fn functional_ring_parent(name: &str, key: &str) -> Option<String> {
         "ring_aldehyde" => "benzaldehyde",
         "ring_carboxylic_acid" => "benzoic acid",
         "ring_amide" => "benzamide",
+        "acyl_amidium_O_external" => "benzamidium",
         "ring_hydrazide" => "benzohydrazide",
         "ring_nitrile" => "benzonitrile",
         "ring_carboxylate" => "benzoate",
@@ -100,6 +101,8 @@ fn retained_chain_name(length: usize, key: &str, count: usize) -> Option<String>
         (4, "olate", 1) => "butoxide",
         (1, "amide", 1) => "formamide",
         (2, "amide", 1) => "acetamide",
+        (1, "acyl_amidium_O_chain", 1) => "formamidium",
+        (2, "acyl_amidium_O_chain", 1) => "acetamidium",
         (1, "hydrazide", 1) => "formohydrazide",
         (2, "hydrazide", 1) => "acetohydrazide",
         (1, "urea", 1) => "urea",
@@ -500,6 +503,16 @@ pub fn promote_acyl_substituent_name(parts: &mut AssemblyParts) {
     {
         return;
     }
+    // P-65.1.4.2 (1): -CO-OOH off a chain end is carbonoperoxoyl, not
+    // hydroperoxycarbonyl (2-carbonoperoxoylbenzoic acid).
+    let mut names: Vec<_> = parts.substituents.iter().map(|s| s.name.as_str()).collect();
+    names.sort_unstable();
+    if parts.parent_length == 1 && parts.unsaturations.is_empty() && names == ["hydroperoxy", "oxo"]
+    {
+        parts.retained_substituent_name = Some("carbonoperoxoyl".into());
+        parts.substituents.clear();
+        return;
+    }
     let carbonyls: Vec<_> = parts
         .substituents
         .iter()
@@ -612,7 +625,8 @@ pub fn promote_retained_substituent_name(parts: &mut AssemblyParts) {
     promote_carbamimidoyl(parts);
     if !parts.is_substituent
         || parts.retained_substituent_name.is_some()
-        || matches!(parts.attachment_order, 2 | 3)
+        || parts.attachment_order == 3
+        || parts.attachment_order == 2 && !parts.stereo_features.is_empty()
         || parts.is_ring
         || parts.retained_name.is_some()
         || parts.principal_group.is_some()
@@ -636,6 +650,8 @@ pub fn promote_retained_substituent_name(parts: &mut AssemblyParts) {
         kind,
     ) {
         (1, "1", "phenyl", "1", "single") => Some("benzyl".to_owned()),
+        // P-29.6.2.1: unsubstituted benzylidene is a preferred prefix.
+        (1, "1", "phenyl", "1", "double") => Some("benzylidene".to_owned()),
         (3, "2", "methyl", "2", "single") => Some("tert-butyl".to_owned()),
         (1, "1", "phenyl", "1", "acyl") => Some(match parts.acyl_infix {
             "" => "benzoyl".to_owned(),
@@ -1205,7 +1221,7 @@ pub fn format_principal_suffix(
     let mut modifier_cites_locants = false;
     // P-63.4.2.1: `methane-SO-thioperoxol`, `propane-1-OS-thioperoxol`.
     let element_locanted = group.has_capability("element_locanted_suffix");
-    if element_locanted && omit && locs.len() == 1 {
+    if element_locanted && omit && locs.len() == 1 && !suffix.starts_with('(') {
         suffix = format!("-{suffix}");
     }
     if !parts.principal_suffix_modifiers.is_empty()

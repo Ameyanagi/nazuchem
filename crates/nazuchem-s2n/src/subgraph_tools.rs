@@ -187,7 +187,23 @@ pub fn add_parent_features(
                         .filter(|&v| v >= heavy_bonding)
                         .min()
                 });
-            if implied_valence != Some(heavy_bonding + atom.total_h_count) {
+            // A cited hydrogen at a conventional-valence site (such as Sn in
+            // 10H-phenoxastannine) can select a higher standard bonding number
+            // than the SMILES minimum for the heavy bonds alone.
+            let observed_valence = heavy_bonding + atom.total_h_count;
+            let indicated_standard_valence = atom.charge == 0
+                && atom
+                    .element()
+                    .is_some_and(|e| e.standard_valence == observed_valence)
+                && parts
+                    .retained_parent_metadata
+                    .as_ref()
+                    .is_some_and(|metadata| {
+                        locants
+                            .get(&idx)
+                            .is_some_and(|locant| metadata.default_indicated_h.contains(locant))
+                    });
+            if implied_valence != Some(observed_valence) && !indicated_standard_valence {
                 return Err(format!(
                     "openclatura: retained parent hydrogen state for {} is not supported",
                     atom.symbol
@@ -379,14 +395,27 @@ pub fn add_substituent(
     if let Some(existing) = parts.substituents.iter_mut().find(|existing| {
         existing.name == item.name
             && existing.outer_parentheses_optional == item.outer_parentheses_optional
+            // Acyl promotion consumes the attachment carbonyl, while another
+            // carbonyl remains a separate prefix (3-ethoxy-3-oxopropanoyl,
+            // P-65.6.3.3.4.2).
+            && !(parts.is_substituent
+                && parts.attachment_order == 1
+                && parts.attachment_locant == "1"
+                && matches!(
+                    item.name.as_str(),
+                    "oxo" | "sulfanylidene" | "selanylidene" | "tellanylidene"
+                )
+                && (existing.locants == ["1"] || item.locants == ["1"]))
             // Upstream divergence: keep spiro instances separate to preserve their component metadata.
             && existing.spiro.is_none()
             && item.spiro.is_none()
     }) {
+        existing.prefix_kind = existing.prefix_kind.or(item.prefix_kind);
         existing.locants.extend(item.locants);
         existing.atom_ids.extend(item.atom_ids);
         existing.bond_ids.extend(item.bond_ids);
         existing.charge_atom_ids.extend(item.charge_atom_ids);
+        existing.isotope_atoms.extend(item.isotope_atoms);
     } else {
         parts.substituents.push(item);
     }

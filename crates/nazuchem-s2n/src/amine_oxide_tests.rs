@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/amine_oxide_tests.rs | issue #128
 // Source: ReShiki | src/naming/openclatura/amine_oxide_tests.rs | 327d32fed63a5b3df15b7b8dc5ab84a7c36e0865
 // Copyright (c) 2026 lamalab-org
 // Source: openclatura | tests/unit/test_chalcogen_functional_groups.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -79,7 +80,7 @@ const FUNCTIONAL_CLASS_CASES: &[Case] = &[
         "C10",
         "[O-][n+]1ccncc1",
         "pyrazine 1-oxide",
-        NameStatus::Unverified(NameReason::AmineChalcogenide),
+        NameStatus::Preferred,
     ),
     (
         "C11",
@@ -443,7 +444,8 @@ fn amine_oxide_nitrogen_stereocentres_remain_rejected() {
 fn amine_oxide_unknown_stereo_does_not_certify_zwitterionic_alternatives() {
     let smiles = "[O-][n+]1ccc([CH:900001](F)Cl)cc1";
     let actual = name_smiles(smiles, &Default::default()).unwrap();
-    assert_eq!(actual.text, "4-(chlorofluoromethyl)-1-oxidopyridin-1-ium");
+    // P-16.5.1.3: later halogen prefixes are enclosed.
+    assert_eq!(actual.text, "4-[chloro(fluoro)methyl]-1-oxidopyridin-1-ium");
     assert_eq!(
         actual.status,
         NameStatus::NotPreferred(NameReason::UnknownConfiguration)
@@ -453,7 +455,7 @@ fn amine_oxide_unknown_stereo_does_not_certify_zwitterionic_alternatives() {
     let explicit = &actual.alternatives[0];
     assert_eq!(
         explicit.name,
-        "4-[(Ξ)-chlorofluoromethyl]-1-oxidopyridin-1-ium"
+        "4-[(Ξ)-chloro(fluoro)methyl]-1-oxidopyridin-1-ium"
     );
     assert_eq!(
         explicit.status,
@@ -516,37 +518,6 @@ fn amine_oxide_names_and_statuses_are_independent_of_atom_order() {
                 "{smiles}: {permutation}"
             );
         }
-    }
-}
-
-#[test]
-// Provenance: fn amine_oxide_ambiguous_ring_locants_remain_unverified | original
-// Source: ReShiki | src/naming/openclatura/amine_oxide_tests.rs::amine_oxide_ambiguous_ring_locants_remain_unverified
-fn amine_oxide_ambiguous_ring_locants_remain_unverified() {
-    // Neutral pyrazine numbering can choose either equivalent nitrogen first.
-    // Its oxide locant is outside this adapter's certification scope.
-    let identity = canonical_smiles("[O-][n+]1ccncc1").unwrap();
-    for smiles in ["[O-][n+]1ccncc1", "c1c[n+]([O-])ccn1"] {
-        assert_eq!(canonical_smiles(smiles).unwrap(), identity, "{smiles}");
-        let actual = name_smiles(smiles, &Default::default()).unwrap();
-        assert_eq!(
-            actual.status,
-            NameStatus::Unverified(NameReason::AmineChalcogenide),
-            "{smiles}: {}",
-            actual.text
-        );
-        assert!(
-            actual.text.starts_with("pyrazine ") && actual.text.ends_with("-oxide"),
-            "{}",
-            actual.text
-        );
-        let parsed = crate::test_support::parse_strict(&actual.text).unwrap();
-        assert_eq!(
-            canonical_smiles(&parsed).unwrap(),
-            identity,
-            "{smiles}: {}",
-            actual.text
-        );
     }
 }
 
@@ -678,5 +649,90 @@ fn amine_oxide_nitrones_keep_opposite_double_bond_stereo() {
             "{}",
             actual.text
         );
+    }
+}
+
+#[test]
+// Provenance: fn issue_128_equivalent_amine_oxide_sites_preserve_pseudoasymmetry_and_alkene_geometry | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/amine_oxide_tests.rs::issue_128_equivalent_amine_oxide_sites_preserve_pseudoasymmetry_and_alkene_geometry
+fn issue_128_equivalent_amine_oxide_sites_preserve_pseudoasymmetry_and_alkene_geometry() {
+    use nazuchem_kernel::smiles;
+
+    for (expected, status, inputs) in [
+        (
+            "1,4-bis[(2R,3s,4S)-2,4-difluoropentan-3-yl]piperazine 1-oxide",
+            NameStatus::Preferred,
+            &[
+                "[O-][N+]1([C@H]([C@H](F)C)[C@@H](F)C)CCN([C@H]([C@H](F)C)[C@@H](F)C)CC1",
+                "N1([C@H]([C@H](F)C)[C@@H](F)C)CC[N+]([O-])([C@H]([C@H](F)C)[C@@H](F)C)CC1",
+            ][..],
+        ),
+        (
+            "(4E,11E)-1,8-dimethyl-1,8-diazacyclotetradeca-4,11-diene 1-oxide",
+            NameStatus::Unverified(NameReason::UnauditedParent),
+            &[
+                "C[N+]1([O-])CC/C=C/CCN(C)CC/C=C/CC1",
+                "CN1CC/C=C/CC[N+](C)([O-])CC/C=C/CC1",
+            ][..],
+        ),
+    ] {
+        let parsed = crate::test_support::parse_strict(expected).unwrap();
+        let identity = canonical_smiles(&parsed).unwrap();
+        for &input in inputs {
+            let prepared = smiles::prepare(input, &Default::default()).unwrap();
+            let atoms = prepared.state.graph.atoms.len();
+            let orders = (0..atoms).step_by(atoms.div_ceil(5)).map(|root| {
+                smiles::write::write(
+                    &prepared.state,
+                    smiles::write::Options {
+                        canonical: false,
+                        root: Some(root),
+                        ..Default::default()
+                    },
+                )
+                .unwrap()
+                .text
+            });
+            for order in std::iter::once(input.to_owned()).chain(orders) {
+                assert_eq!(canonical_smiles(&order).unwrap(), identity, "{order}");
+                let actual = name_smiles(&order, &Default::default()).unwrap();
+                assert_eq!(
+                    (actual.text.as_str(), actual.status),
+                    (expected, status),
+                    "{order}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+// Provenance: fn issue_128_distinct_amine_oxide_sites_preserve_pseudoasymmetry_and_alkene_geometry | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/amine_oxide_tests.rs::issue_128_distinct_amine_oxide_sites_preserve_pseudoasymmetry_and_alkene_geometry
+fn issue_128_distinct_amine_oxide_sites_preserve_pseudoasymmetry_and_alkene_geometry() {
+    for inputs in [
+        [
+            "[O-][N+]1([C@H]([C@H](F)C)[C@@H](F)C)CCN([C@@H]([C@H](F)C)[C@@H](F)C)CC1",
+            "N1([C@H]([C@H](F)C)[C@@H](F)C)CC[N+]([O-])([C@@H]([C@H](F)C)[C@@H](F)C)CC1",
+        ],
+        [
+            r"C[N+]1([O-])C/C=C/CCCN(C)C/C=C\CCC1",
+            r"CN1C/C=C/CCC[N+](C)([O-])C/C=C\CCC1",
+        ],
+    ] {
+        let [first, second] = inputs.map(|smiles| {
+            let identity = canonical_smiles(smiles).unwrap();
+            let actual = name_smiles(smiles, &Default::default()).unwrap();
+            let parsed = crate::test_support::parse_strict(&actual.text).unwrap();
+            assert_eq!(
+                canonical_smiles(&parsed).unwrap(),
+                identity,
+                "{}",
+                actual.text
+            );
+            (actual.text, identity)
+        });
+        assert_ne!(first.0, second.0, "{inputs:?}");
+        assert_ne!(first.1, second.1, "{inputs:?}");
     }
 }

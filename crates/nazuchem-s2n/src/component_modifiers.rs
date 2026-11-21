@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_modifiers.rs | eee8777651319d1f6ba243e01f96260140180138
 // Source: openclatura | src/openclatura/component_modifiers.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: ReShiki | src/naming/openclatura/component_modifiers.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Copyright (c) 2026 lamalab-org
@@ -16,8 +17,8 @@ use super::{
     graph_kernel::{Edge, normalize_edge},
     locants::parse_locant,
     molecule::{AtomSet, Molecule, bond_ids_within},
-    namer::{name_subgraph_rendered, name_subgraph_with_upstream},
-    perception::{LigandRole, PerceivedGroup},
+    namer::name_subgraph_rendered,
+    perception::{LigandRole, PerceivedGroup, is_organyl_carbonotrithioate_end},
     subgraph_tools::subgraph_component,
 };
 use nazuchem_ir::{NameReason, NameStatus};
@@ -32,8 +33,11 @@ struct FrontModifier {
 #[derive(Default)]
 pub struct ComponentFrontModifiers {
     modifiers: Vec<FrontModifier>,
-    mixed_diester: bool,
+    mixed_ester: bool,
     acid_atoms: AtomSet,
+    /// P-82.2.4: the labels that the ester groups cite, (1-14C)ethyl propanoate.
+    isotope_atoms: AtomSet,
+    isotope_descriptors: Vec<String>,
     pub consumed: AtomSet,
     pub component_splits: BTreeSet<Edge>,
 }
@@ -43,7 +47,7 @@ impl ComponentFrontModifiers {
     // Source: ReShiki | src/naming/openclatura/component_modifiers.rs::ComponentFrontModifiers::acid_isotopes
     pub fn acid_isotopes(&self, source: Option<&Molecule>) -> Vec<(usize, String, u16)> {
         source
-            .filter(|_| self.mixed_diester)
+            .filter(|_| self.mixed_ester)
             .map_or_else(Vec::new, |source| {
                 source
                     .atoms
@@ -68,10 +72,17 @@ impl ComponentFrontModifiers {
     // Provenance: fn ComponentFrontModifiers::numbering_modifiers | original
     // Source: ReShiki | src/naming/openclatura/component_modifiers.rs::ComponentFrontModifiers::numbering_modifiers
     pub fn numbering_modifiers(&self) -> BTreeMap<usize, String> {
-        if self.mixed_diester {
+        if self.mixed_ester {
             self.modifiers
                 .iter()
-                .map(|modifier| (modifier.attachment, modifier.name.clone()))
+                .map(|modifier| {
+                    // P-82.5.1: nuclides are considered last in numbering.
+                    let name = super::isotope_naming::citation_name(
+                        &modifier.name,
+                        &self.isotope_descriptors,
+                    );
+                    (modifier.attachment, name)
+                })
                 .collect()
         } else {
             BTreeMap::new()
@@ -86,21 +97,39 @@ impl ComponentFrontModifiers {
         parts: &mut AssemblyParts,
         locants: &BTreeMap<usize, String>,
     ) {
+        parts.front_modifier_isotopes = self.isotope_atoms.clone();
+        parts.front_modifier_descriptors = self.isotope_descriptors.clone();
         for modifier in &self.modifiers {
             parts.front_modifiers.push(modifier.name.clone());
             parts
                 .front_modifier_locants
                 .push(locants.get(&modifier.attachment).cloned());
         }
-        if self.mixed_diester {
-            let sites: Vec<_> = self
-                .modifiers
-                .iter()
-                .filter_map(|modifier| modifier.ester_center)
-                .collect();
-            let acid = subgraph_component(mol, sites[0], &self.consumed);
-            parts.ester_site_exchange_proven =
-                super::locant_elision::ester_sites_are_equivalent(mol, &acid, &sites);
+        if self.mixed_ester {
+            let mut sites_by_modifier: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+            for modifier in &self.modifiers {
+                if let Some(site) = modifier.ester_center {
+                    sites_by_modifier
+                        .entry(&modifier.name)
+                        .or_default()
+                        .push(site);
+                }
+            }
+            let singleton = if sites_by_modifier.len() == 2 {
+                sites_by_modifier
+                    .values()
+                    .find(|sites| sites.len() == 1)
+                    .map(|sites| sites[0])
+            } else {
+                None
+            };
+            let sites: Vec<_> = sites_by_modifier.into_values().flatten().collect();
+            parts.ester_site_exchange_proven = super::locant_elision::ester_sites_are_equivalent(
+                mol,
+                &self.acid_atoms,
+                &sites,
+                singleton,
+            );
         }
     }
 }
@@ -137,8 +166,12 @@ pub fn collect_component_front_modifiers(
         };
         let mut blocked = exclude.clone();
         blocked.insert(linker);
-        let branch = name_subgraph_with_upstream(mol, root, &blocked, Some(linker))?;
-        let mut modifier = strip_outer_parentheses(&branch);
+        let branch = name_subgraph_rendered(mol, root, &blocked, Some(linker), false)?;
+        let mut modifier = strip_outer_parentheses(&branch.text);
+        collected.isotope_atoms.extend(branch.isotope_atoms);
+        collected
+            .isotope_descriptors
+            .extend(branch.isotope_descriptors);
         if let Some(d) = &group.descriptor {
             let linkers = d.ligands_with_role(LigandRole::CarbonLink);
             let doubles = d.ligands_with_role(LigandRole::DoubleBonded);
@@ -152,7 +185,12 @@ pub fn collect_component_front_modifiers(
                     .filter(|l| l.role != LigandRole::DoubleBonded)
                     .map(|l| l.element.as_str())
                     .collect::<String>();
-                if super::formatting::is_complex_prefix(&modifier) {
+                // P-82.2.1: S-(2-13C)ethyl, the descriptor is no enclosure.
+                let descriptor = super::isotope_naming::leading_descriptor(
+                    &modifier,
+                    &collected.isotope_descriptors,
+                );
+                if super::formatting::is_complex_prefix(&modifier[descriptor.len()..]) {
                     modifier = super::formatting::format_multiplier(&modifier, 1, true);
                 }
                 modifier = format!("{element_locant}-{modifier}");
@@ -165,16 +203,16 @@ pub fn collect_component_front_modifiers(
             .descriptor
             .as_ref()
             .filter(|descriptor| {
-                matches!(group.key.as_str(), "ester" | "ring_carboxylate")
-                    && descriptor.family == "acyl"
+                descriptor.family == "acyl"
                     && descriptor.derivative == "ester"
                     && descriptor.centers.len() == 1
-                    && descriptor
-                        .ligands
-                        .iter()
-                        .all(|ligand| ligand.element == "O")
             })
             .and_then(|descriptor| descriptor.centers.first().copied());
+        // This ester spelling preserves the acyl carbonotrithioate linkage.
+        // The preferred mixed-anhydride citation (P-65.7.2–3) is unverified.
+        if ester_center.is_some() && is_organyl_carbonotrithioate_end(mol, root, linker) {
+            mol.mark_name(NameStatus::Unverified(NameReason::FunctionalClass));
+        }
         collected.modifiers.push(FrontModifier {
             name: modifier,
             attachment: group.attachment_carbon,
@@ -185,17 +223,20 @@ pub fn collect_component_front_modifiers(
             .component_splits
             .insert(normalize_edge(linker, root));
     }
-    if collected.modifiers.len() == 2
+    if collected.modifiers.len() >= 2
         && groups
             .iter()
             .filter(|group| Some(group.key.as_str()) == key)
             .count()
-            == 2
+            == collected.modifiers.len()
         && collected
             .modifiers
             .iter()
             .all(|modifier| modifier.ester_center.is_some())
-        && collected.modifiers[0].name != collected.modifiers[1].name
+        && collected
+            .modifiers
+            .iter()
+            .any(|modifier| modifier.name != collected.modifiers[0].name)
     {
         let sites: AtomSet = collected
             .modifiers
@@ -214,33 +255,39 @@ pub fn collect_component_front_modifiers(
             .flat_map(|descriptor| descriptor.centers.iter().copied())
             .filter(|center| collected.acid_atoms.contains(center))
             .collect();
-        collected.mixed_diester = sites.len() == 2 && acid_sites == sites;
+        collected.mixed_ester = sites.len() == collected.modifiers.len() && acid_sites == sites;
     }
     Ok(collected)
 }
 
 pub struct NumberingNSubstituents {
     items: Vec<SubstituentItem>,
-    sites: BTreeMap<String, usize>,
+    /// Provisional N locant to its parent atom and the primes of the nitrogen.
+    sites: BTreeMap<String, (usize, usize)>,
     pub consumed: AtomSet,
-    amine: bool,
+    superscript: bool,
 }
 
 impl NumberingNSubstituents {
     // Provenance: fn NumberingNSubstituents::numbering_modifiers | original
     // Source: ReShiki | src/naming/openclatura/component_modifiers.rs::NumberingNSubstituents::numbering_modifiers
-    pub fn numbering_modifiers(&self) -> BTreeMap<usize, Vec<String>> {
+    pub fn numbering_modifiers(&self) -> BTreeMap<usize, Vec<(usize, String)>> {
         let mut names: BTreeMap<_, Vec<_>> = self
             .sites
             .values()
-            .map(|&carbon| (carbon, Vec::new()))
+            .map(|&(carbon, _)| (carbon, Vec::new()))
             .collect();
         for item in &self.items {
             for locant in &item.locants {
+                let (carbon, primes) = self.sites[locant];
                 names
-                    .entry(self.sites[locant])
+                    .entry(carbon)
                     .or_default()
-                    .push(item.name.clone());
+                    // P-82.5.1: nuclides are considered last in numbering.
+                    .push((
+                        primes,
+                        super::isotope_naming::citation_name(&item.name, &item.isotope_descriptors),
+                    ));
             }
         }
         names
@@ -255,20 +302,21 @@ impl NumberingNSubstituents {
         locants: &BTreeMap<usize, String>,
     ) -> AtomSet {
         let mut sites: Vec<_> = self.sites.values().copied().collect();
-        sites.sort_by_key(|carbon| parse_locant(&locants[carbon]));
+        sites.sort_by_key(|(carbon, primes)| (parse_locant(&locants[carbon]), *primes));
         // Polyamines cite the parent locant as a superscript on each nitrogen,
-        // N^1,N^3 (P-62.2.4.1.1, P-62.2.4.1.2); amides keep N, N' and are
-        // marked as not preferred.
+        // N^1,N^3 (P-62.2.4.1.1, P-62.2.4.1.2), and so do the N and N' of
+        // di- and polyhydrazides, N^1,N'^4 (P-66.3.3.2); amides keep N, N'
+        // and are marked as not preferred.
         let assigned: BTreeMap<_, _> = sites
             .iter()
             .enumerate()
-            .map(|(index, &carbon)| {
-                let locant = if self.amine {
-                    format!("N^{}", locants[&carbon])
+            .map(|(index, &(carbon, primes))| {
+                let locant = if self.superscript {
+                    format!("N{}^{}", "'".repeat(primes), locants[&carbon])
                 } else {
                     format!("N{}", "'".repeat(index))
                 };
-                (carbon, locant)
+                ((carbon, primes), locant)
             })
             .collect();
         for item in &mut self.items {
@@ -283,8 +331,8 @@ impl NumberingNSubstituents {
     }
 }
 
-/// Precollect ordinary amine/amide branches without detaching their nitrogen
-/// labels from the corresponding parent carbon. Other nitrogen suffix systems
+/// Precollect amine, amide and amidium branches with their nitrogen sites
+/// attached to the corresponding parent carbon. Other nitrogen suffix systems
 /// retain their specialized local ordering below.
 // Provenance: fn collect_numbering_n_substituents | adapted
 // Source: openclatura | src/openclatura/component_modifiers.py::n_substituent_locant
@@ -296,14 +344,27 @@ pub fn collect_numbering_n_substituents(
     path: &[usize],
     exclude: &AtomSet,
 ) -> Result<Option<NumberingNSubstituents>, String> {
-    let Some(key @ ("amine" | "amide" | "ring_amide")) = key else {
+    let Some(key) = key else {
         return Ok(None);
     };
     let selected: Vec<_> = groups
         .iter()
         .filter(|group| group.key == key && path.contains(&group.attachment_carbon))
         .collect();
-    if selected.len() < 2
+    let hydrazide = selected.iter().all(|group| {
+        group
+            .resolved_rule
+            .as_ref()
+            .is_some_and(|rule| rule.has_capability("hydrazide"))
+    });
+    let amidium = selected.iter().all(|group| {
+        group
+            .descriptor
+            .as_ref()
+            .is_some_and(|descriptor| descriptor.derivative == "amidium")
+    });
+    if !(hydrazide || amidium || matches!(key, "amine" | "amide" | "ring_amide"))
+        || selected.len() < 2
         || selected
             .iter()
             .map(|group| group.attachment_carbon)
@@ -316,7 +377,7 @@ pub fn collect_numbering_n_substituents(
                 .iter()
                 .filter(|atom| mol.atoms[atom].symbol == "N")
                 .count()
-                != 1
+                != 1 + usize::from(hydrazide)
         })
     {
         return Ok(None);
@@ -337,20 +398,23 @@ pub fn collect_numbering_n_substituents(
                 .any(|group| group.attachment_carbon == **carbon)
         })
         .enumerate()
-        .map(|(index, &carbon)| {
-            let locant = if key == "amine" {
-                format!("N^{}", locants[&carbon])
+        .flat_map(|(index, &carbon)| {
+            (0..1 + usize::from(hydrazide)).map(move |primes| (index, carbon, primes))
+        })
+        .map(|(index, carbon, primes)| {
+            let locant = if key == "amine" || hydrazide {
+                format!("N{}^{}", "'".repeat(primes), locants[&carbon])
             } else {
                 format!("N{}", "'".repeat(index))
             };
-            (locant, carbon)
+            (locant, (carbon, primes))
         })
         .collect();
     Ok(Some(NumberingNSubstituents {
         items: parts.substituents,
         sites,
         consumed,
-        amine: key == "amine",
+        superscript: key == "amine" || hydrazide,
     }))
 }
 
@@ -371,7 +435,13 @@ fn nitrogen_rank(
         .copied()
         .filter(|r| *r != c && mol.atoms[r].symbol != "H")
         .map(|r| {
-            name_subgraph_with_upstream(mol, r, &blocked, Some(n)).map(|s| substituent_sort_key(&s))
+            // P-82.5.1: alphanumerical order ignores the isotope descriptors.
+            name_subgraph_rendered(mol, r, &blocked, Some(n), false).map(|name| {
+                substituent_sort_key(&super::isotope_naming::citation_name(
+                    &name.text,
+                    &name.isotope_descriptors,
+                ))
+            })
         })
         .collect::<Result<Vec<_>, _>>();
     // These provisional names only rank the nitrogens; their text is not emitted.
@@ -384,6 +454,58 @@ fn nitrogen_rank(
     })
 }
 
+type NitrogenSubstituentRank = ((String, String), Vec<usize>);
+
+// Provenance: fn nitrogen_substituent_ranks | adapted
+// Source: Nazuchem | crates/nazuchem-s2n/src/component_modifiers.rs::add_component_n_substituents
+fn nitrogen_substituent_ranks(
+    mol: &Molecule,
+    n: usize,
+    is_principal_atom: impl Fn(usize) -> bool,
+    exclude: &AtomSet,
+) -> Result<Vec<NitrogenSubstituentRank>, String> {
+    let status = mol.name_status();
+    let names = (|| {
+        let mut names = Vec::new();
+        let mut blocked = exclude.clone();
+        blocked.insert(n);
+        for &r in mol.get_neighbors(n) {
+            if !is_principal_atom(r) && mol.atoms[&r].symbol != "H" {
+                let name = name_subgraph_rendered(mol, r, &blocked, Some(n), false)?;
+                let name =
+                    super::isotope_naming::citation_name(&name.text, &name.isotope_descriptors);
+                // P-14.5: stereodescriptors, nested ones too, take no
+                // part in alphanumerical order, so each is replaced by
+                // the first of its pair and ranked separately.
+                const PAIRS: &str = "ZERSMPrs";
+                let chars: Vec<_> = name.chars().collect();
+                let mut descriptors = Vec::new();
+                let constitution: String = chars
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &c)| match PAIRS.find(c) {
+                        Some(rank)
+                            if i > 0
+                                && (chars[i - 1] == '(' || chars[i - 1].is_ascii_digit())
+                                && matches!(chars.get(i + 1), Some(',' | ')')) =>
+                        {
+                            descriptors.push(rank);
+                            PAIRS.as_bytes()[rank & !1] as char
+                        }
+                        _ => c,
+                    })
+                    .collect();
+                names.push((substituent_sort_key(&constitution), descriptors));
+            }
+        }
+        names.sort();
+        Ok(names)
+    })();
+    // Provisional branch names rank the nitrogens without changing naming status.
+    mol.set_name_status(status);
+    names
+}
+
 // Provenance: fn n_substituent_locant | adapted
 // Source: openclatura | src/openclatura/component_modifiers.py::n_substituent_locant
 pub fn n_substituent_locant(
@@ -394,6 +516,9 @@ pub fn n_substituent_locant(
     global: usize,
     group_index: usize,
 ) -> String {
+    if key == "guanidine" {
+        return format!("N{}", "'".repeat(n_index));
+    }
     if key == "hydrazine" {
         return if n_index == 0 { "N" } else { "N'" }.into();
     }
@@ -435,33 +560,69 @@ pub fn add_component_n_substituents(
     selected.sort_by_key(|g| parse_locant(&locants[&g.attachment_carbon]));
     // Geminal amines share a parent locant, so primes tell their nitrogens
     // apart: N^3, N'^3 (P-62.2.4.1.2, P-16.9.3). The unprimed locant goes to
-    // the nitrogen with more substituents, then to the one cited first
-    // (P-14.3.5, P-14.4 (f), (g)).
+    // the nitrogen with more substituents, then to the one cited first, then
+    // to the Z, R, M or r one where only stereodescriptors differ
+    // (P-14.3.5, P-14.4 (f), (g), (j)).
     let polyamine = key == "amine" && selected.len() > 1;
-    if polyamine {
+    let polyhydrazide = selected.len() > 1
+        && selected.iter().all(|g| {
+            g.resolved_rule
+                .as_ref()
+                .is_some_and(|rule| rule.has_capability("hydrazide"))
+        });
+    let geminal_hydrazides = polyhydrazide
+        && selected
+            .windows(2)
+            .any(|pair| pair[0].attachment_carbon == pair[1].attachment_carbon);
+    // Geminal carboximidohydrazides use four distinct prime counts at
+    // the same superscripted parent locant (P-66.4.2.1, P-16.9.3).
+    if polyamine || geminal_hydrazides {
         let status = mol.name_status();
         let mut ranked = Vec::with_capacity(selected.len());
         for group in selected {
             let carbon = group.attachment_carbon;
+            let centers = group
+                .descriptor
+                .as_ref()
+                .map(|d| d.centers.as_slice())
+                .unwrap_or(std::slice::from_ref(&carbon));
+            let mut proximal_count = 0;
             let mut names = Vec::new();
             for &n in &group.atoms_involved {
                 if mol.atoms[&n].symbol != "N" {
                     continue;
                 }
-                let mut blocked = exclude.clone();
-                blocked.insert(n);
-                for &r in mol.get_neighbors(n) {
-                    if r != carbon && mol.atoms[&r].symbol != "H" {
-                        let name = name_subgraph_with_upstream(mol, r, &blocked, Some(n))?;
-                        names.push(substituent_sort_key(&name));
-                    }
+                let distal = geminal_hydrazides
+                    && !centers
+                        .iter()
+                        .any(|&center| mol.get_bond(n, center).is_some());
+                let ranks = nitrogen_substituent_ranks(
+                    mol,
+                    n,
+                    |r| r == carbon || group.atoms_involved.contains(&r),
+                    exclude,
+                )?;
+                if !distal {
+                    proximal_count += ranks.len();
                 }
+                names.extend(
+                    ranks
+                        .into_iter()
+                        .map(|(name, stereo)| ((name, distal), stereo)),
+                );
             }
             names.sort();
+            let (names, descriptors): (Vec<_>, Vec<_>) = names.into_iter().unzip();
             let rank = (
                 parse_locant(&locants[&carbon]),
-                std::cmp::Reverse(names.len()),
+                // A geminal group occupies two consecutive N locants. At
+                // the first difference, prefer more occurrences of the lower
+                // locant, then of the higher one (P-14.3.5). If these counts
+                // tie, compare the sites in prefix citation order.
+                std::cmp::Reverse(proximal_count),
+                std::cmp::Reverse(names.len() - proximal_count),
                 names,
+                descriptors,
             );
             ranked.push((rank, group));
         }
@@ -498,7 +659,6 @@ pub fn add_component_n_substituents(
                 mol.atoms[c].is_carbon() && nitrogens.iter().any(|&n| mol.get_bond(*c, n).is_some())
             })
             .unwrap_or(carbon);
-        let mut guanidine = BTreeMap::new();
         if matches!(key, "amidine" | "ring_amidine") {
             nitrogens.sort_by_key(|&n| mol.bond_order(n, core));
         } else if rule.has_capability("hydrazide") {
@@ -509,25 +669,29 @@ pub fn add_component_n_substituents(
                 .unwrap_or(std::slice::from_ref(&core));
             nitrogens.sort_by_key(|&n| !centers.iter().any(|&c| mol.get_bond(n, c).is_some()));
         } else if key == "guanidine" {
-            let imino = nitrogens
-                .iter()
-                .copied()
-                .find(|&n| mol.get_bond(n, core).is_some_and(|b| b.order == 2))
-                .ok_or("openclatura: guanidine imino nitrogen missing")?;
-            let mut amines: Vec<_> = nitrogens.iter().copied().filter(|&n| n != imino).collect();
-            let ranks = amines
-                .iter()
-                .map(|&n| nitrogen_rank(mol, n, core, exclude).map(|r| (n, r)))
-                .collect::<Result<BTreeMap<_, _>, _>>()?;
-            amines.sort_by_key(|n| ranks[n].clone());
-            if amines.len() != 2 {
-                return Err("openclatura: guanidine topology not ported".into());
+            // P-66.4.1.2.1.1 fixes N'' at the imino nitrogen when the
+            // double bond is known. Choose between the two amino nitrogens
+            // by lowest prefix locants, then by citation order (P-14.4).
+            let mut ranked = Vec::with_capacity(3);
+            for n in nitrogens {
+                let order = mol.bond_order(n, core);
+                let ranks = if order == 1 {
+                    nitrogen_substituent_ranks(mol, n, |r| r == core, exclude)?
+                } else {
+                    Vec::new()
+                };
+                let count = std::cmp::Reverse(ranks.len());
+                let (names, descriptors): (Vec<_>, Vec<_>) = ranks.into_iter().unzip();
+                ranked.push(((order, count, names, descriptors), n));
             }
-            guanidine.extend([
-                (amines[0], "1".into()),
-                (imino, "2".into()),
-                (amines[1], "3".into()),
-            ]);
+            ranked.sort_by(|a, b| a.0.cmp(&b.0));
+            if !matches!(
+                ranked.as_slice(),
+                [((1, ..), _), ((1, ..), _), ((2, ..), _)]
+            ) {
+                return Err("openclatura: invalid guanidine nitrogen topology".into());
+            }
+            nitrogens = ranked.into_iter().map(|(_, n)| n).collect();
         }
         let hydrazone = rule.families.contains("hydrazone");
         for (ni, &n) in nitrogens.iter().enumerate() {
@@ -550,10 +714,18 @@ pub fn add_component_n_substituents(
                     .filter(|g| g.attachment_carbon == carbon)
                     .count();
                 format!("N{}^{}", "'".repeat(primes), locants[&carbon])
+            } else if polyhydrazide && nitrogens.len() == 2 {
+                let earlier_at_site = selected[..gi]
+                    .iter()
+                    .filter(|g| g.attachment_carbon == carbon)
+                    .count();
+                format!(
+                    "N{}^{}",
+                    "'".repeat(2 * earlier_at_site + ni),
+                    locants[&carbon]
+                )
             } else {
-                guanidine.get(&n).cloned().unwrap_or_else(|| {
-                    n_substituent_locant(key, selected.len(), nitrogens.len(), ni, global, gi)
-                })
+                n_substituent_locant(key, selected.len(), nitrogens.len(), ni, global, gi)
             };
             for root in roots {
                 let mut blocked = exclude.clone();
@@ -575,6 +747,9 @@ pub fn add_component_n_substituents(
                 bond_atoms.insert(n);
                 let mut item = SubstituentItem::new(rendered.text, vec![loc.clone()]);
                 item.outer_parentheses_optional = rendered.outer_parentheses_optional;
+                item.prefix_kind = rendered.prefix_kind;
+                item.isotope_atoms = rendered.isotope_atoms;
+                item.isotope_descriptors = rendered.isotope_descriptors;
                 item.bond_ids = bond_ids_within(mol, &bond_atoms);
                 item.atom_ids = atoms.clone();
                 item.charge_atom_ids = atoms
@@ -620,11 +795,11 @@ mod tests {
     use crate::graph_io::read_smiles;
 
     #[test]
-    fn mixed_diester_collection_requires_two_fully_esterified_acid_sites() {
+    fn mixed_ester_collection_requires_all_acid_sites_to_be_fully_esterified() {
         for (smiles, omitted_center, expected) in [
             ("CCOC(=O)CC(=O)OC", None, true),
             ("CCOC(=O)CC(=O)O", None, false),
-            ("CCOC(=O)C(C(=O)OC)C(=O)OC", None, false),
+            ("CCOC(=O)C(C(=O)OC)C(=O)OC", None, true),
             ("CCOC(=O)C(CCOC(=O)C)C(=O)OC", Some(9), false),
         ] {
             let mol = read_smiles(smiles, &Default::default()).unwrap();
@@ -633,7 +808,7 @@ mod tests {
             let collected =
                 collect_component_front_modifiers(&mol, &groups, Some("ester"), &AtomSet::new())
                     .unwrap();
-            assert_eq!(collected.mixed_diester, expected, "{smiles}");
+            assert_eq!(collected.mixed_ester, expected, "{smiles}");
         }
     }
 
@@ -643,7 +818,7 @@ mod tests {
         let exclude = AtomSet::from([0, 1, 2]);
         let mut blocked = exclude.clone();
         blocked.insert(3);
-        name_subgraph_with_upstream(&mol, 4, &blocked, Some(3)).unwrap();
+        name_subgraph_rendered(&mol, 4, &blocked, Some(3), false).unwrap();
         assert_eq!(
             mol.name_status(),
             NameStatus::NotPreferred(NameReason::SulfonylPrefix)

@@ -99,7 +99,7 @@ fn all_atoms(model: &FaceModel) -> AtomSet {
 }
 // Provenance: fn adjacent | adapted
 // Source: openclatura | src/openclatura/fusion/layout.py::inline in _partial_layout_is_valid
-fn adjacent(model: &FaceModel) -> Adjacent {
+pub(super) fn adjacent(model: &FaceModel) -> Adjacent {
     model
         .face_adjacency
         .iter()
@@ -918,7 +918,7 @@ pub(crate) fn center_row_orientation_score(centers: &Positions, row: &[usize]) -
 }
 // Provenance: fn opsin_occupied_row_orientation | adapted
 // Source: openclatura | src/openclatura/fusion/layout.py::_opsin_occupied_row_orientation
-pub(crate) fn opsin_occupied_row_orientation(centers: &Positions) -> Vec<i64> {
+pub(crate) fn opsin_occupied_row_orientation(centers: &Positions, adjacent: &Adjacent) -> Vec<i64> {
     let mut groups: BTreeMap<(i64, i64), Vec<usize>> = BTreeMap::new();
     for (&f, &(x, y)) in centers {
         groups.entry((y, x.rem_euclid(4))).or_default().push(f)
@@ -927,11 +927,12 @@ pub(crate) fn opsin_occupied_row_orientation(centers: &Positions) -> Vec<i64> {
     for group in groups.values_mut() {
         group.sort_by_key(|f| centers[f].0);
         let mut row: Vec<usize> = vec![];
+        // P-25.3.2.3.3(a): successive rings in a horizontal row share a fusion edge.
         for &f in group.iter() {
-            if row
-                .last()
-                .is_some_and(|prev| centers[&f].0 - centers[prev].0 != 4)
-            {
+            if row.last().is_some_and(|prev| {
+                centers[&f].0 - centers[prev].0 != 4
+                    || !adjacent.contains(&normalize_edge(*prev, f))
+            }) {
                 rows.push(std::mem::take(&mut row));
             }
             row.push(f)
@@ -1019,7 +1020,7 @@ fn orientation_score(
         .min()
         .unwrap_or_default();
     if opsin {
-        orientation = opsin_occupied_row_orientation(centers)
+        orientation = opsin_occupied_row_orientation(centers, adjacent)
     }
     let mut result = vec![distortion, -(count as i64)];
     result.extend(orientation);

@@ -322,12 +322,13 @@ mod tests {
     // Provenance: fn tests::unlocanted_unknown_descriptors_round_trip | original
     // Source: ReShiki | src/naming/openclatura/unknown_stereo.rs::tests::unlocanted_unknown_descriptors_round_trip
     fn unlocanted_unknown_descriptors_round_trip() {
+        // P-16.5.1.3, P-91.3: bromo(chloro)(fluoro)methane.
         for (input, expected, omitted, explicit) in [
             (
                 "F[CH:900001](Cl)Br",
-                "bromochlorofluoromethane",
+                "bromo(chloro)(fluoro)methane",
                 &["1"] as &[&str],
-                "(Ξ)-bromochlorofluoromethane",
+                "(Ξ)-bromo(chloro)(fluoro)methane",
             ),
             (
                 "C1CCC[CH:900002]=[CH:900002]CC1",
@@ -343,22 +344,22 @@ mod tests {
             ),
             (
                 "O=C(O)[CH:900001](F)Cl",
-                "chlorofluoroacetic acid",
+                "chloro(fluoro)acetic acid",
                 &["2"],
-                "(Ξ)-chlorofluoroacetic acid",
+                "(Ξ)-chloro(fluoro)acetic acid",
             ),
             // Unlocanted descriptors are scoped by their substituent brackets.
             (
                 "F[CH:900001](Cl)c1ccc([CH:900001](F)Br)cc1",
-                "1-(bromofluoromethyl)-4-(chlorofluoromethyl)benzene",
+                "1-[bromo(fluoro)methyl]-4-[chloro(fluoro)methyl]benzene",
                 &[],
-                "1-[(Ξ)-bromofluoromethyl]-4-[(Ξ)-chlorofluoromethyl]benzene",
+                "1-[(Ξ)-bromo(fluoro)methyl]-4-[(Ξ)-chloro(fluoro)methyl]benzene",
             ),
             (
                 "F[C@H](Cl)c1ccc([CH:900001](F)Br)cc1",
-                "1-(bromofluoromethyl)-4-[(R)-chlorofluoromethyl]benzene",
+                "1-[bromo(fluoro)methyl]-4-[(R)-chloro(fluoro)methyl]benzene",
                 &[],
-                "1-[(Ξ)-bromofluoromethyl]-4-[(R)-chlorofluoromethyl]benzene",
+                "1-[(Ξ)-bromo(fluoro)methyl]-4-[(R)-chloro(fluoro)methyl]benzene",
             ),
         ] {
             round_trip(input, expected, omitted, explicit);

@@ -23,6 +23,24 @@ impl FusionLambdaDescriptor {
         format!("{}lambda^{}", self.locant, self.bonding_number)
     }
 }
+// P-25.6: an H on a pi-bonded skeletal atom contributes to its bonding
+// number. It is indicated H only when both adjacent ring bonds are single.
+pub(super) fn endocyclic_lambda_h(mol: &Molecule, atoms: &AtomSet, id: usize) -> bool {
+    let atom = &mol.atoms[&id];
+    let neighbors = mol.get_neighbors(id);
+    atom.symbol == "S"
+        && atom.charge == 0
+        && atom.total_h_count == 1
+        && neighbors.len() == 2
+        && neighbors.iter().all(|n| atoms.contains(n))
+        && neighbors
+            .iter()
+            .filter_map(|&n| mol.get_bond(id, n))
+            .map(|b| b.order)
+            .sum::<usize>()
+            == 3
+}
+
 pub fn fusion_lambda_descriptors(
     mol: &Molecule,
     atoms: &AtomSet,
@@ -55,7 +73,7 @@ pub fn fusion_lambda_descriptors(
             // stops the joint carbon-H proof while leaving several parent pi
             // assignments available. A lambda/H citation alone can then move
             // the implicit carbon hydrogen when the name is reconstructed.
-            if hydrogen_count != 0 {
+            if hydrogen_count != 0 && !endocyclic_lambda_h(mol, atoms, id) {
                 return Err("openclatura: fused lambda-hydrogen parent state not ported".into());
             }
             descriptors.push(FusionLambdaDescriptor {

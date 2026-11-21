@@ -18,6 +18,8 @@
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_retained_parent_precedence_and_order.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_fused_parents.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/additive.rs | issue #95
+// Source: Nazuchem | crates/nazuchem-s2n/src/additive.rs | issue #96
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura hydrogen-role collection extended by local complete-parent suffix/lambda proofs.
@@ -28,6 +30,7 @@ use super::{
     assembly_parts::{AssemblyParts, HydroOperation},
     assembly_utils::parse_locant,
     molecule::{AtomSet, Molecule},
+    retained_fused_templates::is_ium_nitrogen,
     rules::{elements, retained},
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -56,6 +59,26 @@ pub(super) fn has_atom_order_sensitive_bridge_hydrogen(parts: &AssemblyParts) ->
         })
 }
 
+/// P-14.7.1: a neutral ring atom whose ring bonds use up its standard valence
+/// (a fusion N) takes no double bond in the mancude parent.
+// Provenance: fn valence_saturated_atoms | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/additive.rs::valence_saturated_atoms
+fn valence_saturated_atoms(graph: &super::fusion::model::FusionGraph) -> AtomSet {
+    graph
+        .atoms
+        .iter()
+        .filter(|atom| {
+            let degree = (graph.bonds.iter())
+                .filter(|bond| bond.atoms.0 == atom.id || bond.atoms.1 == atom.id)
+                .count();
+            atom.formal_charge == 0
+                && elements::get(&atom.symbol)
+                    .is_some_and(|element| element.standard_valence <= degree)
+        })
+        .map(|atom| atom.id)
+        .collect()
+}
+
 // Provenance: fn parent_indicated_hydrogen_quota | adapted
 // Source: openclatura | src/openclatura/additive.py::parent_indicated_hydrogen_quota
 pub fn parent_indicated_hydrogen_quota(parts: &AssemblyParts) -> Option<usize> {
@@ -68,12 +91,15 @@ pub fn parent_indicated_hydrogen_quota(parts: &AssemblyParts) -> Option<usize> {
         parts.fusion_plan.as_ref()
     };
     if let Some(plan) = plan {
+        let graph = &plan.abstract_parent_graph;
+        let fixed = valence_saturated_atoms(graph);
         let model =
-            super::fusion::numbering::parent_bond_model(&plan.abstract_parent_graph).ok()?;
+            super::fusion::mancude::indicated_hydrogen_parent_bond_model(graph, &fixed).ok()?;
         return Some(
-            super::fusion::numbering::parent_pi_capable_atom_ids(&plan.abstract_parent_graph)
+            super::fusion::numbering::parent_pi_capable_atom_ids(graph)
                 .ok()?
-                .len()
+                .difference(&fixed)
+                .count()
                 .saturating_sub(2 * model.maximum_non_cumulative_double_bonds),
         );
     }
@@ -327,7 +353,209 @@ pub fn add_indicated_hydrogens(
         return Ok(());
     }
     collect_indicated_hydrogens(mol, parts, numbered_path, locants)?;
-    validate_retained_hydrogen_sites(mol, parts)
+    lower_retained_indicated_hydrogen(mol, parts, locants);
+    validate_retained_hydrogen_sites(mol, parts)?;
+    cite_fusion_nitrogen_hydron(mol, parts, locants);
+    Ok(())
+}
+
+/// Use hydrogenation of the mancude cation when the retained neutral
+/// parent's indicated-H spelling would be read as a different structure.
+// Provenance: fn cite_fusion_nitrogen_hydron | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/additive.rs::cite_fusion_nitrogen_hydron
+fn cite_fusion_nitrogen_hydron(
+    mol: &Molecule,
+    parts: &mut AssemblyParts,
+    locants: &BTreeMap<usize, String>,
+) {
+    use nazuchem_ir::{NameReason, NameStatus};
+    let ring = &parts.parent_atom_ids;
+    let Some(nitrogen) = ring.iter().copied().find(|&id| {
+        mol.atoms[&id].total_h_count == 1
+            && is_ium_nitrogen(mol, id)
+            && mol
+                .get_neighbors(id)
+                .iter()
+                .filter(|n| ring.contains(n))
+                .count()
+                == 3
+    }) else {
+        return;
+    };
+    if !super::assembly_charge::has_retained_like_parent(parts) {
+        return;
+    }
+    let saturated = ring.iter().all(|&id| saturated_ring_site(mol, id, ring));
+    // This retained hydride's complete hydrogenation already has an exact
+    // conventional reading, octahydro-2H-quinolizin-5-ium.
+    if saturated && parts.retained_name.as_deref() == Some("2H-quinolizine") {
+        return;
+    }
+    let cite = || {
+        let (_, parent) = parts.retained_name.as_deref()?.split_once("H-")?;
+        if !matches!(parent, "quinolizine" | "pyrrolizine")
+            || ring.iter().any(|&id| {
+                id != nitrogen && (!mol.atoms[&id].is_carbon() || mol.atoms[&id].charge != 0)
+                    || exocyclic_double_bond_site(mol, id, ring)
+            })
+        {
+            return None;
+        }
+        let mut sites: Vec<_> = ring
+            .iter()
+            .filter(|&&id| saturated_ring_site(mol, id, ring))
+            .map(|&id| (locants[&id].clone(), id))
+            .collect();
+        // P-31.2.2: cite a pair of adjacent hydro sites, or every site
+        // of the fully reduced cation. Keep other hydrogen allocations
+        // unverified until a unique reading is available.
+        if !saturated
+            && !(sites.len() == 2
+                && sites
+                    .iter()
+                    .any(|(_, id)| mol.get_neighbors(nitrogen).contains(id)))
+        {
+            return None;
+        }
+        sort_sites(&mut sites);
+        Some((parent.to_owned(), sites))
+    };
+    if let Some((parent, sites)) = cite() {
+        parts.retained_name = Some(parent);
+        parts.indicated_hydrogens.clear();
+        parts.hydro_operations = vec![operation("additive_hydrogen", &sites)];
+        if let Some(metadata) = &mut parts.retained_parent_metadata {
+            metadata.indicated_hydrogen_count = 0;
+            metadata.default_indicated_h.clear();
+        }
+        mol.mark_name(NameStatus::NotPreferred(NameReason::FusionNitrogenHydron));
+    } else {
+        mol.mark_name(NameStatus::Unverified(NameReason::FusionNitrogenHydron));
+    }
+}
+
+/// P-31.2.2, P-58.2.1.2: indicated hydrogen takes lower locants than hydro
+/// prefixes, so a retained parent's indicated hydrogen moves to the lowest
+/// saturated nonfusion position that leaves a mancude parent
+/// ('2,3,4,9-tetrahydro-1H-pyrido[3,4-b]indole', not '1,2,3,4-tetrahydro-9H-').
+// Provenance: fn lower_retained_indicated_hydrogen | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/additive.rs::lower_retained_indicated_hydrogen
+fn lower_retained_indicated_hydrogen(
+    mol: &Molecule,
+    parts: &mut AssemblyParts,
+    locants: &BTreeMap<usize, String>,
+) {
+    let ring = &parts.parent_atom_ids;
+    let (Some(name), Some(metadata)) = (&parts.retained_name, &parts.retained_parent_metadata)
+    else {
+        return;
+    };
+    let cited = name_indicated_hydrogen_locants(Some(name));
+    let (Some(cited), 1) = (cited.first(), cited.len()) else {
+        return;
+    };
+    let oxo_cation = parts.principal_group.is_none()
+        && ring.iter().any(|&id| is_ium_nitrogen(mol, id))
+        && ring
+            .iter()
+            .any(|&id| super::retained_fused_templates::is_retained_oxo_site(mol, id));
+    let (hydro, explicit_indicated) = match parts.hydro_operations.as_slice() {
+        [hydro] if parts.indicated_hydrogens.is_empty() => (hydro, false),
+        [hydro, indicated]
+            if oxo_cation
+                && indicated.key == "indicated_hydrogen"
+                && indicated.locants.as_slice() == std::slice::from_ref(cited)
+                && indicated.locants == parts.indicated_hydrogens =>
+        {
+            (hydro, true)
+        }
+        _ => return,
+    };
+    if hydro.key != "additive_hydrogen"
+        || ring.iter().any(|&id| {
+            mol.atoms[&id].charge != 0 && !is_ium_nitrogen(mol, id)
+                || exocyclic_double_bond_site(mol, id, ring)
+                    && !(oxo_cation
+                        && super::retained_fused_templates::is_retained_oxo_site(mol, id))
+        })
+    {
+        return;
+    }
+    let by_loc: BTreeMap<_, _> = locants.iter().map(|(&id, l)| (l.clone(), id)).collect();
+    let Some(template) = super::retained_fused_templates::retained_graph_templates(false)
+        .iter()
+        .find(|template| template.name == *name)
+    else {
+        return;
+    };
+    // P-32.4 and P-58.2.3.1.1 place indicated H on the free nitrogen
+    // valence of isoindolin-2-yl and on the ring site bearing a carboxyl
+    // suffix. Carbon-attached prefixes in P-32.4 retain the lower H locant.
+    let accommodated = if parts.is_substituent && parts.attachment_order == 1 {
+        by_loc
+            .get(&parts.attachment_locant)
+            .filter(|id| mol.atoms[id].symbol == "N")
+            .map(|_| &parts.attachment_locant)
+    } else {
+        parts
+            .principal_group
+            .as_ref()
+            .filter(|g| g.key == "ring_carboxylic_acid" && g.locants.len() == 1)
+            .map(|g| &g.locants[0])
+    };
+    let priority = |l: &String| (Some(l) != accommodated, parse_locant(l));
+    let mut lower: Vec<_> = hydro
+        .locants
+        .iter()
+        .filter(|l| {
+            (Some(*l) == accommodated || !metadata.fusion_locants.contains(l))
+                && priority(l) < priority(cited)
+        })
+        .cloned()
+        .collect();
+    lower.sort_by_key(&priority);
+    let Some(lowest) = lower.into_iter().find(|l| {
+        super::fusion::numbering::retained_template_parent_bond_model(
+            template,
+            &by_loc,
+            Some(std::slice::from_ref(l)),
+        )
+        .is_ok()
+    }) else {
+        return;
+    };
+    let mut sites: Vec<_> = hydro
+        .locants
+        .iter()
+        .filter(|l| **l != lowest)
+        .chain([cited])
+        .map(|l| (l.clone(), by_loc[l]))
+        .collect();
+    sort_sites(&mut sites);
+    let hydro = &mut parts.hydro_operations[0];
+    (hydro.locants, hydro.atom_ids) = sites.into_iter().unzip();
+    if explicit_indicated {
+        parts.indicated_hydrogens = vec![lowest.clone()];
+        parts.hydro_operations[1].locants = vec![lowest.clone()];
+        parts.hydro_operations[1].atom_ids = vec![by_loc[&lowest]];
+    }
+    parts.retained_name = Some(respell_indicated_hydrogen(name, &BTreeSet::from([lowest])));
+    if let Some(parent) = &mut parts.parent_hydride {
+        parent.parent_name = parts.retained_name.clone();
+    }
+}
+
+// Provenance: fn retained_indicated_hydrogen_locants | adapted
+// Source: ReShiki | src/naming/openclatura/additive.rs::validate_retained_hydrogen_sites
+pub(super) fn retained_indicated_hydrogen_locants(name: Option<&str>) -> BTreeSet<String> {
+    let mut sites = name_indicated_hydrogen_locants(name);
+    if let Some(name) = name {
+        // Hydrogenation prefixes can precede the indicated-H parent name.
+        for (offset, _) in name.match_indices('-') {
+            sites.extend(name_indicated_hydrogen_locants(Some(&name[offset + 1..])));
+        }
+    }
+    sites
 }
 
 // Provenance: fn validate_retained_hydrogen_sites | original
@@ -347,13 +575,9 @@ fn validate_retained_hydrogen_sites(mol: &Molecule, parts: &AssemblyParts) -> Re
         .chain(parts.indicated_hydrogens.iter().cloned())
         .chain(metadata.inherent_saturated_locants.iter().cloned())
         .collect();
-    if let Some(name) = parts.retained_name.as_deref() {
-        // Hydrogenation prefixes can precede the indicated-H parent name.
-        sites.extend(name_indicated_hydrogen_locants(Some(name)));
-        for (offset, _) in name.match_indices('-') {
-            sites.extend(name_indicated_hydrogen_locants(Some(&name[offset + 1..])));
-        }
-    }
+    sites.extend(retained_indicated_hydrogen_locants(
+        parts.retained_name.as_deref(),
+    ));
     if sites.iter().any(|locant| {
         parts
             .parent_atom_ids_by_locant
@@ -625,8 +849,12 @@ fn collect_indicated_hydrogens(
             && fusion.contains(&loc)
             && bonds.len() == 3
             && saturated_ring_site(mol, idx, &ring);
-        let saturated_fusion_h =
-            bonds.len() == 3 && order == 3 && atom.total_h_count + atom.explicit_h_count > 0;
+        // P-73.1.1.2: the hydron of a fusion N⁺-H is the '-ium' suffix, not
+        // hydrogen of the neutral parent hydride.
+        let saturated_fusion_h = bonds.len() == 3
+            && order == 3
+            && atom.total_h_count + atom.explicit_h_count > 0
+            && !is_ium_nitrogen(mol, idx);
         let indicated = (order == 2 || saturated_fusion_h)
             && (!atom.is_carbon()
                 || saturated_ring_site(mol, idx, &ring)
@@ -880,6 +1108,29 @@ fn add_proved_parent_hydrogens(
         parts.fusion_plan.as_ref()
     };
     if plan.is_some_and(|plan| plan.audit.paired_external_pi_consumption) {
+        // P-58.2.2.3: a pair of suffixes simply removes a double bond. Groups
+        // cited as prefixes replace hydrogen of hydro positions instead
+        // (P-58.2.4, '1,3-dioxo-1,3-dihydro-2H-isoindole-2,5-diyl').
+        let mut sites: Vec<_> = state
+            .into_iter()
+            .flat_map(|state| {
+                (state.oxo_operations.iter())
+                    .chain(&state.imino_operations)
+                    .chain(&state.alkylidene_operations)
+            })
+            .map(|op| (locants[&op.parent_atom_id].clone(), op.parent_atom_id))
+            .collect();
+        if parts.attachment_order != 2
+            && parts
+                .principal_group
+                .as_ref()
+                .is_none_or(|group| sites.iter().all(|site| !group.atom_ids.contains(&site.1)))
+        {
+            sort_sites(&mut sites);
+            parts
+                .hydro_operations
+                .push(operation("additive_hydrogen", &sites));
+        }
         return Ok(true);
     }
     let fusion_added_only = plan.is_some()
@@ -908,7 +1159,13 @@ fn add_proved_parent_hydrogens(
         return Ok(true);
     }
     if delta.hydrogenated_edges.is_empty() {
-        return Ok(false);
+        // The completed fusion plan verified the H-bearing lambda atom and
+        // the hydrogen distribution of every allowed parent assignment.
+        return Ok(plan.is_some_and(|p| {
+            p.lambda_descriptors
+                .iter()
+                .any(|d| mol.atoms[&d.atom_id].total_h_count > 0)
+        }));
     }
     let indicated: AtomSet = parts
         .parent_hydride
@@ -1007,9 +1264,11 @@ fn suffix_hydrogen_rank(
     fusion: &[String],
     state: &super::fusion::mancude::ParentDerivativeState,
 ) -> impl Ord + use<> {
-    // P-58.2.3.1.3: if suffix groups outnumber intrinsic H, first reserve
-    // the lowest peripheral indicated-H site.
-    let lowest_indicated = if !indicated.is_empty() && indicated.len() < suffix_count {
+    // P-58.2.3.1.3 (1), P-58.2.3.1.4: unless the indicated hydrogen
+    // accommodates every suffix group, first reserve the lowest peripheral
+    // indicated-H site.
+    let on_suffix = indicated.iter().filter(|l| suffix.contains(*l)).count();
+    let lowest_indicated = if !indicated.is_empty() && on_suffix < suffix_count {
         let lowest = indicated
             .iter()
             .filter(|l| !fusion.contains(*l))
@@ -1026,7 +1285,17 @@ fn suffix_hydrogen_rank(
         .collect();
     (
         lowest_indicated,
-        std::cmp::Reverse(indicated.iter().filter(|l| suffix.contains(*l)).count()),
+        // P-58.2.3.1.3 (2): other indicated hydrogen goes to the suffix
+        // atoms. One that still leaves an added hydrogen to cite is no gain
+        // over suffixes that simply remove a double bond (P-58.2.2.3); the
+        // lowest locants then decide (P-58.2.3.1.4,
+        // '1H,5H-pyrido[3,2,1-ij]quinoline-6,8-dione', not '1H,8H-...-6,8(5H)-dione').
+        std::cmp::Reverse(
+            on_suffix as isize
+                - (state.bond_delta.added_hydrogen_operations.iter())
+                    .map(|op| op.locants.len() as isize)
+                    .sum::<isize>(),
+        ),
         indicated
             .iter()
             .map(|l| parse_locant(l))
@@ -1042,6 +1311,67 @@ fn suffix_hydrogen_rank(
     )
 }
 
+/// Whether `state` and the suffix atoms cover exactly the saturated positions
+/// of the ring.
+///
+/// P-58.2.3.1.1: 'locants for hydro prefixes are those of the saturated
+/// positions'. The bond model does not see an aromatic N-H as one, nor
+/// positions whose double bonds moved, so the saturated positions left by
+/// the indicated hydrogen, the suffix atoms and the added hydrogen are cited
+/// here ('1,2,4,9-tetrahydro-3H-pyrido[2,3-b]indol-3-one',
+/// '1,4-dihydrocyclopenta[b]indol-3(2H)-one').
+// Provenance: fn cites_saturated_positions | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/additive.rs::cites_saturated_positions
+fn cites_saturated_positions(
+    mol: &Molecule,
+    locants: &BTreeMap<usize, String>,
+    pi_atoms: &AtomSet,
+    suffix: &AtomSet,
+    indicated: &[String],
+    state: &mut super::fusion::mancude::ParentDerivativeState,
+) -> bool {
+    let atoms: AtomSet = locants.keys().copied().collect();
+    let saturated: BTreeSet<_> = pi_atoms
+        .iter()
+        .filter(|id| ring_bonds(mol, **id, &atoms).iter().all(|b| b.order == 1))
+        .map(|id| &locants[id])
+        .collect();
+    if (state.hydro_operations.iter())
+        .chain(&state.bond_delta.added_hydrogen_operations)
+        .flat_map(|op| &op.locants)
+        .chain(indicated)
+        .chain(suffix.iter().map(|id| &locants[id]))
+        .collect::<BTreeSet<_>>()
+        == saturated
+    {
+        return true;
+    }
+    // Indicated hydrogen on every suffix atom leaves nothing to add.
+    if indicated.len() == suffix.len() && suffix.iter().all(|id| indicated.contains(&locants[id])) {
+        state.bond_delta.added_hydrogen_operations.clear();
+    }
+    let held: BTreeSet<_> = (state.bond_delta.added_hydrogen_operations.iter())
+        .flat_map(|op| &op.locants)
+        .chain(indicated)
+        .chain(suffix.iter().map(|id| &locants[id]))
+        .collect();
+    let mut hydro: Vec<_> = locants
+        .iter()
+        .filter(|(_, l)| saturated.contains(l) && !held.contains(l))
+        .map(|(&id, l)| (l.clone(), id))
+        .collect();
+    if !held.is_subset(&saturated) || hydro.len() % 2 != 0 {
+        return false;
+    }
+    sort_sites(&mut hydro);
+    state.hydro_operations = if hydro.is_empty() {
+        Vec::new()
+    } else {
+        vec![operation("additive_hydrogen", &hydro)]
+    };
+    true
+}
+
 type SuffixHydrogenState = (
     Vec<String>,
     super::fusion::model::ParentBondModel,
@@ -1053,6 +1383,7 @@ type SuffixHydrogenState = (
 pub(super) fn systematic_suffix_hydrogen_state(
     mol: &Molecule,
     plan: &super::fusion::model::FusionParentPlan,
+    group_key: &str,
     suffix: &AtomSet,
     locants: &BTreeMap<usize, String>,
 ) -> Result<Option<SuffixHydrogenState>, String> {
@@ -1065,7 +1396,54 @@ pub(super) fn systematic_suffix_hydrogen_state(
     {
         return Ok(None);
     }
-    let model = numbering::parent_bond_model(&plan.abstract_parent_graph)?;
+    // P-58.2.3.1.1: at a fusion carbon the three endocyclic single
+    // bonds and the alcohol bond consume its entire valence. A peripheral
+    // alcohol can substitute a hydrogen on a doubly bonded carbon. Only
+    // the junction alcohols therefore require free parent valences.
+    if group_key == "alcohol" {
+        if !plan
+            .abstract_parent_graph
+            .atoms
+            .iter()
+            .all(|a| a.symbol == "C")
+        {
+            return Ok(None);
+        }
+        let junctions: AtomSet = suffix
+            .iter()
+            .copied()
+            .filter(|&id| {
+                ring_bonds(mol, id, &atoms).len() == 3 && saturated_ring_site(mol, id, &atoms)
+            })
+            .collect();
+        if junctions.is_empty() || junctions.len() != plan.indicated_hydrogens.len() {
+            return Ok(None);
+        }
+        let state = graph_suffix_hydrogen_state(
+            mol,
+            &plan.abstract_parent_graph,
+            &AtomSet::new(),
+            &junctions,
+            locants,
+            None,
+        )?;
+        return Ok(state.filter(|(indicated, model, state)| {
+            indicated.len() == junctions.len()
+                && junctions.iter().all(|id| indicated.contains(&locants[id]))
+                && model.maximum_non_cumulative_double_bonds
+                    == plan.bond_model.maximum_non_cumulative_double_bonds
+                && state.bond_delta.added_hydrogen_operations.is_empty()
+        }));
+    }
+    // P-25.7.1.1: the double bonds are those 'consistent with the appropriate
+    // bonding number of the skeletal atoms', so a fusion N takes none and is
+    // not counted in the parent's indicated hydrogen.
+    let fixed = valence_saturated_atoms(&plan.abstract_parent_graph);
+    let mut graph = plan.abstract_parent_graph.clone();
+    for atom in &mut graph.atoms {
+        atom.forced_single |= fixed.contains(&atom.id);
+    }
+    let model = numbering::parent_bond_model(&graph)?;
     let capable = parent_pi_atoms(&model);
     let quota = capable
         .len()
@@ -1080,23 +1458,18 @@ pub(super) fn systematic_suffix_hydrogen_state(
     // indicated hydrogen is placed for the suffixes as for any parent
     // (P-58.2.3.1.1, '1,2-dihydro-3H-indol-3-one' in P-64.3.1; P-58.2.3.1.3);
     // an N-H not used by them stays as hydro hydrogen ('7,14-dihydro').
-    let pheno = plan.ast.component_occurrences.iter().any(|m| {
-        super::fusion::registry::fusion_component_registry()
-            .spec_for_match(m)
-            .is_ok_and(|s| s.parent_hydride_only)
-    });
-    if quota > carbon_h && !pheno {
-        return Ok(None);
-    }
-    let state = graph_suffix_hydrogen_state(
-        mol,
-        &plan.abstract_parent_graph,
-        suffix,
-        suffix,
-        locants,
-        None,
-    )?;
-    Ok(state.map(|(mut indicated, model, state)| {
+    let pheno = super::fusion::registry::has_parent_hydride_component(plan);
+    // Other parents take the same placement when it covers exactly the
+    // saturated positions.
+    let composed = quota > carbon_h && !pheno;
+    let state = graph_suffix_hydrogen_state(mol, &graph, suffix, suffix, locants, None)?;
+    Ok(state.and_then(|(mut indicated, model, mut state)| {
+        if !pheno
+            && !cites_saturated_positions(mol, locants, &capable, suffix, &indicated, &mut state)
+            && composed
+        {
+            return None;
+        }
         if pheno {
             let cited: BTreeSet<_> = state
                 .hydro_operations
@@ -1116,7 +1489,7 @@ pub(super) fn systematic_suffix_hydrogen_state(
             }
             indicated.sort_by_key(|l| parse_locant(l));
         }
-        (indicated, model, state)
+        Some((indicated, model, state))
     }))
 }
 
@@ -1327,7 +1700,15 @@ fn apply_lambda_parent_hydrogens(
     }
     // P-25.6 / P-25.7.1.1, Lm-3.1–3.2: complete the entire mancude
     // lambda parent before assigning indicated H, suffix H and hydro prefixes.
-    let graph = numbering::parent_bond_graph(mol, &parts.parent_atom_ids);
+    let mut graph = numbering::parent_bond_graph(mol, &parts.parent_atom_ids);
+    // P-25.7.1.1: a neutral fusion nitrogen with three ring neighbours
+    // cannot take a double bond in the lambda parent either.
+    let fixed = valence_saturated_atoms(&graph);
+    for atom in &mut graph.atoms {
+        if atom.symbol == "N" && fixed.contains(&atom.id) {
+            atom.forced_single = true;
+        }
+    }
     let mut suffix: AtomSet = parts
         .principal_group
         .as_ref()
@@ -1389,18 +1770,18 @@ pub(super) fn retained_suffix_hydrogen_state(
     indicated_seed: &[String],
 ) -> Result<Option<SuffixHydrogenState>, String> {
     use super::fusion::{mancude::suffix_hydrogen_state, numbering};
-    let by_loc = locants.iter().map(|(&id, l)| (l.clone(), id)).collect();
+    let by_loc: BTreeMap<_, _> = locants.iter().map(|(&id, l)| (l.clone(), id)).collect();
     let suffix_locants: BTreeSet<_> = suffix.iter().map(|a| locants[a].clone()).collect();
     let mut citations = vec![template.default_indicated_h.clone()];
-    // A pheno...ine parent (P-25.2.2.3) cites its indicated hydrogen at N10
-    // ('10H-phenoxazine'), but it may take any permissible peripheral site:
-    // the suffix (P-58.2.3.1.1, '2,10-dihydro-3H-phenoxazin-3-one' as
-    // '1,2-dihydro-3H-indol-3-one' in P-64.3.1) or, with more suffixes,
-    // the lowest one (P-58.2.3.1.3).
-    if super::fusion::registry::fusion_component_registry()
-        .get(&template.name)
-        .is_some_and(|c| c.spec.parent_hydride_only)
-    {
+    // A parent whose name states its one indicated hydrogen ('9H-pyrido[3,4-b]indole',
+    // '2H-isoindole', '10H-phenoxazine') may take it at any permissible
+    // peripheral site: the suffix (P-58.2.3.1.1, '1,2-dihydro-3H-indol-3-one'
+    // in P-64.3.1) or, when the suffixes cannot take it, the lowest one
+    // (P-58.2.3.1.3, P-58.2.3.1.4).
+    let stated = template.default_indicated_h.is_empty()
+        && template.indicated_hydrogen_count() == 1
+        && !name_indicated_hydrogen_locants(Some(&template.name)).is_empty();
+    if stated {
         citations.extend(
             template
                 .atoms
@@ -1415,6 +1796,7 @@ pub(super) fn retained_suffix_hydrogen_state(
         citations.push(indicated_seed.to_vec());
     }
     let mut candidates = Vec::new();
+    let mut unplaced = None;
     for indicated in suffix_hydrogen_citations(mol, atoms, locants, &suffix_locants, citations) {
         if indicated.len() != template.indicated_hydrogen_count() {
             continue;
@@ -1428,7 +1810,22 @@ pub(super) fn retained_suffix_hydrogen_state(
             Err(error) if error == numbering::RETAINED_PARENT_BOND_CAPACITY_ERROR => continue,
             Err(error) => return Err(error),
         };
-        let Some(state) = suffix_hydrogen_state(mol, atoms, &model, suffix, locants)? else {
+        let mut pi_atoms = parent_pi_atoms(&model);
+        pi_atoms.extend(indicated.iter().map(|l| by_loc[l]));
+        let Some(state) =
+            suffix_hydrogen_state(mol, atoms, &model, suffix, locants)?.and_then(|mut state| {
+                (!stated
+                    || cites_saturated_positions(
+                        mol, locants, &pi_atoms, suffix, &indicated, &mut state,
+                    ))
+                .then_some(state)
+            })
+        else {
+            // The suffix atoms can take the hydrogen, but the bond model
+            // cannot place the hydro prefixes.
+            if stated && indicated.iter().all(|l| suffix_locants.contains(l)) {
+                unplaced.get_or_insert((indicated, model, pi_atoms));
+            }
             continue;
         };
         let rank = suffix_hydrogen_rank(
@@ -1440,10 +1837,18 @@ pub(super) fn retained_suffix_hydrogen_state(
         );
         candidates.push((rank, indicated, model, state));
     }
-    Ok(candidates
-        .into_iter()
-        .min_by(|a, b| a.0.cmp(&b.0))
-        .map(|(_, indicated, model, state)| (indicated, model, state)))
+    let best = candidates.into_iter().min_by(|a, b| a.0.cmp(&b.0));
+    // P-58.2.3.1.1: the hydro locants are those of the saturated positions,
+    // also when the double bonds between them have to move
+    // ('2,5-dihydro-4H-isoindol-4-one'). Any proved state of the structure
+    // carries them.
+    if let Some((indicated, model, pi_atoms)) = unplaced {
+        return Ok(best.and_then(|(_, _, _, mut state)| {
+            cites_saturated_positions(mol, locants, &pi_atoms, suffix, &indicated, &mut state)
+                .then_some((indicated, model, state))
+        }));
+    }
+    Ok(best.map(|(_, indicated, model, state)| (indicated, model, state)))
 }
 
 // Provenance: fn apply_suffix_hydrogens | adapted
@@ -1470,7 +1875,49 @@ fn apply_suffix_hydrogens(
     if apply_lambda_parent_hydrogens(mol, parts, locants)? {
         return Ok(true);
     }
-    let Some(group) = parts.principal_group.as_ref().filter(|g| g.key == "ketone") else {
+    // P-58.2.3.1.1: accommodate a free valence on a saturated peripheral
+    // N using the parent's one indicated H when its mancude capacity holds.
+    if parts.is_substituent
+        && parts.attachment_order == 1
+        && let Some(&site) = parts
+            .parent_atom_ids_by_locant
+            .get(&parts.attachment_locant)
+        && mol.atoms[&site].symbol == "N"
+        && ring_bonds(mol, site, &parts.parent_atom_ids).len() == 2
+        && let Some(plan) = parts
+            .parent_hydride
+            .as_ref()
+            .and_then(|p| p.fusion_plan.as_ref())
+        && plan.indicated_hydrogens.len() == 1
+        && plan.lambda_descriptors.is_empty()
+    {
+        let graph = &plan.abstract_parent_graph;
+        if let Some((indicated, model, state)) = graph_suffix_hydrogen_state(
+            mol,
+            graph,
+            &AtomSet::new(),
+            &AtomSet::from([site]),
+            locants,
+            None,
+        )? && indicated == [parts.attachment_locant.clone()]
+            && model.maximum_non_cumulative_double_bonds
+                == plan.bond_model.maximum_non_cumulative_double_bonds
+            && state.bond_delta.added_hydrogen_operations.is_empty()
+        {
+            apply_parent_hydrogen_state(parts, indicated, model, state);
+            return Ok(true);
+        }
+    }
+    let systematic = parts
+        .parent_hydride
+        .as_ref()
+        .filter(|p| p.is_systematic_fusion())
+        .and_then(|p| p.fusion_plan.as_ref());
+    let Some(group) = parts.principal_group.as_ref().filter(|g| {
+        matches!(g.key.as_str(), "ketone" | "alcohol")
+            || g.key == "imine"
+                && systematic.is_some_and(super::fusion::registry::has_parent_hydride_component)
+    }) else {
         return Ok(false);
     };
     let atoms = &parts.parent_atom_ids;
@@ -1479,19 +1926,17 @@ fn apply_suffix_hydrogens(
         return Ok(false);
     }
     let suffix_locants: BTreeSet<_> = suffix.iter().map(|a| locants[a].clone()).collect();
-    if let Some(plan) = parts
-        .parent_hydride
-        .as_ref()
-        .filter(|p| p.is_systematic_fusion())
-        .and_then(|p| p.fusion_plan.as_ref())
-    {
+    if let Some(plan) = systematic {
         let Some((indicated, model, state)) =
-            systematic_suffix_hydrogen_state(mol, plan, &suffix, locants)?
+            systematic_suffix_hydrogen_state(mol, plan, &group.key, &suffix, locants)?
         else {
             return Ok(false);
         };
         apply_parent_hydrogen_state(parts, indicated, model, state);
         return Ok(true);
+    }
+    if group.key == "alcohol" {
+        return Ok(false);
     }
     if parts
         .retained_parent_metadata
@@ -1683,13 +2128,17 @@ mod tests {
         for (smiles, expected) in [
             (
                 "CN1C(=O)CN=C(C2=C1C=CC(=C2)Cl)C3=CC=CC=C3",
-                "7-chloro-1-methyl-5-phenyl-1H-1,4-benzodiazepin-2(3H)-one",
+                // #95: 1H-1,4-benzodiazepine has one indicated hydrogen, which
+                // the one ketone takes (P-58.2.3.1.1; P-64.3.1
+                // '1,2-dihydro-3H-indol-3-one, not 1H-indol-3(2H)-one').
+                "7-chloro-1-methyl-5-phenyl-1,3-dihydro-2H-1,4-benzodiazepin-2-one",
             ),
             (
                 "CCCC1=NN(C2=C1N=C(NC2=O)C3=C(C=CC(=C3)S(=O)(=O)N4CCN(CC4)C)OCC)C",
-                // #16/#29: the substituted N-1 keeps the parent's indicated hydrogen,
-                // which takes the low locant before added hydrogen (P-31.0, P-58.2.1.1).
-                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-1H-pyrazolo[4,3-d]pyrimidin-7(6H)-one",
+                // #95: one indicated hydrogen and one ketone, so the ketone takes
+                // it and the N-H positions are hydro positions (P-58.2.3.1.1;
+                // P-64.3.1 '1,2-dihydro-3H-indol-3-one, not 1H-indol-3(2H)-one').
+                "5-[2-ethoxy-5-(4-methylpiperazine-1-sulfonyl)phenyl]-1-methyl-3-propyl-1,6-dihydro-7H-pyrazolo[4,3-d]pyrimidin-7-one",
             ),
             (
                 "O=c1c2ccccc2nc2n1CC=C2",
@@ -1718,6 +2167,17 @@ mod tests {
                 "7-methyl-6,7-dihydro-5H-cyclopenta[b]pyridin-5-one",
             ),
             ("O=C1CCCc2ncccc12", "7,8-dihydroquinolin-5(6H)-one"),
+            // Issue #27. The bicyclic parent has no intrinsic indicated H.
+            // P-58.2.2.2 gives the added H a lower locant than the hydro prefixes.
+            (
+                "CCCNC1=NC(=O)C2=C(N1)CSC2",
+                "2-(propylamino)-5,7-dihydrothieno[3,4-d]pyrimidin-4(1H)-one",
+            ),
+            // The tricyclic parent can accommodate its ketone with indicated H.
+            (
+                "CC1=NC2=C(C3=C(S2)CCC3)C(=O)N1C[C@H](COCC4=CC=CC=C4Cl)O",
+                "3-{(2R)-3-[(2-chlorophenyl)methoxy]-2-hydroxypropyl}-2-methyl-3,5,6,7-tetrahydro-4H-cyclopenta[4,5]thieno[2,3-d]pyrimidin-4-one",
+            ),
             ("O=C1NC2=C(O1)C=CO2", "furo[2,3-d][1,3]oxazol-2(3H)-one"),
             ("O=C1NC2=C(OC=C2)O1", "furo[3,2-d][1,3]oxazol-2(1H)-one"),
             ("O=C1OC2=C(O1)C=CN2", "4H-[1,3]dioxolo[4,5-b]pyrrol-2-one"),
@@ -1769,7 +2229,8 @@ mod tests {
             ),
             (
                 "CC1=C2C(=CC=C1)C3=C(N2)N=C(N=N3)NN=C4C5=C(C=CC(=C5)[N+](=O)[O-])N(C4=O)C",
-                "1-methyl-3-{[(6-methyl-5H-[1,2,4]triazino[5,6-b]indol-3-yl)amino]imino}-5-nitro-1,3-dihydro-2H-indol-2-one",
+                // P-68.3.1.2.2: as 4-(phenylhydrazinylidene)cyclohexane-1-carboxylic acid.
+                "1-methyl-3-[(6-methyl-5H-[1,2,4]triazino[5,6-b]indol-3-yl)hydrazinylidene]-5-nitro-1,3-dihydro-2H-indol-2-one",
             ),
             ("O=C1CCc2ccccc2N1", "3,4-dihydroquinolin-2(1H)-one"),
             ("O=C1CCc2ccccc12", "2,3-dihydro-1H-inden-1-one"),
@@ -1785,6 +2246,83 @@ mod tests {
             ("O=C1CCCCN1", "piperidin-2-one"),
             ("C1CCc2ccccc2C1", "1,2,3,4-tetrahydronaphthalene"),
             ("OC1CCCc2ccccc12", "1,2,3,4-tetrahydronaphthalen-1-ol"),
+            // #178: a ring with no double bond left keeps its retained parent
+            // (P-25.1.1, P-25.2.1 Table 2.8) when it carries a ketone. The
+            // ketone takes the indicated hydrogen (P-58.2.3.1.1) or leaves an
+            // added hydrogen (P-58.2.2), and the hydro prefixes of the total
+            // hydrogenation need no locants (P-31.2.3.3.2, P-14.3.4.5;
+            // 'tetrahydro-4H-pyran-4-one' in P-58.2.3.1.1,
+            // 'dihydro-2H-pyran-3(4H)-ylidene' in P-32.2.1).
+            ("O=C1CCCC2CCCCC12", "octahydronaphthalen-1(2H)-one"),
+            ("O=C1CCC2CCCCC2C1", "octahydronaphthalen-2(1H)-one"),
+            ("O=C1CCC(=O)C2CCCCC12", "octahydronaphthalene-1,4-dione"),
+            (
+                "CC1CCC2CCCC(=O)C2C1",
+                "7-methyloctahydronaphthalen-1(2H)-one",
+            ),
+            ("O=C1CCC2CCCCN12", "hexahydroindolizin-3(2H)-one"),
+            ("O=C1CCN2CCCC12", "hexahydro-1H-pyrrolizin-1-one"),
+            ("O=C1CCCN2CCCCC12", "hexahydro-2H-quinolizin-1(6H)-one"),
+            ("O=C1CCCC2CCCCN12", "octahydro-4H-quinolizin-4-one"),
+            ("O=C1CCC2CCCCCC12", "octahydroazulen-1(2H)-one"),
+            ("O=C1CCC2CCCC12", "hexahydropentalen-1(2H)-one"),
+            ("O=C1CCCC2CC3CCCCC3CC12", "dodecahydroanthracen-1(2H)-one"),
+            ("O=C1CCCC2C1CCC1CCCCC12", "dodecahydrophenanthren-1(2H)-one"),
+            ("O=C1CCCC2NC3CCCCC3CC12", "dodecahydroacridin-1(2H)-one"),
+            ("O=C1C2CCCCC2OC2CCCCC12", "dodecahydro-9H-xanthen-9-one"),
+            ("O=C1CCCC2COCCC12", "hexahydro-1H-2-benzopyran-5(3H)-one"),
+            ("O=C1CCC2CCCCC12", "octahydro-1H-inden-1-one"),
+            // #178: the indicated hydrogen also moves to a ketone at a
+            // position other than the one the retained name shows
+            // (P-58.2.3.1.1), in a saturated ring as in a mancude one.
+            ("O=C1CC2CCCCC2C1", "octahydro-2H-inden-2-one"),
+            ("O=C1CC2=C(C1)CCCC2", "1,3,4,5,6,7-hexahydro-2H-inden-2-one"),
+            ("O=C1CCCC2OCCCC12", "octahydro-5H-1-benzopyran-5-one"),
+            (
+                "O=C1CCCC2=C1CCCO2",
+                "2,3,4,6,7,8-hexahydro-5H-1-benzopyran-5-one",
+            ),
+            ("O=C1CCCC2C3CCCCC3CC12", "dodecahydro-1H-fluoren-1-one"),
+            (
+                "O=C1CCCC2=C1c1ccccc1C2",
+                "1,2,3,9-tetrahydro-4H-fluoren-4-one",
+            ),
+            // #178: a group on a saturated fusion atom does not unseat the
+            // retained parent; the fusion atom is a hydro position
+            // (P-31.2.3.3.2, P-58.2.2).
+            (
+                "O=C1CCCC2CCCCC12C",
+                "8a-methyloctahydronaphthalen-1(2H)-one",
+            ),
+            (
+                "CC12CCC(=O)C=C1CCCC2=O",
+                "8a-methyl-3,4,8,8a-tetrahydronaphthalene-1,6(2H,7H)-dione",
+            ),
+            (
+                "CC12C=CC(=O)C=C1CCCC2",
+                "4a-methyl-5,6,7,8-tetrahydronaphthalen-2(4aH)-one",
+            ),
+            (
+                "CC12CCCCN1C(=O)CCC2",
+                "9a-methyloctahydro-4H-quinolizin-4-one",
+            ),
+            (
+                "CC12CCCN1C(=O)CC2",
+                "7a-methylhexahydro-3H-pyrrolizin-3-one",
+            ),
+            (
+                "O=C1CCCC2(C)CCCC12C",
+                "3a,7a-dimethyloctahydro-4H-inden-4-one",
+            ),
+            // #178 control: the indicated hydrogen that the N-H of indazole
+            // carries is not relocated on the retained template, so this
+            // name still comes from the fusion planner.
+            ("O=C1CCCC2NNCC12", "octahydro-4H-indazol-4-one"),
+            // #178 control: an oxo prefix is a hydro position (P-58.2.4).
+            (
+                "OC(=O)C1CCC2C(C1)CCCC2=O",
+                "5-oxodecahydronaphthalene-2-carboxylic acid",
+            ),
         ] {
             let name = super::super::name_smiles(smiles, &Default::default()).unwrap();
             if name.text != expected {
@@ -1853,11 +2391,12 @@ mod tests {
     // exact matches are conservatively adapted; independent ancestry is not established.
     fn retained_derivatives_use_bond_consistent_hydrogen_states() {
         for (smiles, expected) in [
-            // The generic external-pi fallback does not own suffix or
-            // intrinsic-H allocation; keep its existing composition state.
+            // #95: cyclopenta[a]phenanthrene has one indicated hydrogen, which
+            // the one ketone takes; the other saturated positions are hydro
+            // positions (P-58.2.3.1.1).
             (
                 "C[C@]12CC[C@H]3[C@H]([C@@H]1CC[C@@H]2O)CCC4=CC(=O)CC[C@]34C",
-                "(1S,3aS,3bR,9aR,9bS,11aS)-1-hydroxy-9a,11a-dimethyl-2,3,3a,3b,4,5,9,9a,9b,10,11,11a-dodecahydrocyclopenta[a]phenanthren-7(1H,8H)-one",
+                "(1S,3aS,3bR,9aR,9bS,11aS)-1-hydroxy-9a,11a-dimethyl-1,2,3,3a,3b,4,5,8,9,9a,9b,10,11,11a-tetradecahydro-7H-cyclopenta[a]phenanthren-7-one",
             ),
             ("O=C1C=C2C=CC=CC2=N1", "2H-indol-2-one"),
             ("O=C1Cc2ccccc2N1", "1,3-dihydro-2H-indol-2-one"),

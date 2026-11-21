@@ -10,6 +10,7 @@
 // Source: ReShiki | crates/opsin/src/smiles.rs | 1e2ada3e92b99b1487058f5a4031799d41c27645
 // Source: ReShiki | crates/opsin/src/smiles.rs | 2fb808b58e5f572709ea335de644e6f5df406852
 // Source: ReShiki | crates/opsin/src/smiles.rs | cc6840eb98c18b3d6d10151b18df174675be1170
+// Source: Nazuchem | crates/nazuchem-n2s/src/smiles.rs | issue #15
 // Copyright 2017 Daniel Lowe
 // Changes: Rust ownership, arena/container and error-handling adaptation; integrated native changes are documented in PORTING.md. Original function boundaries are marked below.
 
@@ -91,8 +92,21 @@ pub fn build_fragment(
     fragment_type: &str,
     label_mapping: &str,
 ) -> Result<FragmentId, GraphError> {
+    build_fragment_with_token_dialect(graph, smiles, fragment_type, label_mapping, false)
+}
+
+// Provenance: fn build_fragment_with_token_dialect | adapted
+// Source: Nazuchem | crates/nazuchem-n2s/src/smiles.rs::build_fragment_with_token_dialect
+// Source: OPSIN | opsin-core/src/main/java/uk/ac/cam/ch/wwmm/opsin/SMILESFragmentBuilder.java::build
+pub(crate) fn build_fragment_with_token_dialect(
+    graph: &mut Graph,
+    smiles: &str,
+    fragment_type: &str,
+    label_mapping: &str,
+    ring_token: bool,
+) -> Result<FragmentId, GraphError> {
     let backup = graph.clone();
-    let result = build_fragment_inner(graph, smiles, fragment_type, label_mapping);
+    let result = build_fragment_inner(graph, smiles, fragment_type, label_mapping, ring_token);
     if result.is_err() {
         *graph = backup;
     }
@@ -108,6 +122,7 @@ fn build_fragment_inner(
     smiles: &str,
     fragment_type: &str,
     labels: &str,
+    ring_token: bool,
 ) -> Result<FragmentId, GraphError> {
     let fragment = graph.add_fragment(fragment_type);
     if smiles.is_empty() {
@@ -246,6 +261,7 @@ fn build_fragment_inner(
                     &smiles[index + 1..close],
                     stack.last_mut().unwrap(),
                     first_out,
+                    ring_token,
                 )?;
                 stack.last_mut().unwrap().atom = Some(atom);
                 index = close + 1;
@@ -365,6 +381,7 @@ fn parse_bracket(
     content: &str,
     frame: &mut Frame,
     first_out: Option<u8>,
+    ring_token: bool,
 ) -> Result<AtomId, GraphError> {
     let bytes = content.as_bytes();
     let mut index = 0;
@@ -382,7 +399,9 @@ fn parse_bracket(
     let element = if symbol == "*" {
         Element::R
     } else if spare {
-        if !aromatic(symbol) {
+        // Native pheno...ine and boranthrene dictionary entries use spare
+        // valence at these bracketed atoms.
+        if !(aromatic(symbol) || ring_token && matches!(symbol, "b" | "ge" | "sn" | "bi")) {
             return Err(GraphError(format!("{symbol} is not an aromatic Element")));
         }
         let mut normal = symbol.to_owned();

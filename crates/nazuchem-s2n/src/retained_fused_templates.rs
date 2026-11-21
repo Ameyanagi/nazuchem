@@ -9,6 +9,7 @@
 // Source: openclatura | tests/roundtrip/test_retained_fused_production.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/unit/test_fusion_component_h_citation.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/roundtrip/test_fused_parents.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
+// Source: Nazuchem | crates/nazuchem-s2n/src/retained_fused_templates.rs | issue #96
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura retained graph registry/matcher and generated series adapted to typed Rust, with original topology-status and localized-pi safeguards.
@@ -258,6 +259,17 @@ pub fn retained_parent_metadata(name: &str) -> Option<RetainedParentMetadata> {
         .find(|t| t.name == name)
         .or_else(|| ALL_TEMPLATES.iter().find(|t| t.output_name() == name))
         .map(RetainedGraphTemplate::metadata)
+        .or_else(|| {
+            let (family, prefix, eager) = if let Some(prefix) = name.strip_suffix("cene") {
+                ("acenes", prefix, 9)
+            } else {
+                ("polyaphenes", name.strip_suffix("phene")?, 10)
+            };
+            static COUNTS: LazyLock<BTreeMap<String, usize>> =
+                LazyLock::new(|| (10..=1000).map(|n| (multipliers::basic(n), n)).collect());
+            let count = *COUNTS.get(prefix)?;
+            (count > eager).then(|| generated_series_template(family, count).metadata())
+        })
 }
 // Provenance: fn retained_graph_template_from_data | adapted
 // Source: openclatura | src/openclatura/retained_fused_templates.py::retained_graph_template_from_data
@@ -490,6 +502,34 @@ pub fn match_retained_graph_templates_with_options(
     matches
 }
 
+/// P-73.1.1.2: a saturated ring N⁺ (protonated or quaternary) is named from
+/// the neutral parent hydride plus '-ium'. A spiro N⁺ joins two ring systems
+/// and is left to spiro nomenclature (P-24.5.2).
+// Provenance: fn is_ium_nitrogen | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/retained_fused_templates.rs::is_ium_nitrogen
+pub fn is_ium_nitrogen(mol: &Molecule, idx: usize) -> bool {
+    let atom = &mol.atoms[&idx];
+    let neighbors = mol.get_neighbors(idx);
+    if atom.symbol != "N"
+        || atom.charge != 1
+        || atom.total_h_count + neighbors.len() != 4
+        || neighbors.iter().any(|&n| mol.bond_order(idx, n) != 1)
+    {
+        return false;
+    }
+    // Spiro: without the N its four neighbours fall into two ring pairs.
+    let joined = |start: usize| {
+        let mut reached = AtomSet::from([idx]);
+        let mut pending = vec![start];
+        while let Some(current) = pending.pop() {
+            if reached.insert(current) {
+                pending.extend(mol.get_neighbors(current));
+            }
+        }
+        neighbors.iter().filter(|n| reached.contains(n)).count()
+    };
+    !(neighbors.len() == 4 && neighbors.iter().all(|&n| joined(n) == 2))
+}
 // Provenance: fn is_saturated_site | adapted
 // Source: openclatura | src/openclatura/retained_fused_templates.py::_is_saturated_site
 pub fn is_saturated_site(mol: &Molecule, atom: usize, ring: &AtomSet) -> bool {
@@ -573,6 +613,7 @@ fn atom_matches(
             || (charge == "charge_layer" && a.charge != 0))
             && atom.charge != a.charge
             && !deprotonated_indicated_h
+            && !(a.charge == 0 && template.family == "fused" && is_ium_nitrogen(mol, idx))
     {
         return false;
     }

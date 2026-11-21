@@ -199,6 +199,17 @@ pub fn stereogenic_odd_cumulenes(state: &State) -> Result<Vec<Cumulene>, String>
         .then(|| without_maps(state))
         .transpose()?;
     let state = unmapped.as_ref().unwrap_or(state);
+    let ranks = ligand_ranks(state, false)?;
+    let mut result = Vec::new();
+    for chain in chains {
+        if distinct_ends(state, &neighbors, &ranks, chain.ends)? {
+            result.push(chain);
+        }
+    }
+    Ok(result)
+}
+
+fn ligand_ranks(state: &State, cumulene_labels: bool) -> Result<Vec<u32>, String> {
     let ranks = ranking::rank(
         &state.graph,
         &state.rings.atoms,
@@ -207,23 +218,34 @@ pub fn stereogenic_odd_cumulenes(state: &State) -> Result<Vec<Cumulene>, String>
             break_ties: false,
             include_chirality: true,
             include_isotopes: true,
-            include_maps: false,
+            include_maps: cumulene_labels,
+            // Slash geometry refers to the depicted member of an enhanced group.
+            include_stereo_groups: false,
             ..ranking::Options::default()
         },
     )?;
-    let distinct = |end, inner| -> Result<bool, String> {
+    Ok(ranks)
+}
+
+fn distinct_ends(
+    state: &State,
+    neighbors: &Neighbors,
+    ranks: &[u32],
+    ends: [(usize, usize); 2],
+) -> Result<bool, String> {
+    let distinct = |(end, inner)| -> Result<bool, String> {
         let atom = at(&state.graph.atoms, end)?;
         let hydrogens =
             u32::from(atom.explicit_hydrogens) + at(&state.valences, end)?.implicit_hydrogens;
         let mut ligands = Vec::new();
-        for &(other, _) in at(&neighbors, end)? {
+        for &(other, _) in at(neighbors, end)? {
             if other != inner {
                 let atom = at(&state.graph.atoms, other)?;
                 // An explicit 1H is the same ligand as H (P-92.3).
                 ligands.push(if atom.atomic_number == 1 && atom.isotope <= 1 {
                     Ligand::Hydrogen
                 } else {
-                    Ligand::Atom(*at(&ranks, other)?)
+                    Ligand::Atom(*at(ranks, other)?)
                 });
             }
         }
@@ -233,14 +255,145 @@ pub fn stereogenic_odd_cumulenes(state: &State) -> Result<Vec<Cumulene>, String>
         }
         Ok(matches!(ligands.as_slice(), [a, b] if a != b))
     };
+    Ok(distinct(ends[0])? && distinct(ends[1])?)
+}
+
+/// Unconfigured ordinary double bonds that could acquire a slash on both ends.
+pub(crate) fn unspecified_directed_alkenes(
+    state: &State,
+    marked: &[Vec<usize>],
+) -> Result<Vec<[usize; 2]>, String> {
+    let mut candidates = vec![false; state.graph.bonds.len()];
+    for ((bond, meta), candidate) in state
+        .graph
+        .bonds
+        .iter()
+        .zip(&state.metadata.bonds)
+        .zip(&mut candidates)
+    {
+        *candidate = bond.order == 2
+            && meta.stereo <= 1
+            && !at(marked, bond.a)?.is_empty()
+            && !at(marked, bond.b)?.is_empty();
+    }
+    if !candidates.contains(&true) {
+        return Ok(Vec::new());
+    }
+    let unmapped = state
+        .metadata
+        .atoms
+        .iter()
+        .any(|a| a.map_present || a.map_number != 0)
+        .then(|| without_maps(state))
+        .transpose()?;
+    let state = unmapped.as_ref().unwrap_or(state);
     let mut result = Vec::new();
-    for chain in chains {
-        let [(a, inner_a), (b, inner_b)] = chain.ends;
-        if distinct(a, inner_a)? && distinct(b, inner_b)? {
-            result.push(chain);
+    for id in perception::stereogenic_units(state)?.1 {
+        if *at(&candidates, id)? {
+            let bond = at(&state.graph.bonds, id)?;
+            result.push([bond.a, bond.b]);
         }
     }
     Ok(result)
+}
+
+/// Reject contradictory directions around an ordinary stereogenic double bond
+/// and report directed units whose ligands require another cumulene's descriptor.
+pub(crate) fn check_stereo_alongside_cumulenes(
+    state: &State,
+    configurations: &[CumuleneEz],
+    directed: &[bool],
+    conflicts: &[bool],
+) -> Result<bool, String> {
+    let (chains, neighbors) = chains(state)?;
+    let both_directed = |ends: [(usize, usize); 2]| {
+        ends.iter()
+            .all(|&(end, _)| directed.get(end) == Some(&true))
+    };
+    let mut unresolved: Vec<_> = chains
+        .into_iter()
+        .map(|chain| chain.ends)
+        .filter(|&ends| {
+            both_directed(ends)
+                && !configurations
+                    .iter()
+                    .any(|ez| ez.ends == ends.map(|(end, _)| end))
+        })
+        .collect();
+    let mut contradictory = Vec::new();
+    let ordinary_end = |end: usize| -> Result<bool, String> {
+        let double_count = at(&neighbors, end)?
+            .iter()
+            .filter(|&&(_, id)| {
+                state
+                    .graph
+                    .bonds
+                    .get(id)
+                    .is_some_and(|bond| bond.order == 2)
+            })
+            .count();
+        Ok(double_count == 1)
+    };
+    for (bond, meta) in state.graph.bonds.iter().zip(&state.metadata.bonds) {
+        let ends = [(bond.a, bond.b), (bond.b, bond.a)];
+        if bond.order != 2
+            || !both_directed(ends)
+            || !ordinary_end(bond.a)?
+            || !ordinary_end(bond.b)?
+        {
+            continue;
+        }
+        if ends
+            .iter()
+            .any(|&(end, _)| conflicts.get(end) == Some(&true))
+        {
+            contradictory.push(ends);
+        }
+        if meta.stereo == 0 {
+            unresolved.push(ends);
+        }
+    }
+    if contradictory.is_empty() && unresolved.is_empty() {
+        return Ok(false);
+    }
+    let baseline = without_maps(state)?;
+    let ranks = ligand_ranks(&baseline, false)?;
+    for ends in contradictory {
+        if distinct_ends(&baseline, &neighbors, &ranks, ends)? {
+            return Err("contradictory SMILES directions around an ordinary double bond".into());
+        }
+    }
+    if unresolved.is_empty() {
+        return Ok(false);
+    }
+    let mut labelled = baseline.clone();
+    for ez in configurations {
+        let label = match cumulene_is_e(&baseline, ez)? {
+            Some(true) => 1,
+            Some(false) => 2,
+            // A known geometry with unknown CIP still merits a conservative
+            // check for dependency.
+            None => 3,
+        };
+        for &end in &ez.ends {
+            let atom = labelled
+                .metadata
+                .atoms
+                .get_mut(end)
+                .ok_or("Invalid cumulene atom index")?;
+            atom.map_number = label;
+            atom.map_present = true;
+        }
+    }
+    let with_descriptors = ligand_ranks(&labelled, true)?;
+    for ends in unresolved {
+        if !distinct_ends(&baseline, &neighbors, &ranks, ends)?
+            && distinct_ends(&baseline, &neighbors, &with_descriptors, ends)?
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 #[cfg(test)]

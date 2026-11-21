@@ -336,7 +336,7 @@ fn int_property(
     value
 }
 
-fn relative_stereo(state: &mut State) -> Result<()> {
+fn relative_stereo(state: &mut State, retain_group: bool) -> Result<()> {
     let metadata = &state.metadata;
     // Explicit enhanced stereo labels take precedence over molecule-level r.
     let grouped: HashSet<_> = metadata
@@ -356,10 +356,11 @@ fn relative_stereo(state: &mut State) -> Result<()> {
         return Ok(());
     }
     // Equivalence of the drawn member need not survive independent group inversions.
-    if !metadata
-        .groups
-        .iter()
-        .any(|group| matches!(group.kind, 1 | 2))
+    if !retain_group
+        && !metadata
+            .groups
+            .iter()
+            .any(|group| matches!(group.kind, 1 | 2))
     {
         // Atom maps are not molecular identity.
         let mut unmapped = state.clone();
@@ -495,7 +496,7 @@ pub fn reaction_part(
         name: None,
     };
     if annotations.relative {
-        relative_stereo(&mut imported.prepared.state)?;
+        relative_stereo(&mut imported.prepared.state, false)?;
     }
     if !imported.prepared.state.metadata.groups.is_empty() {
         return Err(Error::Unsupported(
@@ -508,6 +509,16 @@ pub fn reaction_part(
 /// Read default SMILES/CXSMILES chemistry, retaining input conformers and name.
 /// Drawing layout and the application's editable-chemistry checks follow this.
 pub fn read(text: &str, budget: &Budget) -> Result<Imported> {
+    read_impl(text, budget, false)
+}
+
+/// Import a marked graph without discarding its `r` group on the basis of the
+/// unmarked graph's symmetry. Temporary marks may distinguish enantiotopic sites.
+pub fn read_preserving_stereo_groups(text: &str, budget: &Budget) -> Result<Imported> {
+    read_impl(text, budget, true)
+}
+
+fn read_impl(text: &str, budget: &Budget, retain_group: bool) -> Result<Imported> {
     if text.len() > 1024 * 1024 {
         return Err(Error::Limit);
     }
@@ -524,13 +535,21 @@ pub fn read(text: &str, budget: &Budget) -> Result<Imported> {
         (text, "")
     };
     let mut parsed = parse_inner(body)?;
-    // Record directions before H removal: a bond to a removed H still specifies
-    // a terminal ligand's orientation, including H opposite an imine lone pair.
-    let mut directed = vec![false; parsed.graph.atoms.len()];
+    // Keep slash directions before hydrogen removal and stereo cleanup.
+    // Both directions are seen outward from each end of the single bond.
+    let mut directions_seen = vec![[false; 2]; parsed.graph.atoms.len()];
+    let mut conflicts = vec![false; parsed.graph.atoms.len()];
     for (bond, direction) in parsed.graph.bonds.iter().zip(&parsed.directions) {
-        if matches!(direction, Direction::Up | Direction::Down) {
-            put(&mut directed, bond.a, true)?;
-            put(&mut directed, bond.b, true)?;
+        if !matches!(direction, Direction::Up | Direction::Down) {
+            continue;
+        }
+        let up = *direction == Direction::Up;
+        for (end, up) in [(bond.a, up), (bond.b, !up)] {
+            let [down_seen, up_seen] = directions_seen.get_mut(end).ok_or(Error::Limit)?;
+            let seen = if up { up_seen } else { down_seen };
+            if std::mem::replace(seen, true) {
+                put(&mut conflicts, end, true)?;
+            }
         }
     }
     let mut annotations = Annotations::new(&parsed);
@@ -606,45 +625,33 @@ pub fn read(text: &str, budget: &Budget) -> Result<Imported> {
     )?;
     let (mut prepared, conformers, kept_atoms) =
         prepare::finish(parsed, annotations.context, budget)?;
-    // A directed chain that preparation did not record lost its E/Z when its
-    // terminal ligands differ, or may differ only by the E/Z of a recorded
-    // cumulene, which the ranking of `state` cannot see.
-    let mut dropped_cumulene_ez = false;
+    let directed = kept_atoms
+        .iter()
+        .map(|&old| at(&directions_seen, old).map(|&[down, up]| down || up))
+        .collect::<Result<Vec<_>>>()?;
     let stereogenic = stereo::stereogenic_odd_cumulenes(&prepared.state).map_err(Error::Stereo)?;
-    for chain in stereo::odd_cumulenes(&prepared.state).map_err(Error::Stereo)? {
-        let [(a, _), (b, _)] = chain.ends;
-        if *at(&directed, *at(&kept_atoms, a)?)?
-            && *at(&directed, *at(&kept_atoms, b)?)?
+    let mut dropped_cumulene_ez = stereogenic.iter().any(|chain| {
+        let [a, b] = chain.ends.map(|(end, _)| end);
+        directed.get(a) == Some(&true)
+            && directed.get(b) == Some(&true)
             && !prepared.cumulene_ez.iter().any(|ez| ez.ends == [a, b])
-            && (!prepared.cumulene_ez.is_empty() || stereogenic.contains(&chain))
-        {
-            dropped_cumulene_ez = true;
-            break;
-        }
-    }
-    // Likewise a double bond that lost its directions' configuration because
-    // its ligands differ only by the E/Z of a recorded cumulene.
-    dropped_cumulene_ez |= !prepared.cumulene_ez.is_empty()
-        && prepared
-            .state
-            .graph
-            .bonds
+    });
+    if !prepared.cumulene_ez.is_empty() {
+        let conflicts = kept_atoms
             .iter()
-            .zip(&prepared.state.metadata.bonds)
-            .any(|(bond, meta)| {
-                bond.order == 2
-                    && meta.stereo == 0
-                    && [bond.a, bond.b].iter().all(|&end| {
-                        kept_atoms
-                            .get(end)
-                            .and_then(|&old| directed.get(old))
-                            .is_some_and(|&directed| directed)
-                    })
-            });
-    // After cumulene detection: an `r` group would make enantiomorphic ligands
-    // rank equal and hide the dropped E/Z.
+            .map(|&old| at(&conflicts, old).copied())
+            .collect::<Result<Vec<_>>>()?;
+        dropped_cumulene_ez |= stereo::check_stereo_alongside_cumulenes(
+            &prepared.state,
+            &prepared.cumulene_ez,
+            &directed,
+            &conflicts,
+        )
+        .map_err(Error::Stereo)?;
+    }
+    // Normalize molecule-level relative stereo into the retained group metadata.
     if annotations.relative {
-        relative_stereo(&mut prepared.state)?;
+        relative_stereo(&mut prepared.state, retain_group)?;
     }
     // Native RemoveHs preserves properties on retained atoms. Keep the raw
     // values for the later depiction stage, which converts rank properties

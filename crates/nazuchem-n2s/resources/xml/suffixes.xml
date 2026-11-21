@@ -32,6 +32,18 @@
 		<token value="peroxol_STe">ste-tellurothioperoxol</token>
 		<token value="peroxol_TeSe">tese-selenotelluroperoxol</token>
 		<token value="peroxol_SeTe">sete-selenotelluroperoxol</token>
+		<token value="peroxolate_SO">(so-thioperoxolate)</token>
+		<token value="peroxolate_SeO">(seo-selenoperoxolate)</token>
+		<token value="peroxolate_TeO">(teo-telluroperoxolate)</token>
+		<token value="peroxolate_OS">(os-thioperoxolate)</token>
+		<token value="peroxolate_OSe">(ose-selenoperoxolate)</token>
+		<token value="peroxolate_OTe">(ote-telluroperoxolate)</token>
+		<token value="peroxolate_SeS">(ses-selenothioperoxolate)</token>
+		<token value="peroxolate_TeS">(tes-tellurothioperoxolate)</token>
+		<token value="peroxolate_SSe">(sse-selenothioperoxolate)</token>
+		<token value="peroxolate_STe">(ste-tellurothioperoxolate)</token>
+		<token value="peroxolate_TeSe">(tese-selenotelluroperoxolate)</token>
+		<token value="peroxolate_SeTe">(sete-selenotelluroperoxolate)</token>
 		<token value="olate">olate|olat</token>
 		<token value="one">one|on</token>
 		<token value="selone">selone|selon</token>
@@ -72,6 +84,8 @@
 al is allowed on standardGroup/aminoAcids but not on acidStems c.f. acetal != acetaldehyde-->
 	<tokenList tagname="suffix" type="root" subType="terminal" symbol="s">
 		<token value="al">al</token>
+		<!-- P-73.1.2.1: a whole suffix for bracketed bis(carboxamidium). -->
+		<token value="carboxamidium">carboxamidium</token>
 		<token value="tellanal">tellanal</token>
 	</tokenList>
 	<tokenList tagname="suffix" type="root" subType="terminal" symbol="ü">
@@ -86,6 +100,11 @@ al is allowed on standardGroup/aminoAcids but not on acidStems c.f. acetal != ac
 		<token value="onaphthone">onaphthone|onaphthon|naphthone|naphthon</token>
 		<token value="ophenone">ophenone|ophenon|phenone|phenon</token>
 		<token value="ous">ous|ousacid|ous acid</token>
+		<!-- P-65.2.1.2: each peroxy unit replaces one OH on the carbonic stem.
+		     The connecting o and bis belong to this acid-stem form. -->
+		<token value="carbonic_peroxoic_acid">o(thioperoxoic) os-acid|o(thioperoxoic) so-acid|obis(thioperoxoic) os,os-acid|obis(thioperoxoic) os,so-acid|obis(thioperoxoic) so,os-acid|obis(thioperoxoic) so,so-acid</token>
+		<token value="carbonic_peroxoic_acid">o(selenoperoxoic) ose-acid|o(selenoperoxoic) seo-acid|obis(selenoperoxoic) ose,ose-acid|obis(selenoperoxoic) ose,seo-acid|obis(selenoperoxoic) seo,ose-acid|obis(selenoperoxoic) seo,seo-acid</token>
+		<token value="carbonic_peroxoic_acid">o(telluroperoxoic) ote-acid|o(telluroperoxoic) teo-acid|obis(telluroperoxoic) ote,ote-acid|obis(telluroperoxoic) ote,teo-acid|obis(telluroperoxoic) teo,ote-acid|obis(telluroperoxoic) teo,teo-acid</token>
 	</tokenList>
 
 <!--allowed to prefixed by carbo(x)/sulfon etc. e.g. carboxamide, sulfonamide etc.-->
@@ -100,15 +119,18 @@ al is allowed on standardGroup/aminoAcids but not on acidStems c.f. acetal != ac
 		<token value="amidrazone">amidrazone|amidrazon</token>
 		<token value="amidylium">amidylium</token>
 		<token value="ate">ate|at</token>
+		<!-- P-73.1.2.1: protonation of the proximal or distal hydrazide nitrogen. -->
+		<token value="hydrazid_N_ium">hydrazid-n-ium</token>
+		<token value="hydrazid_N_prime_ium">hydrazid-n'-ium</token>
 		<token value="hydrazide">hydrazide|hydrazid</token>
 		<token value="hydroxamic">hydroxamic|hydroxamicacid|hydroxamic acid</token>
 		<token value="hydroxamate">hydroxamate|hydroxamat</token>
 		<token value="ic">ic|icacid|ic acid</token>
 		<token value="ate">ic acid anion</token>
-		<token value="ic_O_acid">ic o-acid</token>
-		<token value="ic_S_acid">ic s-acid</token>
-		<token value="ic_Se_acid">ic se-acid</token>
-		<token value="ic_Te_acid">ic te-acid</token>
+		<token value="ic_O_acid">ic o-acid|ico-acid</token>
+		<token value="ic_S_acid">ic s-acid|ics-acid</token>
+		<token value="ic_Se_acid">ic se-acid|icse-acid</token>
+		<token value="ic_Te_acid">ic te-acid|icte-acid</token>
 		<token value="ic_acid_locants">ic o,o-acid|ic o,s-acid|ic o,se-acid|ic o,te-acid|ic s,s-acid|ic s,se-acid|ic s,te-acid|ic se,se-acid|ic se,te-acid|ic te,te-acid|ic o,o,o-acid|ic o,o,s-acid|ic o,o,se-acid|ic o,o,te-acid|ic o,s,s-acid|ic o,s,se-acid|ic o,s,te-acid|ic o,se,se-acid|ic o,se,te-acid|ic o,te,te-acid|ic s,s,s-acid|ic s,s,se-acid|ic s,s,te-acid|ic s,se,se-acid|ic s,se,te-acid|ic s,te,te-acid|ic se,se,se-acid|ic se,se,te-acid|ic se,te,te-acid|ic te,te,te-acid</token>
 		<token value="peroxoic_SO_acid">(thioperoxoic) so-acid|(thioperoxoic) so,so-acid|(thioperoxoic) so,so,so-acid|(thioperoxoic) so,so,so,so-acid|(thioperoxoic) so,so,so,so,so-acid|(thioperoxoic) so,so,so,so,so,so-acid</token>
 		<token value="peroxoic_SeO_acid">(selenoperoxoic) seo-acid|(selenoperoxoic) seo,seo-acid|(selenoperoxoic) seo,seo,seo-acid|(selenoperoxoic) seo,seo,seo,seo-acid|(selenoperoxoic) seo,seo,seo,seo,seo-acid|(selenoperoxoic) seo,seo,seo,seo,seo,seo-acid</token>

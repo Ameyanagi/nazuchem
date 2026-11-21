@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/radical_ions.rs | amide nitrogen charge follow-up
 // Source: Nazuchem | crates/nazuchem-s2n/src/radical_ions.rs | Phase B step 8b
 // Source: ReShiki | src/naming/openclatura/radical_ions.rs | 5f559fd482e237307a589dfcb7ea333cee0a6e13
 // Copyright (c) 2026 lamalab-org
@@ -10,7 +11,7 @@
 
 //! Bounded recovery of the closed-shell parent for descriptive radical-ion names.
 //!
-//! RC-85.1 permits a neutral parent's name followed by `radical cation` or
+//! P-75.1 permits a neutral parent's name followed by `radical cation` or
 //! `radical anion`. The recovered graph is only a naming/verification target:
 //! it must never replace the identity of the original radical ion.
 use nazuchem_kernel::{
@@ -40,6 +41,24 @@ pub fn recover(
     // This also proves the ordinary SMILES retains the original radical state.
     let canonical = crate::canonical_smiles(smiles, budget)?;
     let prepared = smiles::prepare(smiles, budget).map_err(|error| error.to_string())?;
+    if !prepared.cumulene_ez.is_empty()
+        && prepared
+            .state
+            .graph
+            .atoms
+            .iter()
+            .any(|atom| atom.radical_electrons != 0)
+        && prepared
+            .state
+            .graph
+            .atoms
+            .iter()
+            .map(|atom| i32::from(atom.charge))
+            .sum::<i32>()
+            != 0
+    {
+        return Err(UNSUPPORTED.into());
+    }
     let source = nazuchem_kernel::identity::apply_axis_markers(&prepared.state, budget)
         .map_err(|_| UNSUPPORTED)?;
     recover_state(&source, &canonical, budget)
@@ -68,13 +87,6 @@ pub(super) fn recover_state(
         .sum();
     if radicals.is_empty() || charge == 0 {
         return Ok(None);
-    }
-    // The neutral identity recovered below cannot carry odd-cumulene E/Z.
-    if source.metadata.atoms.iter().any(|atom| {
-        use nazuchem_kernel::identity::{CUMULENE_E, CUMULENE_Z};
-        matches!(atom.map_number, CUMULENE_E | CUMULENE_Z)
-    }) {
-        return Err(UNSUPPORTED.into());
     }
     if canonical.contains('.') {
         return Err(UNSUPPORTED.into());
@@ -319,6 +331,33 @@ mod tests {
             );
             let parsed_smiles = parsed.structure.unwrap().semantic_cxsmiles().unwrap();
             crate::test_support::verify_identity(&neutral, &parsed_smiles).unwrap();
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::isothiocyanate_radical_anion_uses_descriptive_neutral_parent_verification | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/radical_ions.rs::tests::isothiocyanate_radical_anion_uses_descriptive_neutral_parent_verification
+    fn isothiocyanate_radical_anion_uses_descriptive_neutral_parent_verification() {
+        let budget = Default::default();
+        let smiles = "CCN=C=[S-]";
+        let ir = crate::ir_input::from_smiles(smiles, &budget).unwrap();
+        for result in [
+            crate::name_smiles(smiles, &budget),
+            crate::name_molecule(&ir, nazuchem_ir::IsotopeStyle::Iupac, &budget),
+        ] {
+            let name = result.unwrap();
+            assert_eq!(name.text, "isothiocyanatoethane radical anion");
+            assert_eq!(
+                name.status,
+                nazuchem_ir::NameStatus::NotPreferred(nazuchem_ir::NameReason::RadicalIon),
+            );
+            let verification = name.verification.unwrap();
+            let neutral = crate::test_support::parse_strict(&verification.name).unwrap();
+            crate::test_support::verify_identity("CCN=C=S", &neutral).unwrap();
+            assert_eq!(
+                verification.smiles,
+                crate::canonical_smiles(&neutral, &budget).unwrap()
+            );
         }
     }
 

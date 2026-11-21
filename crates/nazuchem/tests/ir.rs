@@ -297,6 +297,84 @@ fn ir_unknown_units_preserve_legacy_admission_without_a_stereogenicity_requireme
 
 #[cfg(all(feature = "n2s", feature = "s2n"))]
 #[test]
+fn ir_amine_oxide_symmetry_preserves_typed_stereo_and_hydrogen_carriers() {
+    use nazuchem::{Relation, Stereo};
+
+    for descriptors in ["4E,11E", "4Z,11Z"] {
+        let parent = format!("({descriptors})-1,8-dimethyl-1,8-diazacyclotetradeca-4,11-diene");
+        let input = format!("{parent} 8-oxide");
+        let expected = format!("{parent} 1-oxide");
+        let smiles = name_to_smiles(&input).unwrap();
+        let from_smiles = smiles_to_name(&smiles).unwrap();
+        assert_eq!(from_smiles.text, expected);
+        let result = serde_json::to_value(from_smiles).unwrap();
+        let mut molecule = name_to_molecule(&input).unwrap();
+        assert_eq!(
+            serde_json::to_value(molecule_to_name(&molecule).unwrap()).unwrap(),
+            result
+        );
+
+        // Switch each first carrier to the explicit hydrogen at that end.
+        // Folding it back must recover the same geometry and naming result.
+        let mut replaced = 0;
+        for stereo in &mut molecule.stereo {
+            let Stereo::DoubleBond {
+                bond,
+                refs,
+                relation,
+            } = stereo
+            else {
+                continue;
+            };
+            let end = molecule.bonds[*bond as usize].atoms[0];
+            let atom = &mut molecule.atoms[end as usize];
+            assert_eq!(atom.hydrogens, 1);
+            atom.hydrogens = 0;
+            let hydrogen = molecule.atoms.len() as u32;
+            molecule.atoms.push(Atom {
+                element: 1,
+                ..Atom::default()
+            });
+            molecule.bonds.push(Bond {
+                atoms: [end, hydrogen],
+                order: BondOrder::Single,
+            });
+            refs[0] = hydrogen;
+            *relation = match relation {
+                Relation::Cis => Relation::Trans,
+                Relation::Trans => Relation::Cis,
+                other => panic!("unexpected alkene relation {other:?}"),
+            };
+            replaced += 1;
+        }
+        assert_eq!(replaced, 2);
+        molecule.validate().unwrap();
+        assert_eq!(
+            serde_json::to_value(molecule_to_name(&molecule).unwrap()).unwrap(),
+            result
+        );
+    }
+
+    // Swapping the two sites would exchange r with s, so both oxide
+    // positions must survive the typed IR path as distinct names.
+    let parent =
+        "1-[(2R,3s,4S)-2,4-difluoropentan-3-yl]-4-[(2R,3r,4S)-2,4-difluoropentan-3-yl]piperazine";
+    let names = [1, 4].map(|locant| {
+        let input = format!("{parent} {locant}-oxide");
+        let molecule = name_to_molecule(&input).unwrap();
+        let from_ir = molecule_to_name(&molecule).unwrap();
+        let from_smiles = smiles_to_name(&name_to_smiles(&input).unwrap()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&from_ir).unwrap(),
+            serde_json::to_value(from_smiles).unwrap()
+        );
+        from_ir.text
+    });
+    assert_ne!(names[0], names[1]);
+}
+
+#[cfg(all(feature = "n2s", feature = "s2n"))]
+#[test]
 fn ir_unknown_salts_preserve_legacy_rejections_without_dropping_components() {
     let mut salt = name_to_molecule("sodium (2R)-2-fluoropropanoate").unwrap();
     let winding = salt

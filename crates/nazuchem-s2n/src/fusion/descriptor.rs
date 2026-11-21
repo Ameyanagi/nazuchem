@@ -870,9 +870,7 @@ fn citation_topology(
     let mut parent_by_child = BTreeMap::new();
     let mut order_by_occurrence: BTreeMap<_, _> = roots.iter().map(|&r| (r, 0)).collect();
     let mut owner: BTreeMap<_, _> = roots.iter().map(|&r| (r, r)).collect();
-    let mut ordered_roots = roots.clone();
-    ordered_roots.sort_by_key(|&r| cover_node_key(r, adjacency, specs));
-    let mut pending: VecDeque<_> = ordered_roots.into_iter().collect();
+    let mut pending: VecDeque<_> = roots.iter().copied().collect();
     while let Some(host) = pending.pop_front() {
         let mut children = adjacency[&host].clone();
         children.sort_by_key(|&node| cover_node_key(node, adjacency, specs));
@@ -976,6 +974,11 @@ fn multiparent_root_sets(
     let topology = citation_topology(&graph.adjacency, roots.clone(), specs, &BTreeSet::new());
     if topology.interparent_occurrences.is_empty() {
         Vec::new()
+    } else if roots.len() == 2 && graph.adjacency.len() == 3 {
+        // Each end of a single interparent component may be cited first.
+        // The letter and numeric locants decide which parent is unprimed.
+        let reversed = vec![roots[1], roots[0]];
+        vec![roots, reversed]
     } else {
         vec![roots]
     }
@@ -1441,16 +1444,11 @@ fn join_preference_key(join: &FusionJoin, side_rank: usize) -> JoinKey {
 /// locants retain multiplicative primes. FR-4.6 omission happens in rendering.
 // Provenance: fn first_order_locant_key | original
 // Source: ReShiki | src/naming/openclatura/fusion/descriptor.rs::first_order_locant_key
-fn first_order_locant_key(
-    citation_order: &[usize],
-    joins: &BTreeMap<usize, FusionJoin>,
+fn first_order_locant_key<'a>(
+    joins: impl Iterator<Item = &'a FusionJoin>,
     depths: &BTreeMap<usize, usize>,
 ) -> FirstOrderLocantKey {
-    let first_order: Vec<_> = citation_order
-        .iter()
-        .filter_map(|id| joins.get(id))
-        .filter(|join| join.order == 1)
-        .collect();
+    let first_order: Vec<_> = joins.collect();
     let parent_letters_citation: Vec<_> = first_order
         .iter()
         .flat_map(|join| join.host_sides())
@@ -1650,8 +1648,10 @@ fn best_tree_mapping_candidate(
                         });
                         if node == root && prune_citation_prefix {
                             state.first_order_locants = Some(first_order_locant_key(
-                                &ordered,
-                                &state.joins,
+                                ordered
+                                    .iter()
+                                    .filter_map(|id| state.joins.get(id))
+                                    .filter(|join| join.order == 1),
                                 &BTreeMap::new(),
                             ));
                         }
@@ -2196,7 +2196,23 @@ fn build_candidate(
             && topology.interparent_pairs.is_empty()
             && topology.cycle_closing_pairs.is_empty()
         {
-            first_order_locant_key(&selection_order, &primary_joins, &depths)
+            first_order_locant_key(
+                selection_order
+                    .iter()
+                    .filter_map(|id| primary_joins.get(id))
+                    .filter(|join| join.order == 1),
+                &depths,
+            )
+        } else if topology.roots.len() == 2
+            && matches.len() == 3
+            && topology.cycle_closing_pairs.is_empty()
+        {
+            // Both lettered interfaces of an interparent component contribute
+            // to the first-order descriptor (P-25.3.4.2.4).
+            first_order_locant_key(
+                joins.iter().filter(|join| !join.host_sides().is_empty()),
+                &depths,
+            )
         } else {
             FirstOrderLocantKey::default()
         },
@@ -3383,7 +3399,9 @@ mod tests {
                 });
             }
         }
-        let matches = registry.match_faces(&mol, &mol, &faces, None).unwrap();
+        let matches = registry
+            .match_faces(&mol, &mol, &faces, None, false)
+            .unwrap();
         (mol, matches)
     }
 
@@ -3520,18 +3538,18 @@ mod tests {
                 "N1=CC=C2C3=C4C(=CC=C13)C=CC=C4C=C2",
                 "naphtho[2,1,8-def]quinoline",
             ),
-            // Only the fusion descriptor is asserted here. The hydro count is
-            // not settled: the two fusion nitrogens leave room for six double
-            // bonds, so P-14.7.1 / P-31.2.2 call for dodecahydro plus two
-            // indicated hydrogens (#87 follow-up; the name stays unverified).
+            // #108, P-14.7.1 / P-31.2.2: the two fusion nitrogens split the
+            // other fourteen ring atoms into two seven-atom parts, so the
+            // mancude parent has six double bonds and two indicated hydrogens.
             (
                 "N1CN2C3C(NCN3CC4NCCNC24)C1",
-                "tetradecahydropurino[3,9-ab]pteridine",
+                "dodecahydro-1H,7H-purino[3,9-ab]pteridine",
             ),
             ("N1=C2C13C=CC=CC3=CC=C2", "naphtho[1,8a-b]azirine"),
         ] {
             let name = crate::name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
+            assert_ne!(name.status, NameStatus::Preferred, "{smiles}");
         }
     }
 }

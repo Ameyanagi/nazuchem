@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT AND (MIT OR Apache-2.0)
 // Origin: mixed
+// Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs | issue 100
 // Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs | Phase B step 8b
 // Source: openclatura | src/openclatura/namer.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | src/openclatura/engine.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
@@ -209,7 +210,7 @@ pub fn name_smiles_with_style(
     style: nazuchem_ir::IsotopeStyle,
     budget: &nazuchem_kernel::budget::Budget,
 ) -> Result<Name, String> {
-    finish_name(name_routes(smiles, style, budget)?)
+    finish_name(name_routes(smiles, style, budget, None)?)
 }
 
 // Provenance: fn finish_name | original
@@ -272,7 +273,7 @@ pub fn name_molecule(
         if canonical.contains('.') {
             return Err("Openclatura requires a single connected molecule".into());
         }
-        let mol = graph_io::read_state(state, Some(molecule))?;
+        let mol = graph_io::read_state(state, Some(molecule), &[])?;
         unknown_stereo::name_graph(normal, &mol)?
     } else if canonical.contains('.') {
         #[cfg(test)]
@@ -292,7 +293,11 @@ pub fn name_molecule(
         ir_proof_tests::record_fallback("radical ion");
         name_radical_ion(neutral, suffix, style, budget)?
     } else {
-        name_graph(graph_io::read_state(state, Some(molecule))?, style)?
+        name_graph(
+            graph_io::read_state(state, Some(molecule), &[])?,
+            style,
+            None,
+        )?
     };
     finish_name(name)
 }
@@ -343,6 +348,12 @@ fn general_axial_name(text: &str) -> Option<String> {
     (out != text).then_some(out)
 }
 
+#[derive(Default)]
+struct NameRenderMetadata {
+    parent: Option<String>,
+    has_isotope_prefixes: bool,
+}
+
 // Provenance: fn name_routes | adapted
 // Source: openclatura | src/openclatura/namer.py::name_smiles
 // Source: openclatura | src/openclatura/namer.py::name_component
@@ -350,6 +361,7 @@ fn name_routes(
     smiles: &str,
     style: nazuchem_ir::IsotopeStyle,
     budget: &nazuchem_kernel::budget::Budget,
+    rendered: Option<&mut NameRenderMetadata>,
 ) -> Result<Name, String> {
     if let Some(name) = unknown_stereo::name_smiles(smiles, style, budget)? {
         return Ok(name);
@@ -365,7 +377,7 @@ fn name_routes(
         return name_radical_ion(neutral, suffix, style, budget);
     }
     let mol = graph_io::read_smiles(smiles, budget)?;
-    name_graph(mol, style)
+    name_graph(mol, style, rendered)
 }
 
 // Provenance: fn name_radical_ion | original
@@ -393,9 +405,14 @@ fn name_radical_ion(
 
 // Provenance: fn name_graph | adapted
 // Source: openclatura | src/openclatura/namer.py::name_component
-fn name_graph(mol: molecule::Molecule, style: nazuchem_ir::IsotopeStyle) -> Result<Name, String> {
+fn name_graph(
+    mol: molecule::Molecule,
+    style: nazuchem_ir::IsotopeStyle,
+    rendered: Option<&mut NameRenderMetadata>,
+) -> Result<Name, String> {
+    ionic_naming::validate_phosphorus_stereo(&mol)?;
     if mol.atoms.values().any(|atom| atom.isotope.is_some()) {
-        return isotope_naming::name_molecule(&mol, style);
+        return isotope_naming::name_molecule(&mol, style, rendered);
     }
     // Match upstream require_validated_chalcogens before any shortcut can consume Po.
     if mol.atoms.values().any(|atom| atom.symbol == "Po") {
@@ -418,7 +435,7 @@ fn name_graph(mol: molecule::Molecule, style: nazuchem_ir::IsotopeStyle) -> Resu
                 if let Some(name) = oxide {
                     return Ok(name);
                 }
-                return phane.map_or(Err(error), |text| {
+                return phane.map_or(Err(error), |(text, _)| {
                     Ok(Name {
                         text,
                         status: nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::Phane),
@@ -441,27 +458,39 @@ fn name_graph(mol: molecule::Molecule, style: nazuchem_ir::IsotopeStyle) -> Resu
     }
     let multiplicative =
         nazuchem_ir::NameStatus::NotPreferred(nazuchem_ir::NameReason::Multiplicative);
-    // P-51.3.1: the multiplicative name is preferred; the substitutive name
-    // stays as an alternative.
-    if unmarked
-        && mol.name_status() == multiplicative
-        && !requires_skeletal_replacement(&mol, &component.derivation)
-        && let Some(name) = multiplicative::name(&mol, &components[0])
+    let status = mol.name_status();
+    // P-51.3.1, P-52.2.5.3: the multiplicative or linear phane name is
+    // preferred; the substitutive name stays as an alternative.
+    let preferred = if !unmarked {
+        None
+    } else if status == multiplicative {
+        (!requires_skeletal_replacement(&mol, &component.derivation))
+            .then(|| multiplicative::name(&mol, &components[0]))
+            .flatten()
+    } else if status == nazuchem_ir::NameStatus::NotPreferred(nazuchem_ir::NameReason::LinearPhane)
     {
+        phane.clone().filter(|p| p.1).map(|p| p.0)
+    } else {
+        None
+    };
+    if let Some(name) = preferred {
         return Ok(Name {
             text: nest_enclosing_marks(&name),
             status: nazuchem_ir::NameStatus::Preferred,
             alternatives: vec![nazuchem_ir::AlternativeName {
                 name: nest_enclosing_marks(&component.text),
-                status: multiplicative,
+                status,
             }],
             omitted_stereo: vec![],
             omitted_units: 0,
             verification: None,
         });
     }
+    if let Some(rendered) = rendered {
+        rendered.parent = component.rendered_parent;
+    }
     let text = component.text;
-    if phane.is_some() {
+    if phane.as_ref().is_some_and(|p| !p.1) {
         mol.mark_name(nazuchem_ir::NameStatus::NotPreferred(
             nazuchem_ir::NameReason::Phane,
         ));
@@ -517,7 +546,7 @@ fn name_graph(mol: molecule::Molecule, style: nazuchem_ir::IsotopeStyle) -> Resu
             });
         }
     }
-    alternatives.extend(phane.map(|name| nazuchem_ir::AlternativeName {
+    alternatives.extend(phane.map(|(name, _)| nazuchem_ir::AlternativeName {
         name,
         status: nazuchem_ir::NameStatus::Unverified(nazuchem_ir::NameReason::Phane),
     }));
@@ -691,7 +720,10 @@ fn requires_skeletal_replacement(
         component_namer::Derivation::Plan {
             principal_group, ..
         } => principal_group.as_ref().map(|(_, atoms)| atoms),
-        component_namer::Derivation::Shortcut { .. } => None,
+        component_namer::Derivation::Shortcut {
+            principal_group_atoms,
+            ..
+        } => Some(principal_group_atoms),
     };
     let cyclic = chains::get_cyclic_atoms(mol, &molecule::AtomSet::new());
     let skeletal: molecule::AtomSet = mol
@@ -757,44 +789,13 @@ fn has_multiplicative_pin(
         return false;
     }
     use molecule::AtomSet;
-    let cyclic = chains::get_cyclic_atoms(mol, &AtomSet::new());
-    let mut groups = perception::perceive_groups(mol);
-    let key = principal_groups::component_principal_key(mol, &groups, false);
-    let mut excluded = AtomSet::new();
-    component_group_rules::retarget_external_carbonyl_groups(
-        mol,
-        &mut groups,
-        key.as_deref(),
-        &mut excluded,
-        &cyclic,
-    );
-    let (principal, _) =
-        principal_groups::partition_principal_and_prefix_groups(&groups, key.as_deref());
-    component_group_rules::exclude_nonparent_group_atoms(mol, &groups, &mut excluded, &cyclic);
-    let (Ok(paths), Ok(rings)) = (
-        chains::find_all_carbon_paths(mol, &excluded),
-        chains::find_ring_systems(mol, &excluded),
-    ) else {
+    let Some((parents, (paths, rings))) = multiplicative::parents(mol) else {
         return false;
     };
-    let parents: Vec<_> = parent_selection::senior_parent_candidates(
-        mol, &paths, &rings, &principal, &groups, &excluded,
-    )
-    .into_iter()
-    // P-15.3.1.1 / P-15.3.4.2 exclude acyclic hydrocarbons without suffixes.
-    .filter(|p| p.is_ring || principal.iter().any(|a| p.primary_path().contains(a)))
-    .map(|p| {
-        let atoms = p.atom_set();
-        let mut complete = atoms.clone();
-        complete.extend(component_group_rules::principal_involved_atoms(
-            mol,
-            &groups,
-            key.as_deref(),
-            p.primary_path(),
-        ));
-        (p.primary_path()[0], atoms, complete)
-    })
-    .collect();
+    let parents: Vec<_> = parents
+        .into_iter()
+        .map(|(p, complete)| (p.primary_path()[0], p.atom_set(), complete))
+        .collect();
     if parents.len() < 2 {
         return false;
     }
@@ -1054,14 +1055,26 @@ mod tests {
         use nazuchem_kernel::smiles;
 
         for (expected, inputs) in [
-            // P-31.1.4.2 (1)-(3): fewest compound locants, then lowest locants. The
-            // third input carries atom maps.
+            // P-31.1.4.2 (1)-(3): fewest compound locants, then lowest locants.
+            // Porphine uses two compound locants. This beats the older
+            // numbering with three, whose set of primary locants includes 12.
             (
                 "21,22,23,24-tetraazapentacyclo[16.2.1.1^{3,6}.1^{8,11}.1^{13,16}]tetracosa-1(21),2,4,6(24),7,9,11,13,15,17,19-undecaene",
                 &[
                     "C1=Cc2cc3ccc(cc4ccc(cc5nc(cc1n2)C=C5)[nH]4)[nH]3",
                     "C1=Cc2cc3nc(cc4ccc(cc5ccc(cc1n2)[nH]5)[nH]4)C=C3",
+                    "C1=CC2=CC3=CC=C(N3)C=C4C=CC(=N4)C=C5C=CC(=N5)C=C1N2",
                     "[CH:24]1=[CH:23][c:22]2[cH:21][c:20]3[cH:19][cH:18][c:17]([cH:16][c:15]4[cH:14][cH:13][c:12]([cH:11][c:10]5[n:9][c:8]([cH:7][c:6]1[n:5]2)[CH:4]=[CH:3]5)[nH:2]4)[nH:1]3",
+                ][..],
+            ),
+            // [2.2]Paracyclophane needs one compound locant across aromatic
+            // and Kekulé inputs. 1(13),4(16),5,7(15),10(14),11 needs four.
+            (
+                "tricyclo[8.2.2.2^{4,7}]hexadeca-1(12),4,6,10,13,15-hexaene",
+                &[
+                    "C1CC2=CC=C(CCC3=CC=C1C=C3)C=C2",
+                    "C1Cc2ccc(cc2)CCc2ccc1cc2",
+                    "C1CC2=CC=C(C=C2)CCC2=CC=C1C=C2",
                 ][..],
             ),
             ("bicyclo[4.2.0]oct-6-ene", &["C1CCC2=CCC2C1"][..]),
@@ -1165,6 +1178,63 @@ mod tests {
                     "c1(NC(C(NC2CCN(C3CCN(C)CC3)CC2)=O)=O)cccc(-n2cccn2)c1",
                 ][..],
             ),
+            // Issue #107. P-14.4 (j): geminal amine nitrogens whose substituents
+            // differ only by stereodescriptor; R, like Z, takes the lower,
+            // unprimed locant (P-14.3.5).
+            (
+                "N^3-[(2R)-butan-2-yl]-N'^3-[(2S)-butan-2-yl]hexane-3,3-diamine",
+                &[
+                    "CCC(N[C@H](C)CC)(N[C@@H](C)CC)CCC",
+                    "CCC(N[C@@H](C)CC)(N[C@H](C)CC)CCC",
+                    "CC[C@H](C)NC(CC)(CCC)N[C@H](C)CC",
+                ][..],
+            ),
+            (
+                "N^3-[(2Z)-but-2-en-1-yl]-N'^3-[(2E)-but-2-en-1-yl]hexane-3,3-diamine",
+                &[
+                    "CCC(NC/C=C\\C)(NC/C=C/C)CCC",
+                    "CCC(NC/C=C/C)(NC/C=C\\C)CCC",
+                    "C/C=C/CNC(CC)(CCC)NC/C=C\\C",
+                ][..],
+            ),
+            (
+                "N^1-[(2R)-butan-2-yl]-N'^1-[(2S)-butan-2-yl]cyclohexane-1,1-diamine",
+                &[
+                    "C[C@H](CC)NC1(N[C@@H](C)CC)CCCCC1",
+                    "C[C@@H](CC)NC1(N[C@H](C)CC)CCCCC1",
+                ][..],
+            ),
+            (
+                "N^1-[(2R)-butan-2-yl]-N'^1,N''^1-di[(2S)-butan-2-yl]ethane-1,1,1-triamine",
+                &[
+                    "CC(N[C@H](C)CC)(N[C@@H](C)CC)N[C@@H](C)CC",
+                    "CC(N[C@@H](C)CC)(N[C@@H](C)CC)N[C@H](C)CC",
+                ][..],
+            ),
+            // A descriptor nested in the substituent name counts the same way.
+            (
+                "N^3-{2-[(2R)-butan-2-yl]phenyl}-N'^3-{2-[(2S)-butan-2-yl]phenyl}hexane-3,3-diamine",
+                &[
+                    "CCC(Nc1ccccc1[C@H](C)CC)(Nc1ccccc1[C@@H](C)CC)CCC",
+                    "CCC(Nc1ccccc1[C@@H](C)CC)(Nc1ccccc1[C@H](C)CC)CCC",
+                ][..],
+            ),
+            (
+                "N^3-{[(2R)-oxolan-2-yl]methyl}-N'^3-{[(2S)-oxolan-2-yl]methyl}hexane-3,3-diamine",
+                &[
+                    "CCC(NC[C@H]1CCCO1)(NC[C@@H]1CCCO1)CCC",
+                    "CCC(NC[C@@H]1CCCO1)(NC[C@H]1CCCO1)CCC",
+                ][..],
+            ),
+            // ethyl, cited before methyl, stays unprimed although it is S; the R
+            // prefix is still cited first (P-45.6.3).
+            (
+                "N'^3-[(2R)-butan-2-yl]-N^3-[(2S)-butan-2-yl]-N^3-ethyl-N'^3-methylhexane-3,3-diamine",
+                &[
+                    "CCC(N([C@H](C)CC)C)(N([C@@H](C)CC)CC)CCC",
+                    "CCC(N([C@@H](C)CC)CC)(N([C@H](C)CC)C)CCC",
+                ][..],
+            ),
             // P-65.6.3.2.1: ester groups in alphanumerical order, as in ethyl
             // methyl butanedioate.
             (
@@ -1175,9 +1245,10 @@ mod tests {
                 ][..],
             ),
             // Issue #97. P-14.4 (c): the -ium suffix takes the
-            // lower of the two equivalent locants (#96 may retain naphthyridine).
+            // lower of the two equivalent locants. Issue #96, P-73.1.1.2: the
+            // cation keeps the retained name of its neutral parent hydride.
             (
-                "decahydropyrido[3,4-c]pyridin-2-ium",
+                "decahydro-2,7-naphthyridin-2-ium",
                 &["N1CCC2C(C1)C[NH2+]CC2", "C1C[NH2+]CC2CNCCC12"][..],
             ),
             // P-14.3.5: on a symmetric assembly the chalcogenide nitrogen is
@@ -1187,8 +1258,8 @@ mod tests {
                 &["[S-][n+]1ccc(-c2ccncc2)cc1", "c1cc(-c2cc[n+]([S-])cc2)ccn1"][..],
             ),
             // Controls: a substituent fixes the numbering, so the oxide keeps a
-            // primed locant; a stereo parent keeps its own numbering, since the
-            // other site would need inverted descriptors.
+            // primed locant; on the meso piperazine only a reflection relates
+            // the nitrogens, so each oxide keeps its own locant.
             (
                 "2-methyl-4,4'-bipyridine 1'-oxide",
                 &["Cc1cc(-c2cc[n+]([O-])cc2)ccn1"][..],
@@ -1207,12 +1278,141 @@ mod tests {
                 "(2R,5S)-1,2,4,5-tetramethylpiperazine 4-oxide",
                 &["CN1[C@H](C)C[N+](C)([O-])[C@@H](C)C1"][..],
             ),
+            // Issue #128. P-14.3.5: a rotation that keeps every R/S descriptor
+            // makes the nitrogens equivalent, so the oxide takes the lower locant.
+            (
+                "(2R,5R)-1,2,4,5-tetramethylpiperazine 1-oxide",
+                &[
+                    "C[C@@H]1C[N+](C)([O-])[C@H](C)CN1C",
+                    "CN1C[C@@H](C)[N+](C[C@H]1C)(C)[O-]",
+                ][..],
+            ),
+            // The three nitrogens are related only by a three-fold rotation.
+            (
+                "3,8,13-trimethyl-1,6,11-trioxa-3,8,13-triazacyclopentadecane 3-oxide",
+                &[
+                    "C[N+]1([O-])COCCN(C)COCCN(C)COCC1",
+                    "C1OCN(CCOC[N+](CCOCN(C)C1)(C)[O-])C",
+                ][..],
+            ),
+            (
+                "1,4,7-trimethyl-1,4,7-triazonane 1-oxide",
+                &["C[N+]1([O-])CCN(C)CCN(C)CC1"][..],
+            ),
             // P-66.4.1.1, P-66.4.1.2.1.1, P-66.1.6.1.1.5: amidines rank as amides,
             // in the order of their acids, so a carboximidamide is senior to
             // guanidine (the amidine of carbonic acid).
             (
                 "4-{2-[(diaminomethylidene)amino]ethyl}benzene-1-carboximidamide",
                 &["NC(N)=NCCc1ccc(C(N)=N)cc1", "NC(=N)c1ccc(CCN=C(N)N)cc1"][..],
+            ),
+            // Issue #128. P-41 classes 11 and 12, P-43 Table 4.4 (suffixes 16 to
+            // 19 and 31): amides in the order of their acids, carboxamides and
+            // their chalcogen analogues, carboximidamides, then sulfonamides,
+            // all before hydrazides.
+            (
+                "4-(hydrazinecarbonyl)benzene-1-carboximidamide",
+                &["NC(=N)c1ccc(cc1)C(=O)NN", "NNC(=O)c1ccc(C(N)=N)cc1"][..],
+            ),
+            (
+                "4-(2-acetylhydrazine-1-carbonyl)benzene-1-carboximidamide",
+                &["NC(=N)c1ccc(cc1)C(=O)NNC(C)=O"][..],
+            ),
+            (
+                "4-sulfamoylbenzene-1-carboximidamide",
+                &["NC(=N)c1ccc(cc1)S(N)(=O)=O"][..],
+            ),
+            (
+                "4-carbamimidoylbenzene-1-carbothioamide",
+                &["NC(=N)c1ccc(cc1)C(N)=S"][..],
+            ),
+            // Issue #141. P-66.3.2.2: a chain-end hydrazide is hydrazinyl with
+            // oxo, on the chain that keeps the carbonyl carbon.
+            (
+                "4-hydrazinyl-4-oxobutanimidamide",
+                &["NC(=N)CCC(=O)NN", "NNC(=O)CCC(N)=N"][..],
+            ),
+            (
+                "5-hydrazinyl-3-(2-hydrazinyl-2-oxoethyl)-5-oxopentanoic acid",
+                &["OC(=O)CC(CC(=O)NN)CC(=O)NN", "NNC(=O)CC(CC(=O)NN)CC(O)=O"][..],
+            ),
+            (
+                "4-hydrazinyl-3-methyl-4-oxobutanoic acid",
+                &["OC(=O)CC(C)C(=O)NN", "CC(CC(O)=O)C(=O)NN"][..],
+            ),
+            // Issue #148. P-66.1.1.4.1.1 (1): a chain-end amide is amino with
+            // oxo, on the chain that keeps the carbonyl carbon (P-45.2.1).
+            (
+                "4-amino-4-oxobutanoic acid",
+                &["OC(=O)CCC(N)=O", "NC(=O)CCC(O)=O"][..],
+            ),
+            (
+                "4-amino-3-methyl-4-oxobutanoic acid",
+                &["OC(=O)CC(C)C(N)=O", "CC(CC(O)=O)C(N)=O"][..],
+            ),
+            (
+                "5-amino-3-(2-amino-2-oxoethyl)-5-oxopentanoic acid",
+                &["OC(=O)CC(CC(N)=O)CC(N)=O", "NC(=O)CC(CC(N)=O)CC(O)=O"][..],
+            ),
+            // P-66.3.2.1: the acyl prefix of hydrazinecarbothioic acid.
+            (
+                "4-(hydrazinecarbothioyl)benzene-1-carboximidamide",
+                &["NC(=N)c1ccc(cc1)C(=S)NN"][..],
+            ),
+            // P-41 classes 7a and 7b, P-66.1.6.1.1.5 (N-carbamoylbenzenesulfonamide
+            // in P-66.1.6.1.1.3): amides of suffix acids are senior to urea.
+            (
+                "4-(carbamoylamino)benzene-1-sulfonamide",
+                &["NC(=O)Nc1ccc(cc1)S(N)(=O)=O"][..],
+            ),
+            (
+                "4-(carbamoylamino)benzene-1-carbothioamide",
+                &["NC(=O)Nc1ccc(cc1)C(N)=S"][..],
+            ),
+            (
+                "4-(carbamoylamino)benzene-1-carboximidamide",
+                &["NC(=O)Nc1ccc(cc1)C(N)=N"][..],
+            ),
+            (
+                "2-(carbamothioylamino)ethane-1-sulfonamide",
+                &["NC(=S)NCCS(N)(=O)=O"][..],
+            ),
+            // P-66.4.1.2.1.3 (N-carbamimidoylurea): urea is senior to guanidine.
+            (
+                "N-{2-[(diaminomethylidene)amino]ethyl}urea",
+                &["NC(N)=NCCNC(N)=O"][..],
+            ),
+            // P-41 class 15, P-43 Table 4.4 (suffix 47): an aldehyde is senior
+            // to its chalcogen analogues.
+            ("4-sulfanylidenebutanal", &["O=CCCC=S", "S=CCCC=O"][..]),
+            (
+                "3-(methanethioyl)pentanedial",
+                &["O=CCC(C=S)CC=O", "C(C=S)(CC=O)CC=O"][..],
+            ),
+            (
+                "4-sulfanylidene-2-(2-sulfanylideneethyl)butanal",
+                &["O=CC(CC=S)CC=S", "S=CCC(C=O)CC=S"][..],
+            ),
+            // P-66.5.4.1: nitrile oxides rank with zwitterions, ahead of nitriles.
+            (
+                "3-cyanopropanenitrile oxide",
+                &["N#CCCC#[N+][O-]", "[O-][N+]#CCCC#N"][..],
+            ),
+            // P-68.3.1.2.2 ranks no hydrazone over another; the functional
+            // class names take the aldehyde hydrazone whatever the atom order.
+            (
+                "4-hydrazinylidenepentanal hydrazone",
+                &["NN=CCCC(C)=NN", "C(CC(=NN)C)C=NN"][..],
+            ),
+            // P-44.4.1.12.2: of two butan-2-ol parents the like pair (2R,3R)
+            // precedes the unlike pair (2R,3S).
+            (
+                "(2R,3R)-3-[(3-{[(2S,3R)-3-hydroxybutan-2-yl]amino}hexan-3-yl)amino]butan-2-ol",
+                &[
+                    "CCC(N[C@H](C)[C@@H](C)O)(N[C@@H](C)[C@@H](C)O)CCC",
+                    "CCC(N[C@@H](C)[C@@H](C)O)(N[C@H](C)[C@@H](C)O)CCC",
+                    "O[C@H](C)[C@H](C)NC(CC)(CCC)N[C@H](C)[C@@H](C)O",
+                ][..],
             ),
         ] {
             let identity = crate::test_support::canonical_smiles(inputs[0]).unwrap();
@@ -1243,6 +1443,69 @@ mod tests {
                     assert_eq!(name.text, expected, "{input} written as {order}");
                     assert_eq!(name.status, status, "{input} written as {order}");
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn issue_128_guanidine_locants_and_shared_urea_nitrogen_round_trip() {
+        use nazuchem_ir::NameStatus;
+
+        for (expected, inputs) in [
+            // P-66.4.1.2.1.1 fixes N'' on the imino nitrogen of a known tautomer.
+            ("N''-methylguanidine", &["CN=C(N)N", "NC(N)=NC"][..]),
+            ("N,N''-dimethylguanidine", &["CNC(=NC)N", "NC(NC)=NC"][..]),
+            ("N,N'-dimethylguanidine", &["CNC(=N)NC", "N=C(NC)NC"][..]),
+            (
+                "N'-ethyl-N,N-dimethylguanidine",
+                &["CCNC(=N)N(C)C", "CN(C)C(NCC)=N"][..],
+            ),
+            (
+                "N,N,N',N'-tetramethyl-N''-phenylguanidine",
+                &["CN(C)C(=Nc1ccccc1)N(C)C", "c1ccccc1N=C(N(C)C)N(C)C"][..],
+            ),
+            // P-66.1.6.1.1.3 and P-66.1.6.1.1.5: the shared nitrogen
+            // belongs to the senior amide and carries a carbamoyl substituent.
+            (
+                "N-carbamoylbenzenesulfonamide",
+                &["NC(=O)NS(=O)(=O)c1ccccc1", "c1ccccc1S(=O)(=O)NC(N)=O"][..],
+            ),
+            (
+                "N-carbamoylethanethioamide",
+                &["NC(=O)NC(=S)C", "CC(=S)NC(N)=O"][..],
+            ),
+            (
+                "N-carbamoylbenzenecarbothioamide",
+                &["NC(=O)NC(=S)c1ccccc1", "c1ccccc1C(=S)NC(N)=O"][..],
+            ),
+            (
+                "N-carbamoylacetamide",
+                &["NC(=O)NC(=O)C", "CC(=O)NC(N)=O"][..],
+            ),
+            // P-16.5.1.1: carbamoyl with a substituent is a compound prefix.
+            (
+                "N-(methylcarbamoyl)acetamide",
+                &["CNC(=O)NC(=O)C", "CC(=O)NC(=O)NC"][..],
+            ),
+            (
+                "N-(cyclohexylcarbamoyl)acetamide",
+                &["O=C(NC1CCCCC1)NC(=O)C", "CC(=O)NC(=O)NC1CCCCC1"][..],
+            ),
+        ] {
+            let parsed = crate::test_support::parse_strict(expected).unwrap();
+            let identity = crate::test_support::canonical_smiles(&parsed).unwrap();
+            for &smiles in inputs {
+                let actual = name_smiles(smiles, &Default::default()).unwrap();
+                assert_eq!(
+                    (actual.text.as_str(), actual.status),
+                    (expected, NameStatus::Preferred),
+                    "{smiles}"
+                );
+                assert_eq!(
+                    crate::test_support::canonical_smiles(smiles).unwrap(),
+                    identity,
+                    "{smiles}"
+                );
             }
         }
     }
@@ -1320,7 +1583,10 @@ mod tests {
                 "ClCOc1ccc(CCl)cc1",
                 "1-(chloromethoxy)-4-(chloromethyl)benzene",
             ),
-            ("ClCCOC(=O)CC(=O)O", "(2-chloroethoxycarbonyl)acetic acid"),
+            (
+                "ClCCOC(=O)CC(=O)O",
+                "3-(2-chloroethoxy)-3-oxopropanoic acid",
+            ),
             ("CC(C)CO[SiH2]C", "methyl(2-methylpropoxy)silane"),
         ] {
             assert_eq!(
@@ -1433,9 +1699,16 @@ mod tests {
             ),
             ("CCOC(C)=O", "ethyl acetate", NameStatus::Preferred),
             ("CC(=O)OC(C)=O", "acetic anhydride", NameStatus::Preferred),
+            // P-65.7.6.1 example (issue #110).
             (
                 "CC(=O)OC(=O)CCC(=O)OC(C)=O",
-                "acetic 4-(acetyloxy)-4-oxobutanoic anhydride",
+                "diacetic butanedioic dianhydride",
+                NameStatus::Preferred,
+            ),
+            // P-65.7.6.4.2 example: two unlike linkages stay unverified.
+            (
+                "CC(=O)OC(=O)CCCC(=O)SC(C)=O",
+                "acetic 5-(acetylsulfanyl)-5-oxopentanoic anhydride",
                 NameStatus::Unverified(NameReason::UnauditedPath),
             ),
             (
@@ -1516,11 +1789,8 @@ mod tests {
                 "2,7'-spirobi[bicyclo[2.2.1]heptane]",
                 NameStatus::Preferred,
             ),
-            (
-                "CC(=O)[NH-]",
-                "acetamide",
-                NameStatus::Unverified(NameReason::AnionParent),
-            ),
+            // P-72.2.2.2.4: acetylazanide (PIN).
+            ("CC(=O)[NH-]", "acetylazanide", NameStatus::Preferred),
             (
                 "c1ccccc1C1=CC2(C3=CC=CC=C13)C=CC1=CC=CC=C12",
                 "3-phenyl-1,1'-spirobi[indene]",
@@ -1595,8 +1865,8 @@ mod tests {
             ),
             (
                 "Oc1ccc(Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
-                "4-[4-(4-phenoxyphenoxy)phenoxy]phenol",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "2,4,6-trioxa-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+                NameStatus::Preferred,
             ),
             (
                 "C1C2CC3CC1CC2C3",
@@ -1686,10 +1956,11 @@ mod tests {
                 "disodium 2-[(2-oxidophenyl)methyl]benzoate",
                 NameStatus::Preferred,
             ),
+            // P-52.2.5.3 Example 2: the multiplicative name is generated.
             (
                 "c1ccccc1Oc2ccc(Oc3ccccc3)cc2",
-                "1,4-diphenoxybenzene",
-                NameStatus::NotPreferred(NameReason::Multiplicative),
+                "1,1'-[1,4-phenylenebis(oxy)]dibenzene",
+                NameStatus::Preferred,
             ),
             (
                 "[Na+]",
@@ -1863,51 +2134,6 @@ mod tests {
     }
 
     #[test]
-    fn complete_senior_parents_need_multiplicative_pin_status_and_round_trip() {
-        use nazuchem_ir::{NameReason, NameStatus};
-        // P-16.5.4 Fig. 1.3(f) and P-15.3.2.1: the first central group is
-        // asymmetric; the second has a cyclic assembly between equal arms.
-        for (smiles, expected) in [
-            // P-45.5: 'oxopropanyl' precedes 'oxopropyl' between the tied rings.
-            (
-                "N#Cc1ccc(-c2ccc(OCCCCCOC(=O)C(Cc3ccc(C(=O)O)cc3)c3ccc(C(=O)O)cc3)cc2)cc1",
-                "4-[3-(4-carboxyphenyl)-1-({5-[(4'-cyano[1,1'-biphenyl]-4-yl)oxy]pentyl}oxy)-1-oxopropan-2-yl]benzoic acid",
-            ),
-            (
-                "O=C(O)CCCCCCCCCOc1ccc(-c2ccc(OCCCCCCCCCC(=O)O)cc2)cc1",
-                "10-({4'-[(9-carboxynonyl)oxy][1,1'-biphenyl]-4-yl}oxy)decanoic acid",
-            ),
-            // P-15.3 / P-51.3.1: a more substituted core does not remove
-            // identical terminal parents from multiplicative eligibility.
-            ("c1ccccc1Oc2ccc(Oc3ccccc3)cc2", "1,4-diphenoxybenzene"),
-            (
-                "c1ccccc1Oc2cc(Oc3ccccc3)cc(Oc4ccccc4)c2",
-                "1,3,5-triphenoxybenzene",
-            ),
-            (
-                "c1ccccc1Oc2ccc(Oc3ccccc3)c(C)c2",
-                "2-methyl-1,4-diphenoxybenzene",
-            ),
-            ("c1ccccc1Cc2ccc(Cc3ccccc3)cc2", "1,4-dibenzylbenzene"),
-        ] {
-            let name = name_smiles(smiles, &Default::default()).unwrap();
-            assert_eq!(name.text, expected, "{smiles}");
-            assert_eq!(
-                name.status,
-                NameStatus::NotPreferred(NameReason::Multiplicative),
-                "{smiles}"
-            );
-            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
-            assert_eq!(
-                crate::test_support::canonical_smiles(smiles).unwrap(),
-                crate::test_support::canonical_smiles(&parsed).unwrap(),
-                "{}",
-                name.text,
-            );
-        }
-    }
-
-    #[test]
     fn multiplicative_pin_accepts_simple_cores_and_identical_concatenated_arms() {
         for smiles in [
             "c1ccccc1Oc1ccccc1",
@@ -2044,17 +2270,19 @@ mod tests {
                 "CC(C)CC1=CC=C(C=C1)C(C)C(=O)O",
                 "2-[4-(2-methylpropyl)phenyl]propanoic acid",
             ),
+            // P-51.3.1: the multiplicative name is generated.
             (
                 "OCCOCCOCCOCCO",
-                "2-{2-[2-(2-hydroxyethoxy)ethoxy]ethoxy}ethan-1-ol",
+                "2,2'-[oxybis(ethane-2,1-diyloxy)]di(ethan-1-ol)",
             ),
             (
                 "OCCOCCOCCOCCOCCO",
                 "2-(2-{2-[2-(2-hydroxyethoxy)ethoxy]ethoxy}ethoxy)ethan-1-ol",
             ),
+            // P-68.3.1.2.1: hydrazinyl numbers its substituents 1 and 2.
             (
                 "CN(CC(=O)O)Nc1cnc(CO)cn1",
-                "({[5-(hydroxymethyl)pyrazin-2-yl]amino}(methyl)amino)acetic acid",
+                "{2-[5-(hydroxymethyl)pyrazin-2-yl]-1-methylhydrazin-1-yl}acetic acid",
             ),
             (
                 "C[S@@](=O)CSCNN",
@@ -2196,7 +2424,8 @@ mod tests {
                 "COS(=O)(=O)c1ccc(C(=O)O)cc1",
                 "4-(methoxysulfonyl)benzoic acid",
             ),
-            ("COS(=O)(=O)NCC(=O)O", "methoxysulfonylaminoacetic acid"),
+            // P-16.5.1.1: the compound prefix methoxysulfonyl is enclosed.
+            ("COS(=O)(=O)NCC(=O)O", "[(methoxysulfonyl)amino]acetic acid"),
             // Sulfonyl and sulfinyl prefixes are named from the acid (P-65.3.2.2.2).
             ("CS(=O)(=O)c1ccccc1", "(methanesulfonyl)benzene"),
             ("C[S@](=O)c1ccccc1", "[(S)-methanesulfinyl]benzene"),
@@ -2455,20 +2684,21 @@ mod tests {
     }
 
     #[test]
-    fn linear_phane_assemblies_keep_nonpreferred_status_and_round_trip() {
-        use nazuchem_ir::{NameReason, NameStatus};
+    fn linear_phane_assemblies_and_controls_round_trip() {
+        use nazuchem_ir::NameStatus;
         for (smiles, expected, status) in [
+            // P-52.2.5.3: unsubstituted linear phanes take the phane name.
             (
                 "c1ccccc1-c1ccc(-c2ccc(Oc3cccc(-c4cccc(-c5ccccn5)n4)n3)cc2)cc1",
-                "1^6-[([1^1,2^1:2^4,3^1-terphenyl]-1^4-yl)oxy]-1^2,2^2:2^6,3^2-terpyridine",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "4-oxa-1(2),2,3(2,6)-tripyridina-5,6(1,4),7(1)-tribenzenaheptaphane",
+                NameStatus::Preferred,
             ),
             // P-51.3.2: even identical halves require the linear phane,
             // rather than a multiplicative name, for seven skeletal nodes.
             (
                 "c1ccccc1-c1ccc(-c2ccc(Oc3ccc(-c4ccc(-c5ccccc5)cc4)cc3)cc2)cc1",
-                "1^4-[([1^1,2^1:2^4,3^1-terphenyl]-1^4-yl)oxy]-1^1,2^1:2^4,3^1-terphenyl",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "4-oxa-1,7(1),2,3,5,6(1,4)-hexabenzenaheptaphane",
+                NameStatus::Preferred,
             ),
             // P-65.6.3.3.7.2.1: the carbamate separates two two-ring
             // components; its named biphenyl junction needs no demotion.
@@ -2480,29 +2710,29 @@ mod tests {
             // P-52.2.5.3 applies without identical-unit ring junctions.
             (
                 "Oc1ccc(Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
-                "4-[4-(4-phenoxyphenoxy)phenoxy]phenol",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "2,4,6-trioxa-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+                NameStatus::Preferred,
             ),
             (
                 "Oc1ccc(Cc2ccc(Cc3ccc(Cc4ccccc4)cc3)cc2)cc1",
-                "4-({4-[(4-benzylphenyl)methyl]phenyl}methyl)phenol",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+                NameStatus::Preferred,
             ),
             (
                 "Oc1ccc(Oc2ccc(Sc3ccc(Oc4ccccc4)cc3)cc2)cc1",
-                "4-{4-[(4-phenoxyphenyl)sulfanyl]phenoxy}phenol",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "2,6-dioxa-4-thia-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-1⁴-ol",
+                NameStatus::Preferred,
             ),
             (
                 "Oc1ccc(-c2ccnc(-c3ccc(-c4ccnc(-c5ccc(-c6ccnc(-c7ccccc7)c6)cc5)c4)cc3)c2)cc1",
-                "4-[2-(4-{2-[4-(2-phenylpyridin-4-yl)phenyl]pyridin-4-yl}phenyl)pyridin-4-yl]phenol",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "2,4,6(2,4)-tripyridina-1,7(1),3,5(1,4)-tetrabenzenaheptaphan-7⁴-ol",
+                NameStatus::Preferred,
             ),
             // A linear phane outranks the multiplicative name (P-51.3.2).
             (
                 "c1ccccc1Oc2ccc(Oc3ccc(Oc4ccccc4)cc3)cc2",
-                "1-phenoxy-4-(4-phenoxyphenoxy)benzene",
-                NameStatus::NotPreferred(NameReason::LinearPhane),
+                "2,4,6-trioxa-1,7(1),3,5(1,4)-tetrabenzenaheptaphane",
+                NameStatus::Preferred,
             ),
             (
                 "c1ccccc1-c1ccc(-c2ccc(-c3ccc(-c4ccc(-c5ccccc5)cc4)cc3)cc2)cc1",
@@ -2652,6 +2882,13 @@ mod tests {
                 "OP(=O)(c1ccc(Oc2ccccc2)cc1)c1ccc(Oc2ccccc2)cc1",
                 "bis(4-phenoxyphenyl)phosphinic acid",
                 NameStatus::NotPreferred(NameReason::LinearPhane),
+            ),
+            // P-41, P-65.6.3.2.3: the senior acid takes the suffix and
+            // the carbonate prefix keeps the four-ring phane skeleton intact.
+            (
+                "O=C(O)c1ccc(Oc2ccc(OC(=O)Oc3ccc(Oc4ccccc4)cc3)cc2)cc1",
+                "5-oxo-2,4,6,8-tetraoxa-1,9(1),3,7(1,4)-tetrabenzenanonaphane-1⁴-carboxylic acid",
+                NameStatus::Preferred,
             ),
             // A phosphonate prefix under a senior nitrile keeps the full skeleton.
             (
@@ -2969,6 +3206,147 @@ mod tests {
                 "C1CCC2C(C1)Oc1ccccc1O2",
                 "1,2,3,4,4a,10a-hexahydrooxanthrene",
             ),
+            // #15, P-25.2.2.3: different heteroatoms take pheno + the Hantzsch-Widman
+            // name (P-22.2.2.1.1); the senior heteroatom of Table 2.4 is locant 5.
+            ("c1ccc2c(c1)Sc1ccccc1[Se]2", "phenothiaselenine"),
+            ("c1ccc2c(c1)[Se]c1ccccc1S2", "phenothiaselenine"),
+            ("C1=CC=C2C(=C1)SC1=CC=CC=C1[Se]2", "phenothiaselenine"),
+            ("c1ccc2c(c1)Sc1ccccc1[Te]2", "phenothiatellurine"),
+            ("c1ccc2c(c1)[Se]c1ccccc1[Te]2", "phenoselenatellurine"),
+            ("c1ccc2c(c1)Pc1ccccc1S2", "10H-phenothiaphosphinine"),
+            ("c1ccc2c(c1)[SbH]c1ccccc1S2", "10H-phenothiastibinine"),
+            ("c1ccc2c(c1)Pc1ccccc1[Se]2", "10H-phenoselenaphosphinine"),
+            ("c1ccc2c(c1)[AsH]c1ccccc1[Se]2", "10H-phenoselenarsinine"),
+            ("c1ccc2c(c1)[SbH]c1ccccc1[Se]2", "10H-phenoselenastibinine"),
+            ("c1ccc2c(c1)Pc1ccccc1[Te]2", "10H-phenotelluraphosphinine"),
+            ("c1ccc2c(c1)[AsH]c1ccccc1[Te]2", "10H-phenotellurarsinine"),
+            ("c1ccc2c(c1)[SbH]c1ccccc1[Te]2", "10H-phenotellurastibinine"),
+            ("Cc1ccc2Sc3ccccc3[Se]c2c1", "2-methylphenothiaselenine"),
+            ("Cc1ccc2[Se]c3ccccc3Sc2c1", "3-methylphenothiaselenine"),
+            ("Oc1ccc2Sc3ccccc3[Te]c2c1", "phenothiatellurin-2-ol"),
+            (
+                "CP1c2ccccc2Sc2ccccc12",
+                "10-methyl-10H-phenothiaphosphinine",
+            ),
+            (
+                "C1CCC2C(C1)Sc1ccccc1[Se]2",
+                "1,2,3,4,4a,10a-hexahydrophenothiaselenine",
+            ),
+            (
+                "c1ccc2c(c1)Sc1ccc3ccccc3c1[Se]2",
+                "benzo[a]phenothiaselenine",
+            ),
+            (
+                "c1ccc2c(c1)[Se]c1ccc3ccccc3c1S2",
+                "benzo[c]phenothiaselenine",
+            ),
+            // P-25.3.2.4 (a): O is senior to S, so oxanthrene is the parent component.
+            (
+                "c1ccc2c(c1)Sc1cc3Oc4ccccc4Oc3cc1[Se]2",
+                "[1,4]benzothiaselenino[2,3-b]oxanthrene",
+            ),
+            // P-25.3.2.4 (e): the greater variety of heteroatoms beats thianthrene.
+            (
+                "c1ccc2c(c1)Sc1cc3Sc4ccccc4[Se]c3cc1S2",
+                "[1,4]benzodithiino[2,3-b]phenothiaselenine",
+            ),
+            // P-25.2.2.2 (P, As, Si) and P-25.2.2.3 (N with P or As): the PIN is the
+            // mancude ring; P-31.2.1 hydro prefixes give the usual 5,10-dihydro forms.
+            ("c1ccc2c(c1)Sc1ccccc1[SiH2]2", "10H-phenothiasiline"),
+            ("c1ccc2c(c1)Sc1ccccc1[GeH2]2", "10H-phenothiagermine"),
+            ("c1ccc2c(c1)Sc1ccccc1[SnH2]2", "10H-phenothiastannine"),
+            ("c1ccc2c(c1)Sc1ccccc1[BiH]2", "10H-phenothiabismine"),
+            ("c1ccc2c(c1)Sc1ccccc1B2", "10H-phenothiaborinine"),
+            ("c1ccc2c(c1)[Se]c1ccccc1[SiH2]2", "10H-phenoselenasiline"),
+            ("c1ccc2c(c1)[Se]c1ccccc1[GeH2]2", "10H-phenoselenagermine"),
+            ("c1ccc2c(c1)[Se]c1ccccc1[SnH2]2", "10H-phenoselenastannine"),
+            ("c1ccc2c(c1)[Se]c1ccccc1[BiH]2", "10H-phenoselenabismine"),
+            ("c1ccc2c(c1)[Se]c1ccccc1B2", "10H-phenoselenaborinine"),
+            ("c1ccc2c(c1)[Te]c1ccccc1[SiH2]2", "10H-phenotellurasiline"),
+            ("c1ccc2c(c1)[Te]c1ccccc1[GeH2]2", "10H-phenotelluragermine"),
+            ("c1ccc2c(c1)[Te]c1ccccc1[SnH2]2", "10H-phenotellurastannine"),
+            ("c1ccc2c(c1)[Te]c1ccccc1[BiH]2", "10H-phenotellurabismine"),
+            ("c1ccc2c(c1)[Te]c1ccccc1B2", "10H-phenotelluraborinine"),
+            ("c1ccc2c(c1)P=C1C=CC=CC1=[Sb]2", "phenophosphastibinine"),
+            ("c1ccc2c(c1)[As]=C1C=CC=CC1=[Sb]2", "phenarsastibinine"),
+            (
+                "c1ccc2c(c1)Sc1ccc3ccccc3c1[SiH2]2",
+                "12H-benzo[a]phenothiasiline",
+            ),
+            ("c1ccc2c(c1)Oc1ccccc1[SiH2]2", "10H-phenoxasiline"),
+            (
+                "c1ccc2c(c1)Oc1ccc3ccccc3c1[SiH2]2",
+                "12H-benzo[a]phenoxasiline",
+            ),
+            ("c1ccc2c(c1)Oc1ccccc1[GeH2]2", "10H-phenoxagermine"),
+            ("c1ccc2c(c1)Oc1ccccc1[SnH2]2", "10H-phenoxastannine"),
+            ("c1ccc2c(c1)Oc1ccccc1[BiH]2", "10H-phenoxabismine"),
+            ("c1ccc2c(c1)Oc1ccccc1B2", "10H-phenoxaborinine"),
+            (
+                "c1ccc2c(c1)Pc1ccccc1[SbH]2",
+                "5,10-dihydrophenophosphastibinine",
+            ),
+            (
+                "c1ccc2c(c1)[AsH]c1ccccc1[SbH]2",
+                "5,10-dihydrophenarsastibinine",
+            ),
+            ("c1ccc2c(c1)P=C1C=CC=CC1=[As]2", "phenophospharsinine"),
+            (
+                "c1ccc2c(c1)Pc1ccccc1[AsH]2",
+                "5,10-dihydrophenophospharsinine",
+            ),
+            ("c1ccc2c(c1)B=C1C=CC=CC1=B2", "boranthrene"),
+            ("c1ccc2c(c1)Bc1ccccc1B2", "5,10-dihydroboranthrene"),
+            ("c1ccc2c(c1)P=C1C=CC=CC1=P2", "phosphanthrene"),
+            ("c1ccc2pc3ccccc3pc2c1", "phosphanthrene"),
+            ("c1ccc2c(c1)Pc1ccccc1P2", "5,10-dihydrophosphanthrene"),
+            ("c1ccc2c(c1)[As]=C1C=CC=CC1=[As]2", "arsanthrene"),
+            ("c1ccc2c(c1)[AsH]c1ccccc1[AsH]2", "5,10-dihydroarsanthrene"),
+            ("c1ccc2c(c1)[SiH]=C1C=CC=CC1=[SiH]2", "silanthrene"),
+            (
+                "c1ccc2c(c1)[SiH2]c1ccccc1[SiH2]2",
+                "5,10-dihydrosilanthrene",
+            ),
+            ("c1ccc2c(c1)N=C1C=CC=CC1=P2", "phenazaphosphinine"),
+            ("c1ccc2c(c1)P=C1C=CC=CC1=N2", "phenazaphosphinine"),
+            ("c1ccc2c(c1)Nc1ccccc1P2", "5,10-dihydrophenazaphosphinine"),
+            ("Clc1ccc2N=C3C=CC=CC3=Pc2c1", "2-chlorophenazaphosphinine"),
+            ("Clc1ccc2P=C3C=CC=CC3=Nc2c1", "3-chlorophenazaphosphinine"),
+            ("c1ccc2c(c1)N=C1C=CC=CC1=[As]2", "phenazarsinine"),
+            ("c1ccc2c(c1)Nc1ccccc1[AsH]2", "5,10-dihydrophenazarsinine"),
+            (
+                "CP1c2ccccc2P(C)c2ccccc12",
+                "5,10-dimethyl-5,10-dihydrophosphanthrene",
+            ),
+            (
+                "Cc1ccc2Pc3ccccc3Pc2c1",
+                "2-methyl-5,10-dihydrophosphanthrene",
+            ),
+            (
+                "C[Si]1(C)c2ccccc2[Si](C)(C)c2ccccc12",
+                "5,5,10,10-tetramethyl-5,10-dihydrosilanthrene",
+            ),
+            ("c1ccc2c(c1)P=C1C=Cc3ccccc3C1=P2", "benzo[a]phosphanthrene"),
+            (
+                "c1ccc2c(c1)Pc1ccc3ccccc3c1P2",
+                "7,12-dihydrobenzo[a]phosphanthrene",
+            ),
+            (
+                "c1ccc2c(c1)[AsH]c1ccc3ccccc3c1[AsH]2",
+                "7,12-dihydrobenzo[a]arsanthrene",
+            ),
+            (
+                "c1ccc2c(c1)[SiH2]c1ccc3ccccc3c1[SiH2]2",
+                "7,12-dihydrobenzo[a]silanthrene",
+            ),
+            (
+                "c1ccc2c(c1)Bc1ccc3ccccc3c1B2",
+                "7,12-dihydrobenzo[a]boranthrene",
+            ),
+            (
+                "c1ccc2c(c1)P=C1C=Cc3ccccc3C1=N2",
+                "benzo[c]phenazaphosphinine",
+            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
@@ -3038,6 +3416,41 @@ mod tests {
             (
                 "c1ccc2c(c1)[N+](C)(C)c1cc3cnc4ccccc4c3cc1O2",
                 "8,8-dimethyl-8H-quinolino[3,4-b]phenoxazin-8-ium",
+            ),
+            (
+                "O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3[N+](C)(C)C2=C1",
+                "14,14-dimethyl-2-oxo-2,3,7,14-tetrahydro[1,4]benzothiazino[2,3-b]phenoxazin-14-ium",
+            ),
+            (
+                "O=C1CC=C2Oc3cc4[N+](C)(C)c5ccccc5Sc4cc3NC2=C1",
+                "7,7-dimethyl-2-oxo-2,3,7,14-tetrahydro[1,4]benzothiazino[2,3-b]phenoxazin-7-ium",
+            ),
+            // P-58.2.4: the prefix replaces both H on C-5 of the parent
+            // hydride; the carboxylic acid at C-9 supplies the suffix.
+            (
+                "OC(=O)c1ccc2nc3c(cc(=O)c4ccccc34)oc2c1",
+                "5-oxo-5H-benzo[a]phenoxazine-9-carboxylic acid",
+            ),
+            (
+                "OC(=O)c1ccc2nc3c(cc(=S)c4ccccc34)oc2c1",
+                "5-sulfanylidene-5H-benzo[a]phenoxazine-9-carboxylic acid",
+            ),
+            (
+                "OC(=O)c1ccc2nc3c(cc(=N)c4ccccc34)oc2c1",
+                "5-imino-5H-benzo[a]phenoxazine-9-carboxylic acid",
+            ),
+            (
+                "N=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1",
+                "7,14-dihydro[1,4]benzothiazino[2,3-b]phenoxazin-2(3H)-imine",
+            ),
+            // P-72.2.2.1.1: the anion is derived from a dihydro parent.
+            (
+                "c1ccc2c(c1)Nc1cc3Sc4ccccc4[N-]c3cc1O2",
+                "[1,4]benzothiazino[2,3-b]phenoxazin-7(14H)-ide",
+            ),
+            (
+                "c1ccc2c(c1)[N-]c1cc3Sc4ccccc4Nc3cc1O2",
+                "[1,4]benzothiazino[2,3-b]phenoxazin-14(7H)-ide",
             ),
             // P-58.2.3.1.1: the ketone takes the indicated hydrogen
             // ('7H-1-benzopyran-7-one').
@@ -3144,16 +3557,14 @@ mod tests {
             crate::test_support::verify_identity(smiles, &parsed).unwrap();
         }
         // Not composed yet, so these keep main's names labelled not preferred:
-        // an ion whose ring also has a ketone cites it as 'oxo' (P-73.1.2.1),
-        // an 'oxo' prefix needs its own indicated hydrogen, and an ion at a
-        // hydro N takes added hydrogen (P-72.2.2.1.1).
         let fallback = NameStatus::NotPreferred(NameReason::VonBaeyerFusionFallback);
         let unregistered = NameStatus::NotPreferred(NameReason::UnregisteredRetainedComponent);
         for (smiles, status) in [
-            ("O=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3[N+](C)(C)C2=C1", &fallback),
-            ("O=C1CC=C2Oc3cc4[N+](C)(C)c5ccccc5Sc4cc3NC2=C1", &fallback),
-            ("OC(=O)c1ccc2nc3c(cc(=O)c4ccccc34)oc2c1", &unregistered),
+            ("S=C1CC=C2Oc3cc4Nc5ccccc5Sc4cc3NC2=C1", &fallback),
             ("C[N+]1(C)c2ccccc2Sc2cc3Oc4ccccc4N(C)c3cc21", &fallback),
+            // #15: the pheno...ine family includes this unregistered N/Si
+            // component (P-25.2.2.3) even inside a larger fused ring system.
+            ("c1ccc2c(c1)Nc1ccc3ccccc3c1[SiH2]2", &unregistered),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(&name.status, status, "{smiles}: {}", name.text);
@@ -3173,6 +3584,16 @@ mod tests {
             (
                 "c1ccc2c(c1)Cc1cc3ncccc3cc1O2",
                 "11H-[1]benzopyrano[2,3-g]quinoline",
+            ),
+            // #15: adjacent heteroatoms or a terminal hetero ring are not
+            // pheno...ine systems (P-25.2.2.3), so the fusion name stands.
+            (
+                "c1ccc2c(c1)O[SiH2]c1ccccc12",
+                "6H-dibenzo[c,e][1,2]oxasiline",
+            ),
+            (
+                "c1ccc2cc3OCCSc3cc2c1",
+                "2,3-dihydronaphtho[2,3-b][1,4]oxathiine",
             ),
             ("S1c2ccccc2Cc2ccccc21", "9H-thioxanthene"),
             ("c1ccc2c(c1)Cc1ccccc1O2", "9H-xanthene"),
@@ -3280,6 +3701,10 @@ mod tests {
             ("ClC[Se]CC(=O)O", "[(chloromethyl)selanyl]acetic acid"),
             ("CONSCC(=O)O", "[(methoxyamino)sulfanyl]acetic acid"),
             (
+                "CCCOC1=CC=C(C=C1)C(=O)NC(=S)NC2=[NH+]C=C(C=C2)Br",
+                "5-bromo-2-{[(4-propoxybenzamido)carbonothioyl]amino}pyridin-1-ium",
+            ),
+            (
                 "ClCN=C1CCCC1C(=O)O",
                 "2-[(chloromethyl)imino]cyclopentane-1-carboxylic acid",
             ),
@@ -3343,9 +3768,7 @@ mod tests {
             );
         }
         // A first compound prefix keeps its parentheses, as the compound heterone
-        // prefixes oxophosphanyl, oxoarsanyl and oxostibanyl (P-61.6) do. Only the
-        // outer marks are checked: [(methoxycarbonyl)amino] and triaz-1-en-1-yl
-        // (P-68.3.1.4.1) for aminodiazenyl are separate gaps.
+        // prefixes oxophosphanyl, oxoarsanyl and oxostibanyl (P-61.6) do.
         for (smiles, expected) in [
             ("OC(=O)C(P=O)c1ccccc1", "(oxophosphanyl)(phenyl)acetic acid"),
             ("OC(=O)C([As]=O)c1ccccc1", "(oxoarsanyl)(phenyl)acetic acid"),
@@ -3353,17 +3776,67 @@ mod tests {
                 "OC(=O)C([Sb]=O)c1ccccc1",
                 "(oxostibanyl)(phenyl)acetic acid",
             ),
-            (
-                "OC(=O)C(N=NN)c1ccccc1",
-                "(aminodiazenyl)(phenyl)acetic acid",
-            ),
-            (
-                "OC(=O)C(NC(=O)OC)c1ccccc1",
-                "(methoxycarbonylamino)(phenyl)acetic acid",
-            ),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
+        }
+    }
+
+    #[test]
+    fn halogen_acyl_amino_and_triazene_prefixes_take_iupac_enclosing_marks() {
+        // P-16.5.1.3.1, P-16.5.1.3.2: later simple prefixes are enclosed, halogens
+        // included: bromo(chloro)acetic acid, (R)-bromo(chloro)(fluoro)methane
+        // (P-91.3), bromo(chloro)(phenyl)borane (P-67.1.2.5.2). P-16.5.1.1: the compound
+        // prefix methoxycarbonyl is enclosed inside amino. P-25.4.2.1.4 and
+        // P-68.3.1.4.1: H2N-N=N- is triaz-1-en-1-yl, HN=N-NH- triaz-2-en-1-yl and
+        // H2N-NH-NH- triazan-1-yl.
+        for (smiles, expected) in [
+            ("FC(Cl)Br", "bromo(chloro)(fluoro)methane"),
+            ("F[C@H](Cl)Br", "(R)-bromo(chloro)(fluoro)methane"),
+            ("OC(=O)C(Cl)Br", "bromo(chloro)acetic acid"),
+            ("N#CC(F)C1CC1", "cyclopropyl(fluoro)acetonitrile"),
+            ("ClC(Cl)(Br)C(=O)O", "bromodi(chloro)acetic acid"),
+            ("ClC(Br)c1ccccc1", "[bromo(chloro)methyl]benzene"),
+            ("ClC(Cl)C(=O)O", "dichloroacetic acid"),
+            ("OC(=O)CNC(=O)OC", "[(methoxycarbonyl)amino]acetic acid"),
+            (
+                "OC(=O)C(NC(=O)OC)c1ccccc1",
+                "[(methoxycarbonyl)amino](phenyl)acetic acid",
+            ),
+            (
+                "CC(NC(=O)OC(C)(C)C)C(=O)O",
+                "2-[(tert-butoxycarbonyl)amino]propanoic acid",
+            ),
+            ("OC(=O)CNS(=O)(=O)OC", "[(methoxysulfonyl)amino]acetic acid"),
+            (
+                "OC(=O)CN(C)C(=O)OC",
+                "[(methoxycarbonyl)(methyl)amino]acetic acid",
+            ),
+            (
+                "OC(=O)CN(CC)C(=O)OC",
+                "[ethyl(methoxycarbonyl)amino]acetic acid",
+            ),
+            (
+                "OC(=O)C(Cl)(Br)N=NN",
+                "bromo(chloro)(triaz-1-en-1-yl)acetic acid",
+            ),
+            (
+                "OC(=O)C(N=NN)c1ccccc1",
+                "phenyl(triaz-1-en-1-yl)acetic acid",
+            ),
+            ("NN=Nc1ccc(cc1)C(=O)O", "4-(triaz-1-en-1-yl)benzoic acid"),
+            ("OC(=O)CNN=N", "(triaz-2-en-1-yl)acetic acid"),
+            ("OC(=O)CNNN", "(triazan-1-yl)acetic acid"),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, nazuchem_ir::NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            assert_eq!(
+                crate::test_support::canonical_smiles(smiles).unwrap(),
+                crate::test_support::canonical_smiles(&parsed).unwrap(),
+                "{expected}"
+            );
         }
     }
 
@@ -3443,12 +3916,12 @@ mod tests {
             ),
             (
                 "O=CO[PH](=O)O",
-                "(hydroxyphosphinoyloxy)methanal",
+                "(hydroxyphosphonoyloxy)methanal",
                 R::UnretainedParent,
             ),
             (
                 "O=C(O)OP(=O)(O)c1ccccn1",
-                "{[hydroxy(pyridin-2-yl)phosphoryl]oxy}formic acid",
+                "({hydroxy[(pyridin-2-yl)phosphonoyl]}oxy)formic acid",
                 R::UnretainedParent,
             ),
             (
@@ -3471,28 +3944,6 @@ mod tests {
                 "azuleno[4,5-c]isoxazole",
                 R::FusionComponent,
             ),
-            // P-15.3.2.4.1, P-15.3.1.2.2: substituted units and concatenated
-            // linking groups are not multiplied yet.
-            (
-                "Brc1ccc(Oc2ccc(Br)cc2)cc1",
-                "1-bromo-4-(4-bromophenoxy)benzene",
-                R::Multiplicative,
-            ),
-            (
-                "Brc1ccc(Sc2ccc(Br)cc2)cc1",
-                "1-bromo-4-[(4-bromophenyl)sulfanyl]benzene",
-                R::Multiplicative,
-            ),
-            (
-                "O=S(c1ccc(Br)cc1)c1ccc(Br)cc1",
-                "1-bromo-4-(4-bromobenzene-1-sulfinyl)benzene",
-                R::Multiplicative,
-            ),
-            (
-                "O=S(=O)(c1ccc(Br)cc1)c1ccc(Br)cc1",
-                "1-bromo-4-(4-bromobenzene-1-sulfonyl)benzene",
-                R::Multiplicative,
-            ),
             (
                 "O=C(O)c1ccc(cc1)C(=O)C1CCCCC1",
                 "4-(cyclohexylcarbonyl)benzoic acid",
@@ -3504,24 +3955,15 @@ mod tests {
                 R::AcylPrefix,
             ),
             (
-                "O=C(O)c1ccc(cc1)P(C)(C)=O",
-                "4-(dimethyloxophosphanyl)benzoic acid",
-                R::AcylPrefix,
-            ),
-            ("C[PH](C)=O", "(methyloxophosphanyl)methane", R::AcylPrefix),
-            (
-                "O=C(O)c1ccc([As](=O)(C)C)cc1",
-                "4-(dimethyloxoarsanyl)benzoic acid",
-                R::AcylPrefix,
-            ),
-            (
                 "CC[C@@H](C)c1ccc(Sc2ccc(cc2)[C@H](C)CC)cc1",
                 "1-[(2R)-butan-2-yl]-4-({4-[(2R)-butan-2-yl]phenyl}sulfanyl)benzene",
                 R::Multiplicative,
             ),
+            // P-51.4.1.1: four heterounits; the skeletal replacement name
+            // is not built.
             (
-                "O(CCOCC(=O)O)CC(=O)O",
-                "[2-(carboxymethoxy)ethoxy]acetic acid",
+                "OC(=O)COCCOCCOCCOCC(=O)O",
+                "(2-{2-[2-(carboxymethoxy)ethoxy]ethoxy}ethoxy)acetic acid",
                 R::Multiplicative,
             ),
         ] {
@@ -3584,6 +4026,18 @@ mod tests {
                 "C12=CC=C(C3=CC=CC=C13)O2",
                 "1,4-epoxynaphthalene",
                 R::BridgedFusedParent,
+            ),
+            // P-44.4.1.12.2: three centres, and RS against SR, need CIP
+            // rules 4 and 5.
+            (
+                "CCC(N[C@H](C)[C@@H](Cl)[C@@H](C)O)(N[C@@H](C)[C@@H](Cl)[C@@H](C)O)CCC",
+                "(2R,3R,4R)-3-chloro-4-[(3-{[(2S,3R,4R)-3-chloro-4-hydroxypentan-2-yl]amino}hexan-3-yl)amino]pentan-2-ol",
+                R::ParentConfiguration,
+            ),
+            (
+                "CCC(N[C@H](C)[C@H](C)O)(N[C@@H](C)[C@@H](C)O)CCC",
+                "(2S,3R)-3-[(3-{[(2S,3R)-3-hydroxybutan-2-yl]amino}hexan-3-yl)amino]butan-2-ol",
+                R::ParentConfiguration,
             ),
             (
                 "c1oc2cc3nc4ccccc4nc3cc2c1",
@@ -3655,10 +4109,11 @@ mod tests {
                 "N1CCC(C)C2C1CNC2",
                 "4-methyloctahydro-1H-pyrrolo[3,4-b]pyridine",
             ),
-            // Eleven ring atoms.
+            // Eleven ring atoms. P-25.3.4.2.4(c) prefers the attached component
+            // locant set 1,2,3,4 over 1,2,4,5 for the tied b,b' parent sides.
             (
                 "N1CCC2C1C1CCNC1C2",
-                "decahydro-1H-cyclopenta[1,2-b:4,5-b']dipyrrole",
+                "decahydro-1H-cyclopenta[1,2-b:3,4-b']dipyrrole",
             ),
             // Even ring sizes need no indicated hydrogen.
             ("C1NCC2C1CC1CNCC1C2", "dodecahydropyrrolo[3,4-f]isoindole"),
@@ -3666,6 +4121,27 @@ mod tests {
             ("N1CCCC2C1NCC2", "octahydro-1H-pyrrolo[2,3-b]pyridine"),
             ("N1CCC2C1CNC2", "octahydropyrrolo[3,4-b]pyrrole"),
             ("N1CCCC2C1CNCC2", "decahydro-1,7-naphthyridine"),
+            // Issue #108. P-14.7.1, P-58.2.1.2: a fusion N takes no double
+            // bond, so it can split the mancude parent into parts that each
+            // need indicated hydrogen, also in an even-membered system
+            // ('1H,5H-pyrido[3,2,1-ij]quinoline' in P-58.2.3.1.4).
+            ("C1CN2CCCN2C1", "tetrahydro-1H,5H-pyrazolo[1,2-a]pyrazole"),
+            (
+                "C1CC2CCCC3CCCN(C1)C23",
+                "decahydro-1H,5H-pyrido[3,2,1-ij]quinoline",
+            ),
+            (
+                "C1CC2=C3C(=CC=C2)CCCN3C1",
+                "2,3,6,7-tetrahydro-1H,5H-pyrido[3,2,1-ij]quinoline",
+            ),
+            // The fusion N leaves a nine-atom chain; position 1 pairs up, so
+            // the lowest indicated hydrogen is 2H (P-58.2.1.2).
+            ("C1CCN2CCNCC2C1", "octahydro-2H-pyrido[1,2-a]pyrazine"),
+            ("C1CN2CCNCC2CN1", "octahydro-2H-pyrazino[1,2-a]pyrazine"),
+            // Controls with a fusion N that were already correct.
+            ("C1CCN2CCCN2C1", "hexahydro-1H-pyrazolo[1,2-a]pyridazine"),
+            ("C1CCN2CCCCN2C1", "octahydropyridazino[1,2-a]pyridazine"),
+            ("C1CCN2CCCCC2C1", "octahydro-2H-quinolizine"),
         ] {
             let name = name_smiles(smiles, &Default::default()).unwrap();
             assert_eq!(name.text, expected, "{smiles}");
@@ -3676,6 +4152,25 @@ mod tests {
                 crate::test_support::canonical_smiles(&parsed).unwrap(),
                 "{expected}"
             );
+        }
+    }
+
+    #[test]
+    // Provenance: fn tests::lazy_retained_series_preserve_hydrogenation | original
+    // Source: Nazuchem | crates/nazuchem-s2n/src/lib.rs::tests::lazy_retained_series_preserve_hydrogenation
+    fn lazy_retained_series_preserve_hydrogenation() {
+        for parent in ["decacene", "undecaphene"] {
+            for prefix in ["", "1,2-dihydro"] {
+                let expected = format!("{prefix}{parent}");
+                let smiles = crate::test_support::parse_strict(&expected).unwrap();
+                let name = name_smiles(&smiles, &Default::default()).unwrap();
+                assert_eq!(name.text, expected, "{smiles}");
+                let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+                assert_eq!(
+                    crate::test_support::canonical_smiles(&smiles).unwrap(),
+                    crate::test_support::canonical_smiles(&parsed).unwrap()
+                );
+            }
         }
     }
 
@@ -3779,6 +4274,369 @@ mod tests {
     }
 
     #[test]
+    fn fused_parents_place_indicated_hydrogen_before_hydro_prefixes_and_on_ketones() {
+        use nazuchem_ir::NameStatus;
+        for (smiles, expected) in [
+            // P-58.2.3.1.1: a single free valence at a saturated ring N,
+            // and a carboxyl suffix at the indicated-H fusion atom.
+            (
+                "C1N(CCCC2=C1C=CC=C2)CCO",
+                "2-(1,3,4,5-tetrahydro-2H-2-benzazepin-2-yl)ethan-1-ol",
+            ),
+            (
+                "N1=C2C(=CC=C1)CN(C2)C(C)=O",
+                "1-(5,7-dihydro-6H-pyrrolo[3,4-b]pyridin-6-yl)ethan-1-one",
+            ),
+            (
+                "C1N(CC2=CC=CC=C12)C(C)=O",
+                "1-(1,3-dihydro-2H-isoindol-2-yl)ethan-1-one",
+            ),
+            (
+                "C1C=CC2(CC=CC=C12)C(=O)O",
+                "1,4-dihydro-3aH-indene-3a-carboxylic acid",
+            ),
+            // The fusion nitrogen uses three single ring bonds in the lambda
+            // parent. Only the two added hydrogens are required.
+            (
+                "O=C1CS(=O)(=O)C2=NC=CCN12",
+                "1lambda^6-[1,3]thiazolo[3,2-a]pyrimidine-1,1,3(2H,5H)-trione",
+            ),
+            // #95. P-31.2.2, P-58.2.1.2: indicated hydrogen takes lower locants
+            // than hydro prefixes ('2,3-dihydro-1H-indene', not
+            // '1,3-dihydro-2H-indene'; '3,4-dihydro-2H-1-benzopyran').
+            ("C1NCc2ncccc21", "6,7-dihydro-5H-pyrrolo[3,4-b]pyridine"),
+            (
+                "C1CNCc2c1[nH]c1ccccc12",
+                "2,3,4,5-tetrahydro-1H-pyrido[4,3-b]indole",
+            ),
+            ("C1CC2OCC=CC2O1", "3,3a,5,7a-tetrahydro-2H-furo[3,2-b]pyran"),
+            // The same for retained parents whose name states the hydrogen.
+            (
+                "C1CNCc2c1c1ccccc1[nH]2",
+                "2,3,4,9-tetrahydro-1H-pyrido[3,4-b]indole",
+            ),
+            (
+                "C1CCc2c(C1)Oc1ccccc1N2",
+                "2,3,4,10-tetrahydro-1H-phenoxazine",
+            ),
+            ("C1CSc2ccccc2N1", "3,4-dihydro-2H-1,4-benzothiazine"),
+            ("C1CNc2ncncc21", "6,7-dihydro-5H-pyrrolo[2,3-d]pyrimidine"),
+            // P-58.2.4: prefixes are added after the hydrogen of the N-H
+            // parent, whether that N-H is indicated or hydro hydrogen (#52).
+            (
+                "CN1Cc2ncccc2C1",
+                "6-methyl-6,7-dihydro-5H-pyrrolo[3,4-b]pyridine",
+            ),
+            (
+                "CN1CCc2c(C1)c1ccccc1n2C",
+                "2,5-dimethyl-2,3,4,5-tetrahydro-1H-pyrido[4,3-b]indole",
+            ),
+            (
+                "CN1CCc2sccc21",
+                "4-methyl-5,6-dihydro-4H-thieno[3,2-b]pyrrole",
+            ),
+            (
+                "CN1Cc2sccc2C1",
+                "5-methyl-5,6-dihydro-4H-thieno[2,3-c]pyrrole",
+            ),
+            (
+                "CN1CCC2=C1C=NN2",
+                "4-methyl-1,4,5,6-tetrahydropyrrolo[3,2-c]pyrazole",
+            ),
+            (
+                "N1CCCC2C1CN(C)C2",
+                "6-methyloctahydro-1H-pyrrolo[3,4-b]pyridine",
+            ),
+            (
+                "CN1CCCC2C1CN(C)C2",
+                "1,6-dimethyloctahydro-1H-pyrrolo[3,4-b]pyridine",
+            ),
+            ("CN1CC2CCNC2C1", "5-methyloctahydropyrrolo[3,4-b]pyrrole"),
+            // P-72.2.2.1, P-73.1.1.2: '-ide' and '-ium' modify the parent
+            // hydride, which keeps its hydrogen ('5H-...-5-ide' in P-74.1.1).
+            ("c1ccc2c(c1)[n-]c1ccncc12", "5H-pyrido[4,3-b]indol-5-ide"),
+            ("[n-]1ccc2sccc21", "4H-thieno[3,2-b]pyrrol-4-ide"),
+            (
+                "C[NH+]1Cc2ncccc2C1",
+                "6-methyl-6,7-dihydro-5H-pyrrolo[3,4-b]pyridin-6-ium",
+            ),
+            (
+                "C1C[NH2+]Cc2c1c1ccccc1[nH]2",
+                "2,3,4,9-tetrahydro-1H-pyrido[3,4-b]indol-2-ium",
+            ),
+            (
+                "C[NH+]1CCc2c(C1)[nH]c1ccccc21",
+                "2-methyl-2,3,4,9-tetrahydro-1H-pyrido[3,4-b]indol-2-ium",
+            ),
+            (
+                "C1C[NH2+]Cc2c1[nH]c1ccccc12",
+                "2,3,4,5-tetrahydro-1H-pyrido[4,3-b]indol-2-ium",
+            ),
+            // P-58.2.3.1.1: with as many indicated hydrogens as ketones the
+            // ketone takes the hydrogen and the other saturated positions are
+            // hydro positions ('7H-1-benzopyran-7-one'; P-64.3.1
+            // '1,2-dihydro-3H-indol-3-one, not 1H-indol-3(2H)-one').
+            ("O=c1ccoc2ncccc12", "4H-pyrano[2,3-b]pyridin-4-one"),
+            ("O=c1ccc2cccnc2o1", "2H-pyrano[2,3-b]pyridin-2-one"),
+            ("O=c1ccoc2ccsc12", "7H-thieno[3,2-b]pyran-7-one"),
+            (
+                "O=C1NCc2ncccc21",
+                "6,7-dihydro-5H-pyrrolo[3,4-b]pyridin-5-one",
+            ),
+            (
+                "O=C1CNc2[nH]c3ccccc3c2C1",
+                "1,2,4,9-tetrahydro-3H-pyrido[2,3-b]indol-3-one",
+            ),
+            (
+                "O=c1[nH]ccc2[nH]ccc12",
+                "1,5-dihydro-4H-pyrrolo[3,2-c]pyridin-4-one",
+            ),
+            (
+                "O=C1CN=C(c2ccccc2)c2cc(Cl)ccc2N1",
+                "7-chloro-5-phenyl-1,3-dihydro-2H-1,4-benzodiazepin-2-one",
+            ),
+            (
+                "O=c1[nH]ccc2c1[nH]c1ccccc12",
+                "2,9-dihydro-1H-pyrido[3,4-b]indol-1-one",
+            ),
+            (
+                "O=C1NCCc2c1[nH]c1ccccc12",
+                "2,3,4,9-tetrahydro-1H-pyrido[3,4-b]indol-1-one",
+            ),
+            ("O=C1CCCc2c[nH]cc21", "2,5,6,7-tetrahydro-4H-isoindol-4-one"),
+            (
+                "O=c1[nH]cnc2[nH]ccc12",
+                "3,7-dihydro-4H-pyrrolo[2,3-d]pyrimidin-4-one",
+            ),
+            (
+                "O=c1[nH]cnc2c1cnn2C",
+                "1-methyl-1,5-dihydro-4H-pyrazolo[3,4-d]pyrimidin-4-one",
+            ),
+            (
+                "O=C1CC=C2Nc3ccccc3OC2=C1",
+                "2,10-dihydro-3H-phenoxazin-3-one",
+            ),
+            // P-58.2.3.1.3: with fewer indicated hydrogens than ketones it
+            // takes the lowest position and the rest use added hydrogen
+            // ('1H-cyclopenta[a]naphthalene-1,2(3H)-dione').
+            (
+                "O=C1NC(=O)c2ncccc12",
+                "5H-pyrrolo[3,4-b]pyridine-5,7(6H)-dione",
+            ),
+            (
+                "O=C1C=CC(=O)c2Nc3ccccc3Oc12",
+                "1H-phenoxazine-1,4(10H)-dione",
+            ),
+            // P-58.2.3.1.4: a ketone position that cannot take the hydrogen
+            // leaves it at the lowest permissible one.
+            ("O=C1C=CC2=C(Nc3ccccc3O2)C1", "1H-phenoxazin-2(10H)-one"),
+            ("O=C1COc2ccccc2N1", "2H-1,4-benzoxazin-3(4H)-one"),
+            // Controls: already lowest, a hydro N, no indicated hydrogen in
+            // the parent, and parents whose name does not state the hydrogen.
+            (
+                "C1CCc2c(C1)n(C)c1ccncc21",
+                "5-methyl-6,7,8,9-tetrahydro-5H-pyrido[4,3-b]indole",
+            ),
+            (
+                "CN1CCCc2sccc21",
+                "4-methyl-4,5,6,7-tetrahydrothieno[3,2-b]pyridine",
+            ),
+            (
+                "O=c1c2ccccc2nc2n1CCC2",
+                "2,3-dihydropyrrolo[2,1-b]quinazolin-9(1H)-one",
+            ),
+            (
+                "C1CCc2c(C1)[nH]c1ccccc12",
+                "2,3,4,9-tetrahydro-1H-carbazole",
+            ),
+            ("O=C1CC=CC2=C1c1ccccc1N2", "3,9-dihydro-4H-carbazol-4-one"),
+            ("O=c1[nH]cnc2nc[nH]c12", "1,7-dihydro-6H-purin-6-one"),
+            (
+                "CN1C=NC2=C1C(=O)N(C(=O)N2C)C",
+                "1,3,7-trimethyl-3,7-dihydro-1H-purine-2,6-dione",
+            ),
+            ("O=C1NC(=O)c2ccccc12", "1H-isoindole-1,3(2H)-dione"),
+            // Issue #95 leftovers. P-25.7.1.1, P-14.7.1: a fusion N takes no
+            // double bond, so the parent's indicated hydrogen is counted
+            // without it.
+            // P-58.2.3.1.4, the Blue Book example: neither ketone position
+            // can take the hydrogen, and the two ketones remove one double
+            // bond, so no added hydrogen is cited (P-58.2.2.3).
+            (
+                "C1C=CN2CC(=O)C=C3C(=O)C=CC1=C23",
+                "1H,5H-pyrido[3,2,1-ij]quinoline-6,8-dione",
+            ),
+            (
+                "O=C1C=C2C(=O)C=CC3=C2N(C1)C=CC3",
+                "1H,5H-pyrido[3,2,1-ij]quinoline-6,8-dione",
+            ),
+            // P-58.2.3.1.4 with P-58.2.3.1.3 (1)-(3): 5,6 cannot both take
+            // the hydrogen; one stays at the lowest position (3), the other
+            // goes to ketone 5, and ketone 6 takes added hydrogen.
+            (
+                "O=C1C(=O)CN2N=CCN12",
+                "3H,5H-pyrazolo[1,2-a][1,2,3]triazole-5,6(7H)-dione",
+            ),
+            // The same rules: position 1 is the lowest that can take the
+            // hydrogen, so it is reserved first and ketone 3 takes added
+            // hydrogen rather than '3H'.
+            (
+                "N1CC(=O)N2CC(=O)CN12",
+                "1H,5H-pyrazolo[1,2-a][1,2,3]triazole-3,6(2H,7H)-dione",
+            ),
+            // P-58.2.3.1.3 example and P-58.2.2.3: one indicated hydrogen
+            // for two ketones stays at the lowest position.
+            (
+                "O=C1C(=O)CC2=C1C1=CC=CC=C1C=C2",
+                "1H-cyclopenta[a]naphthalene-1,2(3H)-dione",
+            ),
+            ("O=C1C(=O)N2C=CC=C2C1", "1H-pyrrolizine-2,3-dione"),
+            // P-58.2.3.1.1: as many indicated hydrogens as ketones.
+            (
+                "O=C1C=CN2C=CC(=O)N12",
+                "1H,7H-pyrazolo[1,2-a]pyrazole-1,7-dione",
+            ),
+            ("O=C1C=CN2C=CC=CC2=N1", "2H-pyrido[1,2-a]pyrimidin-2-one"),
+            ("O=C1C=CN=C2C=CC=CN12", "4H-pyrido[1,2-a]pyrimidin-4-one"),
+            (
+                "O=C1C=CN2C=CSC2=N1",
+                "7H-[1,3]thiazolo[3,2-a]pyrimidin-7-one",
+            ),
+            // P-58.2.3.1.2: the hydrogen the ketone does not use takes the
+            // lowest locant.
+            (
+                "C1CN2CCCN2C1=O",
+                "tetrahydro-1H,5H-pyrazolo[1,2-a]pyrazol-1-one",
+            ),
+            // P-58.2.3.1.4: position 3 cannot take the hydrogen (S and the
+            // fusion N isolate C2-C3), so it stays at 5 and the ketone takes
+            // added hydrogen.
+            (
+                "O=C1CSC2=NC=CCN12",
+                "5H-[1,3]thiazolo[3,2-a]pyrimidin-3(2H)-one",
+            ),
+            ("O=C1CCCN2C=CC=CC12", "3,4-dihydro-2H-quinolizin-1(9aH)-one"),
+            ("O=C1C=CC=C2C=CC=CN12", "4H-quinolizin-4-one"),
+            // P-58.2.4: groups cited as prefixes replace hydrogen of hydro
+            // positions; only a pair of suffixes removes the double bond
+            // without them (P-58.2.2.3).
+            (
+                "COC(=O)C1=CN=C2SC(=C)C(=O)N2C1",
+                "methyl 2-methylidene-3-oxo-2,3-dihydro-5H-[1,3]thiazolo[3,2-a]pyrimidine-6-carboxylate",
+            ),
+            (
+                "C=C1SC2=NC=CCN2C1=C",
+                "2,3-dimethylidene-2,3-dihydro-5H-[1,3]thiazolo[3,2-a]pyrimidine",
+            ),
+            (
+                "O=C1SC2=NC=CCN2C1=O",
+                "5H-[1,3]thiazolo[3,2-a]pyrimidine-2,3-dione",
+            ),
+            // P-58.2.3.1.1: 'locants for hydro prefixes are those of the
+            // saturated positions', also when the double bonds between them
+            // move ('1,2-dihydro-3H-indol-3-one' in P-64.3.1).
+            ("O=C1CC=CC2=CNC=C12", "2,5-dihydro-4H-isoindol-4-one"),
+            ("O=C1CC=Cc2c[nH]cc12", "2,5-dihydro-4H-isoindol-4-one"),
+            // P-58.2.2.2: without indicated hydrogen in the parent, the added
+            // hydrogen takes the lowest position the double bonds allow.
+            (
+                "O=C1CCc2c1[nH]c1ccccc12",
+                "1,4-dihydrocyclopenta[b]indol-3(2H)-one",
+            ),
+            (
+                "O=C1CCc2c1c1ccccc1[nH]2",
+                "3,4-dihydrocyclopenta[b]indol-1(2H)-one",
+            ),
+            // P-58.2.3.1.4: 2H-perimidine has one double bond fewer than
+            // 1H-perimidine, so the ketone cannot take the hydrogen.
+            ("O=C1Nc2cccc3cccc(N1)c23", "1H-perimidin-2(3H)-one"),
+            // P-25.7.1.1 ('pyrrolo[3,2-b]pyrrole'): mancude
+            // pyrrolo[2,3-b]indole has six double bonds (N1=C2, C3=C3a,
+            // N8=C8a and the benzo ring) and no indicated hydrogen; both N-H
+            // are hydro positions (P-31.2.2).
+            (
+                "c1ccc2c(c1)[nH]c1[nH]ccc12",
+                "1,8-dihydropyrrolo[2,3-b]indole",
+            ),
+            (
+                "CN1c2ccccc2C2=C1NC(=O)C2",
+                "8-methyl-3,8-dihydropyrrolo[2,3-b]indol-2(1H)-one",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+        // P-58.2.3.1.1, .2 and .4 give these complete fused-system PINs.
+        for expected in [
+            "1,3b,4,5,6,6a,7,7a-octahydro-3aH-cyclopenta[a]pentalene-3a,4-diol",
+            "2,3,7,8-tetrahydro-4H,6H-benzo[1,2-b:5,4-b']dipyran-4,6-dione",
+            "9,10-dihydro-2H,4H-benzo[1,2-b:4,3-c']dipyran-2,6(8H)-dione",
+            "4,4a-dihydro-2H,5H-benzo[1,2-b:4,3-c']dipyran-5,6(6aH)-dione",
+            "7,8-dihydro-2H,6H-benzo[1,2-b:5,4-b']dipyran-6-one",
+        ] {
+            let smiles = crate::test_support::parse_strict(expected).unwrap();
+            let name = name_smiles(&smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            assert_eq!(name.status, NameStatus::Preferred);
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(&smiles, &parsed).unwrap();
+        }
+        // A bridged fused parent replays the plan, so the relocated hydrogen
+        // must carry its own bond proof; otherwise the plan is left as it was.
+        for (smiles, expected) in [
+            (
+                "C1NCc2nc3cc(C3)c21",
+                "6,7-dihydro-5H-2,4-methanopyrrolo[3,4-b]pyridine",
+            ),
+            (
+                "C1NCc2nc3cc(CC3)c21",
+                "6,7-dihydro-5H-2,4-ethanopyrrolo[3,4-b]pyridine",
+            ),
+            (
+                "C1CNCc2c1[nH]c1cc3cc(C3)c12",
+                "1,2,3,4-tetrahydro-5H-7,9-methanopyrido[4,3-b]indole",
+            ),
+            (
+                "CN1CCC23C4C1CC5=C2C(=CC=C5)OC3CC=C4",
+                "3-methyl-2,3,4,4a,7,7a-hexahydro-1H-4,12-methano[1]benzofuro[3,2-e]isoquinoline",
+            ),
+            // A bridge on the ring N is not a substituent of the N-H parent.
+            (
+                "C1CN3Cc2c1[nH]c1cc(CC3)ccc12",
+                "1,2,3,4-tetrahydro-5H-2,7-ethanopyrido[4,3-b]indole",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected, "{smiles}");
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+    }
+
+    #[test]
+    fn multiplied_oxireno_numbering() {
+        // P-25.3.2.3.3(a): only successively fused rings form a horizontal row.
+        // Three rings in the upper row share an axis but only two are fused.
+        for (smiles, expected) in [
+            (
+                "CCCCCC(=O)O[C@@H]1[C@@]2(C(C)C)O[C@H]2[C@@H]2O[C@]23[C@]12O[C@H]2C[C@H]1C2=C(CC[C@@]13C)C(=O)OC2",
+                "(3bS,4aS,5aR,6R,6aS,7aS,7bS,8aS,8bS)-8b-methyl-1-oxo-6a-(propan-2-yl)-3b,4,4a,6,6a,7a,7b,8b,9,10-decahydro-3H-trisoxireno[2',3':4b,5;2'',3'':6,7;2''',3''':8a,9]phenanthro[1,2-c]furan-6-yl hexanoate",
+            ),
+            (
+                "CC(C)[C@]12O[C@H]1[C@@H]1O[C@]13[C@]1(O[C@H]1C[C@H]1C4=C(C(=O)c5ccccc5)OC(=O)C4CC[C@@]13C)[C@@H]2O",
+                "(3bR,4aS,5aS,6R,6aR,7aS,7bS,8aS,8bS)-3-benzoyl-6-hydroxy-8b-methyl-6a-(propan-2-yl)-4,4a,6,6a,7a,7b,8b,9,10,10a-decahydrotrisoxireno[2',3':4b,5;2'',3'':6,7;2''',3''':8a,9]phenanthro[1,2-c]furan-1(3bH)-one",
+            ),
+        ] {
+            let name = name_smiles(smiles, &Default::default()).unwrap();
+            assert_eq!(name.text, expected);
+            let parsed = crate::test_support::parse_strict(&name.text).unwrap();
+            crate::test_support::verify_identity(smiles, &parsed).unwrap();
+        }
+    }
+    #[test]
     fn angular_oxazole_thiazole_acetic_acid_round_trips() {
         let smiles = "O=C(O)Cc1nc2ccc3ocnc3c2s1";
         let name = name_smiles(smiles, &Default::default()).unwrap().text;
@@ -3847,7 +4705,6 @@ mod tests {
             "C/N=N/c1cccnc1",
             "C/N=N\\c1cccnc1",
             "CC(=O)NOC(=O)Cc1nc(C(=O)O)cs1",
-            "O=C(O)[C@H](O)[C@@H](O)C(=O)OO",
             "CN(C(=O)[O-])C1(B(O)O)CCC1",
             "O[N@]1CC12CC2",
             "CN(C)[N@]1CC1(C)CO",

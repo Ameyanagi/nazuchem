@@ -37541,7 +37541,7 @@
         "interior_atoms": [],
         "default_indicated_h": [],
         "mancude_double_bonds": 5,
-        "enabled": true,
+        "enabled": false,
         "derivative_production_enabled": true
       }
     },
@@ -40060,6 +40060,4980 @@
         "interior_atoms": [],
         "default_indicated_h": [],
         "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "phenothiaselenine",
+      "pin": true,
+      "priority": 365,
+      "attached_prefix": "phenothiaselenino",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "S",
+            "aromatic": false
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "Se",
+            "aromatic": false
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "phenothiatellurine",
+      "pin": true,
+      "priority": 365,
+      "attached_prefix": "phenothiatellurino",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "S",
+            "aromatic": false
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "Te",
+            "aromatic": false
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "phenoselenatellurine",
+      "pin": true,
+      "priority": 365,
+      "attached_prefix": "phenoselenatellurino",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "Se",
+            "aromatic": false
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "Te",
+            "aromatic": false
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenothiaphosphinine",
+      "pin": true,
+      "priority": 40,
+      "attached_prefix": "phenothiaphosphinino",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "S",
+            "aromatic": false
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "P",
+            "aromatic": false
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenothiastibinine",
+      "pin": true,
+      "priority": 40,
+      "attached_prefix": "phenothiastibinino",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "S",
+            "aromatic": false
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "Sb",
+            "aromatic": false
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenoselenaphosphinine",
+      "pin": true,
+      "priority": 40,
+      "attached_prefix": "phenoselenaphosphinino",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "Se",
+            "aromatic": false
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "P",
+            "aromatic": false
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenoselenarsinine",
+      "pin": true,
+      "priority": 40,
+      "attached_prefix": "phenoselenarsinino",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "Se",
+            "aromatic": false
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "As",
+            "aromatic": false
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenoselenastibinine",
+      "pin": true,
+      "priority": 40,
+      "attached_prefix": "phenoselenastibinino",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "Se",
+            "aromatic": false
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "Sb",
+            "aromatic": false
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenotelluraphosphinine",
+      "pin": true,
+      "priority": 40,
+      "attached_prefix": "phenotelluraphosphinino",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "Te",
+            "aromatic": false
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "P",
+            "aromatic": false
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenotellurarsinine",
+      "pin": true,
+      "priority": 40,
+      "attached_prefix": "phenotellurarsinino",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "Te",
+            "aromatic": false
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "As",
+            "aromatic": false
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenotellurastibinine",
+      "pin": true,
+      "priority": 40,
+      "attached_prefix": "phenotellurastibinino",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "Te",
+            "aromatic": false
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "Sb",
+            "aromatic": false
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "phosphanthrene",
+      "pin": true,
+      "priority": 364,
+      "attached_prefix": "phosphanthreno",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "P"
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "P"
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 7,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenothiasiline",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenothiasilino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "S", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Si", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenothiagermine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenothiagermino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "S", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Ge", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenothiastannine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenothiastannino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "S", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Sn", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenothiabismine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenothiabismino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "S", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Bi", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenothiaborinine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenothiaborinino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "S", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "B", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenoselenasiline",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenoselenasilino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "Se", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Si", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenoselenagermine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenoselenagermino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "Se", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Ge", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenoselenastannine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenoselenastannino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "Se", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Sn", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenoselenabismine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenoselenabismino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "Se", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Bi", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenoselenaborinine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenoselenaborinino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "Se", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "B", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenotellurasiline",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenotellurasilino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "Te", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Si", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenotelluragermine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenotelluragermino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "Te", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Ge", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenotellurastannine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenotellurastannino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "Te", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Sn", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenotellurabismine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenotellurabismino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "Te", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Bi", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenotelluraborinine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenotelluraborinino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "Te", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "B", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenoxasiline",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenoxasilino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "O", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Si", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenoxagermine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenoxagermino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "O", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Ge", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenoxastannine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenoxastannino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "O", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Sn", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenoxabismine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenoxabismino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "O", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Bi", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "10H-phenoxaborinine",
+      "pin": true,
+      "priority": 41,
+      "attached_prefix": "phenoxaborinino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "O", "aromatic": false},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "B", "aromatic": false},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 6,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "phenophosphastibinine",
+      "pin": true,
+      "priority": 365,
+      "attached_prefix": "phenophosphastibinino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "P"},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Sb"},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 7,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "phenarsastibinine",
+      "pin": true,
+      "priority": 365,
+      "attached_prefix": "phenarsastibinino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "As"},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "Sb"},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 7,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "phenophospharsinine",
+      "pin": true,
+      "priority": 365,
+      "attached_prefix": "phenophospharsinino",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "P"},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "As"},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 7,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "boranthrene",
+      "pin": true,
+      "priority": 364,
+      "attached_prefix": "boranthreno",
+      "template": {
+        "atoms": [
+          {"locant": "1"},
+          {"locant": "2"},
+          {"locant": "3"},
+          {"locant": "4"},
+          {"locant": "4a", "fusion": true},
+          {"locant": "5", "symbol": "B"},
+          {"locant": "5a", "fusion": true},
+          {"locant": "6"},
+          {"locant": "7"},
+          {"locant": "8"},
+          {"locant": "9"},
+          {"locant": "9a", "fusion": true},
+          {"locant": "10", "symbol": "B"},
+          {"locant": "10a", "fusion": true}
+        ],
+        "bonds": [
+          {"locants": ["1", "2"]},
+          {"locants": ["2", "3"]},
+          {"locants": ["3", "4"]},
+          {"locants": ["4", "4a"]},
+          {"locants": ["4a", "5"]},
+          {"locants": ["5", "5a"]},
+          {"locants": ["5a", "6"]},
+          {"locants": ["6", "7"]},
+          {"locants": ["7", "8"]},
+          {"locants": ["8", "9"]},
+          {"locants": ["9", "9a"]},
+          {"locants": ["5a", "9a"], "bond_class": "fusion"},
+          {"locants": ["9a", "10"]},
+          {"locants": ["10", "10a"]},
+          {"locants": ["1", "10a"]},
+          {"locants": ["4a", "10a"], "bond_class": "fusion"}
+        ],
+        "locants": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "rings": [
+          ["1", "2", "3", "4", "4a", "10a"],
+          ["4a", "5", "5a", "9a", "10", "10a"],
+          ["5a", "6", "7", "8", "9", "9a"]
+        ],
+        "fusion_atoms": ["4a", "5a", "9a", "10a"],
+        "peripheral_atoms": ["1", "2", "3", "4", "4a", "5", "5a", "6", "7", "8", "9", "9a", "10", "10a"],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 7,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "arsanthrene",
+      "pin": true,
+      "priority": 364,
+      "attached_prefix": "arsanthreno",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "As"
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "As"
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 7,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "silanthrene",
+      "pin": true,
+      "priority": 364,
+      "attached_prefix": "silanthreno",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "Si"
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "Si"
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 7,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "phenazaphosphinine",
+      "pin": true,
+      "priority": 365,
+      "attached_prefix": "phenazaphosphinino",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "N"
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "P"
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 7,
+        "enabled": true,
+        "derivative_production_enabled": true
+      }
+    },
+    {
+      "name": "phenazarsinine",
+      "pin": true,
+      "priority": 365,
+      "attached_prefix": "phenazarsinino",
+      "template": {
+        "atoms": [
+          {
+            "locant": "1"
+          },
+          {
+            "locant": "2"
+          },
+          {
+            "locant": "3"
+          },
+          {
+            "locant": "4"
+          },
+          {
+            "locant": "4a",
+            "fusion": true
+          },
+          {
+            "locant": "5",
+            "symbol": "N"
+          },
+          {
+            "locant": "5a",
+            "fusion": true
+          },
+          {
+            "locant": "6"
+          },
+          {
+            "locant": "7"
+          },
+          {
+            "locant": "8"
+          },
+          {
+            "locant": "9"
+          },
+          {
+            "locant": "9a",
+            "fusion": true
+          },
+          {
+            "locant": "10",
+            "symbol": "As"
+          },
+          {
+            "locant": "10a",
+            "fusion": true
+          }
+        ],
+        "bonds": [
+          {
+            "locants": [
+              "1",
+              "2"
+            ]
+          },
+          {
+            "locants": [
+              "2",
+              "3"
+            ]
+          },
+          {
+            "locants": [
+              "3",
+              "4"
+            ]
+          },
+          {
+            "locants": [
+              "4",
+              "4a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "5"
+            ]
+          },
+          {
+            "locants": [
+              "5",
+              "5a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "6"
+            ]
+          },
+          {
+            "locants": [
+              "6",
+              "7"
+            ]
+          },
+          {
+            "locants": [
+              "7",
+              "8"
+            ]
+          },
+          {
+            "locants": [
+              "8",
+              "9"
+            ]
+          },
+          {
+            "locants": [
+              "9",
+              "9a"
+            ]
+          },
+          {
+            "locants": [
+              "5a",
+              "9a"
+            ],
+            "bond_class": "fusion"
+          },
+          {
+            "locants": [
+              "9a",
+              "10"
+            ]
+          },
+          {
+            "locants": [
+              "10",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "1",
+              "10a"
+            ]
+          },
+          {
+            "locants": [
+              "4a",
+              "10a"
+            ],
+            "bond_class": "fusion"
+          }
+        ],
+        "locants": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "rings": [
+          [
+            "1",
+            "2",
+            "3",
+            "4",
+            "4a",
+            "10a"
+          ],
+          [
+            "4a",
+            "5",
+            "5a",
+            "9a",
+            "10",
+            "10a"
+          ],
+          [
+            "5a",
+            "6",
+            "7",
+            "8",
+            "9",
+            "9a"
+          ]
+        ],
+        "fusion_atoms": [
+          "4a",
+          "5a",
+          "9a",
+          "10a"
+        ],
+        "peripheral_atoms": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "4a",
+          "5",
+          "5a",
+          "6",
+          "7",
+          "8",
+          "9",
+          "9a",
+          "10",
+          "10a"
+        ],
+        "interior_atoms": [],
+        "default_indicated_h": [],
+        "mancude_double_bonds": 7,
         "enabled": true,
         "derivative_production_enabled": true
       }

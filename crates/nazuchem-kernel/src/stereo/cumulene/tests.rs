@@ -6,6 +6,25 @@
 use super::*;
 
 #[test]
+fn configured_cumulene_import_preserves_enhanced_stereo_groups() -> anyhow::Result<()> {
+    let budget = crate::budget::Budget::default();
+    let smiles = "N[C@H](F)C/C=C=C=C/C";
+    let absolute = crate::smiles::read(smiles, &budget)?;
+    let relative = crate::smiles::read(&format!("{smiles} |r|"), &budget)?;
+    let explicit = crate::smiles::read(&format!("{smiles} |&1:1|"), &budget)?;
+    assert_eq!(absolute.prepared.cumulene_ez.len(), 1);
+    for imported in [relative, explicit] {
+        assert!(!imported.dropped_cumulene_ez);
+        assert_eq!(imported.prepared.cumulene_ez, absolute.prepared.cumulene_ez);
+        let groups = imported.prepared.state.metadata.groups;
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].kind, 2);
+        assert_eq!(groups[0].atoms, [1]);
+    }
+    Ok(())
+}
+
+#[test]
 fn maximal_odd_chains_have_distinct_terminal_ligands() -> Result<(), String> {
     for (text, lengths) in [
         ("CC=C=C=CC", vec![3]),
@@ -221,5 +240,29 @@ fn directions_give_the_cip_descriptor() {
         let imported = crate::smiles::read(text, &crate::budget::Budget::default()).unwrap();
         assert!(imported.prepared.cumulene_ez.is_empty(), "{text}");
         assert_eq!(imported.dropped_cumulene_ez, dropped, "{text}");
+    }
+}
+
+#[test]
+fn equivalent_relative_groups_preserve_depicted_cumulene_geometry() {
+    let body = "C[C@H](F)/C([C@H](F)C)=C=C=C/C[C@H](Cl)N";
+    let read = |suffix| {
+        crate::smiles::read(
+            &format!("{body}{suffix}"),
+            &crate::budget::Budget::default(),
+        )
+        .unwrap()
+    };
+    let expected = read("").prepared.cumulene_ez;
+    assert_eq!(expected.len(), 1);
+    for suffix in [" |r|", " |&1:1,4,11|"] {
+        let imported = read(suffix);
+        assert_eq!(imported.prepared.cumulene_ez, expected);
+        assert!(!imported.dropped_cumulene_ez);
+        let [group] = imported.prepared.state.metadata.groups.as_slice() else {
+            panic!("{suffix}")
+        };
+        assert_eq!(group.kind, 2);
+        assert_eq!(group.atoms, [1, 4, 11]);
     }
 }

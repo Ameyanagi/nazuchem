@@ -10,6 +10,7 @@
 // Source: openclatura | tests/unit/test_rules_tables.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: openclatura | tests/data/parser_xml_resources/alkanes.json | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: Nazuchem | crates/nazuchem-s2n/src/numbering.rs | issue 10
+// Source: Nazuchem | crates/nazuchem-s2n/src/numbering.rs | issue #27
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura parent-numbering criteria extended with local skeletal-anion, von Baeyer compound-locant and late modifier priorities.
@@ -17,7 +18,7 @@
 
 //! Parent numbering criteria ported from Python `numbering.py`.
 use super::{
-    assembly_prefixes::substituent_sort_key,
+    assembly_prefixes::{rs_descriptors, substituent_sort_key},
     locants::{
         LocantKey, get_atom_locants, get_bond_locants, parse_locant, retained_locant_sort_key,
     },
@@ -44,17 +45,24 @@ pub struct NumberingModifiers {
     /// P-24.5.1: minimize the junction within the component's own numbering,
     /// before hydrogen state and characteristic suffixes are considered.
     pub spiro_junction: Option<usize>,
-    pub nitrogen_substituents: BTreeMap<usize, Vec<String>>,
+    /// P-15.3.1.3: the multiplicative linker is cited ahead of detached prefixes.
+    pub multiplicative_attachment: Option<usize>,
+    /// Per parent atom, each N-substituent with the primes of its nitrogen:
+    /// 0 for N, 1 for the N' of a hydrazide (P-66.3.3.2).
+    pub nitrogen_substituents: BTreeMap<usize, Vec<(usize, String)>>,
     pub ester_alcohols: BTreeMap<usize, String>,
     pub acid_isotopes: Vec<(usize, String, u16)>,
+    /// Anhydride end acid rank in order of citation (P-65.7.6.3).
+    pub anhydride_ends: BTreeMap<usize, usize>,
 }
 
 #[derive(Default, PartialEq, Eq, PartialOrd, Ord)]
 struct ModifierPreference {
-    nitrogen_locants: Vec<usize>,
-    nitrogen_citation: Vec<usize>,
+    nitrogen_locants: Vec<(usize, usize)>,
+    nitrogen_citation: Vec<(usize, usize)>,
     isotope_locants: Vec<Vec<LocantKey>>,
     alcohol_citation: Vec<LocantKey>,
+    anhydride_citation: Vec<LocantKey>,
 }
 
 // Provenance: impl NumberingModifiers | original
@@ -70,9 +78,9 @@ impl NumberingModifiers {
         let mut nitrogen_locants = Vec::new();
         let mut nitrogen_citation = Vec::new();
         for (index, (_, names)) in nitrogens.into_iter().enumerate() {
-            for name in names {
-                nitrogen_locants.push(index);
-                nitrogen_citation.push((substituent_sort_key(name), index));
+            for (primes, name) in names {
+                nitrogen_locants.push((index, *primes));
+                nitrogen_citation.push((substituent_sort_key(name), (index, *primes)));
             }
         }
         nitrogen_locants.sort();
@@ -108,6 +116,15 @@ impl NumberingModifiers {
                 locants
             }))
             .collect();
+        let mut anhydride_citation: Vec<_> = self
+            .anhydride_ends
+            .iter()
+            .filter_map(|(atom, priority)| {
+                map.get(atom)
+                    .map(|locant| (priority, retained_locant_sort_key(locant)))
+            })
+            .collect();
+        anhydride_citation.sort();
         ModifierPreference {
             nitrogen_locants,
             nitrogen_citation: nitrogen_citation
@@ -116,6 +133,10 @@ impl NumberingModifiers {
                 .collect(),
             isotope_locants,
             alcohol_citation: alcohol_citation
+                .into_iter()
+                .map(|(_, locant)| locant)
+                .collect(),
+            anhydride_citation: anhydride_citation
                 .into_iter()
                 .map(|(_, locant)| locant)
                 .collect(),
@@ -149,13 +170,15 @@ pub struct NumberingPreference {
     pub hydro: Vec<usize>,
     pub unsaturation: Vec<usize>,
     pub double_bonds: Vec<usize>,
+    pub multiplicative_attachment: Vec<usize>,
     pub substituent_and_unsaturation: Vec<usize>,
     pub substituent_citation: Vec<usize>,
     pub stereochemistry: Vec<usize>,
+    pub isotopes: Vec<Vec<usize>>,
 }
 
-/// The registry lists the criteria by name; the two free-valence and ion
-/// criteria are inserted by `numbering_criteria` and cannot be listed.
+/// The registry lists the ordinary criteria by name. Contextual criteria
+/// are inserted by `numbering_criteria`.
 #[derive(Clone, Copy, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NumberingCriterion {
@@ -169,6 +192,8 @@ pub enum NumberingCriterion {
     Hydro,
     Unsaturation,
     DoubleBonds,
+    #[serde(skip)]
+    MultiplicativeAttachment,
     SubstituentAndUnsaturation,
     SubstituentCitation,
     Stereochemistry,
@@ -189,6 +214,12 @@ fn numbering_criteria(criteria: &[NumberingCriterion]) -> Vec<NumberingCriterion
     {
         criteria.insert(principal, NumberingCriterion::SkeletalIons);
         criteria.insert(principal, NumberingCriterion::FreeValence);
+    }
+    if let Some(prefixes) = criteria
+        .iter()
+        .position(|criterion| matches!(criterion, NumberingCriterion::SubstituentAndUnsaturation))
+    {
+        criteria.insert(prefixes, NumberingCriterion::MultiplicativeAttachment);
     }
     criteria
 }
@@ -227,6 +258,9 @@ impl NumberingPreference {
             NumberingCriterion::Hydro => Criterion::Flat(&self.hydro),
             NumberingCriterion::Unsaturation => Criterion::Flat(&self.unsaturation),
             NumberingCriterion::DoubleBonds => Criterion::Flat(&self.double_bonds),
+            NumberingCriterion::MultiplicativeAttachment => {
+                Criterion::Flat(&self.multiplicative_attachment)
+            }
             NumberingCriterion::SubstituentAndUnsaturation => {
                 Criterion::Flat(&self.substituent_and_unsaturation)
             }
@@ -304,6 +338,7 @@ fn number_parent(
         substituent_mapping,
         retained_name,
         topology,
+        modifiers.multiplicative_attachment,
     );
     for candidate in &candidates[1..] {
         let evaluation = numbering_preference(
@@ -314,6 +349,7 @@ fn number_parent(
             substituent_mapping,
             retained_name,
             topology,
+            modifiers.multiplicative_attachment,
         );
         let spiro_preference = modifiers
             .spiro_junction
@@ -335,6 +371,8 @@ fn number_parent(
                     .path_preference(candidate)
                     .cmp(&modifiers.path_preference(&best))
             })
+            // P-82.5.1: the presence of nuclides is considered last.
+            .then_with(|| evaluation.isotopes.cmp(&best_score.isotopes))
             == Ordering::Less
         {
             best = candidate.clone();
@@ -372,7 +410,7 @@ pub fn choose_parent_numbering(
             Vec<LocantKey>,
             Vec<LocantKey>,
             Vec<LocantKey>,
-            (Vec<LocantKey>, Vec<usize>),
+            (Vec<LocantKey>, Vec<usize>, Option<LocantKey>),
             Vec<LocantKey>,
             Vec<(String, LocantKey)>,
             Vec<(LocantKey, usize)>,
@@ -512,7 +550,15 @@ pub fn choose_parent_numbering(
                 free_valence,
                 skeletal_ions,
                 principal,
-                (hydro, unsaturation),
+                (
+                    hydro,
+                    unsaturation,
+                    modifiers
+                        .multiplicative_attachment
+                        .as_ref()
+                        .filter(|a| map.contains_key(a))
+                        .map(value),
+                ),
                 subst,
                 citation,
                 stereo,
@@ -550,6 +596,7 @@ pub fn choose_parent_numbering(
 // Provenance: fn numbering_preference | adapted
 // Source: openclatura | src/openclatura/numbering.py::NumberingPreference
 // Source: openclatura | src/openclatura/numbering.py::_numbering_preference
+#[allow(clippy::too_many_arguments)]
 fn numbering_preference(
     mol: &Molecule,
     path: &[usize],
@@ -558,6 +605,7 @@ fn numbering_preference(
     substituents: &BTreeMap<usize, Vec<String>>,
     retained_name: Option<&str>,
     topology: NumberingTopology,
+    multiplicative_attachment: Option<usize>,
 ) -> NumberingPreference {
     let free_valence = get_atom_locants(path, &root.into_iter().collect());
     // Group perception runs only for a path that carries a positive charge.
@@ -617,8 +665,11 @@ fn numbering_preference(
     if topology.is_von_baeyer {
         unsaturation = von_baeyer_bond_locants(mol, path);
     }
-    let substituent_citation = substituent_citation_locants(path, substituents);
-    let stereochemistry = stereochemistry_preference(mol, path, true);
+    let substituent_citation = substituent_citation_locants(path, substituents, false);
+    let mut stereochemistry = stereochemistry_preference(mol, path, true);
+    // P-45.6.3: after the descriptors of the parent, R precedes S in
+    // otherwise equal prefixes, so the R prefix takes the lower locant.
+    stereochemistry.extend(substituent_citation_locants(path, substituents, true));
     NumberingPreference {
         free_valence,
         skeletal_ions,
@@ -628,9 +679,14 @@ fn numbering_preference(
         hydro,
         unsaturation,
         double_bonds,
+        multiplicative_attachment: get_atom_locants(
+            path,
+            &multiplicative_attachment.into_iter().collect(),
+        ),
         substituent_and_unsaturation,
         substituent_citation,
         stereochemistry,
+        isotopes: isotope_locants(mol, path),
     }
 }
 
@@ -687,6 +743,7 @@ pub(super) fn chain_orientations_before_stereo(
             substituents,
             None,
             NumberingTopology::default(),
+            None,
         );
         preference.stereochemistry.clear();
         preference
@@ -698,29 +755,48 @@ pub(super) fn chain_orientations_before_stereo(
     }
 }
 
-/// The numbering criteria of the senior chain orientation, without stereo.
-// Provenance: fn chain_preference_before_stereo | adapted
+/// Numbering criteria for an ordinary ring or chain. Stereo may distinguish
+/// equivalent ring orientations only after the structural locants tie.
+// Provenance: fn parent_preference_before_stereo | adapted
 // Source: openclatura | src/openclatura/numbering.py::number_parent
 // Source: openclatura | src/openclatura/numbering.py::_numbering_preference
-pub(super) fn chain_preference_before_stereo(
+pub(super) fn parent_preference_before_stereo(
     mol: &Molecule,
     path: &[usize],
     principal: &[usize],
     substituents: &BTreeMap<usize, Vec<String>>,
+    is_ring: bool,
 ) -> NumberingPreference {
+    let oriented = if is_ring {
+        number_parent(
+            mol,
+            &NumberingModifiers::default(),
+            &[path.to_vec()],
+            principal,
+            None,
+            substituents,
+            true,
+            false,
+            None,
+            NumberingTopology::default(),
+        )
+    } else {
+        chain_orientations_before_stereo(mol, path, principal, substituents).remove(0)
+    };
     numbering_preference(
         mol,
-        &chain_orientations_before_stereo(mol, path, principal, substituents)[0],
+        &oriented,
         principal,
         None,
         substituents,
         None,
         NumberingTopology::default(),
+        None,
     )
 }
 
-/// P-14.4(j): after structural numbering ties, prefer R to S and M to P
-/// at the first differing locant. An internal axis is cited once, at its lower
+/// P-14.4(j): after structural numbering ties, prefer Z to E, R to S
+/// and M to P at the first differing locant. An internal axis is cited once, at its lower
 /// locant; an axis leaving this parent is cited at the parent endpoint.
 // Provenance: fn stereochemistry_preference | adapted
 // Source: openclatura | src/openclatura/numbering.py::_stereochemistry_sequence
@@ -735,9 +811,24 @@ fn stereochemistry_preference(
         .map(|(position, &atom)| (atom, position))
         .collect();
     let mut descriptors = Vec::new();
+    let mut previous_double = false;
     for (position, &idx) in path.iter().enumerate() {
         if include_atom_descriptors && let Some(stereo) = mol.atoms[&idx].stereo.as_ref() {
-            descriptors.push(usize::from(stereo != "R"));
+            descriptors.push(usize::from(!matches!(stereo.as_str(), "R" | "r")));
+        }
+        if let Some(bond) = path
+            .get(position + 1)
+            .and_then(|&next| mol.get_bond(idx, next))
+            .filter(|bond| bond.order == 2)
+        {
+            // Perceived E/Z is copied onto the whole cumulated system. Its
+            // only numbering descriptor is at the first double bond.
+            if !previous_double && let Some(stereo @ ("E" | "Z")) = bond.stereo.as_deref() {
+                descriptors.push(usize::from(stereo == "E"));
+            }
+            previous_double = true;
+        } else {
+            previous_double = false;
         }
         for &neighbor in mol.get_neighbors(idx) {
             if positions
@@ -873,17 +964,68 @@ pub fn substituent_citation_name(name: &str) -> String {
 fn substituent_citation_locants(
     path: &[usize],
     mapping: &BTreeMap<usize, Vec<String>>,
+    with_descriptors: bool,
 ) -> Vec<usize> {
     let mut list = Vec::new();
     for (i, idx) in path.iter().enumerate() {
-        if let Some(items) = mapping.get(idx) {
-            for name in items {
-                list.push((substituent_sort_key(name), i + 1));
-            }
+        for name in mapping.get(idx).into_iter().flatten() {
+            let descriptors = if with_descriptors {
+                rs_descriptors(name)
+            } else {
+                Vec::new()
+            };
+            let (name, initial) = substituent_sort_key(name);
+            list.push(((name, initial, descriptors), i + 1));
         }
     }
     list.sort_by(|a, b| a.0.cmp(&b.0));
     list.into_iter().map(|(_, locant)| locant).collect()
+}
+
+/// P-82.5.2: the locants of the isotopically modified atoms and groups in one
+/// series, then those of each nuclide, from the higher atomic number and the
+/// higher mass number down. A parent atom counts once for each nuclide it
+/// carries, (3-14C,2,2-2H2)butane; a group once at its point of attachment.
+// Provenance: fn isotope_locants | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/numbering.rs::isotope_locants
+fn isotope_locants(mol: &Molecule, path: &[usize]) -> Vec<Vec<usize>> {
+    let sites = mol.isotope_sites();
+    if sites.is_empty() {
+        return Vec::new();
+    }
+    let parent: AtomSet = path.iter().copied().collect();
+    let mut all = Vec::new();
+    let mut by_nuclide = BTreeMap::<_, Vec<_>>::new();
+    for (i, &idx) in path.iter().enumerate() {
+        let groups = mol
+            .get_neighbors(idx)
+            .iter()
+            .filter(|root| !parent.contains(root))
+            .map(|&root| super::subgraph_tools::subgraph_component(mol, root, &parent));
+        for site in sites.iter().filter(|site| site.anchor == idx) {
+            all.push(i + 1);
+            by_nuclide
+                .entry(std::cmp::Reverse(site.priority()))
+                .or_default()
+                .push(i + 1);
+        }
+        for unit in groups {
+            let nuclides: std::collections::BTreeSet<_> = sites
+                .iter()
+                .filter(|site| unit.contains(&site.anchor))
+                .map(|site| std::cmp::Reverse(site.priority()))
+                .collect();
+            if !nuclides.is_empty() {
+                all.push(i + 1);
+            }
+            for nuclide in nuclides {
+                by_nuclide.entry(nuclide).or_default().push(i + 1);
+            }
+        }
+    }
+    std::iter::once(all)
+        .chain(by_nuclide.into_values())
+        .collect()
 }
 
 #[cfg(test)]
@@ -980,8 +1122,8 @@ mod tests {
         let mol = read_smiles("CCC", &Default::default()).unwrap();
         let modifiers = NumberingModifiers {
             nitrogen_substituents: BTreeMap::from([
-                (0, vec!["ethyl".into()]),
-                (2, vec!["methyl".into(), "methyl".into()]),
+                (0, vec![(0, "ethyl".into())]),
+                (2, vec![(0, "methyl".into()), (0, "methyl".into())]),
             ]),
             ..NumberingModifiers::default()
         };
@@ -1001,8 +1143,8 @@ mod tests {
 
         let modifiers = NumberingModifiers {
             nitrogen_substituents: BTreeMap::from([
-                (0, vec!["methyl".into()]),
-                (2, vec!["ethyl".into()]),
+                (0, vec![(0, "methyl".into())]),
+                (2, vec![(0, "ethyl".into())]),
             ]),
             ..NumberingModifiers::default()
         };
@@ -1020,8 +1162,8 @@ mod tests {
         let mol = read_smiles("CCCCC", &Default::default()).unwrap();
         let modifiers = NumberingModifiers {
             nitrogen_substituents: BTreeMap::from([
-                (0, vec!["methyl".into()]),
-                (4, vec!["ethyl".into(), "ethyl".into()]),
+                (0, vec![(0, "methyl".into())]),
+                (4, vec![(0, "ethyl".into()), (0, "ethyl".into())]),
             ]),
             ester_alcohols: BTreeMap::from([(0, "methyl".into()), (4, "ethyl".into())]),
             ..NumberingModifiers::default()
