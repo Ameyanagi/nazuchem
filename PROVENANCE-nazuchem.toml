@@ -5315,6 +5315,7 @@ sources = [
   { project = "openclatura", path = "tests/unit/test_analysis.py", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", license = "MIT" },
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/heteroatom_subgraphs.rs", ref = "issue #8", license = "MIT OR Apache-2.0" },
   { project = "Nazuchem", path = "crates/nazuchem-s2n/src/heteroatom_subgraphs.rs", ref = "issue #160", license = "MIT OR Apache-2.0" },
+  { project = "Nazuchem", path = "crates/nazuchem-s2n/src/heteroatom_subgraphs.rs", ref = "issue #113", license = "MIT OR Apache-2.0" },
 ]
 notes = "Openclatura heteroatom recursive renderer consolidated across role modules with local charge/acyl extensions."
 parts = [
@@ -5336,6 +5337,7 @@ parts = [
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/heteroatom_subgraphs.rs", ref = "issue #8", license = "MIT OR Apache-2.0", symbol = "aminium_prefix" }], items = ["fn aminium_prefix"] },
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/heteroatom_subgraphs.rs", ref = "issue #8", license = "MIT OR Apache-2.0", symbol = "hydrazinyl_prefix" }], items = ["fn hydrazinyl_prefix"] },
   { origin = "original", sources = [{ project = "ReShiki", path = "src/naming/openclatura/heteroatom_subgraphs.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "acid_sulfonyl" }], items = ["fn acid_sulfonyl"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/heteroatom_subgraphs.rs", ref = "issue #113", license = "MIT OR Apache-2.0", symbol = "acylhydrazinesulfonyl" }], items = ["fn acylhydrazinesulfonyl"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/heteroatom_subgraphs.py", license = "MIT", symbol = "sulfonyl_group_name" }], items = ["fn sulfonyl_group"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/heteroatom_subgraphs.py", license = "MIT", symbol = "name_carbonyl_like_fragment" }], items = ["fn carbonyl_like_fragment"] },
   { origin = "adapted", sources = [{ project = "openclatura", ref = "90dc5bcb4910c196122ec0405d06a32929a8f308", path = "src/openclatura/namer.py", license = "MIT", symbol = "_acylamino_amido_prefix::_amide_acyl" }, { project = "ReShiki", path = "src/naming/openclatura/heteroatom_subgraphs.rs", ref = "5f559fd482e237307a589dfcb7ea333cee0a6e13", license = "MIT OR Apache-2.0", symbol = "is_sulfonamido_oxygen_ligand" }], items = ["fn is_sulfonamido_oxygen_ligand"], notes = "Ancestry uncertain: conservatively adapted from the shared sulfonamide predicate already present in the Rust port; history does not prove mechanical extraction of this specialized helper. Local restrictions require neutral O-N(H), nitrogen degree two, sulfur degree four, neutral hydrogen-free terminal oxos, and single O-N, N-S and S-carbon ligand bonds." },
@@ -6723,6 +6725,7 @@ parts = [
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #17", license = "MIT OR Apache-2.0", symbol = "cyanohydrazide_name" }], items = ["fn cyanohydrazide_name"] },
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #158", license = "MIT OR Apache-2.0", symbol = "cyanidic_acid_name" }], items = ["fn cyanidic_acid_name"] },
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #176", license = "MIT OR Apache-2.0", symbol = "format_locanted_ligands" }], items = ["fn format_locanted_ligands"] },
+  { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #113", license = "MIT OR Apache-2.0", symbol = "carboacyl_from_acid" }], items = ["fn carboacyl_from_acid"] },
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #113", license = "MIT OR Apache-2.0", symbol = "hydrazide_stem_from_acyl" }], items = ["fn hydrazide_stem_from_acyl"] },
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #176", license = "MIT OR Apache-2.0", symbol = "hydrazine_ion_name" }], items = ["fn hydrazine_ion_name"] },
   { origin = "original", sources = [{ project = "Nazuchem", path = "crates/nazuchem-s2n/src/special_cases.rs", ref = "issue #180", license = "MIT OR Apache-2.0", symbol = "acylazanide_name" }], items = ["fn acylazanide_name"] },

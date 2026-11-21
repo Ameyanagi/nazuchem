@@ -11,6 +11,7 @@
 // Source: openclatura | tests/unit/test_analysis.py | 90dc5bcb4910c196122ec0405d06a32929a8f308
 // Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs | issue #8
 // Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs | issue #160
+// Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs | issue #113
 // Copyright (c) 2026 lamalab-org
 // Copyright (c) 2026 Ameyanagi and ReShiki contributors
 // Changes: Openclatura heteroatom recursive renderer consolidated across role modules with local charge/acyl extensions.
@@ -419,6 +420,61 @@ fn acid_sulfonyl(
         None
     };
     Ok(acyl.map(|acyl| format!("({}{acyl})", stereo(mol, sulfur))))
+}
+
+// P-66.3.2.1 (1) and P-65.3.2.2.2: for a sulfur attachment, use the
+// acyl prefix of the hydrazinesulfonic acid with the acyl group on N-2.
+// P-66.3.2.3's hydrazido prefix describes attachment through nitrogen.
+// Provenance: fn acylhydrazinesulfonyl | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/heteroatom_subgraphs.rs::acylhydrazinesulfonyl
+fn acylhydrazinesulfonyl(
+    mol: &Molecule,
+    sulfur: usize,
+    near: usize,
+    blocked: &AtomSet,
+) -> Result<Option<String>, String> {
+    let neutral_nh = |n: usize| {
+        let atom = &mol.atoms[&n];
+        atom.symbol == "N"
+            && atom.charge == 0
+            && !atom.is_aromatic
+            && atom.total_h_count == 1
+            && !atom.has_stereo()
+            && mol
+                .get_neighbors(n)
+                .iter()
+                .filter(|x| mol.atoms[x].symbol != "H")
+                .count()
+                == 2
+    };
+    if !neutral_nh(near) || mol.bond_order(sulfur, near) != 1 || mol.is_isotope_parent() {
+        return Ok(None);
+    }
+    let partners = subgraph_neighbors(mol, near, blocked, Some(sulfur));
+    let [far] = partners[..] else {
+        return Ok(None);
+    };
+    if !neutral_nh(far) || mol.bond_order(near, far) != 1 {
+        return Ok(None);
+    }
+    let outside = with_atoms(blocked, [near, far]);
+    let ligands = subgraph_neighbors(mol, far, &outside, Some(near));
+    let [carbon] = ligands[..] else {
+        return Ok(None);
+    };
+    if !mol.atoms[&carbon].is_carbon()
+        || mol.bond_order(far, carbon) != 1
+        || double_bonded_neighbors(mol, carbon, "O").len() != 1
+        || mol.get_neighbors(carbon).iter().any(|&n| {
+            n != far
+                && !matches!(mol.atoms[&n].symbol.as_str(), "C" | "H")
+                && !(mol.atoms[&n].symbol == "O" && mol.bond_order(carbon, n) == 2)
+        })
+    {
+        return Ok(None);
+    }
+    let acyl = super::special_cases::carboacyl_from_acid(mol, carbon, &outside)?;
+    Ok(acyl.map(|name| format_element_substituent("2-", &name, "hydrazine-1-sulfonyl", false)))
 }
 
 // Provenance: fn sulfonyl_group | adapted
@@ -1708,6 +1764,22 @@ fn name_sulfur(
         return match roots.as_slice() {
             [] => Ok(format!("{sp}{suffix}")),
             [root] => {
+                if suffix == "sulfonyl"
+                    && order == 1
+                    && atom.charge == 0
+                    && atom.total_h_count == 0
+                    && !atom.has_stereo()
+                    && mol.degree(start) == 4
+                    && oxo.len() == 2
+                    && oxo.iter().all(|&o| {
+                        mol.degree(o) == 1
+                            && mol.atoms[&o].charge == 0
+                            && mol.bond_order(start, o) == 2
+                    })
+                    && let Some(prefix) = acylhydrazinesulfonyl(mol, start, *root, &blocked)?
+                {
+                    return Ok(prefix);
+                }
                 let b = plain_branch(mol, *root, &blocked, start)?;
                 let outside = with_atoms(exclude, upstream);
                 if let Some(acyl) = acid_sulfonyl(mol, start, *root, &b, &outside, &suffix)? {

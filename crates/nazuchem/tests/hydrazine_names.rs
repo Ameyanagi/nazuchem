@@ -331,3 +331,24 @@ fn hydrazine_suffixes_and_hydrazido_prefixes_read_back() {
         check(smiles, expected, NameStatus::Preferred);
     }
 }
+
+#[test]
+fn sulfur_attachment_cites_the_substituted_hydrazinesulfonyl_prefix() {
+    // P-66.3.2.1 (1) and P-65.3.2.2.2 select the acyl prefix at sulfur.
+    // P-16.5.2.4 and P-16.5.3.1 supply the nested enclosing marks.
+    let acetamide = "N-{5-[2-(2-bromobenzoyl)hydrazine-1-sulfonyl]-2-methoxyphenyl}acetamide";
+    for (smiles, expected) in [
+        ("CC(=O)Nc1cc(S(=O)(=O)NNC(=O)c2ccccc2Br)ccc1OC", acetamide),
+        ("Brc1ccccc1C(=O)NNS(=O)(=O)c1ccc(OC)c(NC(C)=O)c1", acetamide),
+        (
+            "OC(=O)CS(=O)(=O)NNC(C)=O",
+            "(2-acetylhydrazine-1-sulfonyl)acetic acid",
+        ),
+        (
+            "OC(=O)CS(=O)(=O)NNC(=O)C1CCCCC1",
+            "[2-(cyclohexanecarbonyl)hydrazine-1-sulfonyl]acetic acid",
+        ),
+    ] {
+        check(smiles, expected, NameStatus::Preferred);
+    }
+}

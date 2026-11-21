@@ -5939,6 +5939,30 @@ pub(super) fn format_locanted_ligands(cited: Vec<(String, &str)>, omit_locants: 
         .join("-")
 }
 
+// P-65.1.7: derive a carboacyl prefix from the acid name, as in
+// 2-bromobenzoyl from 2-bromobenzoic acid.
+// Provenance: fn carboacyl_from_acid | original
+// Source: Nazuchem | crates/nazuchem-s2n/src/special_cases.rs::carboacyl_from_acid
+pub(super) fn carboacyl_from_acid(
+    mol: &Molecule,
+    carbon: usize,
+    blocked: &AtomSet,
+) -> Result<Option<String>, String> {
+    let acid = name_anhydride_acid(mol, &[carbon], blocked, false, &[])?;
+    if !acid.cited || !acid.complete {
+        return Ok(None);
+    }
+    for (ending, suffix) in [("carboxylic", "carbonyl"), ("oic", "oyl"), ("ic", "yl")] {
+        if let Some(stem) = acid.text.strip_suffix(ending) {
+            if acid.status != NameStatus::Preferred {
+                mol.mark_name(acid.status);
+            }
+            return Ok(Some(format!("{stem}{suffix}")));
+        }
+    }
+    Ok(None)
+}
+
 // P-66.3.1: name the corresponding acid to select the retained stem or
 // distinguish -hydrazide on a chain from -carbohydrazide on a ring.
 // Provenance: fn hydrazide_stem_from_acyl | original
